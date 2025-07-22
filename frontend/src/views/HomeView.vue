@@ -106,11 +106,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
-import { userManager, tokenManager, authAPI } from '../stores/auth.js'
-import gsap from 'gsap'
-import ScrollTrigger from 'gsap/ScrollTrigger'
+import { ref, computed, onMounted, nextTick } from "vue"
+import { useRouter } from "vue-router"
+import { userManager, tokenManager, authAPI } from "../stores/auth.js"
+import gsap from "gsap"
+import ScrollTrigger from "gsap/ScrollTrigger"
 gsap.registerPlugin(ScrollTrigger)
 
 const router = useRouter()
@@ -122,52 +122,52 @@ const isLoggedIn = computed(() => userManager.isLoggedIn())
 // 팀 멤버 정보
 const members = [
   {
-    name: '권시온',
-    role: '백엔드 개발',
-    quote: '코드를 통해 세상을 연결합니다',
-    image: 'https://via.placeholder.com/300x400',
-    icon: 'fas fa-code',
-    description: 'Vue.js와 React를 활용한 사용자 친화적인 웹 인터페이스를 개발합니다. 사용자 경험을 최우선으로 생각하며, 깔끔하고 직관적인 UI/UX를 구현하는 것을 전문으로 합니다.'
+    name: "권시온",
+    role: "백엔드 개발",
+    quote: "코드를 통해 세상을 연결합니다",
+    image: "https://via.placeholder.com/300x400",
+    icon: "fas fa-code",
+    description: "Vue.js와 React를 활용한 사용자 친화적인 웹 인터페이스를 개발합니다. 사용자 경험을 최우선으로 생각하며, 깔끔하고 직관적인 UI/UX를 구현하는 것을 전문으로 합니다."
   },
   {
-    name: '이승민',
-    role: '프론트엔드 개발',
-    quote: '데이터 흐름을 설계합니다',
-    image: 'https://via.placeholder.com/300x400',
-    icon: 'fas fa-server',
-    description: 'Node.js와 Python을 기반으로 안정적이고 확장 가능한 서버 아키텍처를 구축합니다. 데이터베이스 설계와 API 개발을 담당하며, 시스템의 성능과 보안을 최적화합니다.'
+    name: "이승민",
+    role: "프론트엔드 개발",
+    quote: "데이터 흐름을 설계합니다",
+    image: "https://via.placeholder.com/300x400",
+    icon: "fas fa-server",
+    description: "Node.js와 Python을 기반으로 안정적이고 확장 가능한 서버 아키텍처를 구축합니다. 데이터베이스 설계와 API 개발을 담당하며, 시스템의 성능과 보안을 최적화합니다."
   },
   {
-    name: '박시은',
-    role: '백앤드개발',
-    quote: '감각을 담은 UI/UX',
-    image: 'https://via.placeholder.com/300x400',
-    icon: 'fas fa-palette',
-    description: '사용자 중심의 디자인 철학을 바탕으로 직관적이고 아름다운 인터페이스를 설계합니다. Figma와 Adobe Creative Suite를 활용하여 브랜드 아이덴티티와 일관된 디자인 시스템을 구축합니다.'
+    name: "박시은",
+    role: "백앤드개발",
+    quote: "감각을 담은 UI/UX",
+    image: "https://via.placeholder.com/300x400",
+    icon: "fas fa-palette",
+    description: "사용자 중심의 디자인 철학을 바탕으로 직관적이고 아름다운 인터페이스를 설계합니다. Figma와 Adobe Creative Suite를 활용하여 브랜드 아이덴티티와 일관된 디자인 시스템을 구축합니다."
   },
   {
-    name: '전준영',
-    role: '백엔드 개발',
-    quote: '학습하는 알고리즘에 생명을',
-    image: 'https://via.placeholder.com/300x400',
-    icon: 'fas fa-brain',
-    description: '머신러닝과 딥러닝 기술을 활용하여 개인화된 학습 경험을 제공하는 AI 시스템을 개발합니다. 자연어 처리와 추천 시스템을 전문으로 하며, 교육 분야에 특화된 AI 솔루션을 연구합니다.'
+    name: "전준영",
+    role: "백엔드 개발",
+    quote: "학습하는 알고리즘에 생명을",
+    image: "https://via.placeholder.com/300x400",
+    icon: "fas fa-brain",
+    description: "머신러닝과 딥러닝 기술을 활용하여 개인화된 학습 경험을 제공하는 AI 시스템을 개발합니다. 자연어 처리와 추천 시스템을 전문으로 하며, 교육 분야에 특화된 AI 솔루션을 연구합니다."
   },
   {
-    name: '권민환',
-    role: '프론트엔드 개발',
-    quote: '데이터로 인사이트를 발견합니다',
-    image: 'https://via.placeholder.com/300x400',
-    icon: 'fas fa-chart-bar',
-    description: '교육 데이터를 분석하여 학습 패턴과 효과를 측정합니다. 통계적 분석과 시각화를 통해 교육 과정의 개선점을 발견하고, 데이터 기반의 의사결정을 지원합니다.'
+    name: "권민환",
+    role: "프론트엔드 개발",
+    quote: "데이터로 인사이트를 발견합니다",
+    image: "https://via.placeholder.com/300x400",
+    icon: "fas fa-chart-bar",
+    description: "교육 데이터를 분석하여 학습 패턴과 효과를 측정합니다. 통계적 분석과 시각화를 통해 교육 과정의 개선점을 발견하고, 데이터 기반의 의사결정을 지원합니다."
   },
   {
-    name: '범수',
-    role: '백엔드 개발',
-    quote: '안정적인 서비스를 보장합니다',
-    image: 'https://via.placeholder.com/300x400',
-    icon: 'fas fa-cloud',
-    description: 'AWS와 Docker를 활용한 클라우드 인프라를 구축하고 관리합니다. CI/CD 파이프라인을 구축하여 개발과 배포 과정을 자동화하고, 시스템의 안정성과 확장성을 보장합니다.'
+    name: "범수",
+    role: "백엔드 개발",
+    quote: "안정적인 서비스를 보장합니다",
+    image: "https://via.placeholder.com/300x400",
+    icon: "fas fa-cloud",
+    description: "AWS와 Docker를 활용한 클라우드 인프라를 구축하고 관리합니다. CI/CD 파이프라인을 구축하여 개발과 배포 과정을 자동화하고, 시스템의 안정성과 확장성을 보장합니다."
   },
 ]
 
@@ -184,31 +184,31 @@ const selectMember = (member) => {
   }
 }
 
-const imageList = ['/src/assets/mainim.png', '/src/assets/mainim1.png', '/src/assets/mainim2.png']
+const imageList = ["/src/assets/mainim.png", "/src/assets/mainim1.png", "/src/assets/mainim2.png"]
 const mainImageIndex = ref(0)
 const mainImageSrc = computed(() => imageList[mainImageIndex.value])
-const descriptList=[]
+const descriptList = []
 const currentSlide = ref(0)
 
 // 슬라이드 데이터
 const slideData = [
   {
-    image: '/src/assets/mainim.png',
-    heading: 'EduMeet 플랫폼',
-    subheading: '교육을 연결하는 새로운 방법',
-    body: 'Body text for your whole article or post. We\'ll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur.'
+    image: "/src/assets/mainim.png",
+    heading: "EduMeet 플랫폼",
+    subheading: "교육을 연결하는 새로운 방법",
+    body: "Body text for your whole article or post. We'll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur."
   },
   {
-    image: '/src/assets/mainim1.png',
-    heading: 'AI 기반 학습',
-    subheading: '개인화된 교육 경험',
-    body: 'Body text for your whole article or post. We\'ll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur.'
+    image: "/src/assets/mainim1.png",
+    heading: "AI 기반 학습",
+    subheading: "개인화된 교육 경험",
+    body: "Body text for your whole article or post. We'll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur."
   },
   {
-    image: '/src/assets/mainim2.png',
-    heading: '실시간 협업',
-    subheading: '함께 만들어가는 교육',
-    body: 'Body text for your whole article or post. We\'ll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur.'
+    image: "/src/assets/mainim2.png",
+    heading: "실시간 협업",
+    subheading: "함께 만들어가는 교육",
+    body: "Body text for your whole article or post. We'll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur."
   }
 ]
 
@@ -227,7 +227,7 @@ const slideTransition = (slideIndex) => {
   currentSlide.value = slideIndex
 }
 
-function handleMainImageClick(e) {
+const handleMainImageClick = (e) => {
   const el = e.currentTarget
   const rect = el.getBoundingClientRect()
   const x = e.clientX - rect.left
@@ -243,12 +243,12 @@ const handleLogout = async () => {
   try {
     await authAPI.logout()
   } catch (error) {
-    console.error('로그아웃 오류:', error)
+    console.error("로그아웃 오류:", error)
   } finally {
     tokenManager.removeToken()
     userManager.removeUser()
     user.value = null
-    router.push('/')
+    router.push("/")
   }
 }
 
@@ -258,42 +258,42 @@ onMounted(async () => {
   }
   await nextTick()
   // 인트로 텍스트/버튼 애니메이션
-  gsap.from('.intro-text', {
+  gsap.from(".intro-text", {
     y: 60,
     opacity: 0,
     duration: 1.1,
-    ease: 'power3.out',
+    ease: "power3.out",
     delay: 0.1
   })
-  gsap.from('.intro-btn', {
+  gsap.from(".intro-btn", {
     y: 40,
     opacity: 0,
     duration: 0.8,
     delay: 0.7,
-    ease: 'power3.out'
+    ease: "power3.out"
   })
   // 설명 섹션 이미지/텍스트
-  gsap.from('.main-image', {
+  gsap.from(".main-image", {
     scrollTrigger: {
-      trigger: '.main-section',
-      start: 'top 80%',
-      toggleActions: 'play none none reverse',
+      trigger: ".main-section",
+      start: "top 80%",
+      toggleActions: "play none none reverse",
     },
     x: 100,
     opacity: 0,
     duration: 1,
-    ease: 'power2.out'
+    ease: "power2.out"
   })
-  gsap.from('.main-text', {
+  gsap.from(".main-text", {
     scrollTrigger: {
-      trigger: '.main-section',
-      start: 'top 80%',
-      toggleActions: 'play none none reverse',
+      trigger: ".main-section",
+      start: "top 80%",
+      toggleActions: "play none none reverse",
     },
     x: -100,
     opacity: 0,
     duration: 1,
-    ease: 'power2.out',
+    ease: "power2.out",
     delay: 0.1
   })
  

@@ -1,9 +1,9 @@
 <script setup>
-import { ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { ref } from "vue"
+import { RouterLink, useRouter } from "vue-router"
 
 const sidebarOpen = ref(false)
-const searchText = ref('')
+const searchText = ref("")
 const searchOpen = ref(false) // 검색창 열림 상태
 const router = useRouter()
 
@@ -14,9 +14,9 @@ const toggleSidebar = () => {
 const toggleSearch = () => {
   searchOpen.value = !searchOpen.value
   if (searchOpen.value) {
-    searchText.value = ''
+    searchText.value = ""
     setTimeout(() => {
-      const input = document.getElementById('global-search-input')
+      const input = document.getElementById("global-search-input")
       if (input) input.focus()
     }, 100)
   }
@@ -24,9 +24,9 @@ const toggleSearch = () => {
 
 const handleSearch = () => {
   if (searchText.value.trim()) {
-    router.push({ path: '/search', query: { query: searchText.value } })
+    router.push({ path: "/search", query: { query: searchText.value } })
     searchOpen.value = false
-    searchText.value = ''
+    searchText.value = ""
   }
 }
 </script>

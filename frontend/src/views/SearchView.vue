@@ -1,7 +1,7 @@
 <script setup>
-import { useRoute } from 'vue-router'
+import { useRoute } from "vue-router"
 const route = useRoute()
-const query = route.query.query || ''
+const query = route.query.query || ""
 </script>
 <template>
   <div class="search-view">

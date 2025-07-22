@@ -31,7 +31,7 @@
         </div>
 
         <button type="submit" :disabled="isLoading" class="login-btn">
-          {{ isLoading ? '로그인 중...' : '로그인' }}
+          {{ isLoading ? "로그인 중..." : "로그인" }}
         </button>
       </form>
 
@@ -47,27 +47,27 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
-import { authAPI, userManager, tokenManager } from '../stores/auth.js'
+import { ref, reactive } from "vue"
+import { useRouter } from "vue-router"
+import { authAPI, userManager, tokenManager } from "../stores/auth.js"
 
 const router = useRouter()
 
 // 폼 데이터
 const formData = reactive({
-  email: '',
-  password: ''
+  email: "",
+  password: ""
 })
 
 // 상태 관리
 const isLoading = ref(false)
-const message = ref('')
-const messageType = ref('')
+const message = ref("")
+const messageType = ref("")
 
 // 에러 메시지
 const errors = reactive({
-  email: '',
-  password: ''
+  email: "",
+  password: ""
 })
 
 // 유효성 검사
@@ -75,23 +75,23 @@ const validateForm = () => {
   let isValid = true
   
   // 에러 메시지 초기화
-  Object.keys(errors).forEach(key => {
-    errors[key] = ''
+  Object.keys(errors).forEach((key) => {
+    errors[key] = ""
   })
 
   // 이메일 검사
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!formData.email) {
-    errors.email = '이메일을 입력해주세요.'
+    errors.email = "이메일을 입력해주세요."
     isValid = false
   } else if (!emailRegex.test(formData.email)) {
-    errors.email = '올바른 이메일 형식을 입력해주세요.'
+    errors.email = "올바른 이메일 형식을 입력해주세요."
     isValid = false
   }
 
   // 비밀번호 검사
   if (!formData.password) {
-    errors.password = '비밀번호를 입력해주세요.'
+    errors.password = "비밀번호를 입력해주세요."
     isValid = false
   }
 
@@ -105,8 +105,8 @@ const handleLogin = async () => {
   }
 
   isLoading.value = true
-  message.value = ''
-  messageType.value = ''
+  message.value = ""
+  messageType.value = ""
 
   try {
     // Spring 백엔드 API 호출
@@ -121,25 +121,25 @@ const handleLogin = async () => {
       userManager.setUser(response.data.user)
     }
 
-    message.value = '로그인되었습니다!'
-    messageType.value = 'success'
+    message.value = "로그인되었습니다!"
+    messageType.value = "success"
     
     // 1초 후 홈페이지로 이동
     setTimeout(() => {
-      router.push('/')
+      router.push("/")
     }, 1000)
 
   } catch (error) {
-    console.error('로그인 오류:', error)
+    console.error("로그인 오류:", error)
     
     if (error.response) {
       // 서버에서 오는 에러 메시지
-      const errorMessage = error.response.data?.message || '로그인 중 오류가 발생했습니다.'
+      const errorMessage = error.response.data?.message || "로그인 중 오류가 발생했습니다."
       message.value = errorMessage
     } else {
-      message.value = '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
+      message.value = "네트워크 오류가 발생했습니다. 다시 시도해주세요."
     }
-    messageType.value = 'error'
+    messageType.value = "error"
   } finally {
     isLoading.value = false
   }
