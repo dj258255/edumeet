@@ -44,7 +44,17 @@ apiClient.interceptors.response.use(
 )
 
 // 인증 관련 API 함수들
-const authAPI = {
+export const authAPI = {
+
+  verifycode:(verify)=>{
+    return apiClient.post("/members/verify-code",verify)
+  },
+
+  //코드 전송
+  sendcode:(email)=>{
+    return apiClient.post("/members/send-code",email)
+  },
+
   // 회원가입
   signup: (userData) => {
     return apiClient.post("/members/signup", userData)
