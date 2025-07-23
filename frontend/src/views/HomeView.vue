@@ -15,13 +15,13 @@
         <div class="left-panel">
           <div class="nav-buttons">
             <button type="button" @click="slideTransition(0)" :class="{ active: currentSlide === 0 }" class="nav-btn">
-              mainim1
+              online class
             </button>
             <button type="button" @click="slideTransition(1)" :class="{ active: currentSlide === 1 }" class="nav-btn">
-              mainim2
+              AI 수업 요약 서비스
             </button>
             <button type="button" @click="slideTransition(2)" :class="{ active: currentSlide === 2 }" class="nav-btn">
-              mainim3
+              실시간 자막 서비스
             </button>
           </div>
         </div>
@@ -44,6 +44,67 @@
               </div>
             </transition>
           </div>
+        </div>
+      </div>
+    </section>
+    <!-- 드래그 가능한 카드 Section -->
+    <section class="draggable-cards-section">
+      <div class="section-header">
+        <h2 class="section-title">추천 콘텐츠</h2>
+        <p class="section-subtitle">마우스로 드래그하여 더 많은 콘텐츠를 확인하세요</p>
+      </div>
+      <div class="cards-container-wrapper">
+        <button class="nav-button prev-button" @click="goToPrev" :disabled="translateX >= 0">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15,18 9,12 15,6"></polyline>
+          </svg>
+        </button>
+        <div class="cards-container" 
+             ref="cardsContainer"
+             @mousedown="startDrag"
+             @mousemove="onDrag"
+             @mouseup="stopDrag"
+             @mouseleave="stopDrag">
+          <div class="cards-wrapper" 
+               :style="{ transform: `translateX(${translateX}px)` }"
+               ref="cardsWrapper">
+            <div class="draggable-card" 
+                 v-for="(card, index) in draggableCards" 
+                 :key="card.id"
+                 :style="{ animationDelay: `${index * 0.1}s` }">
+              <div class="card-image">
+                <img :src="card.image" :alt="card.title" />
+                <div class="card-overlay">
+                  <div class="card-hover-content">
+                    <span class="view-more">자세히 보기</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-content">
+                <h3 class="card-title">{{ card.title }}</h3>
+                <p class="card-description">{{ card.description }}</p>
+                <div class="card-tags">
+                  <span class="tag" v-for="tag in card.tags" :key="tag">{{ tag }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="nav-button next-button" @click="goToNext" :disabled="translateX <= minTranslate">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9,18 15,12 9,6"></polyline>
+          </svg>
+        </button>
+      </div>
+      <div class="cards-indicator">
+        <div class="indicator-dots">
+          <div 
+            v-for="(_, index) in Math.ceil(draggableCards.length / visibleCards)" 
+            :key="index"
+            class="indicator-dot"
+            :class="{ active: Math.abs(Math.round(translateX / cardWidth)) === index }"
+            @click="() => animateToPosition(-index * cardWidth)"
+          ></div>
         </div>
       </div>
     </section>
@@ -111,6 +172,7 @@ import { useRouter } from "vue-router"
 import { userManager, tokenManager, authAPI } from "../stores/auth.js"
 import gsap from "gsap"
 import ScrollTrigger from "gsap/ScrollTrigger"
+import "../styles/HomeView.css"
 gsap.registerPlugin(ScrollTrigger)
 
 const router = useRouter()
@@ -174,6 +236,148 @@ const members = [
 // 선택된 팀원 상태
 const selectedMember = ref(null)
 
+// 드래그 가능한 카드 데이터
+const draggableCards = ref([
+  {
+    id: 1,
+    title: "Vue.js 마스터 클래스",
+    description: "Vue.js의 핵심 개념부터 고급 기능까지 체계적으로 학습하세요. 실무에서 바로 활용할 수 있는 실습 중심의 강의입니다.",
+    image: "https://via.placeholder.com/300x200/227a53/ffffff?text=Vue.js",
+    tags: ["프론트엔드", "Vue.js", "JavaScript"]
+  },
+  {
+    id: 2,
+    title: "React 완전 정복",
+    description: "React의 기본부터 고급 패턴까지. Hooks, Context API, 상태 관리 등 현대적인 React 개발을 배워보세요.",
+    image: "https://via.placeholder.com/300x200/667eea/ffffff?text=React",
+    tags: ["프론트엔드", "React", "JavaScript"]
+  },
+  {
+    id: 3,
+    title: "Node.js 백엔드 개발",
+    description: "Express.js와 MongoDB를 활용한 실전 백엔드 개발. RESTful API 설계부터 배포까지 완벽 가이드.",
+    image: "https://via.placeholder.com/300x200/27ae60/ffffff?text=Node.js",
+    tags: ["백엔드", "Node.js", "Express"]
+  },
+  {
+    id: 4,
+    title: "Python 데이터 분석",
+    description: "Pandas, NumPy, Matplotlib을 활용한 데이터 분석과 시각화. 실무 데이터로 배우는 데이터 사이언스.",
+    image: "https://via.placeholder.com/300x200/3498db/ffffff?text=Python",
+    tags: ["데이터분석", "Python", "Pandas"]
+  },
+  {
+    id: 5,
+    title: "AWS 클라우드 아키텍처",
+    description: "AWS 서비스를 활용한 확장 가능한 클라우드 인프라 구축. 실무 중심의 클라우드 아키텍처 설계.",
+    image: "https://via.placeholder.com/300x200/ff6b35/ffffff?text=AWS",
+    tags: ["클라우드", "AWS", "인프라"]
+  },
+  {
+    id: 6,
+    title: "Docker 컨테이너 기술",
+    description: "Docker와 Kubernetes를 활용한 컨테이너 기반 애플리케이션 배포. DevOps 실무 스킬을 익혀보세요.",
+    image: "https://via.placeholder.com/300x200/0db7ed/ffffff?text=Docker",
+    tags: ["DevOps", "Docker", "Kubernetes"]
+  },
+  {
+    id: 7,
+    title: "UI/UX 디자인 기초",
+    description: "사용자 중심의 디자인 원칙과 Figma를 활용한 프로토타이핑. 실제 프로젝트로 배우는 디자인 워크플로우.",
+    image: "https://via.placeholder.com/300x200/e74c3c/ffffff?text=Design",
+    tags: ["디자인", "UI/UX", "Figma"]
+  },
+  {
+    id: 8,
+    title: "머신러닝 입문",
+    description: "Scikit-learn과 TensorFlow를 활용한 머신러닝 기초. 실제 데이터로 배우는 AI 모델 개발.",
+    image: "https://via.placeholder.com/300x200/9b59b6/ffffff?text=ML",
+    tags: ["AI", "머신러닝", "TensorFlow"]
+  }
+])
+
+// 드래그 관련 상태
+const isDragging = ref(false)
+const startX = ref(0)
+const translateX = ref(0)
+const cardsContainer = ref(null)
+const cardsWrapper = ref(null)
+
+// 카드 스냅 관련 상태
+const cardWidth = 324 // 카드 너비(300px) + 간격(24px)
+const visibleCards = 4
+const maxTranslate = 0
+const minTranslate = -(draggableCards.value.length - visibleCards) * cardWidth
+
+// 드래그 시작
+const startDrag = (e) => {
+  isDragging.value = true
+  startX.value = e.clientX - translateX.value
+  e.preventDefault()
+}
+
+// 드래그 중
+const onDrag = (e) => {
+  if (!isDragging.value) return
+  
+  const currentX = e.clientX - startX.value
+  translateX.value = Math.max(minTranslate, Math.min(maxTranslate, currentX))
+}
+
+// 드래그 종료 - 스냅 기능 추가
+const stopDrag = () => {
+  if (!isDragging.value) return
+  
+  isDragging.value = false
+  
+  // 현재 위치에서 가장 가까운 카드 위치로 스냅
+  const currentPosition = Math.abs(translateX.value)
+  const snapIndex = Math.round(currentPosition / cardWidth)
+  const snapPosition = snapIndex * cardWidth
+  
+  // 부드러운 애니메이션으로 스냅
+  animateToPosition(-snapPosition)
+}
+
+// 부드러운 애니메이션으로 위치 이동
+const animateToPosition = (targetPosition) => {
+  const startPosition = translateX.value
+  const distance = targetPosition - startPosition
+  const duration = 300 // 300ms
+  const startTime = performance.now()
+  
+  const animate = (currentTime) => {
+    const elapsed = currentTime - startTime
+    const progress = Math.min(elapsed / duration, 1)
+    
+    // easeOutCubic 애니메이션 함수
+    const easeProgress = 1 - Math.pow(1 - progress, 3)
+    
+    translateX.value = startPosition + (distance * easeProgress)
+    
+    if (progress < 1) {
+      requestAnimationFrame(animate)
+    }
+  }
+  
+  requestAnimationFrame(animate)
+}
+
+// 다음/이전 카드로 이동하는 함수들
+const goToNext = () => {
+  const currentIndex = Math.abs(Math.round(translateX.value / cardWidth))
+  const nextIndex = Math.min(currentIndex + 1, draggableCards.value.length - visibleCards)
+  const nextPosition = -nextIndex * cardWidth
+  animateToPosition(nextPosition)
+}
+
+const goToPrev = () => {
+  const currentIndex = Math.abs(Math.round(translateX.value / cardWidth))
+  const prevIndex = Math.max(currentIndex - 1, 0)
+  const prevPosition = -prevIndex * cardWidth
+  animateToPosition(prevPosition)
+}
+
 // 팀원 선택 함수
 const selectMember = (member) => {
   // 같은 멤버를 다시 클릭하면 선택 해제
@@ -194,21 +398,20 @@ const currentSlide = ref(0)
 const slideData = [
   {
     image: "/src/assets/mainim.png",
-    heading: "EduMeet 플랫폼",
+    heading: "online class",
     subheading: "교육을 연결하는 새로운 방법",
-    body: "Body text for your whole article or post. We'll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur."
-  },
+    body: "언제 어디서든 편리하게 참여하는 온라인 강의를 통해 학습의 가능성을 넓혀보세요. 다양한 분야의 전문가와 함께 실시간으로 소통하며 깊이 있는 지식을 습득하고, 동료 학습자들과 협력하여 학습 효과를 극대화할 수 있습니다. EduMeet의 온라인 클래스는 시간과 공간의 제약 없이 원하는 교육을 받을 수 있도록 지원합니다."},
   {
     image: "/src/assets/mainim1.png",
-    heading: "AI 기반 학습",
-    subheading: "개인화된 교육 경험",
-    body: "Body text for your whole article or post. We'll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur."
-  },
+    heading: "AI 수업 요약 서비스",
+    subheading: "자동화된 수업 요약 서비스",
+    body: "자동화된 수업 요약 서비스\n\n수업 내용을 놓치셨나요? EduMeet의 AI 수업 요약 서비스는 실시간 강의 내용을 텍스트로 변환하고 핵심 내용을 자동으로 요약하여 제공합니다. 복습 시간을 절약하고 학습 효율성을 높여보세요. 중요한 정보를 빠르고 정확하게 파악하여 학습 효과를 극대화할 수 있습니다."
+   },
   {
     image: "/src/assets/mainim2.png",
-    heading: "실시간 협업",
-    subheading: "함께 만들어가는 교육",
-    body: "Body text for your whole article or post. We'll put in some lorem ipsum to show how a filled-out page might look:\n\nExceptetur efficient emerging, minim veniam anim aute carefully curated Ginza conversation exquisite perfect nostrud nisi intricate Content. Qui international first-class nulla ut. Punctual adipiscing, essential lovely queen tempor eiusmod irure. Exclusive izakaya charming Scandinavian impeccable aute quality off irid soft power parlour Melbourne occaecat discerning. Qui wardrobe aliquip, et Porter destination Toto remarkable officia Helsinki exceptetur Basset hound. Zürich sleepy perfect consectetur."
+    heading: "실시간 자막 서비스",
+    subheading: "차별 없는 교육 환경 제공",
+    body: "차별 없는 교육 환경 제공\n\n언어 장벽 없이 모두가 평등하게 교육에 참여할 수 있도록 EduMeet는 실시간 자막 서비스를 제공합니다. 다양한 언어를 지원하여 국제적인 학습 환경을 구축하고, 청각에 어려움을 겪는 학습자들에게도 편리한 학습 환경을 제공합니다. EduMeet는 모든 학습자의 교육 접근성을 향상시키기 위해 노력합니다."
   }
 ]
 
@@ -257,21 +460,6 @@ onMounted(async () => {
     user.value = userManager.getUser()
   }
   await nextTick()
-  // 인트로 텍스트/버튼 애니메이션
-  gsap.from(".intro-text", {
-    y: 60,
-    opacity: 0,
-    duration: 1.1,
-    ease: "power3.out",
-    delay: 0.1
-  })
-  gsap.from(".intro-btn", {
-    y: 40,
-    opacity: 0,
-    duration: 0.8,
-    delay: 0.7,
-    ease: "power3.out"
-  })
   // 설명 섹션 이미지/텍스트
   gsap.from(".main-image", {
     scrollTrigger: {
@@ -300,673 +488,4 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.home-view {
-  min-height: 100vh;
-  background-color: #fafafd;
-}
-.logo {
-  height: 40px;
-  width: auto;
-}
 
-.brand-text {
-  font-size: 24px;
-  font-weight: 700;
-  color: #249d6d;
-}
-
-.welcome-text {
-  color: #666;
-  font-size: 14px;
-}
-
-/* 메인 콘텐츠 */
-.main-content {
-  padding-top: 20px;
-}
-
-/* 팀 섹션 */
-.team-section {
-  padding: 60px 0;
-  background-color: #fafafd;
-}
-
-.team-layout {
-  display: flex;
-  max-width: 1400px;
-  margin: 0 auto;
-  gap: 40px;
-  min-height: 600px;
-}
-
-/* 왼쪽 팀원 상세 정보 패널 */
-.team-detail-panel {
-  flex: 2;
-  background: white;
-  border-radius: 20px;
-  padding: 40px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-}
-
-.team-member-detail {
-  display: flex;
-  gap: 30px;
-  width: 100%;
-}
-
-.member-photo {
-  width: 300px;
-  height: 400px;
-  object-fit: cover;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-}
-
-.member-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.member-name {
-  font-size: 32px;
-  font-weight: 700;
-  color: #227a53;
-  margin: 0;
-}
-
-.member-role {
-  font-size: 18px;
-  color: #666;
-  margin: 0;
-  font-weight: 500;
-}
-
-.member-quote {
-  font-size: 20px;
-  color: #227a53;
-  font-style: italic;
-  margin: 0;
-  padding: 20px;
-  background: #f0f9f4;
-  border-radius: 12px;
-  border-left: 4px solid #227a53;
-}
-
-.member-description {
-  font-size: 16px;
-  line-height: 1.7;
-  color: #444;
-  margin: 0;
-}
-
-/* 팀 개요 (기본 화면) */
-.team-overview {
-  text-align: center;
-  width: 100%;
-}
-
-.team-title {
-  font-size: 36px;
-  font-weight: 700;
-  color: #227a53;
-  margin-bottom: 16px;
-}
-
-.team-subtitle {
-  font-size: 18px;
-  color: #666;
-  margin-bottom: 24px;
-}
-
-.team-description {
-  font-size: 16px;
-  line-height: 1.7;
-  color: #444;
-  margin-bottom: 40px;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.team-stats {
-  display: flex;
-  justify-content: center;
-  gap: 60px;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.stat-number {
-  font-size: 48px;
-  font-weight: 700;
-  color: #227a53;
-}
-
-.stat-label {
-  font-size: 16px;
-  color: #666;
-}
-
-/* 오른쪽 팀원 카드 패널 */
-.team-cards-panel {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  width: 100%;
-}
-
-.member-card {
-  background: white;
-  border: 2px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  position: relative;
-  overflow: hidden;
-}
-
-.member-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(34, 122, 83, 0.1), transparent);
-  transition: left 0.6s ease;
-}
-
-.member-card:hover::before {
-  left: 100%;
-}
-
-.member-card:hover {
-  border-color: #227a53;
-  transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 12px 32px rgba(34, 122, 83, 0.2);
-}
-
-.member-card.active {
-  border-color: #227a53;
-  background: linear-gradient(135deg, #227a53 0%, #b3f0c7 100%);
-  color: white;
-  transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 16px 40px rgba(34, 122, 83, 0.3);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 16px 40px rgba(34, 122, 83, 0.3);
-  }
-  50% {
-    box-shadow: 0 16px 40px rgba(34, 122, 83, 0.5);
-  }
-}
-
-.card-icon {
-  font-size: 32px;
-  color: #227a53;
-  margin-bottom: 8px;
-}
-
-.member-card.active .card-icon {
-  color: white;
-}
-
-.card-name {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0;
-}
-
-.card-role {
-  font-size: 14px;
-  margin: 0;
-  opacity: 0.8;
-}
-
-.image-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 50vh;
-}
-
-.backImage {
-  max-width: 100%;
-  height: auto;
-  margin-top: 445px;
-}
-
-.hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-}
-.hero-title {
-  font-size: 56px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  color: #111;
-}
-.hero-btn {
-  background: #f2f2f2;
-  color: #222;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 28px;
-  font-size: 18px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.hero-image {
-  width: 100vw;
-  max-width: none;
-  height: auto;
-  display: block;
-  margin-bottom: 20px;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
-  border-radius: 0;
-}
-
-.main-section {
-  padding: 40px 0 0 0;
-  margin: 0 auto 40px auto;
-}
-
-.layout-container {
-  display: flex;
-  max-width: 1400px;
-  margin: 0 auto;
-  min-height: 600px;
-}
-.main-text {
-  flex: 1.2;
-}
-.main-heading {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 8px;
-}
-.main-subheading {
-  font-size: 16px;
-  color: #888;
-  margin-bottom: 18px;
-}
-.main-body {
-  font-size: 16px;
-  color: #444;
-  line-height: 1.7;
-}
-.main-image {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.main-image img {
-  margin-top: 60px;
-  max-width: 600px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-
-.carousel-item-flex {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 왼쪽 네비게이션 패널 */
-.left-panel {
-  width: 280px;
-  background: linear-gradient(135deg, #227a53 0%, #b3f0c7 100%);
-  padding: 40px 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  border-radius: 0 20px 20px 0;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
-}
-
-.nav-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.nav-btn {
-  background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 12px;
-  padding: 16px 20px;
-  font-size: 16px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: left;
-  position: relative;
-  overflow: hidden;
-}
-
-.nav-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateX(8px);
-}
-
-.nav-btn.active {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: white;
-  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
-}
-
-/* 오른쪽 콘텐츠 영역 */
-.content-area {
-  flex: 1;
-  background: #f8fafc;
-  padding: 40px;
-  border-radius: 20px 0 0 20px;
-  display: flex;
-  align-items: center;
-}
-
-.content-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 40px;
-  width: 100%;
-}
-
-/* Vue Transition 애니메이션 */
-.slide-fade-enter-active {
-  transition: all 0.6s ease-out;
-}
-
-.slide-fade-leave-active {
-  transition: all 0.4s ease-in;
-}
-
-.slide-fade-enter-from {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-.slide-fade-leave-to {
-  opacity: 0;
-  transform: translateX(-30px);
-}
-
-/* 팀원 상세 정보 애니메이션 */
-.animate-photo {
-  animation: slideInFromLeft 0.8s ease-out 0.2s both;
-}
-
-.animate-text {
-  animation: slideInFromRight 0.8s ease-out both;
-}
-
-.animate-text:nth-child(1) {
-  animation-delay: 0.3s;
-}
-
-.animate-text:nth-child(2) {
-  animation-delay: 0.4s;
-}
-
-.animate-text:nth-child(3) {
-  animation-delay: 0.5s;
-}
-
-.animate-text:nth-child(4) {
-  animation-delay: 0.6s;
-}
-
-/* 팀 개요 애니메이션 */
-.team-overview .team-title {
-  animation: fadeInUp 0.8s ease-out 0.2s both;
-}
-
-.team-overview .team-subtitle {
-  animation: fadeInUp 0.8s ease-out 0.3s both;
-}
-
-.team-overview .team-description {
-  animation: fadeInUp 0.8s ease-out 0.4s both;
-}
-
-.team-overview .team-stats {
-  animation: fadeInUp 0.8s ease-out 0.5s both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 캐러셀 아이템 기본 스타일 */
-.carousel-item {
-  width: 100%;
-}
-
-/* 이미지와 텍스트 개별 애니메이션 */
-.carousel-item .main-image {
-  animation: slideInFromLeft 0.8s ease-out 0.3s both;
-}
-
-.carousel-item .main-text {
-  animation: slideInFromRight 0.8s ease-out 0.5s both;
-}
-
-@keyframes slideInFromLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes slideInFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.main-image {
-  flex: 1;
-  max-width: 500px;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
-}
-
-.main-image:hover {
-  transform: scale(1.02);
-}
-
-.main-text {
-  flex: 1;
-  padding: 0 20px;
-}
-
-/* 반응형 디자인 */
-@media (max-width: 768px) {
-  .nav-container {
-    padding: 0 15px;
-  }
-  
-  .brand-text {
-    font-size: 20px;
-  }
-  
-  .nav-menu {
-    gap: 15px;
-  }
-  
-  .welcome-text {
-    display: none;
-  }
-  
-  .nav-btn {
-    padding: 8px 16px;
-    font-size: 13px;
-  }
-  
-  /* 모바일 레이아웃 */
-  .layout-container {
-    flex-direction: column;
-    min-height: auto;
-  }
-  
-  .left-panel {
-    width: 100%;
-    border-radius: 20px 20px 0 0;
-    padding: 20px;
-  }
-  
-  .nav-buttons {
-    flex-direction: row;
-    justify-content: center;
-    gap: 10px;
-  }
-  
-  .nav-btn {
-    padding: 12px 16px;
-    font-size: 14px;
-    text-align: center;
-  }
-  
-  .content-area {
-    border-radius: 0 0 20px 20px;
-    padding: 20px;
-  }
-  
-  .content-wrapper {
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  .main-image {
-    max-width: 100%;
-  }
-  
-  .main-text {
-    padding: 0;
-  }
-  
-  /* 팀 섹션 모바일 레이아웃 */
-  .team-layout {
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  .team-detail-panel {
-    padding: 20px;
-  }
-  
-  .team-member-detail {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .member-photo {
-    width: 200px;
-    height: 250px;
-    margin: 0 auto;
-  }
-  
-  .card-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-  
-  .member-card {
-    padding: 16px;
-  }
-  
-  .card-icon {
-    font-size: 24px;
-  }
-  
-  .card-name {
-    font-size: 14px;
-  }
-  
-  .card-role {
-    font-size: 12px;
-  }
-}
-.intro-text { text-align: center; margin-bottom: 18px; }
-.intro-btn { display: block; margin: 0 auto; }
-.footer {
-  width: 100%;
-  background: #f2f2f2;
-  padding: 28px 0 18px 0;
-  text-align: center;
-  font-size: 15px;
-  color: #555;
-  margin-top: 0px;
-}
-.footer-content {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-.footer-title {
-  font-weight: bold;
-  color: #249d6d;
-}
-.footer-divider {
-  color: #bbb;
-}
-@media (max-width: 600px) {
-  .footer-content { flex-direction: column; gap: 4px; }
-}
-</style>
