@@ -101,7 +101,6 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
 import { authAPI } from '../stores/auth.js'
 
 const router = useRouter()
@@ -111,7 +110,7 @@ const code = ref('')
 const codeSent = ref(false)
 
 const formData = reactive({
-  email: email.value,
+  email: '',
   password: '',
   confirmPassword: '',
   name: ''
@@ -129,48 +128,6 @@ const errors = reactive({
   name: ''
 })
 
-const sendCode = async () => {
-  if (!email.value) {
-    message.value = '이메일을 입력해주세요.'
-    messageType.value = 'error'
-    return
-  }
-
-  isSending.value = true
-  try {
-    await axios.post('/api/auth/send-code', { email: email.value })
-    message.value = codeSent.value
-      ? '인증번호를 재발송했습니다.'
-      : '이메일로 인증번호를 보냈습니다.'
-    messageType.value = 'success'
-    codeSent.value = true
-  } catch (err) {
-    message.value = '인증번호 발송에 실패했습니다.'
-    messageType.value = 'error'
-  } finally {
-    isSending.value = false
-  }
-}
-
-const verifyCode = async () => {
-  try {
-    const res = await axios.post('/api/auth/verify-code', {
-      email: email.value,
-      code: code.value
-    })
-    if (res.data.success) {
-      message.value = '이메일 인증이 완료되었습니다.'
-      messageType.value = 'success'
-      formData.email = email.value
-    } else {
-      message.value = '인증번호가 올바르지 않습니다.'
-      messageType.value = 'error'
-    }
-  } catch (err) {
-    message.value = '인증 과정에서 오류가 발생했습니다.'
-    messageType.value = 'error'
-  }
-}
 
 const validateForm = () => {
   let isValid = true
@@ -209,6 +166,49 @@ const validateForm = () => {
   }
 
   return isValid
+}
+const sendCode = async () => {
+  if (!email.value) {
+    message.value = '이메일을 입력해주세요.'
+    messageType.value = 'error'
+    return
+  }
+
+  isSending.value = true
+  try {
+    await authAPI.sendcode({
+      email:email.value})
+    message.value = codeSent.value
+      ? '인증번호를 재발송했습니다.'
+      : '이메일로 인증번호를 보냈습니다.'
+    messageType.value = 'success'
+    codeSent.value = true
+  } catch (err) {
+    message.value = '인증번호 발송에 실패했습니다.'
+    messageType.value = 'error'
+  } finally {
+    isSending.value = false
+  }
+}
+
+const verifyCode = async () => {
+  try {
+    await authAPI.signup({
+      email: formData.email,
+      code:code.value
+    })
+    if (res.data.success) {
+      message.value = '이메일 인증이 완료되었습니다.'
+      messageType.value = 'success'
+      formData.email = email.value
+    } else {
+      message.value = '인증번호가 올바르지 않습니다.'
+      messageType.value = 'error'
+    }
+  } catch (err) {
+    message.value = '인증 과정에서 오류가 발생했습니다.'
+    messageType.value = 'error'
+  }
 }
 
 const handleSignup = async () => {
