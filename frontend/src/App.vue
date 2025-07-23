@@ -70,7 +70,7 @@ const handleSearch = () => {
       <RouterLink to="/products">Products</RouterLink>
       <RouterLink to="/solutions">Solutions</RouterLink>
       <RouterLink to="/community">Community</RouterLink>
-      <RouterLink to="/resources">Resources</RouterLink>
+      <RouterLink to="/articles">articles</RouterLink>
       <RouterLink to="/pricing">Pricing</RouterLink>
       <RouterLink to="/contact">Contact</RouterLink>
       <RouterLink to="/link">Link</RouterLink>
@@ -110,7 +110,7 @@ const handleSearch = () => {
         <RouterLink to="/products" @click="toggleSidebar">Products</RouterLink>
         <RouterLink to="/solutions" @click="toggleSidebar">Solutions</RouterLink>
         <RouterLink to="/community" @click="toggleSidebar">Community</RouterLink>
-        <RouterLink to="/resources" @click="toggleSidebar">Resources</RouterLink>
+        <RouterLink to="/articles" @click="toggleSidebar">articles</RouterLink>
         <RouterLink to="/pricing" @click="toggleSidebar">Pricing</RouterLink>
         <RouterLink to="/contact" @click="toggleSidebar">Contact</RouterLink>
         <RouterLink to="/link" @click="toggleSidebar">Link</RouterLink>
