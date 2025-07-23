@@ -5,7 +5,7 @@
       <div class="brand-content">
         <div class="brand-header">
           <div class="brand-logo">
-            <span class="logo-icon">📚</span>
+            <img alt="EduMeet Logo" class="logo" src="@/assets/edumeet_logo.png" />
             <h2 class="brand-name">EduMeet</h2>
           </div>
           <p class="brand-slogan">Education At Home</p>

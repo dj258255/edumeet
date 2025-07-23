@@ -126,7 +126,6 @@ body {
   border: none;
   cursor: pointer;
   transition: all var(--transition-normal);
-  width: 100px;
 }
 
 .btn-primary {
