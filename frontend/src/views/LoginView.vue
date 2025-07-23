@@ -29,38 +29,7 @@
     <!-- 오른쪽 로그인 폼 섹션 -->
     <div class="form-section">
       <div class="form-container">
-        <h2 class="form-title">Sign In</h2>
-        
-        <!-- 역할 선택 -->
-        <div class="role-selection">
-          <p class="role-label">Please select your role</p>
-          <div class="role-buttons">
-            <button 
-              class="role-btn" 
-              :class="{ active: selectedRole === 'student' }"
-              @click="selectedRole = 'student'"
-            >
-              <span class="role-icon">🎓</span>
-              <span class="role-text">STUDENT</span>
-            </button>
-            <button 
-              class="role-btn" 
-              :class="{ active: selectedRole === 'tutor' }"
-              @click="selectedRole = 'tutor'"
-            >
-              <span class="role-icon">📊</span>
-              <span class="role-text">TUTOR</span>
-            </button>
-            <button 
-              class="role-btn" 
-              :class="{ active: selectedRole === 'parent' }"
-              @click="selectedRole = 'parent'"
-            >
-              <span class="role-icon">👨‍👩‍👧‍👦</span>
-              <span class="role-text">PARENT</span>
-            </button>
-          </div>
-        </div>
+        <h2 class="form-title">Login</h2>
 
         <form class="login-form" @submit.prevent="handleLogin">
           <div class="form-group">
@@ -108,6 +77,35 @@
         
         <div class="signup-link">
           Don't have an account? <RouterLink to="/signup">Sign Up</RouterLink>
+        </div>
+        <div class="role-selection">
+          <p class="role-label">또는 다음으로 로그인</p>
+          <div class="role-buttons">
+            <button 
+              class="role-btn" 
+              :class="{ active: selectedRole === 'student' }"
+              @click="selectedRole = 'student'"
+            >
+              <span class="role-icon">🎓</span>
+              <span class="role-text">STUDENT</span>
+            </button>
+            <button 
+              class="role-btn" 
+              :class="{ active: selectedRole === 'tutor' }"
+              @click="selectedRole = 'tutor'"
+            >
+              <span class="role-icon">📊</span>
+              <span class="role-text">TUTOR</span>
+            </button>
+            <button 
+              class="role-btn" 
+              :class="{ active: selectedRole === 'parent' }"
+              @click="selectedRole = 'parent'"
+            >
+              <span class="role-icon">👨‍👩‍👧‍👦</span>
+              <span class="role-text">PARENT</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
