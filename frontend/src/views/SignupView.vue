@@ -137,7 +137,7 @@
               
               <div class="timer-section">
                 <p class="timer-text">
-                  인증 코드 재전송까지 
+                  인증 코드 유효시간 : 
                   <span class="timer-countdown">{{ formatTime(countdown) }}</span>
                 </p>
                 <button 
@@ -374,10 +374,10 @@ const verifyCode = async () => {
     const code = codeDigits.value.join('')
     
     // TODO: 실제 API 호출로 변경
-    // await authAPI.verifyCode(email.value, code)
+    await authAPI.verifyCode(email.value, code)
     
     // 임시로 성공 처리
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // await new Promise(resolve => setTimeout(resolve, 1000))
     
     isEmailVerified.value = true
     message.value = '이메일 인증이 완료되었습니다.'
