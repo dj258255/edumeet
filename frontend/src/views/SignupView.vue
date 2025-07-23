@@ -193,7 +193,7 @@ const sendCode = async () => {
 
 const verifyCode = async () => {
   try {
-    await authAPI.signup({
+    await authAPI.verifycode({
       email: formData.email,
       code:code.value
     })
