@@ -2,12 +2,32 @@
   <div class="home-view">
     <!-- 인트로(인트로 텍스트/버튼) -->
     <section class="hero">
-      <img src="@/assets/image.png" alt="Hero Main" class="hero-image parallax-bg" />
-      <div class="intro-text">
-        <h1 class="hero-title">EduMeet에 오신 것을 환영합니다</h1>
+      <div class="hero-background">
+        <div class="gradient-overlay"></div>
+        <div class="floating-shapes">
+          <div class="shape shape-1"></div>
+          <div class="shape shape-2"></div>
+          <div class="shape shape-3"></div>
+        </div>
       </div>
-      <button class="hero-btn intro-btn">시작하기</button>
+      <div class="intro-text">
+        <h1 class="hero-title">
+          <span class="title-line">EduMeet에 오신 것을</span>
+          <span class="title-line highlight">환영합니다</span>
+        </h1>
+        <p class="hero-subtitle">혁신적인 교육 플랫폼으로 새로운 학습 경험을 시작하세요</p>
+      </div>
+      <div class="hero-actions">
+        <router-link :to="isLoggedIn ? '/create-room' : '/login'" class="hero-btn primary-btn">
+          <span class="btn-text">시작하기</span>
+          <span class="btn-icon">→</span>
+        </router-link>
+        <router-link to="/about" class="hero-btn secondary-btn">
+          <span class="btn-text">더 알아보기</span>
+        </router-link>
+      </div>
     </section>
+    
     <!-- 설명 Section -->
     <section class="main-section">
       <div class="layout-container">
@@ -15,13 +35,16 @@
         <div class="left-panel">
           <div class="nav-buttons">
             <button type="button" @click="slideTransition(0)" :class="{ active: currentSlide === 0 }" class="nav-btn">
-              online class
+              <span class="nav-icon">🎓</span>
+              <span class="nav-text">online class</span>
             </button>
             <button type="button" @click="slideTransition(1)" :class="{ active: currentSlide === 1 }" class="nav-btn">
-              AI 수업 요약 서비스
+              <span class="nav-icon">🤖</span>
+              <span class="nav-text">AI 수업 요약 서비스</span>
             </button>
             <button type="button" @click="slideTransition(2)" :class="{ active: currentSlide === 2 }" class="nav-btn">
-              실시간 자막 서비스
+              <span class="nav-icon">📝</span>
+              <span class="nav-text">실시간 자막 서비스</span>
             </button>
           </div>
         </div>
@@ -32,13 +55,20 @@
             <transition name="slide-fade" mode="out-in">
               <div :key="currentSlide" class="carousel-item active">
                 <div class="content-wrapper">
-                  <img :src="getCurrentImage()" class="main-image" :alt="`mainim${currentSlide + 1}`" />
+                  <div class="image-container">
+                    <img :src="getCurrentImage()" class="main-image" :alt="`mainim${currentSlide + 1}`" />
+                    <div class="image-overlay"></div>
+                  </div>
                   <div class="main-text">
-                    <h3 class="main-heading">{{ getCurrentHeading() }}</h3>
-                    <div class="main-subheading">{{ getCurrentSubheading() }}</div>
+                    <div class="text-badge">{{ getCurrentHeading() }}</div>
+                    <h3 class="main-heading">{{ getCurrentSubheading() }}</h3>
                     <p class="main-body">
                       {{ getCurrentBody() }}
                     </p>
+                    <button class="learn-more-btn">
+                      자세히 알아보기
+                      <span class="arrow">→</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -47,10 +77,12 @@
         </div>
       </div>
     </section>
+    
     <!-- 드래그 가능한 카드 Section -->
     <section class="draggable-cards-section">
       <div class="section-header">
-        <h2 class="section-title">추천 콘텐츠</h2>
+        <div class="header-badge">추천 콘텐츠</div>
+        <h2 class="section-title">인기 강의를 만나보세요</h2>
         <p class="section-subtitle">마우스로 드래그하여 더 많은 콘텐츠를 확인하세요</p>
       </div>
       <div class="cards-container-wrapper">
@@ -79,12 +111,20 @@
                     <span class="view-more">자세히 보기</span>
                   </div>
                 </div>
+                <div class="card-badge">{{ card.tags[0] }}</div>
               </div>
               <div class="card-content">
                 <h3 class="card-title">{{ card.title }}</h3>
                 <p class="card-description">{{ card.description }}</p>
                 <div class="card-tags">
                   <span class="tag" v-for="tag in card.tags" :key="tag">{{ tag }}</span>
+                </div>
+                <div class="card-footer">
+                  <div class="card-stats">
+                    <span class="stat">⭐ 4.8</span>
+                    <span class="stat">👥 1.2k</span>
+                  </div>
+                  <button class="enroll-btn">수강하기</button>
                 </div>
               </div>
             </div>
@@ -108,6 +148,7 @@
         </div>
       </div>
     </section>
+    
     <!-- 팀원 카드 Section -->
     <section class="team-section">
       <div class="team-layout">
@@ -115,17 +156,24 @@
         <div class="team-detail-panel">
           <transition name="slide-fade" mode="out-in">
             <div class="team-member-detail" v-if="selectedMember" :key="selectedMember.name">
-              <img class="member-photo animate-photo" :src="selectedMember.image" :alt="selectedMember.name" />
+              <div class="member-photo-container">
+                <img class="member-photo animate-photo" :src="selectedMember.image" :alt="selectedMember.name" />
+                <div class="photo-overlay"></div>
+              </div>
               <div class="member-info">
+                <div class="member-badge">{{ selectedMember.role }}</div>
                 <h3 class="member-name animate-text">{{ selectedMember.name }}</h3>
-                <p class="member-role animate-text">{{ selectedMember.role }}</p>
                 <p class="member-quote animate-text">"{{ selectedMember.quote }}"</p>
                 <p class="member-description animate-text">{{ selectedMember.description }}</p>
+                <div class="member-social">
+                  <button class="social-btn">LinkedIn</button>
+                  <button class="social-btn">GitHub</button>
+                </div>
               </div>
             </div>
             <div class="team-overview" v-else key="overview">
-              <h2 class="team-title">우리 팀을 소개합니다</h2>
-              <p class="team-subtitle">함께 만들어가는 멤버들입니다</p>
+              <div class="overview-badge">우리 팀</div>
+              <h2 class="team-title">함께 만들어가는 멤버들입니다</h2>
               <p class="team-description">
                 EduMeet는 혁신적인 교육 플랫폼을 만들기 위해 다양한 분야의 전문가들이 모여 있습니다. 
                 각자의 전문성을 바탕으로 사용자에게 최고의 교육 경험을 제공하기 위해 노력하고 있습니다.

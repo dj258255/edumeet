@@ -4,6 +4,9 @@ import LoginView from "../views/LoginView.vue"
 import SignupView from "../views/SignupView.vue"
 import ResourcesView from "../views/ResourcesView.vue"
 import SearchView from "../views/SearchView.vue"
+import CreateRoomView from "../views/CreateRoomView.vue"
+import RoomView from "../views/RoomView.vue"
+import AboutView from "../views/AboutView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -32,6 +35,21 @@ const router = createRouter({
       path: "/search",
       name: "search",
       component: SearchView,
+    },
+    {
+      path: "/create-room",
+      name: "create-room",
+      component: CreateRoomView,
+    },
+    {
+      path: "/room/:roomId",
+      name: "room",
+      component: RoomView,
+    },
+    {
+      path: "/about",
+      name: "about",
+      component: AboutView,
     },
   ],
 })
