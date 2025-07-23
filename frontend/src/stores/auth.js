@@ -47,7 +47,7 @@ apiClient.interceptors.response.use(
 const authAPI = {
   // 회원가입
   signup: (userData) => {
-    return apiClient.post("/members/signup", userData)
+    return apiClient.post("/members/register", userData)
   },
 
   // 로그인
@@ -68,6 +68,16 @@ const authAPI = {
   // 비밀번호 변경
   changePassword: (passwordData) => {
     return apiClient.put("/members/password", passwordData)
+  },
+
+  // 이메일 인증
+  sendVerificationCode:(email)=>{
+    return apiClient.post("/members/sendcode",email)
+  },
+
+  // 인증 확인
+  verifyCode:(verifyInfo)=>{
+    return apiClient.post("/members/verify",verifyInfo)
   },
 
   // 이메일 중복 확인
