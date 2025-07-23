@@ -1,171 +1,423 @@
 <template>
   <div class="signup-view">
-    <div class="signup-container">
-      <h1>회원가입</h1>
+    <!-- 왼쪽 브랜딩 섹션 -->
+    <div class="brand-section">
+      <div class="brand-content">
+        <div class="brand-header">
+          <div class="brand-logo">
+            <span class="logo-icon">📚</span>
+            <h2 class="brand-name">EduMeet</h2>
+          </div>
+          <p class="brand-slogan">Education At Home</p>
+        </div>
+        
+        <div class="brand-main">
+          <h1 class="brand-title">Join Our Community</h1>
+          <p class="brand-description">
+            It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout.
+          </p>
+        </div>
+        
+        <div class="brand-footer">
+          <span class="region">KOREA</span>
+          <span class="region">ASIA</span>
+          <span class="region">GLOBAL</span>
+        </div>
+      </div>
+    </div>
 
-      <!-- 이메일 & 인증 -->
-      <form @submit.prevent>
-        <div class="form-group">
-          <label for="email">이메일</label>
-
-          <div class="email-with-button">
-            <input 
-              type="email" 
-              id="email" 
-              v-model="email" 
-              required
-              placeholder="example@email.com"
-              :class="{ 'error': errors.email }"
-            />
-
+    <!-- 오른쪽 회원가입 폼 섹션 -->
+    <div class="form-section">
+      <div class="form-container">
+        <h2 class="form-title">Sign Up</h2>
+        
+        <!-- 역할 선택 -->
+        <div class="role-selection">
+          <p class="role-label">Please select your role</p>
+          <div class="role-buttons">
             <button 
-              type="button" 
-              @click="sendCode" 
-              :disabled="isSending"
+              class="role-btn" 
+              :class="{ active: selectedRole === 'student' }"
+              @click="selectedRole = 'student'"
             >
-              {{ codeSent ? '재발송' : '인증발송' }}
+              <span class="role-icon">🎓</span>
+              <span class="role-text">STUDENT</span>
+            </button>
+            <button 
+              class="role-btn" 
+              :class="{ active: selectedRole === 'tutor' }"
+              @click="selectedRole = 'tutor'"
+            >
+              <span class="role-icon">📊</span>
+              <span class="role-text">TUTOR</span>
+            </button>
+            <button 
+              class="role-btn" 
+              :class="{ active: selectedRole === 'parent' }"
+              @click="selectedRole = 'parent'"
+            >
+              <span class="role-icon">👨‍👩‍👧‍👦</span>
+              <span class="role-text">PARENT</span>
             </button>
           </div>
-
-          <span v-if="errors.email" class="error-message">{{ errors.email }}</span>
-        </div>
-      </form>
-
-      <!-- 인증번호 입력 -->
-      <form @submit.prevent="verifyCode" v-if="codeSent && !formData.email">
-        <div class="form-group">
-          <input v-model="code" type="text" placeholder="인증번호를 입력해주세요" />
-          <button type="button" @click="verifyCode">인증 확인</button>
-        </div>
-      </form>
-
-      <!-- 회원가입 폼 -->
-      <form @submit.prevent="handleSignup" class="signup-form">
-        <div class="form-group">
-          <label for="password">비밀번호</label>
-          <input 
-            type="password" 
-            id="password" 
-            v-model="formData.password" 
-            required
-            placeholder="8자 이상 입력해주세요"
-            :class="{ 'error': errors.password }"
-          />
-          <span v-if="errors.password" class="error-message">{{ errors.password }}</span>
         </div>
 
-        <div class="form-group">
-          <label for="confirmPassword">비밀번호 확인</label>
-          <input 
-            type="password" 
-            id="confirmPassword" 
-            v-model="formData.confirmPassword" 
-            required
-            placeholder="비밀번호를 다시 입력해주세요"
-            :class="{ 'error': errors.confirmPassword }"
-          />
-          <span v-if="errors.confirmPassword" class="error-message">{{ errors.confirmPassword }}</span>
+        <form class="signup-form" @submit.prevent="handleSignup">
+          <div class="form-group">
+            <label for="name">NAME</label>
+            <div class="input-wrapper">
+              <span class="input-icon">👤</span>
+              <input
+                id="name"
+                v-model="name"
+                type="text"
+                :class="{ error: errors.name }"
+                placeholder="Type your Name"
+              />
+            </div>
+            <div v-if="errors.name" class="error-message">{{ errors.name }}</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="email">EMAIL</label>
+            <div class="input-wrapper">
+              <span class="input-icon">✉️</span>
+              <input
+                id="email"
+                v-model="email"
+                type="email"
+                :class="{ error: errors.email }"
+                placeholder="Type your Email"
+                :disabled="isEmailVerified"
+              />
+            </div>
+            <div v-if="errors.email" class="error-message">{{ errors.email }}</div>
+          </div>
+          
+          <!-- 이메일 인증 섹션 -->
+          <div v-if="email && !isEmailVerified" class="email-verification-section">
+            <div class="verification-header">
+              <p class="verification-label">이메일 인증</p>
+              <button 
+                v-if="!verificationSent"
+                @click="sendVerificationCode" 
+                type="button"
+                class="send-verification-btn"
+                :disabled="!email || isLoading"
+              >
+                인증 코드 발송
+              </button>
+            </div>
+            
+            <div v-if="verificationSent" class="verification-content">
+              <p class="verification-description">
+                <strong>{{ email }}</strong>로 발송된 6자리 인증 코드를 입력해주세요.
+              </p>
+              
+              <div class="code-input-section">
+                <label>VERIFICATION CODE</label>
+                <div class="code-input-wrapper">
+                  <input
+                    v-for="(digit, index) in 6"
+                    :key="index"
+                    :id="`code-${index}`"
+                    v-model="codeDigits[index]"
+                    type="text"
+                    maxlength="1"
+                    class="code-input"
+                    :class="{ error: errors.code }"
+                    @input="handleCodeInput(index, $event)"
+                    @keydown="handleCodeKeydown(index, $event)"
+                    @paste="handleCodePaste"
+                    :disabled="isLoading"
+                  />
+                </div>
+                <div v-if="errors.code" class="error-message">{{ errors.code }}</div>
+              </div>
+              
+              <div class="timer-section">
+                <p class="timer-text">
+                  인증 코드 유효시간 : 
+                  <span class="timer-countdown">{{ formatTime(countdown) }}</span>
+                </p>
+                <button 
+                  @click="resendCode" 
+                  type="button"
+                  class="resend-btn"
+                  :disabled="countdown > 0 || isLoading"
+                >
+                  재전송
+                </button>
+              </div>
+              
+              <button 
+                @click="verifyCode" 
+                type="button"
+                class="verify-btn"
+                :disabled="!isCodeComplete || isLoading"
+              >
+                {{ isLoading ? '인증 중...' : '인증 완료' }}
+              </button>
+            </div>
+          </div>
+          
+          <!-- 이메일 인증 완료 표시 -->
+          <div v-if="isEmailVerified" class="email-verified">
+            <div class="verified-icon">✅</div>
+            <p class="verified-text">이메일 인증 완료</p>
+          </div>
+          
+          <div class="form-group">
+            <label for="password">PASSWORD</label>
+            <div class="input-wrapper">
+              <span class="input-icon">🔒</span>
+              <input
+                id="password"
+                v-model="password"
+                type="password"
+                :class="{ error: errors.password }"
+                placeholder="Type your password"
+              />
+            </div>
+            <div v-if="errors.password" class="error-message">{{ errors.password }}</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="confirmPassword">CONFIRM PASSWORD</label>
+            <div class="input-wrapper">
+              <span class="input-icon">🔒</span>
+              <input
+                id="confirmPassword"
+                v-model="confirmPassword"
+                type="password"
+                :class="{ error: errors.confirmPassword }"
+                placeholder="Confirm your password"
+              />
+            </div>
+            <div v-if="errors.confirmPassword" class="error-message">{{ errors.confirmPassword }}</div>
+          </div>
+          
+          <button type="submit" class="signup-btn" :disabled="isLoading || !name || !email || !password || !confirmPassword || !selectedRole || !isEmailVerified">
+            {{ isLoading ? 'Signing up...' : 'Sign Up' }}
+          </button>
+        </form>
+        
+        <div v-if="message" :class="['message', message.includes('완료') ? 'success' : 'error']">
+          {{ message }}
         </div>
-
-        <div class="form-group">
-          <label for="name">이름</label>
-          <input 
-            type="text" 
-            id="name" 
-            v-model="formData.name" 
-            required
-            placeholder="이름을 입력해주세요"
-            :class="{ 'error': errors.name }"
-          />
-          <span v-if="errors.name" class="error-message">{{ errors.name }}</span>
+        
+        <div class="login-link">
+          Already have an account? <RouterLink to="/login">Sign In</RouterLink>
         </div>
-
-        <button type="submit" 
-                :disabled="isLoading || !formData.email" 
-                class="signup-btn">
-          {{ isLoading ? '가입 중...' : '회원가입' }}
-        </button>
-      </form>
-
-      <div class="login-link">
-        이미 계정이 있으신가요? <router-link to="/login">로그인하기</router-link>
-      </div>
-
-      <div v-if="message" :class="['message', messageType]">
-        {{ message }}
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI } from '../stores/auth.js'
+import { authAPI, userManager, tokenManager } from '../stores/auth.js'
+import '../styles/SignupView.css'
 
 const router = useRouter()
 
 const email = ref('')
-const code = ref('')
-const codeSent = ref(false)
-
-const formData = reactive({
-  email: '',
-  password: '',
-  confirmPassword: '',
-  name: ''
-})
-
-const isLoading = ref(false)
-const isSending = ref(false)
+const password = ref('')
+const confirmPassword = ref('')
+const name = ref('')
+const selectedRole = ref('tutor') // 기본값으로 tutor 선택
+const errors = ref({})
 const message = ref('')
-const messageType = ref('')
+const isLoading = ref(false)
 
-const errors = reactive({
-  email: '',
-  password: '',
-  confirmPassword: '',
-  name: ''
+// 이메일 인증 관련 상태
+const verificationSent = ref(false)
+const isEmailVerified = ref(false)
+const codeDigits = ref(['', '', '', '', '', ''])
+const countdown = ref(0)
+const timer = ref(null)
+
+// Computed
+const isCodeComplete = computed(() => {
+  return codeDigits.value.every(digit => digit !== '')
 })
-
 
 const validateForm = () => {
-  let isValid = true
-
-  Object.keys(errors).forEach(key => {
-    errors[key] = ''
-  })
-
-  if (!formData.email) {
-    errors.email = '이메일 인증을 완료해주세요.'
-    isValid = false
+  errors.value = {}
+  
+  if (!name.value) {
+    errors.value.name = '이름을 입력해주세요.'
   }
-
-  if (!formData.password) {
-    errors.password = '비밀번호를 입력해주세요.'
-    isValid = false
-  } else if (formData.password.length < 8) {
-    errors.password = '비밀번호는 8자 이상이어야 합니다.'
-    isValid = false
+  
+  if (!email.value) {
+    errors.value.email = '이메일을 입력해주세요.'
+  } else if (!/\S+@\S+\.\S+/.test(email.value)) {
+    errors.value.email = '올바른 이메일 형식을 입력해주세요.'
   }
-
-  if (!formData.confirmPassword) {
-    errors.confirmPassword = '비밀번호 확인을 입력해주세요.'
-    isValid = false
-  } else if (formData.password !== formData.confirmPassword) {
-    errors.confirmPassword = '비밀번호가 일치하지 않습니다.'
-    isValid = false
+  
+  if (!isEmailVerified.value) {
+    errors.value.email = '이메일 인증을 완료해주세요.'
   }
-
-  if (!formData.name) {
-    errors.name = '이름을 입력해주세요.'
-    isValid = false
-  } else if (formData.name.length < 2) {
-    errors.name = '이름은 2자 이상이어야 합니다.'
-    isValid = false
+  
+  if (!password.value) {
+    errors.value.password = '비밀번호를 입력해주세요.'
+  } else if (password.value.length < 6) {
+    errors.value.password = '비밀번호는 최소 6자 이상이어야 합니다.'
   }
+  
+  if (!confirmPassword.value) {
+    errors.value.confirmPassword = '비밀번호 확인을 입력해주세요.'
+  } else if (password.value !== confirmPassword.value) {
+    errors.value.confirmPassword = '비밀번호가 일치하지 않습니다.'
+  }
+  
+  return Object.keys(errors.value).length === 0
+}
 
-  return isValid
+// 이메일 인증 관련 메서드
+const sendVerificationCode = async () => {
+  if (!email.value || !/\S+@\S+\.\S+/.test(email.value)) {
+    errors.value.email = '올바른 이메일 형식을 입력해주세요.'
+    return
+  }
+  
+  isLoading.value = true
+  errors.value = {}
+  message.value = ''
+  
+  try {
+    // TODO: 실제 API 호출로 변경
+    // await authAPI.sendVerificationCode(email.value)
+    
+    // 임시로 성공 처리
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    verificationSent.value = true
+    startCountdown()
+    message.value = '인증 코드가 발송되었습니다.'
+  } catch (error) {
+    message.value = '인증 코드 발송에 실패했습니다. 다시 시도해주세요.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const startCountdown = () => {
+  countdown.value = 180 // 3분
+  timer.value = setInterval(() => {
+    if (countdown.value > 0) {
+      countdown.value--
+    } else {
+      clearInterval(timer.value)
+    }
+  }, 1000)
+}
+
+const formatTime = (seconds) => {
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+}
+
+const handleCodeInput = (index, event) => {
+  const value = event.target.value
+  
+  // 숫자만 허용
+  if (!/^\d*$/.test(value)) {
+    event.target.value = ''
+    return
+  }
+  
+  codeDigits.value[index] = value
+  
+  // 다음 입력 필드로 이동
+  if (value && index < 5) {
+    const nextInput = document.getElementById(`code-${index + 1}`)
+    if (nextInput) {
+      nextInput.focus()
+    }
+  }
+}
+
+const handleCodeKeydown = (index, event) => {
+  // 백스페이스로 이전 필드로 이동
+  if (event.key === 'Backspace' && !codeDigits.value[index] && index > 0) {
+    const prevInput = document.getElementById(`code-${index - 1}`)
+    if (prevInput) {
+      prevInput.focus()
+    }
+  }
+}
+
+const handleCodePaste = (event) => {
+  event.preventDefault()
+  const pastedData = event.clipboardData.getData('text')
+  const numbers = pastedData.replace(/\D/g, '').slice(0, 6)
+  
+  if (numbers.length === 6) {
+    codeDigits.value = numbers.split('')
+  }
+}
+
+const verifyCode = async () => {
+  if (!isCodeComplete.value) {
+    errors.value.code = '6자리 인증 코드를 모두 입력해주세요.'
+    return
+  }
+  
+  isLoading.value = true
+  errors.value = {}
+  message.value = ''
+  
+  try {
+    const code = codeDigits.value.join('')
+    
+    // TODO: 실제 API 호출로 변경
+    await authAPI.verifyCode(email.value, code)
+    
+    // 임시로 성공 처리
+    // await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    isEmailVerified.value = true
+    message.value = '이메일 인증이 완료되었습니다.'
+    
+    if (timer.value) {
+      clearInterval(timer.value)
+      countdown.value = 0
+    }
+  } catch (error) {
+    errors.value.code = '인증 코드가 올바르지 않습니다. 다시 확인해주세요.'
+    message.value = '인증에 실패했습니다.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const resendCode = async () => {
+  if (countdown.value > 0) return
+  
+  isLoading.value = true
+  message.value = ''
+  
+  try {
+    // TODO: 실제 API 호출로 변경
+    // await authAPI.sendVerificationCode(email.value)
+    
+    // 임시로 성공 처리
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    startCountdown()
+    message.value = '인증 코드가 재발송되었습니다.'
+    
+    // 코드 입력 필드 초기화
+    codeDigits.value = ['', '', '', '', '', '']
+    errors.value = {}
+  } catch (error) {
+    message.value = '인증 코드 재발송에 실패했습니다.'
+  } finally {
+    isLoading.value = false
+  }
 }
 const sendCode = async () => {
   if (!email.value) {
@@ -212,208 +464,35 @@ const verifyCode = async () => {
 }
 
 const handleSignup = async () => {
-  if (!validateForm()) {
-    return
-  }
-
+  if (!validateForm()) return
+  
   isLoading.value = true
   message.value = ''
-  messageType.value = ''
-
+  
   try {
-    await authAPI.signup({
-      email: formData.email,
-      password: formData.password,
-      name: formData.name
+    const response = await authAPI.signup({
+      name: name.value,
+      email: email.value,
+      password: password.value,
+      role: selectedRole.value
     })
-
+    
     message.value = '회원가입이 완료되었습니다!'
-    messageType.value = 'success'
-
     setTimeout(() => {
       router.push('/login')
     }, 2000)
   } catch (error) {
     console.error('회원가입 오류:', error)
-
-    if (error.response) {
-      const errorMessage = error.response.data?.message || '회원가입 중 오류가 발생했습니다.'
-      message.value = errorMessage
-    } else {
-      message.value = '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
-    }
-    messageType.value = 'error'
+    message.value = error.response?.data?.message || '회원가입에 실패했습니다.'
   } finally {
     isLoading.value = false
   }
 }
+
+// Cleanup
+onUnmounted(() => {
+  if (timer.value) {
+    clearInterval(timer.value)
+  }
+})
 </script>
-
-<style scoped>
-.signup-view {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #227a53 0%, #b3f0c7 100%);
-  padding: 20px;
-}
-
-.signup-container {
-  max-width: 400px;
-  width: 100%;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  padding: 40px;
-}
-
-h1 {
-  text-align: center;
-  color: #333;
-  margin-bottom: 30px;
-  font-size: 28px;
-  font-weight: 600;
-}
-
-.signup-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-label {
-  font-weight: 500;
-  color: #555;
-  font-size: 14px;
-}
-
-input {
-  padding: 12px 16px;
-  border: 2px solid #e1e5e9;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: all 0.3s ease;
-  background: #fafbfc;
-}
-
-input:focus {
-  outline: none;
-  border-color: #667eea;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-input.error {
-  border-color: #e74c3c;
-  background: #fff5f5;
-}
-
-.error-message {
-  color: #e74c3c;
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-.email-with-button {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
-
-.email-with-button input {
-  flex: 1;
-  min-width: 0;
-}
-
-.email-with-button button {
-  flex: 0 0 auto;
-  background: linear-gradient(135deg, #227a53 0%, #b3f0c7 100%);
-  color: white;
-  border: none;
-  padding: 0 12px;
-  height: 44px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.signup-btn {
-  background: linear-gradient(135deg, #227a53 0%, #b3f0c7 100%);
-  color: white;
-  border: none;
-  padding: 14px;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 10px;
-}
-
-.signup-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-}
-
-.signup-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.login-link {
-  text-align: center;
-  margin-top: 20px;
-  color: #666;
-  font-size: 14px;
-}
-
-.login-link a {
-  color: #667eea;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.login-link a:hover {
-  text-decoration: underline;
-}
-
-.message {
-  margin-top: 20px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  text-align: center;
-  font-weight: 500;
-}
-
-.message.success {
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-.message.error {
-  background: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-@media (max-width: 480px) {
-  .signup-container {
-    padding: 30px 20px;
-  }
-
-  h1 {
-    font-size: 24px;
-  }
-}
-</style>

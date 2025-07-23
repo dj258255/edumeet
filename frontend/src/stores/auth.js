@@ -1,3 +1,4 @@
+import { defineStore } from 'pinia'
 import axios from "axios"
 
 // API 기본 설정
@@ -86,7 +87,7 @@ export const authAPI = {
 }
 
 // 토큰 관리 함수들
-export const tokenManager = {
+const tokenManager = {
   // 토큰 저장
   setToken: (token) => {
     localStorage.setItem("token", token)
@@ -118,7 +119,7 @@ export const tokenManager = {
 }
 
 // 사용자 정보 관리 함수들
-export const userManager = {
+const userManager = {
   // 사용자 정보 저장
   setUser: (user) => {
     localStorage.setItem("user", JSON.stringify(user))
@@ -141,4 +142,157 @@ export const userManager = {
   }
 }
 
+// Pinia Store 정의
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: userManager.getUser(),
+    isAuthenticated: userManager.isLoggedIn(),
+    loading: false,
+    error: null
+  }),
+
+  getters: {
+    // 현재 사용자 정보
+    currentUser: (state) => state.user,
+    
+    // 로그인 상태
+    isLoggedIn: (state) => state.isAuthenticated,
+    
+    // 로딩 상태
+    isLoading: (state) => state.loading,
+    
+    // 에러 상태
+    hasError: (state) => state.error !== null
+  },
+
+  actions: {
+    // 로그인
+    async login(email, password) {
+      this.loading = true
+      this.error = null
+      
+      try {
+        const response = await authAPI.login({ email, password })
+        const { token, user } = response.data
+        
+        // 토큰과 사용자 정보 저장
+        tokenManager.setToken(token)
+        userManager.setUser(user)
+        
+        // 상태 업데이트
+        this.user = user
+        this.isAuthenticated = true
+        
+        return response.data
+      } catch (error) {
+        this.error = error.response?.data?.message || '로그인에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 회원가입
+    async signup(userData) {
+      this.loading = true
+      this.error = null
+      
+      try {
+        const response = await authAPI.signup(userData)
+        return response.data
+      } catch (error) {
+        this.error = error.response?.data?.message || '회원가입에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 로그아웃
+    async logout() {
+      this.loading = true
+      
+      try {
+        await authAPI.logout()
+      } catch (error) {
+        console.error('로그아웃 API 호출 실패:', error)
+      } finally {
+        // 로컬 상태 정리
+        tokenManager.removeToken()
+        userManager.removeUser()
+        
+        // 상태 초기화
+        this.user = null
+        this.isAuthenticated = false
+        this.loading = false
+        this.error = null
+      }
+    },
+
+    // 사용자 정보 조회
+    async getProfile() {
+      this.loading = true
+      this.error = null
+      
+      try {
+        const response = await authAPI.getProfile()
+        const user = response.data
+        
+        // 사용자 정보 업데이트
+        userManager.setUser(user)
+        this.user = user
+        
+        return user
+      } catch (error) {
+        this.error = error.response?.data?.message || '사용자 정보 조회에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 비밀번호 변경
+    async changePassword(passwordData) {
+      this.loading = true
+      this.error = null
+      
+      try {
+        const response = await authAPI.changePassword(passwordData)
+        return response.data
+      } catch (error) {
+        this.error = error.response?.data?.message || '비밀번호 변경에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 이메일 중복 확인
+    async checkEmail(email) {
+      try {
+        const response = await authAPI.checkEmail(email)
+        return response.data
+      } catch (error) {
+        throw error
+      }
+    },
+
+    // 에러 초기화
+    clearError() {
+      this.error = null
+    },
+
+    // 초기화 (앱 시작 시 호출)
+    initialize() {
+      const user = userManager.getUser()
+      const isAuthenticated = userManager.isLoggedIn()
+      
+      this.user = user
+      this.isAuthenticated = isAuthenticated
+    }
+  }
+})
+
+// 기존 export 유지 (하위 호환성)
+export { authAPI, tokenManager, userManager }
 export default apiClient 
