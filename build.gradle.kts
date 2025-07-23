@@ -61,6 +61,8 @@ dependencies {
     // DTO ↔ Entity Mapping
     implementation("org.modelmapper:modelmapper:3.1.0")
 
+    // 썸네일 라이브러리
+    implementation("net.coobird:thumbnailator:0.4.20")
 }
 
 tasks.withType<Test> {

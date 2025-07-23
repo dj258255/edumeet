@@ -5,6 +5,9 @@ import com.edu.edumeet.board.domain.Board;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
+
 
 @Entity
 @Table(name = "board")
@@ -13,6 +16,7 @@ import lombok.*;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@ToString(exclude = "imageSet")
 public class BoardJpaEntity extends BaseEntity {
 
     @Id
@@ -27,6 +31,34 @@ public class BoardJpaEntity extends BaseEntity {
 
     @Column(name = "writer" , nullable = false, length = 100)
     private String writer;
+
+
+    //Board의 모든 상태변화에 Image들도 같이 변경되도록 구성.
+    //Board 객체 자체에서 BoardImage들을 관리.
+    @OneToMany(mappedBy = "boardJpaEntity",
+            cascade = {CascadeType.ALL},
+            fetch = FetchType.LAZY) //boardImage의 board변수이다.
+    @Builder.Default
+    private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
+
+    public void addImage(String uuid, String filename) {
+
+        BoardImageJpaEntity boardImageJpaEntity = BoardImageJpaEntity.builder()
+                .uuid(uuid)
+                .filename(filename)
+                .ord(imageSet.size())
+                .boardJpaEntity(this)
+                .build();
+        imageSet.add(boardImageJpaEntity);
+    }
+
+    public void clearImages(){
+        imageSet.forEach(boardImageJpaEntity -> boardImageJpaEntity.changeBoard(null));
+
+        this.imageSet.clear();
+    }
+
+
 
     public void change(String title, String content){
         this.title = title;

@@ -6,10 +6,16 @@ import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
 import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
@@ -18,10 +24,15 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 게시판 컨트롤러
+ * RESTful API 방식으로 게시글 관련 요청을 처리
+ */
 @RestController
-@RequestMapping("/boards")
+@RequestMapping("/api/v1/boards")
 @Log4j2
 @RequiredArgsConstructor
+@Tag(name = "게시판 API", description = "게시글 관련 API")
 public class BoardController {
 
     private final BoardService boardService;
@@ -31,9 +42,17 @@ public class BoardController {
      * @param pageRequestDTO 페이지 요청 정보
      * @return 페이징된 게시글 목록
      */
-    @Operation(summary = "게시글 목록 조회", description = "GET 방식으로 게시글 목록 조회 (댓글 수 포함)")
+    @Operation(summary = "게시글 목록 조회", description = "페이징 및 검색 조건으로 게시글 목록을 조회합니다 (댓글 수 포함)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", 
+                    content = @Content(schema = @Schema(implementation = PageResponseDTO.class))),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping
-    public ResponseEntity<PageResponseDTO<BoardListReplyCountDTO>> list(PageRequestDTO pageRequestDTO) {
+    public ResponseEntity<PageResponseDTO<BoardListReplyCountDTO>> list(
+            @Parameter(description = "페이지 요청 정보 (페이지 번호, 크기, 검색 조건)") 
+            PageRequestDTO pageRequestDTO) {
         log.info("게시글 목록 조회: {}", pageRequestDTO);
         
         PageResponseDTO<BoardListReplyCountDTO> responseDTO = boardService.listWithReplyCount(pageRequestDTO);
@@ -48,9 +67,15 @@ public class BoardController {
      * @return 등록된 게시글 ID
      * @throws BindException 유효성 검사 실패 시 발생
      */
-    @Operation(summary = "게시글 등록", description = "POST 방식으로 게시글 등록")
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "게시글 등록", description = "새로운 게시글을 등록합니다")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "등록 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping
     public ResponseEntity<Map<String, Long>> register(
+            @Parameter(description = "등록할 게시글 정보", required = true) 
             @Valid @RequestBody BoardDTO boardDTO,
             BindingResult bindingResult) throws BindException {
         
@@ -61,41 +86,57 @@ public class BoardController {
             throw new BindException(bindingResult);
         }
         
-        Long bno = boardService.register(boardDTO);
+        Long boardId = boardService.register(boardDTO);
         
         Map<String, Long> resultMap = new HashMap<>();
-        resultMap.put("bno", bno);
+        resultMap.put("id", boardId);
         
-        return ResponseEntity.ok(resultMap);
+        return ResponseEntity.status(HttpStatus.CREATED).body(resultMap);
     }
 
     /**
      * 게시글 조회
-     * @param bno 조회할 게시글 ID
+     * @param id 조회할 게시글 ID
      * @return 조회된 게시글 정보
      */
-    @Operation(summary = "게시글 조회", description = "GET 방식으로 특정 게시글 조회")
-    @GetMapping("/{bno}")
-    public ResponseEntity<BoardDTO> read(@PathVariable("bno") Long bno) {
-        log.info("게시글 조회: {}", bno);
+    @Operation(summary = "게시글 조회", description = "특정 게시글을 ID로 조회합니다")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", 
+                    content = @Content(schema = @Schema(implementation = BoardDTO.class))),
+        @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<BoardDTO> read(
+            @Parameter(description = "조회할 게시글 ID", required = true) 
+            @PathVariable("id") Long id) {
+        log.info("게시글 조회: {}", id);
         
-        BoardDTO boardDTO = boardService.readOne(bno);
+        BoardDTO boardDTO = boardService.readOne(id);
         
         return ResponseEntity.ok(boardDTO);
     }
 
     /**
      * 게시글 수정
-     * @param bno 수정할 게시글 ID
+     * @param id 수정할 게시글 ID
      * @param boardDTO 수정할 게시글 정보
      * @param bindingResult 유효성 검사 결과
      * @return 성공 메시지
      * @throws BindException 유효성 검사 실패 시 발생
      */
-    @Operation(summary = "게시글 수정", description = "PUT 방식으로 특정 게시글 수정")
-    @PutMapping(value = "/{bno}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "게시글 수정", description = "특정 게시글을 수정합니다")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "수정 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PutMapping("/{id}")
     public ResponseEntity<Map<String, String>> modify(
-            @PathVariable("bno") Long bno,
+            @Parameter(description = "수정할 게시글 ID", required = true) 
+            @PathVariable("id") Long id,
+            @Parameter(description = "수정할 게시글 정보", required = true) 
             @Valid @RequestBody BoardDTO boardDTO,
             BindingResult bindingResult) throws BindException {
         
@@ -106,7 +147,8 @@ public class BoardController {
             throw new BindException(bindingResult);
         }
         
-        boardDTO.setId(bno); // 경로 변수의 값으로 ID 설정
+        // 경로 변수의 값으로 ID 설정
+        boardDTO.setId(id);
         
         boardService.modify(boardDTO);
         
@@ -118,19 +160,23 @@ public class BoardController {
 
     /**
      * 게시글 삭제
-     * @param bno 삭제할 게시글 ID
+     * @param id 삭제할 게시글 ID
      * @return 성공 메시지
      */
-    @Operation(summary = "게시글 삭제", description = "DELETE 방식으로 특정 게시글 삭제")
-    @DeleteMapping("/{bno}")
-    public ResponseEntity<Map<String, String>> remove(@PathVariable("bno") Long bno) {
-        log.info("게시글 삭제: {}", bno);
+    @Operation(summary = "게시글 삭제", description = "특정 게시글을 삭제합니다")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "삭제 성공"),
+        @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> remove(
+            @Parameter(description = "삭제할 게시글 ID", required = true) 
+            @PathVariable("id") Long id) {
+        log.info("게시글 삭제: {}", id);
         
-        boardService.remove(bno);
+        boardService.remove(id);
         
-        Map<String, String> resultMap = new HashMap<>();
-        resultMap.put("result", "삭제 완료");
-        
-        return ResponseEntity.ok(resultMap);
+        return ResponseEntity.noContent().build();
     }
 }

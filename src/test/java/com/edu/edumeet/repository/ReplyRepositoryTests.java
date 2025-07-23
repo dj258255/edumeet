@@ -19,7 +19,7 @@ public class ReplyRepositoryTests {
 
     @Test
     public void testInsert() {
-        //실제 DB에 있는 bno
+        //실제 DB에 있는 board_id
         Long id = 100L;
 
         Board board = Board.builder().id(id).build();

@@ -10,11 +10,11 @@ public interface ReplyRepository {
 
     public Long register(ReplyDTO replyDTO);
 
-    public ReplyDTO read(Long rno);
+    public ReplyDTO read(Long reply_id);
 
     public void modify(ReplyDTO replyDTO);
 
-    public void remove(Long rno);
+    public void remove(Long reply_id);
 
-    public PageResponseDTO<ReplyDTO> getListOfBoard(Long bno, PageRequestDTO pageRequestDTO);
+    public PageResponseDTO<ReplyDTO> getListOfBoard(Long board_id, PageRequestDTO pageRequestDTO);
 }

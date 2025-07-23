@@ -41,4 +41,13 @@ public class ReplyJpaEntity extends BaseEntity {
                         .build())
                 .build();
     }
+
+    public Reply toDomain() {
+        return Reply.builder()
+                .id(this.id)
+                .boardId(this.board.getId())
+                .replyText(this.replyText)
+                .replayer(this.replayer)
+                .build();
+    }
 }

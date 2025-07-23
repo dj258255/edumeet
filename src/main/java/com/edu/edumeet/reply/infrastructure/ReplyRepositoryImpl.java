@@ -37,12 +37,12 @@ public class ReplyRepositoryImpl implements ReplyRepository {
 
     /**
      * 댓글 조회
-     * @param rno 조회할 댓글 ID
+     * @param reply_id 조회할 댓글 ID
      * @return 조회된 댓글 정보
      */
     @Override
-    public ReplyDTO read(Long rno) {
-        Optional<ReplyJpaEntity> result = replyJpaRepository.findById(rno);
+    public ReplyDTO read(Long reply_id) {
+        Optional<ReplyJpaEntity> result = replyJpaRepository.findById(reply_id);
         if (result.isEmpty()) {
             return null;
         }
@@ -78,37 +78,33 @@ public class ReplyRepositoryImpl implements ReplyRepository {
 
     /**
      * 댓글 삭제
-     * @param rno 삭제할 댓글 ID
+     * @param reply_id 삭제할 댓글 ID
      */
     @Override
-    public void remove(Long rno) {
-        replyJpaRepository.deleteById(rno);
+    public void remove(Long reply_id) {
+        replyJpaRepository.deleteById(reply_id);
     }
 
     /**
      * 특정 게시글의 댓글 목록 조회
-     * @param bno 게시글 ID
+     * @param board_id 게시글 ID
      * @param pageRequestDTO 페이지 요청 정보
      * @return 페이징된 댓글 목록
      */
     @Override
-    public PageResponseDTO<ReplyDTO> getListOfBoard(Long bno, PageRequestDTO pageRequestDTO) {
+    public PageResponseDTO<ReplyDTO> getListOfBoard(Long board_id, PageRequestDTO pageRequestDTO) {
         Pageable pageable = PageRequest.of(
                 pageRequestDTO.getPage() - 1,
                 pageRequestDTO.getSize(),
                 Sort.by("id").ascending());
         
-        Page<Reply> result = replyJpaRepository.listOfBoard(bno, pageable);
+        Page<ReplyJpaEntity> result = replyJpaRepository.listOfBoard(board_id, pageable);
         
         List<ReplyDTO> dtoList = result.getContent().stream()
-                .map(this::domainToDto)
+                .map(entity -> entityToDto(entity))
                 .collect(Collectors.toList());
         
-        return PageResponseDTO.<ReplyDTO>withAll()
-                .pageRequestDTO(pageRequestDTO)
-                .dtoList(dtoList)
-                .total((int)result.getTotalElements())
-                .build();
+        return new PageResponseDTO<>(pageRequestDTO, dtoList, (int)result.getTotalElements());
     }
     
     /**

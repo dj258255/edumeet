@@ -27,9 +27,9 @@ public class BoardServiceTests {
                 .writer("user00")
                 .build();
 
-        Long bno = boardService.register(boardDTO);
+        Long board_id = boardService.register(boardDTO);
 
-        log.info("bno: " + bno);
+        log.info("board_id: " + board_id);
     }
 
     @Test
