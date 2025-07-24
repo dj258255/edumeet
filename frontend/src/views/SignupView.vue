@@ -80,14 +80,14 @@
             
             <div v-if="verificationSent" class="verification-content">
               <p class="verification-description">
-                <strong>{{ email }}</strong>로 발송된 6자리 인증 코드를 입력해주세요.
+                <strong>{{ email }}</strong>로 발송된 8자리 인증 코드를 입력해주세요.
               </p>
               
               <div class="code-input-section">
                 <label>VERIFICATION CODE</label>
                 <div class="code-input-wrapper">
                   <input
-                    v-for="(digit, index) in 6"
+                    v-for="(digit, index) in 8"
                     :key="index"
                     :id="`code-${index}`"
                     v-model="codeDigits[index]"
@@ -233,7 +233,7 @@ const isLoading = computed(() => authStore.loading)
 // 이메일 인증 관련 상태
 const verificationSent = ref(false)
 const isEmailVerified = ref(false)
-const codeDigits = ref(['', '', '', '', '', ''])
+const codeDigits = ref(['', '', '', '', '', '', '', ''])
 const countdown = ref(0)
 const timer = ref(null)
 
@@ -270,7 +270,7 @@ const handleCodeInput = (index, event) => {
   const value = event.target.value
   if (!/^\d*$/.test(value)) { event.target.value = ''; return }
   codeDigits.value[index] = value
-  if (value && index < 5) {
+  if (value && index < 7) {
     const nextInput = document.getElementById(`code-${index + 1}`)
     if (nextInput) nextInput.focus()
   }
@@ -284,8 +284,8 @@ const handleCodeKeydown = (index, event) => {
 const handleCodePaste = (event) => {
   event.preventDefault()
   const pastedData = event.clipboardData.getData('text')
-  const numbers = pastedData.replace(/\D/g, '').slice(0, 6)
-  if (numbers.length === 6) codeDigits.value = numbers.split('')
+  const numbers = pastedData.replace(/\D/g, '').slice(0, 8)
+  if (numbers.length === 8) codeDigits.value = numbers.split('')
 }
 
 const sendVerificationCode = async () => {
@@ -306,7 +306,7 @@ const sendVerificationCode = async () => {
 }
 const verifyCode = async () => {
   if (!isCodeComplete.value) {
-    errors.value.code = '6자리 인증 코드를 모두 입력해주세요.'
+    errors.value.code = '8자리 인증 코드를 모두 입력해주세요.'
     return
   }
   errors.value = {}
@@ -329,7 +329,7 @@ const resendCode = async () => {
     await authStore.resendCode(email.value)
     startCountdown()
     message.value = '인증 코드가 재발송되었습니다.'
-    codeDigits.value = ['', '', '', '', '', '']
+    codeDigits.value = ['', '', '', '', '', '', '', '']
     errors.value = {}
   } catch (error) {
     message.value = authStore.error || '인증 코드 재발송에 실패했습니다.'

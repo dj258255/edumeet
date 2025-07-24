@@ -77,7 +77,7 @@ const authAPI = {
 
   // 인증 확인
   verifyCode:(verifyInfo)=>{
-    return apiClient.post("/members/verify",verifyInfo)
+    return apiClient.get("/members/verification",verifyInfo)
   },
 
   // 이메일 중복 확인
