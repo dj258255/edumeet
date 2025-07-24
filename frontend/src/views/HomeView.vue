@@ -98,36 +98,16 @@
              @mouseup="stopDrag"
              @mouseleave="stopDrag">
           <div class="cards-wrapper" 
+               :class="{ dragging: isDragging }"
                :style="{ transform: `translateX(${translateX}px)` }"
                ref="cardsWrapper">
-            <div class="draggable-card" 
-                 v-for="(card, index) in draggableCards" 
-                 :key="card.id"
-                 :style="{ animationDelay: `${index * 0.1}s` }">
-              <div class="card-image">
-                <img :src="card.image" :alt="card.title" />
-                <div class="card-overlay">
-                  <div class="card-hover-content">
-                    <span class="view-more">자세히 보기</span>
-                  </div>
-                </div>
-                <div class="card-badge">{{ card.tags[0] }}</div>
-              </div>
-              <div class="card-content">
-                <h3 class="card-title">{{ card.title }}</h3>
-                <p class="card-description">{{ card.description }}</p>
-                <div class="card-tags">
-                  <span class="tag" v-for="tag in card.tags" :key="tag">{{ tag }}</span>
-                </div>
-                <div class="card-footer">
-                  <div class="card-stats">
-                    <span class="stat">⭐ 4.8</span>
-                    <span class="stat">👥 1.2k</span>
-                  </div>
-                  <button class="enroll-btn">수강하기</button>
-                </div>
-              </div>
-            </div>
+            <ClassCard 
+              v-for="(card, index) in draggableCards" 
+              :key="card.id"
+              :card="card"
+              :animation-delay="index * 0.1"
+              @enroll="handleEnroll"
+            />
           </div>
         </div>
         <button class="nav-button next-button" @click="goToNext" :disabled="translateX <= minTranslate">
@@ -220,6 +200,8 @@ import { useRouter } from "vue-router"
 import { userManager, tokenManager, authAPI } from "../stores/auth.js"
 import gsap from "gsap"
 import ScrollTrigger from "gsap/ScrollTrigger"
+import ClassCard from "../components/ClassCard.vue"
+import { classService } from "../stores/classService.js"
 import "../styles/HomeView.css"
 gsap.registerPlugin(ScrollTrigger)
 
@@ -285,7 +267,12 @@ const members = [
 const selectedMember = ref(null)
 
 // 드래그 가능한 카드 데이터
-const draggableCards = ref([
+const draggableCards = ref([])
+const isLoading = ref(false)
+const error = ref(null)
+
+// 기본 클래스 데이터 (백엔드 없을 때 사용)
+const defaultClasses = [
   {
     id: 1,
     title: "Vue.js 마스터 클래스",
@@ -342,7 +329,35 @@ const draggableCards = ref([
     image: "https://via.placeholder.com/300x200/9b59b6/ffffff?text=ML",
     tags: ["AI", "머신러닝", "TensorFlow"]
   }
-])
+]
+
+// 클래스 데이터 로드 함수
+const loadClasses = async () => {
+  isLoading.value = true
+  error.value = null
+  
+  // 백엔드가 없으므로 기본 데이터 사용
+  console.log('백엔드 없음: 기본 데이터 사용')
+  draggableCards.value = defaultClasses
+  isLoading.value = false
+  
+  // 백엔드가 준비되면 아래 주석을 해제하고 사용
+  /*
+  try {
+    // 백엔드에서 인기 클래스 데이터 가져오기
+    const classes = await classService.getPopularClasses(8)
+    draggableCards.value = classes
+  } catch (err) {
+    console.error('클래스 데이터 로드 실패:', err)
+    error.value = '클래스 데이터를 불러오는데 실패했습니다.'
+    
+    // 에러 시 기본 데이터 사용
+    draggableCards.value = defaultClasses
+  } finally {
+    isLoading.value = false
+  }
+  */
+}
 
 // 드래그 관련 상태
 const isDragging = ref(false)
@@ -355,12 +370,22 @@ const cardsWrapper = ref(null)
 const cardWidth = 324 // 카드 너비(300px) + 간격(24px)
 const visibleCards = 4
 const maxTranslate = 0
-const minTranslate = -(draggableCards.value.length - visibleCards) * cardWidth
+
+// minTranslate를 computed로 변경하여 반응형으로 계산
+const minTranslate = computed(() => {
+  return -(draggableCards.value.length - visibleCards) * cardWidth
+})
 
 // 드래그 시작
 const startDrag = (e) => {
   isDragging.value = true
   startX.value = e.clientX - translateX.value
+  
+  // 드래그 중일 때 커서 스타일 변경
+  if (cardsContainer.value) {
+    cardsContainer.value.style.cursor = 'grabbing'
+  }
+  
   e.preventDefault()
 }
 
@@ -369,7 +394,7 @@ const onDrag = (e) => {
   if (!isDragging.value) return
   
   const currentX = e.clientX - startX.value
-  translateX.value = Math.max(minTranslate, Math.min(maxTranslate, currentX))
+  translateX.value = Math.max(minTranslate.value, Math.min(maxTranslate, currentX))
 }
 
 // 드래그 종료 - 스냅 기능 추가
@@ -377,6 +402,11 @@ const stopDrag = () => {
   if (!isDragging.value) return
   
   isDragging.value = false
+  
+  // 커서 스타일 복원
+  if (cardsContainer.value) {
+    cardsContainer.value.style.cursor = 'grab'
+  }
   
   // 현재 위치에서 가장 가까운 카드 위치로 스냅
   const currentPosition = Math.abs(translateX.value)
@@ -478,6 +508,24 @@ const slideTransition = (slideIndex) => {
   currentSlide.value = slideIndex
 }
 
+// 수강 신청 처리
+const handleEnroll = async (classId) => {
+  // 백엔드가 없으므로 시뮬레이션
+  console.log('수강 신청 시뮬레이션:', classId)
+  alert('수강 신청이 완료되었습니다! (시뮬레이션)')
+  
+  // 백엔드가 준비되면 아래 주석을 해제하고 사용
+  /*
+  try {
+    await classService.enrollClass(classId)
+    alert('수강 신청이 완료되었습니다!')
+  } catch (error) {
+    console.error('수강 신청 실패:', error)
+    alert('수강 신청에 실패했습니다. 다시 시도해주세요.')
+  }
+  */
+}
+
 const handleMainImageClick = (e) => {
   const el = e.currentTarget
   const rect = el.getBoundingClientRect()
@@ -507,6 +555,10 @@ onMounted(async () => {
   if (isLoggedIn.value) {
     user.value = userManager.getUser()
   }
+  
+  // 클래스 데이터 로드
+  await loadClasses()
+  
   await nextTick()
   // 설명 섹션 이미지/텍스트
   gsap.from(".main-image", {

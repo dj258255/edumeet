@@ -142,8 +142,14 @@
 .cards-wrapper {
   display: flex;
   gap: var(--spacing-lg);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   padding: var(--spacing-md) 0;
+  /* 드래그 중일 때는 transition 제거하여 즉시 반응하도록 함 */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 드래그 중일 때 transition 제거 */
+.cards-wrapper.dragging {
+  transition: none;
 }
 
 .draggable-card {
