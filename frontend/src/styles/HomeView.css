@@ -1058,9 +1058,9 @@
 .left-panel {
   width: 280px;
   background: linear-gradient(180deg, 
-    #22c55e 0%, 
-    #16a34a 50%, 
-    #84cc16 100%);
+    #92e1af 0%, 
+    #4dc45b 50%, 
+    #34c266 100%);
   padding: var(--spacing-2xl) var(--spacing-lg);
   display: flex;
   flex-direction: column;
