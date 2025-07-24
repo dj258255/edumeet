@@ -1,7 +1,7 @@
 <template>
   <div class="draggable-card" :style="{ animationDelay: `${animationDelay}s` }">
     <div class="card-image">
-      <img :src="card.image" :alt="card.title" />
+      <img :src="cardImage" :alt="card.title" />
       <div class="card-overlay">
         <div class="card-hover-content">
           <span class="view-more">자세히 보기</span>
@@ -27,7 +27,8 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue'
+import { defineProps, defineEmits, computed } from 'vue'
+import defaultImage from '@/assets/class_default_image.png'
 
 const props = defineProps({
   card: {
@@ -41,6 +42,14 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['enroll'])
+
+const cardImage = computed(() => {
+  // card.image가 없거나 빈 문자열이거나 유효하지 않은 경우 기본 이미지 사용
+  if (!props.card.image || props.card.image === '' || props.card.image === 'null' || props.card.image === 'undefined') {
+    return defaultImage
+  }
+  return props.card.image
+})
 
 const handleEnroll = () => {
   emit('enroll', props.card.id)

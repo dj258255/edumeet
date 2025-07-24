@@ -40,11 +40,11 @@
             </button>
             <button type="button" @click="slideTransition(1)" :class="{ active: currentSlide === 1 }" class="nav-btn">
               <span class="nav-icon">🤖</span>
-              <span class="nav-text">AI 수업 요약 서비스</span>
+              <span class="nav-text">AI 수업 요약</span>
             </button>
             <button type="button" @click="slideTransition(2)" :class="{ active: currentSlide === 2 }" class="nav-btn">
               <span class="nav-icon">📝</span>
-              <span class="nav-text">실시간 자막 서비스</span>
+              <span class="nav-text">실시간 자막</span>
             </button>
           </div>
         </div>
@@ -277,56 +277,56 @@ const defaultClasses = [
     id: 1,
     title: "Vue.js 마스터 클래스",
     description: "Vue.js의 핵심 개념부터 고급 기능까지 체계적으로 학습하세요. 실무에서 바로 활용할 수 있는 실습 중심의 강의입니다.",
-    image: "https://via.placeholder.com/300x200/227a53/ffffff?text=Vue.js",
+    image: "",
     tags: ["프론트엔드", "Vue.js", "JavaScript"]
   },
   {
     id: 2,
     title: "React 완전 정복",
     description: "React의 기본부터 고급 패턴까지. Hooks, Context API, 상태 관리 등 현대적인 React 개발을 배워보세요.",
-    image: "https://via.placeholder.com/300x200/667eea/ffffff?text=React",
+    image: "",
     tags: ["프론트엔드", "React", "JavaScript"]
   },
   {
     id: 3,
     title: "Node.js 백엔드 개발",
     description: "Express.js와 MongoDB를 활용한 실전 백엔드 개발. RESTful API 설계부터 배포까지 완벽 가이드.",
-    image: "https://via.placeholder.com/300x200/27ae60/ffffff?text=Node.js",
+    image: "",
     tags: ["백엔드", "Node.js", "Express"]
   },
   {
     id: 4,
     title: "Python 데이터 분석",
     description: "Pandas, NumPy, Matplotlib을 활용한 데이터 분석과 시각화. 실무 데이터로 배우는 데이터 사이언스.",
-    image: "https://via.placeholder.com/300x200/3498db/ffffff?text=Python",
+    image: "",
     tags: ["데이터분석", "Python", "Pandas"]
   },
   {
     id: 5,
     title: "AWS 클라우드 아키텍처",
     description: "AWS 서비스를 활용한 확장 가능한 클라우드 인프라 구축. 실무 중심의 클라우드 아키텍처 설계.",
-    image: "https://via.placeholder.com/300x200/ff6b35/ffffff?text=AWS",
+    image: "",
     tags: ["클라우드", "AWS", "인프라"]
   },
   {
     id: 6,
     title: "Docker 컨테이너 기술",
     description: "Docker와 Kubernetes를 활용한 컨테이너 기반 애플리케이션 배포. DevOps 실무 스킬을 익혀보세요.",
-    image: "https://via.placeholder.com/300x200/0db7ed/ffffff?text=Docker",
+    image: "",
     tags: ["DevOps", "Docker", "Kubernetes"]
   },
   {
     id: 7,
     title: "UI/UX 디자인 기초",
     description: "사용자 중심의 디자인 원칙과 Figma를 활용한 프로토타이핑. 실제 프로젝트로 배우는 디자인 워크플로우.",
-    image: "https://via.placeholder.com/300x200/e74c3c/ffffff?text=Design",
+    image: "",
     tags: ["디자인", "UI/UX", "Figma"]
   },
   {
     id: 8,
     title: "머신러닝 입문",
     description: "Scikit-learn과 TensorFlow를 활용한 머신러닝 기초. 실제 데이터로 배우는 AI 모델 개발.",
-    image: "https://via.placeholder.com/300x200/9b59b6/ffffff?text=ML",
+    image: "",
     tags: ["AI", "머신러닝", "TensorFlow"]
   }
 ]
