@@ -27,7 +27,7 @@ import java.util.*;
 @Log4j2
 public class UpDownController {
 
-    @Value("${org.zerock.upload.path}")
+    @Value("${edumeet.upload.path}")
     private String uploadPath;
 
 
