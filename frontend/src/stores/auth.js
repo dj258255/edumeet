@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia'
 import axios from "axios"
+import { defineStore } from 'pinia'
 
 // API 기본 설정
 const API_BASE_URL = "http://localhost:8080/api/v1"
@@ -208,6 +208,41 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    // 이메일 인증 코드 전송
+    async sendVerificationCode(email) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await authAPI.sendVerificationCode(email)
+        return response.data
+      } catch (error) {
+        this.error = error.response?.data?.message || '인증 코드 전송에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 인증 코드 검증
+    async verifyCode(email, code) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await authAPI.verifyCode({ email, code })
+        return response.data
+      } catch (error) {
+        this.error = error.response?.data?.message || '인증 코드 검증에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 인증 코드 재전송
+    async resendCode(email) {
+      return await this.sendVerificationCode(email)
+    },
+
     // 로그아웃
     async logout() {
       this.loading = true
@@ -296,3 +331,28 @@ export const useAuthStore = defineStore('auth', {
 // 기존 export 유지 (하위 호환성)
 export { authAPI, tokenManager, userManager }
 export default apiClient 
+
+export async function login(email, password) {
+  const response = await apiClient.post("/members/login", { email, password })
+  // 필요시 토큰 저장 등 추가
+  return response.data
+}
+
+export async function signup(userData) {
+  const response = await apiClient.post("/members/register", userData)
+  return response.data
+}
+
+export async function sendVerificationCode(email) {
+  const response = await apiClient.post("/members/sendcode", email)
+  return response.data
+}
+
+export async function verifyCode(email, code) {
+  const response = await apiClient.post("/members/verify", { email, code })
+  return response.data
+}
+
+export async function resendCode(email) {
+  return await sendVerificationCode(email)
+} 

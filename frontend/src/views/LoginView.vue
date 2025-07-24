@@ -113,49 +113,35 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { login, signup, sendVerificationCode, verifyCode, resendCode } from '@/stores/auth'
 import '../styles/LoginView.css'
 
 const router = useRouter()
-const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
-const selectedRole = ref('tutor') // 기본값으로 tutor 선택
+const selectedRole = ref('tutor')
 const errors = ref({})
 const message = ref('')
 
 const validateForm = () => {
   errors.value = {}
-  
-  if (!email.value) {
-    errors.value.email = '이메일을 입력해주세요.'
-  } else if (!/\S+@\S+\.\S+/.test(email.value)) {
-    errors.value.email = '올바른 이메일 형식을 입력해주세요.'
-  }
-  
-  if (!password.value) {
-    errors.value.password = '비밀번호를 입력해주세요.'
-  } else if (password.value.length < 6) {
-    errors.value.password = '비밀번호는 최소 6자 이상이어야 합니다.'
-  }
-  
+  if (!email.value) errors.value.email = '이메일을 입력해주세요.'
+  else if (!/\S+@\S+\.\S+/.test(email.value)) errors.value.email = '올바른 이메일 형식을 입력해주세요.'
+  if (!password.value) errors.value.password = '비밀번호를 입력해주세요.'
+  else if (password.value.length < 6) errors.value.password = '비밀번호는 최소 6자 이상이어야 합니다.'
   return Object.keys(errors.value).length === 0
 }
-
 const handleLogin = async () => {
   if (!validateForm()) return
-  
   try {
-    await authStore.login(email.value, password.value)
+    await login(email.value, password.value)
     message.value = '로그인 성공!'
-    setTimeout(() => {
-      router.push('/')
-    }, 1000)
+    setTimeout(() => { router.push('/') }, 1000)
   } catch (error) {
-    message.value = error.response?.data?.message || '로그인에 실패했습니다.'
+    message.value = error.message || '로그인에 실패했습니다.'
   }
 }
 </script> 
