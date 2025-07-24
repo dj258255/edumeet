@@ -32,10 +32,15 @@ body {
   gap: var(--spacing-md);
 }
 
+.navbar-left a {
+  text-decoration: none;
+}
+
 .navbar-left span {
   font-size: var(--font-size-2xl);
   font-weight: bold;
   color: var(--brand-main);
+  text-decoration: none;
 }
 
 .logo {
