@@ -35,9 +35,12 @@ public class BoardJpaEntity extends BaseEntity {
 
     //Board의 모든 상태변화에 Image들도 같이 변경되도록 구성.
     //Board 객체 자체에서 BoardImage들을 관리.
+    //만일 하위 엔티티의 참조가 더 이상 없는 상태가 되면
+    //OneToMay에 orphanRemoval 속성값을 true로 지정해 줘야만 실제 삭제가 이루어진다.
     @OneToMany(mappedBy = "boardJpaEntity",
             cascade = {CascadeType.ALL},
-            fetch = FetchType.LAZY) //boardImage의 board변수이다.
+            fetch = FetchType.LAZY,
+            orphanRemoval = true) //boardImage의 board변수이다.
     @Builder.Default
     private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
 

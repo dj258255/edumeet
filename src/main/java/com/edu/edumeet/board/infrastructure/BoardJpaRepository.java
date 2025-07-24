@@ -10,6 +10,8 @@ import java.util.Optional;
 
 public interface BoardJpaRepository extends JpaRepository<BoardJpaEntity,Long> , BoardSearch {
 
+
+
     @EntityGraph(attributePaths = {"imageSet"})
     @Query("select b from BoardJpaEntity b where b.id = :id")
     Optional<BoardJpaEntity> findByIdWithImages(Long id);

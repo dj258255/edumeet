@@ -25,4 +25,10 @@ public interface BoardSearch {
      */
     Page<BoardListReplyCountDTO> searchWithReplyCount(String[] types, String keyword, Pageable pageable);
 
+
+    //Board와 Reply를 레프트 조인 처리하고 쿼리를 실행해서 내용을 확인
+    Page<BoardListReplyCountDTO> searchWithAll(String[] types,
+                                               String keyword,
+                                               Pageable pageable);
+
 }

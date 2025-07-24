@@ -135,4 +135,29 @@ public class BoardSearchImpl extends QuerydslRepositorySupport implements BoardS
             query.where(booleanBuilder);
         }
     }
+
+    @Override
+    public Page<BoardListReplyCountDTO> searchWithAll(String[] types,
+                                                      String keyword,
+                                                      Pageable pageable){
+
+        QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
+        QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
+
+        JPQLQuery<BoardJpaEntity>  boardJpaEntityJPQLQuery = from(boardJpaEntity);
+        boardJpaEntityJPQLQuery.leftJoin(replyJpaEntity).on(replyJpaEntity.board.eq(boardJpaEntity)); // 레프트 조인
+
+        getQuerydsl().applyPagination(pageable, boardJpaEntityJPQLQuery); // 페이징
+
+        List<BoardJpaEntity> boardList = boardJpaEntityJPQLQuery.fetch();
+
+        boardList.forEach(boardJpaEntity1 ->{
+            System.out.println(boardJpaEntity1.getId());
+            System.out.println(boardJpaEntity1.getImageSet());
+            System.out.println("---------------");
+        });
+
+
+        return null;
+    }
 }
