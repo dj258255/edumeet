@@ -142,8 +142,14 @@
 .cards-wrapper {
   display: flex;
   gap: var(--spacing-lg);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   padding: var(--spacing-md) 0;
+  /* 드래그 중일 때는 transition 제거하여 즉시 반응하도록 함 */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 드래그 중일 때 transition 제거 */
+.cards-wrapper.dragging {
+  transition: none;
 }
 
 .draggable-card {
@@ -905,6 +911,18 @@
   max-width: 1400px;
   margin: 0 auto;
   min-height: 600px;
+  background: var(--bg-primary);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--border-color);
+}
+
+.dark-mode .layout-container {
+  background: var(--bg-card);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border-color: var(--border-color);
 }
 
 .text-badge {
@@ -918,6 +936,11 @@
   margin-bottom: var(--spacing-md);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  box-shadow: 0 4px 15px rgba(34, 122, 83, 0.2);
+}
+
+.dark-mode .text-badge {
+  box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
 }
 
 .main-text {
@@ -960,13 +983,22 @@
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-normal);
+  box-shadow: 0 4px 15px rgba(34, 122, 83, 0.1);
 }
 
 .learn-more-btn:hover {
   background: var(--brand-main);
   color: var(--text-inverse);
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 8px 25px rgba(34, 122, 83, 0.3);
+}
+
+.dark-mode .learn-more-btn {
+  box-shadow: 0 4px 15px rgba(74, 222, 128, 0.2);
+}
+
+.dark-mode .learn-more-btn:hover {
+  box-shadow: 0 8px 25px rgba(74, 222, 128, 0.4);
 }
 
 .arrow {
@@ -981,12 +1013,18 @@
   flex: 1;
   position: relative;
   max-width: 500px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .image-container {
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
 }
 
 .main-image {
   width: 100%;
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-card);
+  border-radius: 20px;
   transition: transform var(--transition-normal);
 }
 
@@ -997,8 +1035,13 @@
   right: 0;
   bottom: 0;
   background: linear-gradient(135deg, rgba(34, 122, 83, 0.05) 0%, rgba(34, 122, 83, 0.02) 100%);
-  border-radius: var(--radius-xl);
+  border-radius: 20px;
   pointer-events: none;
+  transition: background var(--transition-normal);
+}
+
+.dark-mode .image-overlay {
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.08) 0%, rgba(74, 222, 128, 0.03) 100%);
 }
 
 .main-image:hover {
@@ -1007,27 +1050,27 @@
 
 .main-text {
   flex: 1;
-  padding: 0 var(--spacing-md);
+  padding: 0 var(--spacing-lg);
+  max-width: 400px;
 }
 
 /* 왼쪽 네비게이션 패널 */
 .left-panel {
-  width: 260px;
+  width: 280px;
   background: linear-gradient(180deg, 
     #22c55e 0%, 
     #16a34a 50%, 
     #84cc16 100%);
-  padding: var(--spacing-xl) var(--spacing-md);
+  padding: var(--spacing-2xl) var(--spacing-lg);
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  border-radius: 0 0 32px 32px;
+  justify-content: flex-start;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
   box-shadow: 
     0 20px 40px rgba(34, 197, 94, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  position: relative;
-  overflow: hidden;
-  clip-path: polygon(0 0, 100% 0, 95% 100%, 0% 100%);
 }
 
 .left-panel::before {
@@ -1059,30 +1102,32 @@
 .nav-buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   position: relative;
   z-index: 2;
-  padding: 0 var(--spacing-sm);
+  width: 100%;
+  margin-top: var(--spacing-xl);
 }
 
 .nav-btn {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  padding: var(--spacing-md) var(--spacing-lg);
-  font-size: var(--font-size-sm);
+  border-radius: 16px;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--text-inverse);
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   text-align: left;
   position: relative;
   overflow: hidden;
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  width: 100%;
 }
 
 .nav-btn::before {
@@ -1120,7 +1165,7 @@
 .nav-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.4);
-  transform: translateX(10px) scale(1.05);
+  transform: translateY(-2px);
   box-shadow: 
     0 8px 25px rgba(0, 0, 0, 0.2),
     0 0 0 1px rgba(255, 255, 255, 0.1);
@@ -1138,7 +1183,7 @@
     0 8px 25px rgba(0, 0, 0, 0.25),
     0 0 0 2px rgba(255, 255, 255, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  transform: translateX(8px);
+  transform: translateY(-2px);
 }
 
 .nav-btn.active::after {
@@ -1159,19 +1204,25 @@
 /* 오른쪽 콘텐츠 영역 */
 .content-area {
   flex: 1;
-  background: var(--bg-tertiary);
-  padding: var(--spacing-xl);
-  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+  background: var(--bg-secondary);
+  padding: var(--spacing-2xl);
   display: flex;
   align-items: center;
   transition: background-color var(--transition-normal);
+  position: relative;
+}
+
+.dark-mode .content-area {
+  background: var(--bg-tertiary);
 }
 
 .content-wrapper {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xl);
+  gap: var(--spacing-2xl);
   width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 /* Vue Transition 애니메이션 */

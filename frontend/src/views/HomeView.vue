@@ -40,11 +40,11 @@
             </button>
             <button type="button" @click="slideTransition(1)" :class="{ active: currentSlide === 1 }" class="nav-btn">
               <span class="nav-icon">🤖</span>
-              <span class="nav-text">AI 수업 요약 서비스</span>
+              <span class="nav-text">AI 수업 요약</span>
             </button>
             <button type="button" @click="slideTransition(2)" :class="{ active: currentSlide === 2 }" class="nav-btn">
               <span class="nav-icon">📝</span>
-              <span class="nav-text">실시간 자막 서비스</span>
+              <span class="nav-text">실시간 자막</span>
             </button>
           </div>
         </div>
@@ -98,36 +98,16 @@
              @mouseup="stopDrag"
              @mouseleave="stopDrag">
           <div class="cards-wrapper" 
+               :class="{ dragging: isDragging }"
                :style="{ transform: `translateX(${translateX}px)` }"
                ref="cardsWrapper">
-            <div class="draggable-card" 
-                 v-for="(card, index) in draggableCards" 
-                 :key="card.id"
-                 :style="{ animationDelay: `${index * 0.1}s` }">
-              <div class="card-image">
-                <img :src="card.image" :alt="card.title" />
-                <div class="card-overlay">
-                  <div class="card-hover-content">
-                    <span class="view-more">자세히 보기</span>
-                  </div>
-                </div>
-                <div class="card-badge">{{ card.tags[0] }}</div>
-              </div>
-              <div class="card-content">
-                <h3 class="card-title">{{ card.title }}</h3>
-                <p class="card-description">{{ card.description }}</p>
-                <div class="card-tags">
-                  <span class="tag" v-for="tag in card.tags" :key="tag">{{ tag }}</span>
-                </div>
-                <div class="card-footer">
-                  <div class="card-stats">
-                    <span class="stat">⭐ 4.8</span>
-                    <span class="stat">👥 1.2k</span>
-                  </div>
-                  <button class="enroll-btn">수강하기</button>
-                </div>
-              </div>
-            </div>
+            <ClassCard 
+              v-for="(card, index) in draggableCards" 
+              :key="card.id"
+              :card="card"
+              :animation-delay="index * 0.1"
+              @enroll="handleEnroll"
+            />
           </div>
         </div>
         <button class="nav-button next-button" @click="goToNext" :disabled="translateX <= minTranslate">
@@ -220,6 +200,8 @@ import { useRouter } from "vue-router"
 import { userManager, tokenManager, authAPI } from "../stores/auth.js"
 import gsap from "gsap"
 import ScrollTrigger from "gsap/ScrollTrigger"
+import ClassCard from "../components/ClassCard.vue"
+import { classService } from "../stores/classService.js"
 import "../styles/HomeView.css"
 gsap.registerPlugin(ScrollTrigger)
 
@@ -285,64 +267,97 @@ const members = [
 const selectedMember = ref(null)
 
 // 드래그 가능한 카드 데이터
-const draggableCards = ref([
+const draggableCards = ref([])
+const isLoading = ref(false)
+const error = ref(null)
+
+// 기본 클래스 데이터 (백엔드 없을 때 사용)
+const defaultClasses = [
   {
     id: 1,
     title: "Vue.js 마스터 클래스",
     description: "Vue.js의 핵심 개념부터 고급 기능까지 체계적으로 학습하세요. 실무에서 바로 활용할 수 있는 실습 중심의 강의입니다.",
-    image: "https://via.placeholder.com/300x200/227a53/ffffff?text=Vue.js",
+    image: "",
     tags: ["프론트엔드", "Vue.js", "JavaScript"]
   },
   {
     id: 2,
     title: "React 완전 정복",
     description: "React의 기본부터 고급 패턴까지. Hooks, Context API, 상태 관리 등 현대적인 React 개발을 배워보세요.",
-    image: "https://via.placeholder.com/300x200/667eea/ffffff?text=React",
+    image: "",
     tags: ["프론트엔드", "React", "JavaScript"]
   },
   {
     id: 3,
     title: "Node.js 백엔드 개발",
     description: "Express.js와 MongoDB를 활용한 실전 백엔드 개발. RESTful API 설계부터 배포까지 완벽 가이드.",
-    image: "https://via.placeholder.com/300x200/27ae60/ffffff?text=Node.js",
+    image: "",
     tags: ["백엔드", "Node.js", "Express"]
   },
   {
     id: 4,
     title: "Python 데이터 분석",
     description: "Pandas, NumPy, Matplotlib을 활용한 데이터 분석과 시각화. 실무 데이터로 배우는 데이터 사이언스.",
-    image: "https://via.placeholder.com/300x200/3498db/ffffff?text=Python",
+    image: "",
     tags: ["데이터분석", "Python", "Pandas"]
   },
   {
     id: 5,
     title: "AWS 클라우드 아키텍처",
     description: "AWS 서비스를 활용한 확장 가능한 클라우드 인프라 구축. 실무 중심의 클라우드 아키텍처 설계.",
-    image: "https://via.placeholder.com/300x200/ff6b35/ffffff?text=AWS",
+    image: "",
     tags: ["클라우드", "AWS", "인프라"]
   },
   {
     id: 6,
     title: "Docker 컨테이너 기술",
     description: "Docker와 Kubernetes를 활용한 컨테이너 기반 애플리케이션 배포. DevOps 실무 스킬을 익혀보세요.",
-    image: "https://via.placeholder.com/300x200/0db7ed/ffffff?text=Docker",
+    image: "",
     tags: ["DevOps", "Docker", "Kubernetes"]
   },
   {
     id: 7,
     title: "UI/UX 디자인 기초",
     description: "사용자 중심의 디자인 원칙과 Figma를 활용한 프로토타이핑. 실제 프로젝트로 배우는 디자인 워크플로우.",
-    image: "https://via.placeholder.com/300x200/e74c3c/ffffff?text=Design",
+    image: "",
     tags: ["디자인", "UI/UX", "Figma"]
   },
   {
     id: 8,
     title: "머신러닝 입문",
     description: "Scikit-learn과 TensorFlow를 활용한 머신러닝 기초. 실제 데이터로 배우는 AI 모델 개발.",
-    image: "https://via.placeholder.com/300x200/9b59b6/ffffff?text=ML",
+    image: "",
     tags: ["AI", "머신러닝", "TensorFlow"]
   }
-])
+]
+
+// 클래스 데이터 로드 함수
+const loadClasses = async () => {
+  isLoading.value = true
+  error.value = null
+  
+  // 백엔드가 없으므로 기본 데이터 사용
+  console.log('백엔드 없음: 기본 데이터 사용')
+  draggableCards.value = defaultClasses
+  isLoading.value = false
+  
+  // 백엔드가 준비되면 아래 주석을 해제하고 사용
+  /*
+  try {
+    // 백엔드에서 인기 클래스 데이터 가져오기
+    const classes = await classService.getPopularClasses(8)
+    draggableCards.value = classes
+  } catch (err) {
+    console.error('클래스 데이터 로드 실패:', err)
+    error.value = '클래스 데이터를 불러오는데 실패했습니다.'
+    
+    // 에러 시 기본 데이터 사용
+    draggableCards.value = defaultClasses
+  } finally {
+    isLoading.value = false
+  }
+  */
+}
 
 // 드래그 관련 상태
 const isDragging = ref(false)
@@ -355,12 +370,22 @@ const cardsWrapper = ref(null)
 const cardWidth = 324 // 카드 너비(300px) + 간격(24px)
 const visibleCards = 4
 const maxTranslate = 0
-const minTranslate = -(draggableCards.value.length - visibleCards) * cardWidth
+
+// minTranslate를 computed로 변경하여 반응형으로 계산
+const minTranslate = computed(() => {
+  return -(draggableCards.value.length - visibleCards) * cardWidth
+})
 
 // 드래그 시작
 const startDrag = (e) => {
   isDragging.value = true
   startX.value = e.clientX - translateX.value
+  
+  // 드래그 중일 때 커서 스타일 변경
+  if (cardsContainer.value) {
+    cardsContainer.value.style.cursor = 'grabbing'
+  }
+  
   e.preventDefault()
 }
 
@@ -369,7 +394,7 @@ const onDrag = (e) => {
   if (!isDragging.value) return
   
   const currentX = e.clientX - startX.value
-  translateX.value = Math.max(minTranslate, Math.min(maxTranslate, currentX))
+  translateX.value = Math.max(minTranslate.value, Math.min(maxTranslate, currentX))
 }
 
 // 드래그 종료 - 스냅 기능 추가
@@ -377,6 +402,11 @@ const stopDrag = () => {
   if (!isDragging.value) return
   
   isDragging.value = false
+  
+  // 커서 스타일 복원
+  if (cardsContainer.value) {
+    cardsContainer.value.style.cursor = 'grab'
+  }
   
   // 현재 위치에서 가장 가까운 카드 위치로 스냅
   const currentPosition = Math.abs(translateX.value)
@@ -478,6 +508,24 @@ const slideTransition = (slideIndex) => {
   currentSlide.value = slideIndex
 }
 
+// 수강 신청 처리
+const handleEnroll = async (classId) => {
+  // 백엔드가 없으므로 시뮬레이션
+  console.log('수강 신청 시뮬레이션:', classId)
+  alert('수강 신청이 완료되었습니다! (시뮬레이션)')
+  
+  // 백엔드가 준비되면 아래 주석을 해제하고 사용
+  /*
+  try {
+    await classService.enrollClass(classId)
+    alert('수강 신청이 완료되었습니다!')
+  } catch (error) {
+    console.error('수강 신청 실패:', error)
+    alert('수강 신청에 실패했습니다. 다시 시도해주세요.')
+  }
+  */
+}
+
 const handleMainImageClick = (e) => {
   const el = e.currentTarget
   const rect = el.getBoundingClientRect()
@@ -507,6 +555,10 @@ onMounted(async () => {
   if (isLoggedIn.value) {
     user.value = userManager.getUser()
   }
+  
+  // 클래스 데이터 로드
+  await loadClasses()
+  
   await nextTick()
   // 설명 섹션 이미지/텍스트
   gsap.from(".main-image", {
