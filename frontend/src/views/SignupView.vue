@@ -57,7 +57,7 @@
                 type="email"
                 :class="{ error: errors.email }"
                 placeholder="Type your Email"
-                :disabled="isEmailVerified"
+                :disabled="isEmailVerified || verificationSent"
               />
             </div>
             <div v-if="errors.email" class="error-message">{{ errors.email }}</div>
