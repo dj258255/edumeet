@@ -57,12 +57,17 @@ body {
 }
 
 .navbar-center a {
-  color: var(--text-secondary);
+  color: #4a5568;
   font-size: var(--font-size-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   text-decoration: none;
   transition: background var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .navbar-center a {
+  color: #cbd5e0;
 }
 
 .navbar-center a:hover {
@@ -79,7 +84,7 @@ body {
 .search-button {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  color: #4a5568;
   padding: var(--spacing-sm);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -89,6 +94,11 @@ body {
   justify-content: center;
   width: 100%;
   height: 40px;
+  font-weight: 500;
+}
+
+.dark-mode .search-button {
+  color: #cbd5e0;
 }
 
 .search-button:hover {
@@ -100,7 +110,7 @@ body {
 .dark-mode-button {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  color: #4a5568;
   padding: var(--spacing-sm);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -110,6 +120,11 @@ body {
   justify-content: center;
   width: 100%;
   height: 40px;
+  font-weight: 500;
+}
+
+.dark-mode .dark-mode-button {
+  color: #cbd5e0;
 }
 
 .dark-mode-button:hover {
@@ -203,7 +218,7 @@ body {
 .close-btn {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  color: #4a5568;
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
@@ -213,6 +228,11 @@ body {
   justify-content: center;
   font-size: var(--font-size-lg);
   transition: all var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .close-btn {
+  color: #cbd5e0;
 }
 
 .close-btn:hover {

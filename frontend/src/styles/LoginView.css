@@ -139,9 +139,14 @@
 
 .role-label {
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: #4a5568;
   margin-bottom: var(--spacing-md);
   text-align: center;
+  font-weight: 600;
+}
+
+.dark-mode .role-label {
+  color: #cbd5e0;
 }
 
 .role-buttons {
@@ -202,10 +207,14 @@
 
 label {
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #4a5568;
   font-size: var(--font-size-sm);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.dark-mode label {
+  color: #cbd5e0;
 }
 
 .input-wrapper {
@@ -218,8 +227,12 @@ label {
   position: absolute;
   left: var(--spacing-md);
   font-size: var(--font-size-base);
-  color: var(--text-tertiary);
+  color: #718096;
   z-index: 1;
+}
+
+.dark-mode .input-icon {
+  color: #a0aec0;
 }
 
 input {
@@ -281,10 +294,15 @@ input.error {
 }
 
 .forgot-link {
-  color: var(--text-secondary);
+  color: #4a5568;
   text-decoration: none;
   font-size: var(--font-size-sm);
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .forgot-link {
+  color: #cbd5e0;
 }
 
 .forgot-link:hover {
@@ -294,8 +312,13 @@ input.error {
 .signup-link {
   text-align: center;
   margin-top: var(--spacing-lg);
-  color: var(--text-secondary);
+  color: #4a5568;
   font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.dark-mode .signup-link {
+  color: #cbd5e0;
 }
 
 .signup-link a {

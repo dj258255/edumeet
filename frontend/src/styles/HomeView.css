@@ -17,9 +17,14 @@
 }
 
 .welcome-text {
-  color: var(--text-secondary);
+  color: #4a5568;
   font-size: var(--font-size-sm);
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .welcome-text {
+  color: #cbd5e0;
 }
 
 /* 메인 콘텐츠 */
@@ -70,11 +75,20 @@
   transition: color var(--transition-normal);
 }
 
+.dark-mode .section-title {
+  color: #ffffff;
+}
+
 .section-subtitle {
   font-size: var(--font-size-lg);
-  color: var(--text-secondary);
+  color: #4a5568;
   line-height: 1.6;
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .section-subtitle {
+  color: #cbd5e0;
 }
 
 .cards-container-wrapper {
@@ -264,7 +278,7 @@
 
 .card-description {
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: #4a5568;
   line-height: 1.6;
   margin-bottom: var(--spacing-md);
   display: -webkit-box;
@@ -272,6 +286,11 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .card-description {
+  color: #cbd5e0;
 }
 
 .card-tags {
@@ -312,8 +331,12 @@
 
 .stat {
   font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  font-weight: 500;
+  color: #4a5568;
+  font-weight: 600;
+}
+
+.dark-mode .stat {
+  color: #cbd5e0;
 }
 
 .enroll-btn {
@@ -516,9 +539,14 @@
 .member-description {
   font-size: var(--font-size-base);
   line-height: 1.7;
-  color: var(--text-primary);
+  color: #2d3748;
   margin: 0;
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .member-description {
+  color: #e2e8f0;
 }
 
 .member-social {
@@ -575,12 +603,17 @@
 .team-description {
   font-size: var(--font-size-base);
   line-height: 1.7;
-  color: var(--text-primary);
+  color: #2d3748;
   margin-bottom: var(--spacing-xl);
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .team-description {
+  color: #e2e8f0;
 }
 
 .team-stats {
@@ -605,8 +638,13 @@
 
 .stat-label {
   font-size: var(--font-size-base);
-  color: var(--text-secondary);
+  color: #4a5568;
   transition: color var(--transition-normal);
+  font-weight: 600;
+}
+
+.dark-mode .stat-label {
+  color: #cbd5e0;
 }
 
 /* 오른쪽 팀원 카드 패널 */
@@ -700,8 +738,17 @@
 .card-role {
   font-size: var(--font-size-sm);
   margin: 0;
-  opacity: 0.8;
+  color: #4a5568;
+  font-weight: 500;
   transition: color var(--transition-normal);
+}
+
+.dark-mode .card-role {
+  color: #cbd5e0;
+}
+
+.member-card.active .card-role {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .image-wrapper {
@@ -730,7 +777,7 @@
   overflow: hidden;
 }
 
-.hero-background {
+-background {
   position: absolute;
   top: 0;
   left: 0;
@@ -835,13 +882,20 @@
 
 .hero-subtitle {
   font-size: var(--font-size-xl);
-  color: var(--text-secondary);
+  color: #2d3748;
   text-align: center;
   margin-bottom: var(--spacing-xl);
   max-width: 600px;
   line-height: 1.6;
   position: relative;
   z-index: 2;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+.dark-mode .hero-subtitle {
+  color: #e2e8f0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .hero-actions {
@@ -951,23 +1005,37 @@
   font-size: var(--font-size-3xl);
   font-weight: bold;
   margin-bottom: var(--spacing-sm);
-  color: var(--text-primary);
+  color: #1a202c;
   transition: color var(--transition-normal);
+}
+
+.dark-mode .main-heading {
+  color: #f7fafc;
 }
 
 .main-subheading {
   font-size: var(--font-size-base);
-  color: var(--text-tertiary);
+  color: #4a5568;
   margin-bottom: var(--spacing-md);
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .main-subheading {
+  color: #a0aec0;
 }
 
 .main-body {
   font-size: var(--font-size-base);
-  color: var(--text-primary);
+  color: #2d3748;
   line-height: 1.7;
   margin-bottom: var(--spacing-lg);
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .main-body {
+  color: #e2e8f0;
 }
 
 .learn-more-btn {
@@ -1014,12 +1082,8 @@
   position: relative;
   max-width: 500px;
   border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-}
-
-.dark-mode .image-container {
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+  /* overflow: hidden;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1); */
 }
 
 .main-image {
@@ -1483,9 +1547,14 @@
   padding: var(--spacing-lg) 0 var(--spacing-md) 0;
   text-align: center;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: #4a5568;
   margin-top: 0px;
   transition: background-color var(--transition-normal), color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .footer {
+  color: #cbd5e0;
 }
 
 .footer-content {
@@ -1503,8 +1572,13 @@
 }
 
 .footer-divider {
-  color: var(--text-tertiary);
+  color: #718096;
   transition: color var(--transition-normal);
+  font-weight: 500;
+}
+
+.dark-mode .footer-divider {
+  color: #a0aec0;
 }
 
 @media (max-width: 600px) {

@@ -5,32 +5,58 @@
       <div class="hero-container">
         <div class="hero-content">
           <div class="hero-badge">EduMeet 소개</div>
-          <h1 class="hero-title">미래의 교육을 만나다</h1>
+          <h1 class="hero-title">
+            언제 어디서든
+            <span class="title-line">수업 공간을 만드는</span>
+            <span class="title-line">AI와 함께하는</span>
+            <span class="title-line highlight">교육 플랫폼</span>
+          </h1>
           <p class="hero-description">
-            AI 기술과 실시간 상호작용이 결합된 혁신적인 온라인 교육 플랫폼입니다.
-            언제 어디서나 편리하게 참여하는 고품질 교육 경험을 제공합니다.
+            EduMeet와 함께 더 많은 것을 성취하세요 : 교육에 새로운 공간을 만드는, AI의 많은 기능들이 포함된 미래 지향적 우선 교육 플랫폼으로, 
+            추가 비용 없이 미래의 학습을 경험해보세요.
           </p>
-          <div class="hero-stats">
-            <div class="stat">
-              <span class="stat-number">10,000+</span>
-              <span class="stat-label">활성 사용자</span>
-            </div>
-            <div class="stat">
-              <span class="stat-number">50,000+</span>
-              <span class="stat-label">완료된 수업</span>
-            </div>
-            <div class="stat">
-              <span class="stat-number">99.9%</span>
-              <span class="stat-label">업타임</span>
-            </div>
+          <div class="hero-actions">
+            <router-link to="/create-room" class="btn btn-primary">
+              시작하기
+            </router-link>
+            <router-link to="/about" class="btn btn-secondary">
+              EduMeet 알아보기
+            </router-link>
           </div>
         </div>
         <div class="hero-visual">
-          <div class="floating-icons">
-            <div class="icon icon-1">🎓</div>
-            <div class="icon icon-2">🤖</div>
-            <div class="icon icon-3">📝</div>
-            <div class="icon icon-4">💡</div>
+          <div class="hero-images">
+            <div class="image-container">
+              <img 
+                src="@/assets/main_hero/laebtob-eul-sayonghaneun-asia-sa-eobga-geosil-eseo-hwasang-tonghwa-hoeui-gyehoeg-e-daehae-donglyoege-iyagihabnida.jpg" 
+                alt="화상회의 중인 비즈니스맨들" 
+                class="hero-image image-1"
+              />
+              <div class="ui-bubble bubble-1">
+                <div class="bubble-header">
+                  <span class="sparkle-icon">✨</span>
+                  <span class="bubble-title">오늘의 과제</span>
+                </div>
+                <div class="bubble-input">
+                  <span class="input-text">과제를 제출 해주세요.</span>
+                  <span class="send-icon">➤</span>
+                </div>
+              </div>
+            </div>
+            <div class="image-container">
+              <img 
+                src="@/assets/main_hero/yuchiwon-jol-eob-eul-chughahaneun-aideul.jpg" 
+                alt="AI와 함께하는 학생들" 
+                class="hero-image image-2"
+              />
+              <div class="ui-bubble bubble-2">
+                <div class="bubble-content">
+                  <span class="doc-icon">📄</span>
+                  <span class="sparkle-icon">✨</span>
+                  <span class="bubble-text">수업 요약서</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

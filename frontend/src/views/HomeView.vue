@@ -2,81 +2,68 @@
   <div class="home-view">
     <!-- 인트로(인트로 텍스트/버튼) -->
     <section class="hero">
-      <div class="hero-background">
-        <div class="gradient-overlay"></div>
-        <div class="floating-shapes">
-          <div class="shape shape-1"></div>
-          <div class="shape shape-2"></div>
-          <div class="shape shape-3"></div>
+      <div class="hero-container">
+        <div class="hero-content">
+          <div class="hero-badge">EduMeet 소개</div>
+          <h1 class="hero-title">
+            언제 어디서든
+            <span class="title-line">수업 공간을 만드는</span>
+            <span class="title-line">AI와 함께하는</span>
+            <span class="title-line highlight">교육 플랫폼</span>
+          </h1>
+          <p class="hero-description">
+            EduMeet와 함께 더 많은 것을 성취하세요 : 교육에 새로운 공간을 만드는, AI의 많은 기능들이 포함된 미래 지향적 우선 교육 플랫폼으로, 
+            추가 비용 없이 미래의 학습을 경험해보세요.
+          </p>
+          <div class="hero-actions">
+            <router-link to="/login" class="btn btn-primary">
+              시작하기
+            </router-link>
+            <router-link to="/about" class="btn btn-secondary">
+              EduMeet 알아보기
+            </router-link>
+          </div>
         </div>
-      </div>
-      <div class="intro-text">
-        <h1 class="hero-title">
-          <span class="title-line">EduMeet에 오신 것을</span>
-          <span class="title-line highlight">환영합니다</span>
-        </h1>
-        <p class="hero-subtitle">혁신적인 교육 플랫폼으로 새로운 학습 경험을 시작하세요</p>
-      </div>
-      <div class="hero-actions">
-        <router-link :to="isLoggedIn ? '/create-room' : '/login'" class="hero-btn primary-btn">
-          <span class="btn-text">시작하기</span>
-          <span class="btn-icon">→</span>
-        </router-link>
-        <router-link to="/about" class="hero-btn secondary-btn">
-          <span class="btn-text">더 알아보기</span>
-        </router-link>
+        <div class="hero-visual">
+          <div class="hero-images">
+            <div class="image-container">
+              <img 
+                src="@/assets/main_hero/laebtob-eul-sayonghaneun-asia-sa-eobga-geosil-eseo-hwasang-tonghwa-hoeui-gyehoeg-e-daehae-donglyoege-iyagihabnida.jpg" 
+                alt="화상회의 중인 비즈니스맨들" 
+                class="hero-image image-1"
+              />
+              <div class="ui-bubble bubble-1">
+                <div class="bubble-header">
+                  <span class="sparkle-icon">✨</span>
+                  <span class="bubble-title">오늘의 과제</span>
+                </div>
+                <div class="bubble-input">
+                  <span class="input-text">과제를 제출 해주세요.</span>
+                  <span class="send-icon">➤</span>
+                </div>
+              </div>
+            </div>
+            <div class="image-container">
+              <img 
+                src="@/assets/main_hero/yuchiwon-jol-eob-eul-chughahaneun-aideul.jpg" 
+                alt="AI와 함께하는 학생들" 
+                class="hero-image image-2"
+              />
+              <div class="ui-bubble bubble-2">
+                <div class="bubble-content">
+                  <span class="doc-icon">📄</span>
+                  <span class="sparkle-icon">✨</span>
+                  <span class="bubble-text">수업 요약서</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
     
     <!-- 설명 Section -->
-    <section class="main-section">
-      <div class="layout-container">
-        <!-- 왼쪽 네비게이션 패널 -->
-        <div class="left-panel">
-          <div class="nav-buttons">
-            <button type="button" @click="slideTransition(0)" :class="{ active: currentSlide === 0 }" class="nav-btn">
-              <span class="nav-icon">🎓</span>
-              <span class="nav-text">online class</span>
-            </button>
-            <button type="button" @click="slideTransition(1)" :class="{ active: currentSlide === 1 }" class="nav-btn">
-              <span class="nav-icon">🤖</span>
-              <span class="nav-text">AI 수업 요약</span>
-            </button>
-            <button type="button" @click="slideTransition(2)" :class="{ active: currentSlide === 2 }" class="nav-btn">
-              <span class="nav-icon">📝</span>
-              <span class="nav-text">실시간 자막</span>
-            </button>
-          </div>
-        </div>
-        
-        <!-- 오른쪽 콘텐츠 영역 -->
-        <div class="content-area">
-          <div id="mainCarousel" class="carousel slide" data-bs-ride="carousel">
-            <transition name="slide-fade" mode="out-in">
-              <div :key="currentSlide" class="carousel-item active">
-                <div class="content-wrapper">
-                  <div class="image-container">
-                    <img :src="getCurrentImage()" class="main-image" :alt="`mainim${currentSlide + 1}`" />
-                    <div class="image-overlay"></div>
-                  </div>
-                  <div class="main-text">
-                    <div class="text-badge">{{ getCurrentHeading() }}</div>
-                    <h3 class="main-heading">{{ getCurrentSubheading() }}</h3>
-                    <p class="main-body">
-                      {{ getCurrentBody() }}
-                    </p>
-                    <button class="learn-more-btn">
-                      자세히 알아보기
-                      <span class="arrow">→</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </transition>
-          </div>
-        </div>
-      </div>
-    </section>
+    <MainSection />
     
     <!-- 드래그 가능한 카드 Section -->
     <section class="draggable-cards-section">
@@ -201,7 +188,7 @@ import { userManager, tokenManager, authAPI } from "../stores/auth.js"
 import gsap from "gsap"
 import ScrollTrigger from "gsap/ScrollTrigger"
 import ClassCard from "../components/ClassCard.vue"
-import { classService } from "../stores/classService.js"
+import MainSection from "../components/MainSection.vue"
 import "../styles/HomeView.css"
 gsap.registerPlugin(ScrollTrigger)
 
@@ -466,47 +453,7 @@ const selectMember = (member) => {
   }
 }
 
-const imageList = ["/src/assets/mainim.png", "/src/assets/mainim1.png", "/src/assets/mainim2.png"]
-const mainImageIndex = ref(0)
-const mainImageSrc = computed(() => imageList[mainImageIndex.value])
-const descriptList = []
-const currentSlide = ref(0)
 
-// 슬라이드 데이터
-const slideData = [
-  {
-    image: "/src/assets/mainim.png",
-    heading: "online class",
-    subheading: "교육을 연결하는 새로운 방법",
-    body: "언제 어디서든 편리하게 참여하는 온라인 강의를 통해 학습의 가능성을 넓혀보세요. 다양한 분야의 전문가와 함께 실시간으로 소통하며 깊이 있는 지식을 습득하고, 동료 학습자들과 협력하여 학습 효과를 극대화할 수 있습니다. EduMeet의 온라인 클래스는 시간과 공간의 제약 없이 원하는 교육을 받을 수 있도록 지원합니다."},
-  {
-    image: "/src/assets/mainim1.png",
-    heading: "AI 수업 요약 서비스",
-    subheading: "자동화된 수업 요약 서비스",
-    body: "자동화된 수업 요약 서비스\n\n수업 내용을 놓치셨나요? EduMeet의 AI 수업 요약 서비스는 실시간 강의 내용을 텍스트로 변환하고 핵심 내용을 자동으로 요약하여 제공합니다. 복습 시간을 절약하고 학습 효율성을 높여보세요. 중요한 정보를 빠르고 정확하게 파악하여 학습 효과를 극대화할 수 있습니다."
-   },
-  {
-    image: "/src/assets/mainim2.png",
-    heading: "실시간 자막 서비스",
-    subheading: "차별 없는 교육 환경 제공",
-    body: "차별 없는 교육 환경 제공\n\n언어 장벽 없이 모두가 평등하게 교육에 참여할 수 있도록 EduMeet는 실시간 자막 서비스를 제공합니다. 다양한 언어를 지원하여 국제적인 학습 환경을 구축하고, 청각에 어려움을 겪는 학습자들에게도 편리한 학습 환경을 제공합니다. EduMeet는 모든 학습자의 교육 접근성을 향상시키기 위해 노력합니다."
-  }
-]
-
-// 현재 슬라이드 데이터 가져오기 함수들
-const getCurrentImage = () => slideData[currentSlide.value].image
-const getCurrentHeading = () => slideData[currentSlide.value].heading
-const getCurrentSubheading = () => slideData[currentSlide.value].subheading
-const getCurrentBody = () => slideData[currentSlide.value].body
-
-const goToSlide = (slideIndex) => {
-  currentSlide.value = slideIndex
-}
-
-// 슬라이드 전환 애니메이션을 위한 함수
-const slideTransition = (slideIndex) => {
-  currentSlide.value = slideIndex
-}
 
 // 수강 신청 처리
 const handleEnroll = async (classId) => {
@@ -526,16 +473,7 @@ const handleEnroll = async (classId) => {
   */
 }
 
-const handleMainImageClick = (e) => {
-  const el = e.currentTarget
-  const rect = el.getBoundingClientRect()
-  const x = e.clientX - rect.left
-  const edge = rect.width * 0.15
-  if (x < edge || x > rect.width - edge) {
-    // 가장자리 클릭 시 다음 이미지로
-    mainImageIndex.value = (mainImageIndex.value + 1) % imageList.length
-  }
-}
+
 
 // 로그아웃 처리
 const handleLogout = async () => {
@@ -560,30 +498,6 @@ onMounted(async () => {
   await loadClasses()
   
   await nextTick()
-  // 설명 섹션 이미지/텍스트
-  gsap.from(".main-image", {
-    scrollTrigger: {
-      trigger: ".main-section",
-      start: "top 80%",
-      toggleActions: "play none none reverse",
-    },
-    x: 100,
-    opacity: 0,
-    duration: 1,
-    ease: "power2.out"
-  })
-  gsap.from(".main-text", {
-    scrollTrigger: {
-      trigger: ".main-section",
-      start: "top 80%",
-      toggleActions: "play none none reverse",
-    },
-    x: -100,
-    opacity: 0,
-    duration: 1,
-    ease: "power2.out",
-    delay: 0.1
-  })
  
 })
 </script>

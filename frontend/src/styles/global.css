@@ -13,9 +13,9 @@
   --bg-overlay: rgba(0, 0, 0, 0.5);
   
   /* 텍스트 색상 */
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --text-tertiary: #888888;
+  --text-primary: #1a202c;
+  --text-secondary: #4a5568;
+  --text-tertiary: #718096;
   --text-inverse: #ffffff;
   
   /* 테두리 색상 */
@@ -80,9 +80,9 @@
   --bg-overlay: rgba(0, 0, 0, 0.7);
   
   /* 텍스트 색상 (다크모드) */
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-tertiary: #94a3b8;
+  --text-primary: #f7fafc;
+  --text-secondary: #e2e8f0;
+  --text-tertiary: #cbd5e0;
   --text-inverse: #0f172a;
   
   /* 테두리 색상 (다크모드) */
