@@ -4,6 +4,9 @@ import com.edu.edumeet.base.BaseEntity;
 import com.edu.edumeet.board.domain.Board;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -32,6 +35,9 @@ public class BoardJpaEntity extends BaseEntity {
     @Column(name = "writer" , nullable = false, length = 100)
     private String writer;
 
+//      일단 임시
+//    @Column(name = "class_id")
+//    private Long classId;
 
     //Board의 모든 상태변화에 Image들도 같이 변경되도록 구성.
     //Board 객체 자체에서 BoardImage들을 관리.
@@ -42,7 +48,12 @@ public class BoardJpaEntity extends BaseEntity {
             fetch = FetchType.LAZY,
             orphanRemoval = true) //boardImage의 board변수이다.
     @Builder.Default
+    //@BatchSize(size = 20)
+    //@Fetch(FetchMode.SUBSELECT)
     private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
+
+
+
 
     public void addImage(String uuid, String filename) {
 
@@ -59,13 +70,6 @@ public class BoardJpaEntity extends BaseEntity {
         imageSet.forEach(boardImageJpaEntity -> boardImageJpaEntity.changeBoard(null));
 
         this.imageSet.clear();
-    }
-
-
-
-    public void change(String title, String content){
-        this.title = title;
-        this.content = content;
     }
 
     //보드 도메인을 모델로 변환
@@ -101,13 +105,5 @@ public class BoardJpaEntity extends BaseEntity {
     }
 
 
-    //보드 도메인 모델로 업데이트 하는 메소드
-    public void updateDomain(Board board){
-        // 기본 필드 업데이트
-        this.title = board.getTitle();
-        this.content = board.getContent();
-        this.writer = board.getWriter();
 
-        // 타임스탬프는 JPA의 @LastModifiedDate에 의해 자동으로 업데이트됨
-    }
 }

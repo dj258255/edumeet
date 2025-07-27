@@ -22,6 +22,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @SpringBootTest
 @Log4j2
 public class BoardRepositoryTests {
@@ -194,6 +196,7 @@ public class BoardRepositoryTests {
         }
     }
 
+
     @Transactional
     @Test
     public void 테스트_검색_이미지_댓글개수(){
@@ -201,4 +204,9 @@ public class BoardRepositoryTests {
         
         boardJpaRepository.searchWithAll(null, null, pageable);
     }
+    
+    
+
+    
+    
 }
