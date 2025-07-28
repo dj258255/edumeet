@@ -5,6 +5,8 @@ import com.edu.edumeet.member.domain.Member;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 @RequiredArgsConstructor
 public class MemberRepositoryImpl implements MemberRepository {
@@ -20,5 +22,11 @@ public class MemberRepositoryImpl implements MemberRepository {
         MemberJpaEntity entity = MemberJpaEntity.from(member);
         memberJpaRepository.save(entity);
         return entity.toDomain();
+    }
+
+    @Override
+    public Optional<Member> findByEmail(String email) {
+        return memberJpaRepository.findByEmail(email)
+                .map(MemberJpaEntity::toDomain);
     }
 }
