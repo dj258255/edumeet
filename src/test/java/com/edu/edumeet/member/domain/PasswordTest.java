@@ -20,7 +20,7 @@ public class PasswordTest {
     private PasswordEncoder passwordEncoder;
 
     @Test
-    void of_정상_생성_테스트() {
+    void of_정상_생성된다() {
         String encoded = "PASSWORD";
         Password password = Password.of(encoded);
 
