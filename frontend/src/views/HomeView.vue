@@ -16,7 +16,10 @@
             추가 비용 없이 미래의 학습을 경험해보세요.
           </p>
           <div class="hero-actions">
-            <router-link to="/login" class="btn btn-primary">
+            <router-link  v-if="!isLoggedIn" to="/login" class="btn btn-primary">
+              시작하기
+            </router-link>
+            <router-link v-else to="/class" class="btn btn-primary">
               시작하기
             </router-link>
             <router-link to="/about" class="btn btn-secondary">
