@@ -8,6 +8,7 @@ import RoomView from "../views/RoomView.vue"
 import AboutView from "../views/AboutView.vue"
 import ClassView from "../views/ClassView.vue"
 import CreateClassView from "../views/CreateClassView.vue"
+import KaKaoView from "../views/KaKaoView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -61,6 +62,11 @@ const router = createRouter({
       path: '/class/:classId/room/:roomId',  // ✅ 화상채팅 방 URL
       name: 'room',
       component: RoomView
+    },
+    {
+      path: '/kakao',
+      name: 'kakao',
+      component: KaKaoView
     }
   ],
 })

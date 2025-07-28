@@ -14,3 +14,6 @@ app.use(createPinia())
 app.use(router)
 
 app.mount('#app')
+
+// kakao로그인 javascript key
+window.Kakao.init('012bb7b31700abfaa4ad32a3bcb03654')
