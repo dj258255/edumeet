@@ -136,7 +136,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { login, signup, sendVerificationCode, verifyCode, resendCode } from '@/stores/auth'
+import { login, signup, sendVerificationCode, verifyCode, resendCode, useAuthStore } from '@/stores/auth'
 import '../styles/LoginView.css'
 
 const router = useRouter()
@@ -292,8 +292,46 @@ const setUserInfo = async () => {
       email: res.kakao_account.email || '',
       role: selectedRole.value,
     };
-    console.log('사용자 정보:', userInfo);
+    console.log('카카오 사용자 정보:', userInfo);
     
+    // 이메일이 있으면 DB에 회원가입 시도
+    if (userInfo.email) {
+      try {
+        // 기존 회원가입과 동일한 형식으로 DB에 전송
+        const signupData = {
+          name: userInfo.name,
+          email: userInfo.email,
+          password: 'kakao_' + Date.now(), // 임시 비밀번호 (카카오 로그인용)
+          role: userInfo.role
+        };
+        
+        console.log('DB에 전송할 데이터:', signupData);
+        
+        // auth store를 사용해서 회원가입 API 호출
+        const authStore = useAuthStore();
+        await authStore.signup(signupData);
+        
+        console.log('카카오 회원가입 성공!');
+        message.value = '카카오 로그인 성공!';
+        
+      } catch (error) {
+        console.error('카카오 회원가입 실패:', error);
+        // 이미 가입된 사용자일 수 있으므로 로그인 시도
+        try {
+          await authStore.login(userInfo.email, 'kakao_' + Date.now());
+          message.value = '카카오 로그인 성공!';
+        } catch (loginError) {
+          console.error('카카오 로그인 실패:', loginError);
+          message.value = '로그인에 실패했습니다.';
+        }
+      }
+    } else {
+      // 이메일이 없으면 추가 정보 입력 필요
+      console.log('이메일이 없어서 추가 정보 입력이 필요합니다.');
+      message.value = '이메일 정보가 필요합니다.';
+    }
+    
+    // localStorage에 저장
     localStorage.setItem('kakaoUser', JSON.stringify(userInfo));
     kakaoUser.value = userInfo;
     
