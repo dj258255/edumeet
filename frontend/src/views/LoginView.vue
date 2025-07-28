@@ -162,7 +162,7 @@ const handleLogin = async () => {
   try {
     await login(email.value, password.value)
     message.value = '로그인 성공!'
-    setTimeout(() => { router.push('/') }, 1000)
+    router.push('/')
   } catch (error) {
     message.value = error.message || '로그인에 실패했습니다.'
   }
@@ -216,7 +216,7 @@ const getKakaoUserInfo = async () => {
 const waitForKakaoSDK = () => {
   return new Promise((resolve) => {
     let attempts = 0;
-    const maxAttempts = 100;
+    const maxAttempts = 50; // 최대 시도 횟수 줄임
     
     const checkSDK = () => {
       attempts++;
@@ -230,7 +230,7 @@ const waitForKakaoSDK = () => {
         resolve();
       } else {
         console.log('카카오 SDK 대기 중...');
-        setTimeout(checkSDK, 100);
+        setTimeout(checkSDK, 50); // 대기 시간을 50ms로 줄임
       }
     };
     checkSDK();
@@ -275,7 +275,7 @@ const setKakaoToken = async (code) => {
   
   isKakaoLoading.value = false;
   message.value = '카카오 로그인 성공!';
-  setTimeout(() => { router.push('/') }, 1000);
+  router.push('/');
 };
 
 const setUserInfo = async () => {
@@ -313,6 +313,7 @@ const setUserInfo = async () => {
         
         console.log('카카오 회원가입 성공!');
         message.value = '카카오 로그인 성공!';
+        router.push('/');
         
       } catch (error) {
         console.error('카카오 회원가입 실패:', error);
@@ -320,6 +321,7 @@ const setUserInfo = async () => {
         try {
           await authStore.login(userInfo.email, 'kakao_' + Date.now());
           message.value = '카카오 로그인 성공!';
+          router.push('/');
         } catch (loginError) {
           console.error('카카오 로그인 실패:', loginError);
           message.value = '로그인에 실패했습니다.';
@@ -357,7 +359,7 @@ const handleKakaoLogin = () => {
   
   try {
     window.Kakao.Auth.authorize({
-      redirectUri: "http://localhost:5173/login",
+      redirectUri: "http://localhost:5173/kakao",
       prompt: 'login'
     });
   } catch (error) {
