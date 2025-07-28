@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # MySQL 서비스
+  mysql:
+    image: mysql:8.0
+    container_name: edumeet-mysql
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - edumeet-network
+
+  # Redis 서비스
+  redis:
+    image: redis:7-alpine
+    container_name: edumeet-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - edumeet-network
+
+  # Spring Boot Application
+  app:
+    image: ${DOCKER_HUB_REPO}:${IMAGE_TAG:-latest}
+    container_name: edumeet-app
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./app_logs:/app/logs
+      - ./upload:/app/upload
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - edumeet-network
+
+
+# 네트워크 정의
+networks:
+  edumeet-network:
+    driver: bridge
