@@ -1,0 +1,56 @@
+package com.edu.edumeet.member.application;
+
+import com.edu.edumeet.member.application.repository.MemberRepository;
+import com.edu.edumeet.member.domain.Member;
+import com.edu.edumeet.member.presentation.dto.request.SignupRequestDto;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("[MemberService 테스트]")
+public class MemberServiceImplTest {
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private MemberRepository memberRepository;
+
+    @InjectMocks
+    private MemberServiceImpl memberService;
+
+    @Test
+    void signup_정상_회원가입() {
+        SignupRequestDto dto = new SignupRequestDto("test@email.com", "1234", "tester");
+        given(memberRepository.existsByEmail(dto.getEmail())).willReturn(false);
+        given(passwordEncoder.encode(dto.getPassword())).willReturn("encoded_pw");
+
+        memberService.signup(dto);
+
+        verify(memberRepository).save(Mockito.any(Member.class));
+    }
+
+    @Test
+    void signup_실패_이메일_중복() {
+        // given
+        SignupRequestDto dto = new SignupRequestDto("test@email.com", "1234", "tester");
+        given(memberRepository.existsByEmail(dto.getEmail())).willReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> memberService.signup(dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이미 존재하는 회원입니다.");
+
+        verify(memberRepository, never()).save(Mockito.any(Member.class));
+    }
+}
