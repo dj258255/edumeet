@@ -222,4 +222,17 @@ gradle-app.setting
 # Java heap dump
 *.hprof
 
+# Deployment Environment
+app_logs/
+build/
+jenkins_home/
+redis_data/
+mysql_data/
+upload/
+
+*.properties
+.env
+*.env
+
+
 # End of https://www.toptal.com/developers/gitignore/api/java,intellij+all,gradle,windows,macos,visualstudiocode
