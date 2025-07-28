@@ -14,7 +14,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("[비밀번호 테스트]")
+@DisplayName("[Password 테스트]")
 public class PasswordTest {
     @Mock
     private PasswordEncoder passwordEncoder;
