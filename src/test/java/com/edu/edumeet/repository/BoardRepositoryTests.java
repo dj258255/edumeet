@@ -197,6 +197,8 @@ public class BoardRepositoryTests {
     }
 
 
+
+    //N+1이 발생함 보통은.
     @Transactional
     @Test
     public void 테스트_검색_이미지_댓글개수(){
@@ -204,9 +206,102 @@ public class BoardRepositoryTests {
         
         boardJpaRepository.searchWithAll(null, null, pageable);
     }
-    
-    
 
-    
-    
+
+
+// FetchJoin 실험용 테스트
+//    @Transactional
+//    @Test
+//    public void 테스트_FetchJoin_검색_이미지_댓글개수(){
+//        Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
+//
+//        log.info("==== FetchJoin 테스트 시작 ====");
+//        Page<BoardJpaEntity> result = boardJpaRepository.searchWithAllFetchJoin(pageable);
+//
+//        log.info("조회된 게시글 수: " + result.getContent().size());
+//        log.info("전체 게시글 수: " + result.getTotalElements());
+//
+//        result.getContent().forEach(board -> {
+//            log.info("Board ID: " + board.getId() + ", Title: " + board.getTitle() +
+//                ", Writer: " + board.getWriter());
+//            log.info("이미지 개수: " + board.getImageSet().size());
+//            log.info("-------------------");
+//        });
+//
+//        log.info("==== FetchJoin 테스트 완료 ====");
+//    }
+
+//
+//      실험용 코드.
+//    @Transactional
+//    @Test
+//    public void 테스트_EntityGraph_검색_이미지(){
+//        Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
+//
+//        log.info("==== EntityGraph 테스트 시작 ====");
+//        Page<BoardJpaEntity> result = boardJpaRepository.searchWithAllEntityGraph(pageable);
+//
+//        log.info("조회된 게시글 수: " + result.getContent().size());
+//        log.info("전체 게시글 수: " + result.getTotalElements());
+//
+//        result.getContent().forEach(board -> {
+//            log.info("Board ID: " + board.getId() + ", Title: " + board.getTitle() +
+//                    ", Writer: " + board.getWriter());
+//            log.info("이미지 개수: " + board.getImageSet().size());
+//            log.info("-------------------");
+//        });
+//
+//        log.info("==== EntityGraph 테스트 완료 ====");
+//    }
+
+
+//
+//
+//    @Transactional
+//    @Test
+//    public void 테스트_SubSelect_검색_이미지(){
+//        Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
+//
+//        log.info("==== SubSelect 테스트 시작 ====");
+//        Page<BoardJpaEntity> result = boardJpaRepository.searchWithAllSubSelect(pageable);
+//
+//        log.info("조회된 게시글 수: " + result.getContent().size());
+//        log.info("전체 게시글 수: " + result.getTotalElements());
+//
+//        result.getContent().forEach(board -> {
+//            log.info("Board ID: " + board.getId() + ", Title: " + board.getTitle() +
+//                    ", Writer: " + board.getWriter());
+//            log.info("이미지 개수: " + board.getImageSet().size());
+//            log.info("-------------------");
+//        });
+//
+//        log.info("==== SubSelect 테스트 완료 ====");
+//    }
+
+    @Transactional
+    @Test
+    public void 테스트_검색_이미지_댓글개수_배치사이즈(){
+        Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
+
+        log.info("==== BatchSize 테스트 시작 ====");
+
+        // searchWithAll 메서드 호출 (실제로는 null 반환)
+        boardJpaRepository.searchWithAll(null, null, pageable);
+
+        // 직접 데이터를 조회해서 로그 출력
+        Page<BoardJpaEntity> result = boardJpaRepository.findAll(pageable);
+
+        log.info("조회된 게시글 수: " + result.getContent().size());
+        log.info("전체 게시글 수: " + result.getTotalElements());
+
+        result.getContent().forEach(board -> {
+            log.info("Board ID: " + board.getId() + ", Title: " + board.getTitle() +
+                    ", Writer: " + board.getWriter());
+            log.info("이미지 개수: " + board.getImageSet().size()); // 여기서 BatchSize 실행
+            log.info("-------------------");
+        });
+
+        log.info("==== BatchSize 테스트 완료 ====");
+    }
+
 }

@@ -48,7 +48,7 @@ public class BoardJpaEntity extends BaseEntity {
             fetch = FetchType.LAZY,
             orphanRemoval = true) //boardImage의 board변수이다.
     @Builder.Default
-    //@BatchSize(size = 20)
+    @BatchSize(size = 20)
     //@Fetch(FetchMode.SUBSELECT)
     private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
 
