@@ -4,11 +4,10 @@ import LoginView from "../views/LoginView.vue"
 import SignupView from "../views/SignupView.vue"
 import ArticlesView from "../views/ArticlesView.vue"
 import SearchView from "../views/SearchView.vue"
-import CreateRoomView from "../views/CreateRoomView.vue"
 import RoomView from "../views/RoomView.vue"
 import AboutView from "../views/AboutView.vue"
 import ClassView from "../views/ClassView.vue"
-import KaKaoView from "../views/KaKaoView.vue"
+import CreateClassView from "../views/CreateClassView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,11 +38,6 @@ const router = createRouter({
       component: SearchView,
     },
     {
-      path: "/create-room",
-      name: "create-room",
-      component: CreateRoomView,
-    },
-    {
       path: "/room/:roomId",
       name: "room",
       component: RoomView,
@@ -54,16 +48,22 @@ const router = createRouter({
       component: AboutView,
     },
     {
-      path: "/class",
+      path: "/class/:classId",
       name: "class",
       component: ClassView,
     },
     {
-      path: "/kakao",
-      name: "kakao",
-      component: KaKaoView,
+      path: '/class/create',
+      name: "create-class",
+      component: CreateClassView,
     },
+    {
+      path: '/class/:classId/room/:roomId',  // ✅ 화상채팅 방 URL
+      name: 'room',
+      component: RoomView
+    }
   ],
 })
+  
 
 export default router
