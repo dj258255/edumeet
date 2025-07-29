@@ -1,15 +1,10 @@
 package com.edu.edumeet.board.infrastructure;
 
-import com.edu.edumeet.board.application.repository.search.BoardSearch;
-import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.edu.edumeet.board.application.BoardSearch;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface BoardJpaRepository extends JpaRepository<BoardJpaEntity,Long> , BoardSearch {

@@ -5,6 +5,9 @@ import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.infrastructure.BoardImageJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
+import com.edu.edumeet.board.presentation.BoardService;
+import com.edu.edumeet.board.presentation.dto.BoardDTO;
+import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.infrastructure.ReplyJpaRepository;
 import lombok.extern.log4j.Log4j2;
@@ -18,6 +21,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.test.annotation.Commit;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -33,6 +37,8 @@ public class BoardRepositoryTests {
 
     @Autowired
     private ReplyJpaRepository replyJpaRepository;
+    @Autowired
+    private BoardService boardService;
 
     @Test
     public void 게시글100개씩넣기() {
@@ -278,30 +284,46 @@ public class BoardRepositoryTests {
 //        log.info("==== SubSelect 테스트 완료 ====");
 //    }
 
+//    @Transactional
+//    @Test
+//    public void 테스트_검색_이미지_댓글개수_배치사이즈(){
+//        Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
+//
+//        log.info("==== BatchSize 테스트 시작 ====");
+//
+//        // searchWithAll 메서드 호출 (실제로는 null 반환)
+//        boardJpaRepository.searchWithAll(null, null, pageable);
+//
+//        // 직접 데이터를 조회해서 로그 출력
+//        Page<BoardJpaEntity> result = boardJpaRepository.findAll(pageable);
+//
+//        log.info("조회된 게시글 수: " + result.getContent().size());
+//        log.info("전체 게시글 수: " + result.getTotalElements());
+//
+//        result.getContent().forEach(board -> {
+//            log.info("Board ID: " + board.getId() + ", Title: " + board.getTitle() +
+//                    ", Writer: " + board.getWriter());
+//            log.info("이미지 개수: " + board.getImageSet().size()); // 여기서 BatchSize 실행
+//            log.info("-------------------");
+//        });
+//
+//        log.info("==== BatchSize 테스트 완료 ====");
+//    }
+
     @Transactional
     @Test
-    public void 테스트_검색_이미지_댓글개수_배치사이즈(){
+    public void testSearchImageReplyCount(){
         Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
 
-        log.info("==== BatchSize 테스트 시작 ====");
+        //BoardRepository.searchWithAll(null, null , pageable);
 
-        // searchWithAll 메서드 호출 (실제로는 null 반환)
-        boardJpaRepository.searchWithAll(null, null, pageable);
+        Page<BoardListAllDTO> result = boardJpaRepository.searchWithAll(null,null,pageable);
 
-        // 직접 데이터를 조회해서 로그 출력
-        Page<BoardJpaEntity> result = boardJpaRepository.findAll(pageable);
+        log.info("-----------------------------------------");
+        log.info(result.getTotalElements());
 
-        log.info("조회된 게시글 수: " + result.getContent().size());
-        log.info("전체 게시글 수: " + result.getTotalElements());
-
-        result.getContent().forEach(board -> {
-            log.info("Board ID: " + board.getId() + ", Title: " + board.getTitle() +
-                    ", Writer: " + board.getWriter());
-            log.info("이미지 개수: " + board.getImageSet().size()); // 여기서 BatchSize 실행
-            log.info("-------------------");
-        });
-
-        log.info("==== BatchSize 테스트 완료 ====");
+        result.getContent().forEach(boardListAllDTO -> log.info(boardListAllDTO));
     }
+
 
 }

@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 게시글 DTO
@@ -36,6 +37,15 @@ public class BoardDTO {
     @Schema(description = "작성자", example = "홍길동", required = true)
     @NotEmpty(message = "작성자는 필수 입력값입니다")
     private String writer;
+
+    //첨부파일 이름들
+    // BoardJpaEntity의 Set<BoardImage> 타입으로  변환되어야함.
+    // private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
+    // 기존의 modelmapper는 단순한 구조의 객체를 다른 타입의 객체로 만드는 데는 편리하지만
+    // 다양한 처리가 필요할 땐 오히려 더 복잡하기 때문에 DTO 객체를 엔티티 객체로 변환하는 메소드를 만들자.
+    // 그건 Service 인터페이스가 처리하는 경우가 많으니 Service단으로 가서 수정하자
+    private List<String> fileNames;
+
 
     @Schema(description = "등록일시", example = "2025-07-23T19:32:00")
     private LocalDateTime regDate;

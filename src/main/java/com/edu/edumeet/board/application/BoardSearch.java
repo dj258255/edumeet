@@ -1,6 +1,7 @@
-package com.edu.edumeet.board.application.repository.search;
+package com.edu.edumeet.board.application;
 
 import com.edu.edumeet.board.domain.Board;
+import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,8 +28,14 @@ public interface BoardSearch {
 
 
     //Board와 Reply를 레프트 조인 처리하고 쿼리를 실행해서 내용을 확인
-    Page<BoardListReplyCountDTO> searchWithAll(String[] types,
-                                               String keyword,
-                                               Pageable pageable);
+//    Page<BoardListReplyCountDTO> searchWithAll(String[] types,
+//                                               String keyword,
+//                                               Pageable pageable);
+
+    //QueryDsl 튜플처리
+    Page<BoardListAllDTO> searchWithAll(String[] types,
+                                        String keyword,
+                                        Pageable pageable);
+
 
 }

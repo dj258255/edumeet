@@ -3,6 +3,8 @@ package com.edu.edumeet.board.domain;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 게시판 도메인 모델
@@ -22,6 +24,9 @@ public class Board {
 
     private LocalDateTime regDate;  // 등록일시
     private LocalDateTime modDate;  // 수정일시
+
+    @Builder.Default
+    private Set<BoardImage> images = new HashSet<>();
 
 
     /**
@@ -45,4 +50,22 @@ public class Board {
         this.title = title;
         this.content = content;
     }
+    
+    //이미지 추가 - 도메인 로직
+    public void addImage(String uuid, String fileName) {
+        BoardImage boardImage = BoardImage.builder()
+                .uuid(uuid)
+                .fileName(fileName)
+                .ord(images.size())
+                .build();
+        images.add(boardImage);
+    }
+    
+    
+    //모든 이미지 제거 - 도메인 로직
+    public void clearImages() {
+        this.images.clear();
+    }
+
+
 }
