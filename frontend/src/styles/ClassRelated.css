@@ -1,216 +1,86 @@
-/* src/styles/ClassRelated.css */
+.class-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 2rem;
+  max-width: 1300px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
 
-/* --- ClassView.css 내용 --- */
-.class-view {
-    padding: 2rem;
-    max-width: 800px;
-    margin: 0 auto;
-    font-family: Arial, sans-serif;
-    color: #333;
-  }
-  
-  .class-view h1 {
-    color: #2c3e50;
-    margin-bottom: 1rem;
-  }
-  
-  .class-view p {
-    line-height: 1.6;
-    margin-bottom: 1.5rem;
-  }
-  
-  .class-view h2 {
-    color: #34495e;
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 0.5rem;
-  }
-  
-  .class-view ul {
-    list-style: none;
-    padding: 0;
-    margin-bottom: 2rem;
-  }
-  
-  .class-view li {
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    padding: 12px 15px;
-    display: flex;
-    align-items: center;
-  }
-  
-  .class-view li a {
-    text-decoration: none;
-    color: #007bff;
-    font-weight: bold;
-    flex-grow: 1;
-  }
-  
-  .class-view li a:hover {
-    color: #0056b3;
-    text-decoration: underline;
-  }
-  
-  .create-room {
-    background-color: #f0f8ff;
-    border: 1px solid #e0f0ff;
-    border-radius: 10px;
-    padding: 20px;
-    margin-top: 2rem;
-  }
-  
-  .create-room h3 {
-    color: #4682b4;
-    margin-bottom: 1rem;
-  }
-  
-  .create-room input[type="text"],
-  .create-room input[type="number"] {
-    display: block;
-    width: calc(100% - 20px);
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    font-size: 1rem;
-  }
-  
-  .create-room button {
-    background-color: #28a745;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s ease;
-  }
-  
-  .create-room button:hover {
-    background-color: #218838;
-  }
-  
-  .create-room button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-  }
-  
-  .video-preview {
-    margin: 1.5rem 0;
-    text-align: center;
-  }
-  
-  .video-preview video {
-    width: 100%;
-    max-width: 320px;
-    height: auto;
-    min-height: 240px;
-    border: 2px solid #a0a0a0;
-    border-radius: 12px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    background-color: #000;
-  }
-  
-  p[style="color: red;"] {
-    margin-top: 10px;
-    font-size: 0.9em;
-    font-weight: bold;
-  }
-  
-  /* --- CreateClassView.css 내용 --- */
-  .create-class-view {
-    padding: 2rem;
-    max-width: 600px;
-    margin: 0 auto;
-    font-family: Arial, sans-serif;
-    color: #333;
-    background-color: #f9f9f9;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
-  
-  .create-class-view h1 {
-    color: #2c3e50;
-    text-align: center;
-    margin-bottom: 2rem;
-    font-size: 2.2rem;
-  }
-  
-  .create-class-view input[type="text"],
-  .create-class-view textarea {
-    display: block;
-    width: calc(100% - 20px);
-    padding: 12px;
-    margin-bottom: 15px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 1rem;
-    box-sizing: border-box;
-  }
-  
-  .create-class-view textarea {
-    min-height: 120px;
-    resize: vertical;
-  }
-  
-  .create-class-view input::placeholder,
-  .create-class-view textarea::placeholder {
-    color: #aaa;
-  }
-  
-  .create-class-view button {
-    display: block;
-    width: 100%;
-    padding: 12px 20px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    margin-top: 1rem;
-  }
-  
-  .create-class-view button:hover {
-    background-color: #0056b3;
-  }
-  
-  .create-class-view button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-  }
-  
-  .create-class-view p[style="color: red;"] {
-    text-align: center;
-    margin-top: 15px;
-    font-size: 0.95rem;
-    font-weight: bold;
-  }
+/* 좌측 - 반 생성 */
+.create-class-section {
+  background: var(--card-bg-light);
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
 
-  .my-classes-section {
-    margin-top: 3rem;
-    padding: 2rem;
-    background-color: #f0f0f0;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    max-width: 800px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  
-  .my-classes-section h1 {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    color: #333;
-  }
-  
-  .class-card-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* 반응형 그리드 */
-    gap: 20px;
-    justify-content: center;
-  }
+.create-class-section h1 {
+  font-size: 1.6rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-dark);
+}
+
+.create-class-section input,
+.create-class-section textarea {
+  width: 100%;
+  border: 1px solid var(--border-light);
+  background: var(--bg-light);
+  color: var(--text-dark);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.create-class-section input:focus,
+.create-class-section textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 181, 120, 0.2);
+}
+
+.create-class-section button {
+  width: 100%;
+  padding: 14px;
+  background: var(--primary-color);
+  color: var(--text-light);
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-class-section button:hover {
+  background: var(--primary-dark);
+}
+
+.error {
+  color: #ff5a5a;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+/* 우측 - 클래스 목록 */
+.my-classes-section {
+  background: var(--card-bg-light);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.my-classes-section h1 {
+  font-size: 1.6rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: var(--text-dark);
+}
+
+.class-card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
