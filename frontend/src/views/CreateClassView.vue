@@ -5,8 +5,8 @@
       <h1>새 반 만들기</h1>
       <input v-model="className" placeholder="반 이름을 입력하세요" type="text" />
       <textarea v-model="classDescription" placeholder="반 설명"></textarea>
-      <button @click="handleCreateClass" :disabled="classStore.isLoading">
-        {{ classStore.isLoading ? '생성 중...' : '반 생성' }}
+      <button @click="handleCreateClass" :disabled="isCreating">
+        {{ isCreating ? '생성 중...' : '반 생성' }}
       </button>
       <!-- 방 생성 에러 -->
       <p v-if="createError" class="error">{{ createError }}</p>
@@ -46,6 +46,7 @@ const className = ref('');
 const classDescription = ref('');
 const createError = ref('');
 const listError = ref('');
+const isCreating = ref(false); // 반 생성 로딩 상태 추가
 
 const router = useRouter();
 const classStore = useClassStore();
@@ -70,6 +71,7 @@ async function handleCreateClass() {
 
   try {
     createError.value = '';
+    isCreating.value = true; // 생성 시작
     const newClass = await classStore.createClass({
       name: className.value,
       description: classDescription.value,
@@ -80,6 +82,8 @@ async function handleCreateClass() {
   } catch (error) {
     console.error('클래스 생성 에러:', error);
     createError.value = '반 생성에 실패했습니다. 다시 시도해주세요.';
+  } finally {
+    isCreating.value = false; // 생성 종료
   }
 }
 

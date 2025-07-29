@@ -32,44 +32,67 @@ const router = createRouter({
       path: "/articles",
       name: "articles",
       component: ArticlesView,
+      meta: { requiresAuth: true }   // 로그인 필요
     },
     {
       path: "/search",
       name: "search",
       component: SearchView,
+      meta: { requiresAuth: true }
     },
     {
       path: "/room/:roomId",
-      name: "room",
+      name: "room-basic",
       component: RoomView,
+      meta: { requiresAuth: true }
     },
     {
       path: "/about",
       name: "about",
       component: AboutView,
+      meta: { requiresAuth: true }
     },
     {
       path: "/class/:classId",
       name: "class",
       component: ClassView,
+      meta: { requiresAuth: true }
     },
     {
       path: '/class/create',
       name: "create-class",
       component: CreateClassView,
+      meta: { requiresAuth: true }
     },
     {
-      path: '/class/:classId/room/:roomId',  // ✅ 화상채팅 방 URL
+      path: '/class/:classId/room/:roomId',
       name: 'room',
-      component: RoomView
+      component: RoomView,
+      meta: { requiresAuth: true }
     },
     {
       path: '/kakao',
       name: 'kakao',
-      component: KaKaoView
+      component: KaKaoView,
+      meta: { requiresAuth: true }
     }
   ],
 })
-  
+
+/**
+ * 전역 라우터 가드 설정
+ * 로그인 여부에 따라 접근 제어
+ */
+router.beforeEach((to, from, next) => {
+  // 로그인 여부 (예시: localStorage에 토큰 있는지 확인)
+  const isLoggedIn = !!localStorage.getItem('token')
+
+  if (to.meta.requiresAuth && !isLoggedIn) {
+    alert('로그인이 필요한 기능입니다.')
+    next('/login')
+  } else {
+    next()
+  }
+})
 
 export default router
