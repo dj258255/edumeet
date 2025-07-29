@@ -136,10 +136,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { login, signup, sendVerificationCode, verifyCode, resendCode, useAuthStore } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth'
 import '../styles/LoginView.css'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
@@ -160,11 +161,21 @@ const validateForm = () => {
 const handleLogin = async () => {
   if (!validateForm()) return
   try {
-    await login(email.value, password.value)
+    console.log('로그인 시도:', email.value)
+    
+    // 실제 백엔드 API를 통한 로그인
+    const result = await authStore.login(email.value, password.value)
+    console.log('로그인 결과:', result)
+    
     message.value = '로그인 성공!'
+    console.log('로그인 후 상태:', authStore.isLoggedIn)
+    console.log('로그인 후 사용자:', authStore.currentUser)
+    
+    // 홈페이지로 이동
     router.push('/')
   } catch (error) {
     message.value = error.message || '로그인에 실패했습니다.'
+    console.error('로그인 에러:', error)
   }
 }
 

@@ -107,13 +107,20 @@ const tokenManager = {
   // 토큰 유효성 확인
   isTokenValid: () => {
     const token = localStorage.getItem("token")
-    if (!token) return false
+    if (!token || token === "undefined" || token === "null") return false
+    
+    // mock 토큰인 경우 (개발용)
+    if (token.startsWith('mock_token_')) {
+      return true
+    }
     
     try {
       // JWT 토큰의 만료 시간 확인 (선택사항)
       const payload = JSON.parse(atob(token.split(".")[1]))
       return payload.exp * 1000 > Date.now()
     } catch (error) {
+      console.error('토큰 파싱 에러:', error)
+      localStorage.removeItem("token") // 잘못된 토큰 삭제
       return false
     }
   }
@@ -129,7 +136,16 @@ const userManager = {
   // 사용자 정보 가져오기
   getUser: () => {
     const user = localStorage.getItem("user")
-    return user ? JSON.parse(user) : null
+    if (!user || user === "undefined" || user === "null") {
+      return null
+    }
+    try {
+      return JSON.parse(user)
+    } catch (error) {
+      console.error('사용자 정보 파싱 에러:', error)
+      localStorage.removeItem("user") // 잘못된 데이터 삭제
+      return null
+    }
   },
 
   // 사용자 정보 삭제
@@ -144,7 +160,7 @@ const userManager = {
 }
 
 // Pinia Store 정의
-export const useAuthStore = defineStore('auth', {
+const useAuthStore = defineStore('auth', {
   state: () => ({
     user: userManager.getUser(),
     isAuthenticated: userManager.isLoggedIn(),
@@ -174,14 +190,22 @@ export const useAuthStore = defineStore('auth', {
       
       try {
         const response = await authAPI.login({ email, password })
-        const { token, user } = response.data
+        const { email: userEmail, accessToken, refreshToken } = response.data
         
-        // 토큰과 사용자 정보 저장
-        tokenManager.setToken(token)
-        userManager.setUser(user)
+        console.log('로그인 응답:', response.data)
         
-        // 상태 업데이트
-        this.user = user
+        // 토큰 저장
+        tokenManager.setToken(accessToken)
+        
+        // 임시 사용자 정보 (이메일 기반)
+        const tempUser = {
+          email: userEmail,
+          nickname: userEmail.split('@')[0] // 이메일에서 닉네임 추출
+        }
+        
+        // 사용자 정보 저장
+        userManager.setUser(tempUser)
+        this.user = tempUser
         this.isAuthenticated = true
         
         return response.data
@@ -350,11 +374,28 @@ export const useAuthStore = defineStore('auth', {
 
     // 초기화 (앱 시작 시 호출)
     initialize() {
+      // 잘못된 localStorage 데이터 정리
+      this.cleanupLocalStorage()
+      
       const user = userManager.getUser()
       const isAuthenticated = userManager.isLoggedIn()
       
       this.user = user
       this.isAuthenticated = isAuthenticated
+    },
+
+    // localStorage 정리
+    cleanupLocalStorage() {
+      const token = localStorage.getItem("token")
+      const user = localStorage.getItem("user")
+      
+      if (token === "undefined" || token === "null") {
+        localStorage.removeItem("token")
+      }
+      
+      if (user === "undefined" || user === "null") {
+        localStorage.removeItem("user")
+      }
     }
   }
 })
@@ -386,4 +427,7 @@ export async function verifyCode(email, code) {
 
 export async function resendCode(email) {
   return await sendVerificationCode(email)
-} 
+}
+
+// auth store export
+export { useAuthStore } 

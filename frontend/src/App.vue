@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import './styles/App.css'
 
 const sidebarOpen = ref(false)
@@ -8,6 +9,11 @@ const searchText = ref('')
 const searchOpen = ref(false) // 검색창 열림 상태
 const isDarkMode = ref(false) // 다크모드 상태
 const router = useRouter()
+const authStore = useAuthStore()
+
+// 로그인 상태를 반응형으로 관리
+const isLoggedIn = computed(() => authStore.isLoggedIn)
+const currentUser = computed(() => authStore.currentUser)
 
 // 다크모드 상태를 로컬 스토리지에서 불러오기
 onMounted(() => {
@@ -16,6 +22,14 @@ onMounted(() => {
     isDarkMode.value = true
     document.documentElement.classList.add('dark-mode')
   }
+  
+  // auth store 초기화
+  authStore.initialize()
+  
+  // 로그인 상태 확인 (개발용)
+  console.log('로그인 상태:', authStore.isLoggedIn)
+  console.log('현재 사용자:', authStore.currentUser)
+  console.log('토큰 존재:', !!localStorage.getItem('token'))
 })
 
 // 다크모드 상태 변경 감지
@@ -26,6 +40,16 @@ watch(isDarkMode, (newValue) => {
   } else {
     document.documentElement.classList.remove('dark-mode')
     localStorage.setItem('theme', 'light')
+  }
+})
+
+// 로그인 상태 변경 감지
+watch(isLoggedIn, (newValue) => {
+  console.log('로그인 상태 변경:', newValue)
+  if (newValue) {
+    console.log('로그인됨:', currentUser.value)
+  } else {
+    console.log('로그아웃됨')
   }
 })
 
@@ -98,8 +122,12 @@ const handleSearch = () => {
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
       </button>
-      <RouterLink class="btn login" to="/login">login</RouterLink>
-      <RouterLink class="btn signup" to="/signup">Register</RouterLink>
+      <RouterLink v-if="!isLoggedIn" class="btn login" to="/login">login</RouterLink>
+      <RouterLink v-if="!isLoggedIn" class="btn signup" to="/signup">Register</RouterLink>
+      <div v-if="isLoggedIn" class="user-info">
+        <span class="user-name">{{ currentUser?.name || currentUser?.email || '사용자' }}</span>
+        <button class="btn logout" @click="authStore.logout">로그아웃</button>
+      </div>
     </div>
     <!-- 모바일 사이드바 -->
     <div v-if="sidebarOpen" class="sidebar mobile-only">
@@ -138,8 +166,12 @@ const handleSearch = () => {
           </svg>
           <span>{{ isDarkMode ? '라이트모드' : '다크모드' }}</span>
         </button>
-        <RouterLink class="btn login" to="/login" @click="toggleSidebar">login</RouterLink>
-        <RouterLink class="btn signup" to="/signup" @click="toggleSidebar">Register</RouterLink>
+        <RouterLink v-if="!isLoggedIn" class="btn login" to="/login" @click="toggleSidebar">login</RouterLink>
+        <RouterLink v-if="!isLoggedIn" class="btn signup" to="/signup" @click="toggleSidebar">Register</RouterLink>
+        <div v-if="isLoggedIn" class="user-info sidebar-user">
+          <span class="user-name">{{ currentUser?.name || currentUser?.email || '사용자' }}</span>
+          <button class="btn logout" @click="() => { authStore.logout(); toggleSidebar(); }">로그아웃</button>
+        </div>
       </div>
     </div>
   </header>
@@ -165,4 +197,34 @@ const handleSearch = () => {
 
 <style>
 /* App.vue 전용 스타일은 여기에 추가 */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-name {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.btn.logout {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn.logout:hover {
+  background-color: #c82333;
+}
+
+.sidebar-user {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
 </style>

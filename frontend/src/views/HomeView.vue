@@ -187,7 +187,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from "vue"
 import { useRouter } from "vue-router"
-import { userManager, tokenManager, authAPI } from "../stores/auth.js"
+import { useAuthStore } from "../stores/auth.js"
 import gsap from "gsap"
 import ScrollTrigger from "gsap/ScrollTrigger"
 import ClassCard from "../components/ClassCard.vue"
@@ -196,10 +196,11 @@ import "../styles/HomeView.css"
 gsap.registerPlugin(ScrollTrigger)
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 사용자 상태
 const user = ref(null)
-const isLoggedIn = computed(() => userManager.isLoggedIn())
+const isLoggedIn = computed(() => authStore.isLoggedIn)
 
 // 팀 멤버 정보
 const members = [
@@ -481,12 +482,10 @@ const handleEnroll = async (classId) => {
 // 로그아웃 처리
 const handleLogout = async () => {
   try {
-    await authAPI.logout()
+    await authStore.logout()
   } catch (error) {
     console.error("로그아웃 오류:", error)
   } finally {
-    tokenManager.removeToken()
-    userManager.removeUser()
     user.value = null
     router.push("/")
   }
@@ -494,7 +493,7 @@ const handleLogout = async () => {
 
 onMounted(async () => {
   if (isLoggedIn.value) {
-    user.value = userManager.getUser()
+    user.value = authStore.currentUser
   }
   
   // 클래스 데이터 로드
