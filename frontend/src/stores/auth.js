@@ -1,5 +1,6 @@
 import axios from "axios"
 import { defineStore } from 'pinia'
+import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
 
 // API 기본 설정
 const API_BASE_URL = "http://localhost:8080/api/v1"
@@ -47,7 +48,7 @@ apiClient.interceptors.response.use(
 const authAPI = {
   // 회원가입
   signup: (userData) => {
-    return apiClient.post("/members/register", userData)
+    return apiClient.post("/members/signup", userData)
   },
 
   // 로그인
@@ -213,10 +214,17 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true
       this.error = null
       try {
-        const response = await authAPI.sendVerificationCode(email)
-        return response.data
+        // 더미 데이터 사용
+        const result = await sendDummyCode(email)
+        if (result.success) {
+          console.log('발송된 인증 코드:', result.code) // 개발용 로그
+          return { success: true, message: result.message }
+        } else {
+          this.error = result.message
+          throw new Error(result.message)
+        }
       } catch (error) {
-        this.error = error.response?.data?.message || '인증 코드 전송에 실패했습니다.'
+        this.error = error.message || '인증 코드 전송에 실패했습니다.'
         throw error
       } finally {
         this.loading = false
@@ -228,10 +236,16 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true
       this.error = null
       try {
-        const response = await authAPI.verifyCode({ email, code })
-        return response.data
+        // 더미 데이터 사용
+        const result = await verifyDummyCode(email, code)
+        if (result.success) {
+          return { success: true, message: result.message }
+        } else {
+          this.error = result.message
+          throw new Error(result.message)
+        }
       } catch (error) {
-        this.error = error.response?.data?.message || '인증 코드 검증에 실패했습니다.'
+        this.error = error.message || '인증 코드 검증에 실패했습니다.'
         throw error
       } finally {
         this.loading = false
@@ -240,7 +254,24 @@ export const useAuthStore = defineStore('auth', {
 
     // 인증 코드 재전송
     async resendCode(email) {
-      return await this.sendVerificationCode(email)
+      this.loading = true
+      this.error = null
+      try {
+        // 더미 데이터 사용
+        const result = await resendDummyCode(email)
+        if (result.success) {
+          console.log('재발송된 인증 코드:', result.code) // 개발용 로그
+          return { success: true, message: result.message }
+        } else {
+          this.error = result.message
+          throw new Error(result.message)
+        }
+      } catch (error) {
+        this.error = error.message || '인증 코드 재전송에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
     },
 
     // 로그아웃
@@ -339,7 +370,7 @@ export async function login(email, password) {
 }
 
 export async function signup(userData) {
-  const response = await apiClient.post("/members/register", userData)
+  const response = await apiClient.post("/members/signup", userData)
   return response.data
 }
 

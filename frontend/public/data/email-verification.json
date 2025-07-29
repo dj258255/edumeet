@@ -1,0 +1,62 @@
+{
+  "verificationCodes": [
+    {
+      "email": "test@example.com",
+      "code": "12345678",
+      "expiresAt": "2025-12-31T23:59:59Z",
+      "isVerified": false,
+      "createdAt": "2024-01-01T10:00:00Z"
+    },
+    {
+      "email": "user@edumeet.com",
+      "code": "65432198",
+      "expiresAt": "2025-12-31T23:59:59Z",
+      "isVerified": true,
+      "createdAt": "2024-01-01T09:00:00Z"
+    },
+    {
+      "email": "teacher@edumeet.com",
+      "code": "78901234",
+      "expiresAt": "2025-12-31T23:59:59Z",
+      "isVerified": false,
+      "createdAt": "2024-01-01T11:00:00Z"
+    },
+    {
+      "email": "student@edumeet.com",
+      "code": "34567890",
+      "expiresAt": "2025-12-31T23:59:59Z",
+      "isVerified": false,
+      "createdAt": "2024-01-01T12:00:00Z"
+    },
+    {
+      "email": "admin@edumeet.com",
+      "code": "90123456",
+      "expiresAt": "2025-12-31T23:59:59Z",
+      "isVerified": true,
+      "createdAt": "2024-01-01T08:00:00Z"
+    }
+  ],
+  "verificationSettings": {
+    "codeLength": 8,
+    "expirationMinutes": 10,
+    "maxAttempts": 3,
+    "resendCooldownMinutes": 1
+  },
+  "emailTemplates": {
+    "verification": {
+      "subject": "EduMeet 이메일 인증",
+      "body": "안녕하세요! EduMeet 가입을 위한 인증 코드는 {code} 입니다. 이 코드는 {expirationMinutes}분 동안 유효합니다."
+    },
+    "resend": {
+      "subject": "EduMeet 인증 코드 재발송",
+      "body": "새로운 인증 코드는 {code} 입니다. 이 코드는 {expirationMinutes}분 동안 유효합니다."
+    }
+  },
+  "testEmails": [
+    "test@example.com",
+    "user@edumeet.com", 
+    "teacher@edumeet.com",
+    "student@edumeet.com",
+    "admin@edumeet.com"
+  ]
+} 
