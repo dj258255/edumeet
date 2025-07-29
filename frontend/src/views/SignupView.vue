@@ -366,10 +366,9 @@ const handleSignup = async () => {
   message.value = ''
   try {
     await authStore.signup({
-      name: name.value,
+      nickname: name.value,
       email: email.value,
       password: password.value,
-      role: selectedRole.value,
     })
     message.value = '회원가입이 완료되었습니다!'
     setTimeout(() => {

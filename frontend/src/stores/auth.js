@@ -1,5 +1,6 @@
 import axios from "axios"
 import { defineStore } from 'pinia'
+import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
 
 // API 기본 설정
 const API_BASE_URL = "http://localhost:8080/api/v1"
@@ -47,7 +48,7 @@ apiClient.interceptors.response.use(
 const authAPI = {
   // 회원가입
   signup: (userData) => {
-    return apiClient.post("/members/register", userData)
+    return apiClient.post("/members/signup", userData)
   },
 
   // 로그인
@@ -106,13 +107,20 @@ const tokenManager = {
   // 토큰 유효성 확인
   isTokenValid: () => {
     const token = localStorage.getItem("token")
-    if (!token) return false
+    if (!token || token === "undefined" || token === "null") return false
+    
+    // mock 토큰인 경우 (개발용)
+    if (token.startsWith('mock_token_')) {
+      return true
+    }
     
     try {
       // JWT 토큰의 만료 시간 확인 (선택사항)
       const payload = JSON.parse(atob(token.split(".")[1]))
       return payload.exp * 1000 > Date.now()
     } catch (error) {
+      console.error('토큰 파싱 에러:', error)
+      localStorage.removeItem("token") // 잘못된 토큰 삭제
       return false
     }
   }
@@ -128,7 +136,16 @@ const userManager = {
   // 사용자 정보 가져오기
   getUser: () => {
     const user = localStorage.getItem("user")
-    return user ? JSON.parse(user) : null
+    if (!user || user === "undefined" || user === "null") {
+      return null
+    }
+    try {
+      return JSON.parse(user)
+    } catch (error) {
+      console.error('사용자 정보 파싱 에러:', error)
+      localStorage.removeItem("user") // 잘못된 데이터 삭제
+      return null
+    }
   },
 
   // 사용자 정보 삭제
@@ -143,7 +160,7 @@ const userManager = {
 }
 
 // Pinia Store 정의
-export const useAuthStore = defineStore('auth', {
+const useAuthStore = defineStore('auth', {
   state: () => ({
     user: userManager.getUser(),
     isAuthenticated: userManager.isLoggedIn(),
@@ -173,14 +190,22 @@ export const useAuthStore = defineStore('auth', {
       
       try {
         const response = await authAPI.login({ email, password })
-        const { token, user } = response.data
+        const { email: userEmail, accessToken, refreshToken } = response.data
         
-        // 토큰과 사용자 정보 저장
-        tokenManager.setToken(token)
-        userManager.setUser(user)
+        console.log('로그인 응답:', response.data)
         
-        // 상태 업데이트
-        this.user = user
+        // 토큰 저장
+        tokenManager.setToken(accessToken)
+        
+        // 임시 사용자 정보 (이메일 기반)
+        const tempUser = {
+          email: userEmail,
+          nickname: userEmail.split('@')[0] // 이메일에서 닉네임 추출
+        }
+        
+        // 사용자 정보 저장
+        userManager.setUser(tempUser)
+        this.user = tempUser
         this.isAuthenticated = true
         
         return response.data
@@ -213,10 +238,17 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true
       this.error = null
       try {
-        const response = await authAPI.sendVerificationCode(email)
-        return response.data
+        // 더미 데이터 사용
+        const result = await sendDummyCode(email)
+        if (result.success) {
+          console.log('발송된 인증 코드:', result.code) // 개발용 로그
+          return { success: true, message: result.message }
+        } else {
+          this.error = result.message
+          throw new Error(result.message)
+        }
       } catch (error) {
-        this.error = error.response?.data?.message || '인증 코드 전송에 실패했습니다.'
+        this.error = error.message || '인증 코드 전송에 실패했습니다.'
         throw error
       } finally {
         this.loading = false
@@ -228,10 +260,16 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true
       this.error = null
       try {
-        const response = await authAPI.verifyCode({ email, code })
-        return response.data
+        // 더미 데이터 사용
+        const result = await verifyDummyCode(email, code)
+        if (result.success) {
+          return { success: true, message: result.message }
+        } else {
+          this.error = result.message
+          throw new Error(result.message)
+        }
       } catch (error) {
-        this.error = error.response?.data?.message || '인증 코드 검증에 실패했습니다.'
+        this.error = error.message || '인증 코드 검증에 실패했습니다.'
         throw error
       } finally {
         this.loading = false
@@ -240,7 +278,24 @@ export const useAuthStore = defineStore('auth', {
 
     // 인증 코드 재전송
     async resendCode(email) {
-      return await this.sendVerificationCode(email)
+      this.loading = true
+      this.error = null
+      try {
+        // 더미 데이터 사용
+        const result = await resendDummyCode(email)
+        if (result.success) {
+          console.log('재발송된 인증 코드:', result.code) // 개발용 로그
+          return { success: true, message: result.message }
+        } else {
+          this.error = result.message
+          throw new Error(result.message)
+        }
+      } catch (error) {
+        this.error = error.message || '인증 코드 재전송에 실패했습니다.'
+        throw error
+      } finally {
+        this.loading = false
+      }
     },
 
     // 로그아웃
@@ -319,11 +374,28 @@ export const useAuthStore = defineStore('auth', {
 
     // 초기화 (앱 시작 시 호출)
     initialize() {
+      // 잘못된 localStorage 데이터 정리
+      this.cleanupLocalStorage()
+      
       const user = userManager.getUser()
       const isAuthenticated = userManager.isLoggedIn()
       
       this.user = user
       this.isAuthenticated = isAuthenticated
+    },
+
+    // localStorage 정리
+    cleanupLocalStorage() {
+      const token = localStorage.getItem("token")
+      const user = localStorage.getItem("user")
+      
+      if (token === "undefined" || token === "null") {
+        localStorage.removeItem("token")
+      }
+      
+      if (user === "undefined" || user === "null") {
+        localStorage.removeItem("user")
+      }
     }
   }
 })
@@ -339,7 +411,7 @@ export async function login(email, password) {
 }
 
 export async function signup(userData) {
-  const response = await apiClient.post("/members/register", userData)
+  const response = await apiClient.post("/members/signup", userData)
   return response.data
 }
 
@@ -355,4 +427,7 @@ export async function verifyCode(email, code) {
 
 export async function resendCode(email) {
   return await sendVerificationCode(email)
-} 
+}
+
+// auth store export
+export { useAuthStore } 
