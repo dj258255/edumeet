@@ -41,7 +41,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
                         .requestMatchers(
-                                "/api/v1/members/*"
+                                "/api/v1/*"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
