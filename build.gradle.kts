@@ -66,6 +66,11 @@ dependencies {
 
     // 썸네일 라이브러리
     implementation("net.coobird:thumbnailator:0.4.20")
+
+    // JJWT
+    implementation("io.jsonwebtoken:jjwt-api:0.11.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 }
 
 tasks.withType<Test> {

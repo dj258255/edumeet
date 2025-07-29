@@ -5,16 +5,14 @@ import com.edu.edumeet.member.domain.Member;
 
 import com.edu.edumeet.member.domain.Password;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Entity
 @Table(name = "member")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
+@Getter
 public class MemberJpaEntity extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,7 +37,8 @@ public class MemberJpaEntity extends BaseEntity {
     }
 
     public Member toDomain() {
-        return Member.create(
+        return Member.of(
+                this.id,
                 this.email,
                 Password.of(this.password),
                 this.nickname
