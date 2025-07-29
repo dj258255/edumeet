@@ -1,8 +1,7 @@
-package com.edu.edumeet.board.application;
+package com.edu.edumeet.board.infrastructure;
 
+import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
-import com.edu.edumeet.board.infrastructure.QBoardJpaEntity;
 import com.edu.edumeet.board.presentation.dto.BoardImageDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
@@ -15,17 +14,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.support.QuerydslRepositorySupport;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * BoardSearch 인터페이스의 구현체
+ * BoardSearchRepository 인터페이스의 구현체
  * QueryDSL을 사용하여 게시글 검색 기능을 구현
  */
-public class BoardSearchImpl extends QuerydslRepositorySupport implements BoardSearch {
 
-    public BoardSearchImpl() {
+@Repository
+public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport implements BoardSearchRepository {
+
+    public BoardSearchRepositoryImpl() {
         super(BoardJpaEntity.class);
     }
 

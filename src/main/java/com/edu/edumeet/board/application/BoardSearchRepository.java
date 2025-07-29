@@ -6,7 +6,7 @@ import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-public interface BoardSearch {
+public interface BoardSearchRepository {
 
     /**
      * 타입과 키워드로 게시글 검색

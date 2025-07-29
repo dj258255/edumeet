@@ -2,6 +2,7 @@ package com.edu.edumeet.board.infrastructure;
 
 
 import com.edu.edumeet.board.application.BoardRepository;
+import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
@@ -21,6 +22,7 @@ import java.util.Optional;
 public class BoardRepositoryImpl implements BoardRepository {
 
     private final BoardJpaRepository boardJpaRepository;
+    private final BoardSearchRepository boardSearchRepository;
 
     /**
      * 게시글 저장
@@ -63,8 +65,8 @@ public class BoardRepositoryImpl implements BoardRepository {
      */
     @Override
     public Page<Board> searchAll(String[] types, String keyword, Pageable pageable) {
-        // BoardSearch 인터페이스의 searchAll 메소드 호출
-        return boardJpaRepository.searchAll(types, keyword, pageable);
+        // BoardSearchRepository 인터페이스의 searchAll 메소드 호출
+        return boardSearchRepository.searchAll(types, keyword, pageable);
     }
 
     /**
@@ -76,14 +78,14 @@ public class BoardRepositoryImpl implements BoardRepository {
      */
     @Override
     public Page<BoardListReplyCountDTO> searchWithReplyCount(String[] types, String keyword, Pageable pageable) {
-        // BoardSearch 인터페이스의 searchWithReplyCount 메소드 호출
-        return boardJpaRepository.searchWithReplyCount(types, keyword, pageable);
+        // BoardSearchRepository 인터페이스의 searchWithReplyCount 메소드 호출
+        return boardSearchRepository.searchWithReplyCount(types, keyword, pageable);
     }
 
 
     @Override
     public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Pageable pageable){
-        //BoardSearch 인터페이스의 searchWithAll 메소드 호출 (JPA Repository에 위임)
-        return boardJpaRepository.searchWithAll(types, keyword, pageable);
+        //BoardSearchRepository 인터페이스의 searchWithAll 메소드 호출 (JPA Repository에 위임)
+        return boardSearchRepository.searchWithAll(types, keyword, pageable);
     }
 }

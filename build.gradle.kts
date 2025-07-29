@@ -1,4 +1,4 @@
-val queryDslVersion = "5.0.0"
+val queryDslVersion = "5.1.0"
 
 
 plugins {
@@ -67,6 +67,10 @@ dependencies {
 
     // 썸네일 라이브러리
     implementation("net.coobird:thumbnailator:0.4.20")
+
+    // S3
+    implementation("io.awspring.cloud:spring-cloud-aws-starter:3.4.0")
+    implementation("software.amazon.awssdk:s3:2.32.9")
 
     // JJWT
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")

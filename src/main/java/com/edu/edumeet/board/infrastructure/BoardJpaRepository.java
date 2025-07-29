@@ -1,13 +1,12 @@
 package com.edu.edumeet.board.infrastructure;
 
-import com.edu.edumeet.board.application.BoardSearch;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.Optional;
 
-public interface BoardJpaRepository extends JpaRepository<BoardJpaEntity,Long> , BoardSearch {
+public interface BoardJpaRepository extends JpaRepository<BoardJpaEntity,Long>  {
     
     // 단건 조회용 EntityGraph
     @EntityGraph(attributePaths = {"imageSet"})

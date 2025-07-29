@@ -1,6 +1,7 @@
 package com.edu.edumeet.repository;
 
 
+import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.infrastructure.BoardImageJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
@@ -34,6 +35,9 @@ public class BoardRepositoryTests {
 
     @Autowired
     private BoardJpaRepository boardJpaRepository;
+
+    @Autowired
+    private BoardSearchRepository boardSearchRepository;
 
     @Autowired
     private ReplyJpaRepository replyJpaRepository;
@@ -75,7 +79,7 @@ public class BoardRepositoryTests {
 
         Pageable pageable = PageRequest.of(2, 10, Sort.by("id").descending());
 
-        Page<BoardListReplyCountDTO> result = boardJpaRepository
+        Page<BoardListReplyCountDTO> result = boardSearchRepository
                 .searchWithReplyCount(types, keyword, pageable);
 
         //전체 페이지 
@@ -210,7 +214,7 @@ public class BoardRepositoryTests {
     public void 테스트_검색_이미지_댓글개수(){
         Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
         
-        boardJpaRepository.searchWithAll(null, null, pageable);
+        boardSearchRepository.searchWithAll(null, null, pageable);
     }
 
 
@@ -317,7 +321,7 @@ public class BoardRepositoryTests {
 
         //BoardRepository.searchWithAll(null, null , pageable);
 
-        Page<BoardListAllDTO> result = boardJpaRepository.searchWithAll(null,null,pageable);
+        Page<BoardListAllDTO> result = boardSearchRepository.searchWithAll(null,null,pageable);
 
         log.info("-----------------------------------------");
         log.info(result.getTotalElements());

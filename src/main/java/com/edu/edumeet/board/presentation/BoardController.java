@@ -1,10 +1,7 @@
 package com.edu.edumeet.board.presentation;
 
 
-import com.edu.edumeet.board.presentation.dto.BoardDTO;
-import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
-import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
-import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
+import com.edu.edumeet.board.presentation.dto.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,13 +12,20 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,6 +38,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "게시판 API", description = "게시글 관련 API")
 public class BoardController {
+
+    //파일업로드경로
+    @Value("${edumeet.upload.path}")
+    private String uploadPath;
 
     private final BoardService boardService;
 
@@ -50,13 +58,15 @@ public class BoardController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping
-    public ResponseEntity<PageResponseDTO<BoardListReplyCountDTO>> list(
+    public ResponseEntity<PageResponseDTO<BoardListAllDTO>> list(
             @Parameter(description = "페이지 요청 정보 (페이지 번호, 크기, 검색 조건)") 
             PageRequestDTO pageRequestDTO) {
         log.info("게시글 목록 조회: {}", pageRequestDTO);
         
-        PageResponseDTO<BoardListReplyCountDTO> responseDTO = boardService.listWithReplyCount(pageRequestDTO);
-        
+        //PageResponseDTO<BoardListReplyCountDTO> responseDTO = boardService.listWithReplyCount(pageRequestDTO);
+        PageResponseDTO<BoardListAllDTO> responseDTO = boardService.listWithAll(pageRequestDTO);
+        log.info("responseDTO: {}", responseDTO);
+
         return ResponseEntity.ok(responseDTO);
     }
 
@@ -85,7 +95,8 @@ public class BoardController {
             log.info("유효성 검사 오류: {}", bindingResult.getAllErrors());
             throw new BindException(bindingResult);
         }
-        
+        log.info(boardDTO);
+
         Long boardId = boardService.register(boardDTO);
         
         Map<String, Long> resultMap = new HashMap<>();
@@ -132,7 +143,7 @@ public class BoardController {
         @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, String>> modify(
             @Parameter(description = "수정할 게시글 ID", required = true) 
             @PathVariable("id") Long id,
@@ -174,9 +185,44 @@ public class BoardController {
             @Parameter(description = "삭제할 게시글 ID", required = true) 
             @PathVariable("id") Long id) {
         log.info("게시글 삭제: {}", id);
-        
+
+        //삭제하기전에 정보저장
+        BoardDTO boardDTO = boardService.readOne(id);
+        //삭제
         boardService.remove(id);
-        
+
+        //게시물이 삭제되었다면 첨부파일도 삭제
+        log.info(boardDTO.getFileNames());
+        List<String> fileNames = boardDTO.getFileNames();
+        if(fileNames != null && !fileNames.isEmpty()) {
+            removeFiles(fileNames);
+        }
+
+
         return ResponseEntity.noContent().build();
+    }
+
+
+    public void removeFiles(List<String> files) {
+        for(String fileName:files){
+            Resource resource = new FileSystemResource(uploadPath + File.separator + fileName);
+
+            String resourceName = resource.getFilename();
+
+            try{
+                String contentType = Files.probeContentType(resource.getFile().toPath());
+
+                resource.getFile().delete();
+
+                //썸네일이 존재하면
+                if(contentType.startsWith("image")){
+                    File thumbnailFile = new File(uploadPath + File.separator + "s_" + fileName);
+
+                    thumbnailFile.delete();
+                }
+            } catch (Exception e){
+                log.error(e.getMessage());
+            }
+        }
     }
 }
