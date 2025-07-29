@@ -41,21 +41,20 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useClassStore } from '@/stores/class'; // class 스토어 임포트
+import { useClassStore } from '@/stores/class';
+import '../styles/ClassRelated.css'; // **여기만 수정합니다.**
 
 const route = useRoute();
 const router = useRouter();
 const classId = route.params.classId;
 
-// 스토어 인스턴스 가져오기
 const classStore = useClassStore();
 
 const newRoomName = ref('');
-const maxParticipants = ref(4); // 기본 최대 인원 수
+const maxParticipants = ref(4);
 const previewVideo = ref(null);
 
 onMounted(async () => {
-  // 스토어 액션 호출하여 데이터 로드
   await classStore.fetchClassInfo(classId);
   await classStore.fetchRoomList(classId);
   startCameraPreview();
@@ -64,7 +63,7 @@ onMounted(async () => {
 async function startCameraPreview() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    if (previewVideo.value) { // ref가 마운트된 후에만 srcObject 설정
+    if (previewVideo.value) {
       previewVideo.value.srcObject = stream;
     }
   } catch (err) {
@@ -80,58 +79,17 @@ async function handleCreateRoom() {
   }
 
   try {
-    // 스토어 액션 호출
     const createdRoom = await classStore.createMeetingRoom(classId, {
       name: newRoomName.value,
-      maxParticipants: maxParticipants.value // 서버 API 필드명에 맞게 조정하세요.
+      maxParticipants: maxParticipants.value
     });
 
     alert(`화상채팅 방 "${newRoomName.value}" 이(가) 생성되었습니다!`);
-    newRoomName.value = ''; // 입력 필드 초기화
+    newRoomName.value = '';
     
-    // 생성된 방으로 바로 이동
-    router.push(`/class/${classId}/room/${createdRoom.id}`); 
+    router.push(`/class/${classId}/room/${createdRoom.id}`);
   } catch (error) {
-    // 스토어에서 이미 에러를 처리했으므로, 여기서는 추가 로깅만 합니다.
     console.error('컴포넌트에서 방 생성 에러 처리:', error);
   }
 }
-
-// generateId 함수는 서버에서 ID를 받으므로 이제 필요 없습니다.
-// function generateId(length = 8) {
-//   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-//   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-// }
 </script>
-
-<style scoped>
-.class-view {
-  padding: 2rem;
-}
-ul {
-  list-style: none;
-  padding: 0;
-}
-li {
-  margin: 8px 0;
-}
-.create-room {
-  margin-top: 2rem;
-}
-input {
-  padding: 8px;
-  margin: 0 8px 8px 0;
-}
-button {
-  padding: 8px 12px;
-}
-.video-preview {
-  margin: 1rem 0;
-}
-video {
-  width: 320px;
-  height: 240px;
-  border: 1px solid #ccc;
-  border-radius: 10px;
-}
-</style>

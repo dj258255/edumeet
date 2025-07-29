@@ -8,6 +8,7 @@ export const useClassStore = defineStore('class', {
     error: null,
     classInfo: null, // 특정 반 정보를 저장할 상태
     roomList: [],    // 화상채팅 방 목록을 저장할 상태
+    myClasses: [],   // 추가: 내가 속한 클래스 목록을 저장할 상태
   }),
 
   getters: {
@@ -15,6 +16,7 @@ export const useClassStore = defineStore('class', {
     hasError: (state) => state.error !== null,
     getCurrentClassInfo: (state) => state.classInfo,
     getRoomList: (state) => state.roomList,
+    getMyClasses: (state) => state.myClasses, // 추가: 내가 속한 클래스 목록 getter
   },
 
   actions: {
@@ -29,6 +31,8 @@ export const useClassStore = defineStore('class', {
 
       try {
         const response = await apiClient.post('/class', classData) // API 경로
+        // 클래스 생성 후, 내가 속한 클래스 목록을 새로고침할 수 있습니다.
+        await this.fetchMyClasses(); 
         return response.data
       } catch (error) {
         this.error = error.response?.data?.message || '클래스 생성에 실패했습니다.'
@@ -69,12 +73,12 @@ export const useClassStore = defineStore('class', {
       this.error = null
       try {
         const response = await apiClient.get(`/meeting?classId=${classId}`) // API 경로
-        this.roomList = response.data // 서버 응답이 배열 형태라고 가정
+        this.roomList = response.data
         return response.data
       } catch (error) {
         this.error = error.response?.data?.message || '화상 채팅방 목록을 불러오는 데 실패했습니다.'
         console.error('방 목록 불러오기 API 호출 에러:', error)
-        this.roomList = [] // 에러 시 빈 배열로 초기화
+        this.roomList = []
         throw error
       } finally {
         this.loading = false
@@ -91,16 +95,33 @@ export const useClassStore = defineStore('class', {
       this.loading = true
       this.error = null
       try {
-        // 백엔드 API 엔드포인트에 맞게 수정
-        // 예: /api/v1/class/{classId}/meeting
         const response = await apiClient.post(`/meeting?classId=${classId}`, roomData); 
-        // 생성 후 목록을 다시 불러오거나, 응답으로 받은 방 정보를 직접 추가할 수 있습니다.
-        // 여기서는 간단하게 새로 불러오는 것으로 처리하겠습니다.
         await this.fetchRoomList(classId); 
         return response.data;
       } catch (error) {
         this.error = error.response?.data?.message || '화상 채팅방 생성에 실패했습니다.';
         console.error('화상 채팅방 생성 API 호출 에러:', error);
+        throw error;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /**
+     * 추가: 내가 속한 클래스 목록을 불러옵니다.
+     */
+    async fetchMyClasses() {
+      this.loading = true;
+      this.error = null;
+      try {
+        // API URL이 /api/v1/class 이므로, apiClient의 baseURL과 합쳐져 정확한 경로가 됩니다.
+        const response = await apiClient.get('/class'); 
+        this.myClasses = response.data; // 서버 응답이 클래스 목록 배열이라고 가정
+        return response.data;
+      } catch (error) {
+        this.error = error.response?.data?.message || '클래스 목록을 불러오는 데 실패했습니다.';
+        console.error('내 클래스 목록 불러오기 API 호출 에러:', error);
+        this.myClasses = []; // 에러 시 빈 배열로 초기화
         throw error;
       } finally {
         this.loading = false;
