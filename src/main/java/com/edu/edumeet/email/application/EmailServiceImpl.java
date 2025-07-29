@@ -18,9 +18,8 @@ import java.util.Random;
 @RequiredArgsConstructor
 public class EmailServiceImpl {
 
-
     private final JavaMailSender javaMailSender;
-    //private final AuthCodeService authCodeService;
+    private final AuthCodeService authCodeService;
 
     @Value("${spring.mail.username}")
     private String senderEmail;
@@ -82,9 +81,8 @@ public class EmailServiceImpl {
 //            ex.printStackTrace();
 //        }
 
-        // 메일 전송
-        javaMailSender.send(message);
-        //authCodeService.saveAuthCode(email, number);
+        javaMailSender.send(message); // 메일 발송
+        authCodeService.saveAuthCode(email, number);
 
 
 
