@@ -1,11 +1,10 @@
 <script setup>
 import { ref, onMounted, watch,computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { userManager, tokenManager, authAPI } from "@/stores/auth.js"
+import { userManager, tokenManager, authAPI,useAuthStore } from "@/stores/auth.js"
 import './styles/App.css'
 
 const user = ref(null)
-const isLoggedIn = computed(() => userManager.isLoggedIn())
 
 const sidebarOpen = ref(false)
 const searchText = ref('')
