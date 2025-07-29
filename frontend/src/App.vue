@@ -1,7 +1,11 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch,computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { userManager, tokenManager, authAPI } from "@/stores/auth.js"
 import './styles/App.css'
+
+const user = ref(null)
+const isLoggedIn = computed(() => userManager.isLoggedIn())
 
 const sidebarOpen = ref(false)
 const searchText = ref('')
@@ -67,7 +71,13 @@ const handleSearch = () => {
       </RouterLink>
     </div>
     <nav class="navbar-center desktop-only">
-      <RouterLink to="/products">Products</RouterLink>
+      <RouterLink
+        :to="isLoggedIn ? '/class/create' : ''"
+        @click.prevent="!isLoggedIn"
+        :class="{ 'disabled-link': !isLoggedIn }"
+      >
+        Class
+      </RouterLink>
       <RouterLink to="/solutions">Solutions</RouterLink>
       <RouterLink to="/community">Community</RouterLink>
       <RouterLink to="/articles">articles</RouterLink>
