@@ -6,11 +6,11 @@ import com.edu.edumeet.member.presentation.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.presentation.dto.request.RefreshTokenRequest;
 import com.edu.edumeet.member.presentation.dto.request.SignupRequestDto;
 import com.edu.edumeet.member.presentation.dto.response.TokenResponseDto;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,7 +23,6 @@ import java.util.Map;
 public class MemberController {
     private final MemberService memberService;
     private final JwtService jwtService;
-    private final UserDetailsService userDetailsService;
 
     @PostMapping("/signup")
     public ResponseEntity<Map<String, String>> signup(@RequestBody SignupRequestDto signupRequestDto) {
@@ -39,17 +38,34 @@ public class MemberController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
-        String refreshToken = refreshTokenRequest.getRefreshToken();
-        if (!jwtService.isTokenValid(refreshToken)) {
-            throw new IllegalArgumentException("Refresh Token is invalid");
-        }
-
-        String username = jwtService.extractUsername(refreshToken);
-        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-        String newAccessToken = jwtService.generateToken(userDetails);
-        return ResponseEntity.ok(newAccessToken);
+    public ResponseEntity<TokenResponseDto> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+        TokenResponseDto tokenResponse = memberService.refreshAccessToken(refreshTokenRequest);
+        return ResponseEntity.ok(tokenResponse);
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", "Authorization 헤더가 필요합니다."
+            ));
+        }
+
+        try {
+            String token = authHeader.substring(7);
+            Long memberId = jwtService.getMemberIdFromToken(token);
+            memberService.logout(memberId);
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "로그아웃이 완료되었습니다."
+            ));
+        } catch (Exception e) {
+            log.error("로그아웃 중 오류 발생", e);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", "잘못된 토큰입니다."
+            ));
+        }
+    }
 }

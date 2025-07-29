@@ -18,6 +18,18 @@ public class SecurityMember implements UserDetails {
         return new SecurityMember(member);
     }
 
+    public Long getMemberId() {
+        return member.getId();
+    }
+
+    public String getEmail() {
+        return member.getEmail();
+    }
+
+    public Member getMember() {
+        return member;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of();
@@ -35,7 +47,7 @@ public class SecurityMember implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return UserDetails.super.isAccountNonExpired();
+        return true;
     }
 
     @Override

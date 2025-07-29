@@ -12,7 +12,13 @@ public class Member {
     protected Member() {}
 
     private Member(String email, Password password, String nickname) {
-        this.id = null;
+        this.email = email;
+        this.password = password;
+        this.nickname = nickname;
+    }
+
+    private Member(Long id, String email, Password password, String nickname) {
+        this.id = id;
         this.email = email;
         this.password = password;
         this.nickname = nickname;
@@ -20,5 +26,9 @@ public class Member {
 
     public static Member create(String email, Password password, String nickname) {
         return new Member(email, password, nickname);
+    }
+
+    public static Member of(Long id, String email, Password password, String nickname) {
+        return new Member(id, email, password, nickname);
     }
 }
