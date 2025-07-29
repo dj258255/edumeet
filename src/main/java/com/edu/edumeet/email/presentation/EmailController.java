@@ -20,7 +20,7 @@ public class EmailController {
 
     private final EmailServiceImpl emailService;
 
-    @PostMapping("/members/send-code")
+    @PostMapping("/members/sendcode")
     @Operation(summary = "인증코드 전송")
     public ResponseEntity<Map<String,String>> sendCodeVerificationCode(@RequestBody EmailRequest emailDTO) throws MessagingException {
 
