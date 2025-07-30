@@ -82,10 +82,7 @@ public class EmailServiceImpl {
 //        }
 
         javaMailSender.send(message); // 메일 발송
-        authCodeService.saveAuthCode(email, number);
-
-
-
+        authCodeService.saveAuthCode(email, number); // 인증 코드 Redis 저장.
 
 
     }
