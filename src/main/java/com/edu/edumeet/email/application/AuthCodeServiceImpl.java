@@ -21,4 +21,14 @@ public class AuthCodeServiceImpl implements AuthCodeService {
 
     }
 
+    @Override
+    public boolean verifyCode(String email, String code){
+
+        String key = "authcode:"+email;
+        String savedCode = redisTemplate.opsForValue().get(key);
+        System.out.println("Redis Input code" +code);
+
+        return code.equals(savedCode);
+    }
+
 }
