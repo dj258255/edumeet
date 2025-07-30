@@ -184,7 +184,7 @@ const getKakaoToken = async (code) => {
   try {
     const data = {
       grant_type: "authorization_code",
-      client_id: "3179fe89597741094d1d98dfe9820fe9",
+      client_id: import.meta.env.VITE_KAKAO_REST_API_KEY,
       redirect_uri: "http://localhost:5173/login",
       code: code,
     };

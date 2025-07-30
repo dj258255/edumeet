@@ -17,7 +17,7 @@
           if (window.Kakao) {
             console.log('카카오 SDK 로드 완료');
             if (!window.Kakao.isInitialized()) {
-              window.Kakao.init('3179fe89597741094d1d98dfe9820fe9');
+              window.Kakao.init('%VITE_KAKAO_REST_API_KEY%');
               console.log('카카오 SDK 초기화 완료');
             }
           } else {
