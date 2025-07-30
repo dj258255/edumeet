@@ -407,6 +407,7 @@ input.error {
   }
 }
 
+
 /* 소셜 로그인 섹션 */
 .social-login-section {
   margin-top: var(--spacing-xl);
@@ -436,23 +437,17 @@ input.error {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
-  background: #FEE500;
-  color: #000000;
+  background: transparent;
   border: none;
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md) var(--spacing-lg);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-normal);
-  min-width: 200px;
+  padding: var(--spacing-sm);
+  width: 90%;
+  height: auto;
 }
 
 .kakao-login-btn:hover:not(:disabled) {
-  background: #FDD835;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(254, 229, 0, 0.3);
+  transform: scale(1.02);
 }
 
 .kakao-login-btn:disabled {
@@ -462,11 +457,11 @@ input.error {
 }
 
 .kakao-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
 }
 
 .kakao-text {
-  font-weight: 600;
+  display: none;
 } 

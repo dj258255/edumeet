@@ -99,9 +99,28 @@ const cancelPress = () => {
       <RouterLink to="/link">Link</RouterLink>
     </nav>
     <div class="navbar-right desktop-only">
-      <button class="search-button" @click="toggleSearch" aria-label="검색">🔍</button>
-      <button class="dark-mode-button" @click="toggleDarkMode">
-        {{ isDarkMode ? '☀️' : '🌙' }}
+      <button class="search-button" @click="toggleSearch" aria-label="검색">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </button>
+      <button class="dark-mode-button" @click="toggleDarkMode" :aria-label="isDarkMode ? '라이트모드로 전환' : '다크모드로 전환'">
+        <svg v-if="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+
       </button>
       <RouterLink v-if="!isLoggedIn" class="btn login" to="/login">login</RouterLink>
       <RouterLink v-if="!isLoggedIn" class="btn signup" to="/signup">Register</RouterLink>
@@ -110,6 +129,52 @@ const cancelPress = () => {
         <button class="btn logout" @click="authStore.logout">로그아웃</button>
       </div>
     </div>
+    <!-- 모바일 사이드바 -->
+    <div v-if="sidebarOpen" class="sidebar mobile-only">
+      <div class="sidebar-header">
+        <button class="close-btn" @click="toggleSidebar">×</button>
+      </div>
+      <div class="sidebar-content">
+        <RouterLink to="/products" @click="toggleSidebar">Products</RouterLink>
+        <RouterLink to="/solutions" @click="toggleSidebar">Solutions</RouterLink>
+        <RouterLink to="/community" @click="toggleSidebar">Community</RouterLink>
+        <RouterLink to="/articles" @click="toggleSidebar">articles</RouterLink>
+        <RouterLink to="/pricing" @click="toggleSidebar">Pricing</RouterLink>
+        <RouterLink to="/contact" @click="toggleSidebar">Contact</RouterLink>
+        <RouterLink to="/link" @click="toggleSidebar">Link</RouterLink>
+        <button class="search-button sidebar-search" @click="() => { toggleSidebar(); toggleSearch(); }" aria-label="검색">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <span>검색</span>
+        </button>
+        <button class="dark-mode-button sidebar-dark-mode" @click="toggleDarkMode" :aria-label="isDarkMode ? '라이트모드로 전환' : '다크모드로 전환'">
+          <svg v-if="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <span>{{ isDarkMode ? '라이트모드' : '다크모드' }}</span>
+        </button>
+        <RouterLink v-if="!isLoggedIn" class="btn login" to="/login" @click="toggleSidebar">login</RouterLink>
+        <RouterLink v-if="!isLoggedIn" class="btn signup" to="/signup" @click="toggleSidebar">Register</RouterLink>
+        <div v-if="isLoggedIn" class="user-info sidebar-user">
+          <span class="user-name">{{ currentUser?.name || currentUser?.email || '사용자' }}</span>
+          <button class="btn logout" @click="() => { authStore.logout(); toggleSidebar(); }">로그아웃</button>
+        </div>
+      </div>
+    </div>
+
   </header>
 
   <!-- 팀 모달 -->

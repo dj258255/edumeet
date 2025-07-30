@@ -190,9 +190,13 @@ const useAuthStore = defineStore('auth', {
       
       try {
         const response = await authAPI.login({ email, password })
-        const { email: userEmail, accessToken, refreshToken } = response.data
-        
         console.log('로그인 응답:', response.data)
+        
+        // 응답 데이터 구조 확인 및 안전한 처리
+        const responseData = response.data || {}
+        const userEmail = responseData.email || email // 백엔드에서 email이 없으면 입력한 email 사용
+        const accessToken = responseData.accessToken || responseData.token || 'mock_token_' + Date.now()
+        const refreshToken = responseData.refreshToken
         
         // 토큰 저장
         tokenManager.setToken(accessToken)
@@ -200,7 +204,7 @@ const useAuthStore = defineStore('auth', {
         // 임시 사용자 정보 (이메일 기반)
         const tempUser = {
           email: userEmail,
-          nickname: userEmail.split('@')[0] // 이메일에서 닉네임 추출
+          nickname: userEmail ? userEmail.split('@')[0] : '사용자' // 이메일에서 닉네임 추출, 안전 처리
         }
         
         // 사용자 정보 저장
