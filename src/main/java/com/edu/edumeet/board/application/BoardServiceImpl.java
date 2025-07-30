@@ -3,7 +3,7 @@ package com.edu.edumeet.board.application;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.*;
-import com.edu.edumeet.reply.application.repository.ReplyRepository;
+import com.edu.edumeet.reply.application.ReplyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;

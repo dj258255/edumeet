@@ -3,7 +3,6 @@ package com.edu.edumeet.reply.application;
 
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
 import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
-import com.edu.edumeet.reply.application.repository.ReplyRepository;
 import com.edu.edumeet.reply.presentation.ReplyService;
 import com.edu.edumeet.reply.presentation.dto.ReplyDTO;
 import lombok.RequiredArgsConstructor;

@@ -2,6 +2,7 @@ package com.edu.edumeet.board.presentation;
 
 
 import com.edu.edumeet.board.presentation.dto.*;
+import com.edu.edumeet.util.S3Uploader;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +44,8 @@ public class BoardController {
     //파일업로드경로
     @Value("${edumeet.upload.path}")
     private String uploadPath;
+
+    private final S3Uploader s3Uploader;
 
     private final BoardService boardService;
 
@@ -202,27 +206,52 @@ public class BoardController {
         return ResponseEntity.noContent().build();
     }
 
+    //removeFiles를 S3 삭제로 수정
 
-    public void removeFiles(List<String> files) {
-        for(String fileName:files){
-            Resource resource = new FileSystemResource(uploadPath + File.separator + fileName);
-
-            String resourceName = resource.getFilename();
-
+    public void removeFiles(List<String> files){
+        for(String fileName : files){
             try{
-                String contentType = Files.probeContentType(resource.getFile().toPath());
+                //s3에서 파일 삭제
+                s3Uploader.removeS3File(fileName);
 
-                resource.getFile().delete();
-
-                //썸네일이 존재하면
-                if(contentType.startsWith("image")){
-                    File thumbnailFile = new File(uploadPath + File.separator + "s_" + fileName);
-
-                    thumbnailFile.delete();
+                //이미지 파일인 경우 섬네일도 삭제
+                if(isImageFile(fileName)){
+                    String thumbnailFileName = "s_" + fileName;
+                    s3Uploader.removeS3File(thumbnailFileName);
                 }
             } catch (Exception e){
-                log.error(e.getMessage());
+                log.error("S3 파일 삭제 실패 : {}", e.getMessage());
             }
         }
     }
+
+
+    //이미지 파일 확인 헬퍼 메서드
+    private boolean isImageFile(String fileName){
+        String extension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+        return Arrays.asList("jpg", "jpeg", "png", "gif","bmp","webp").contains(extension);
+    }
+
+//    public void removeFiles(List<String> files) {
+//        for(String fileName:files){
+//            Resource resource = new FileSystemResource(uploadPath + File.separator + fileName);
+//
+//            String resourceName = resource.getFilename();
+//
+//            try{
+//                String contentType = Files.probeContentType(resource.getFile().toPath());
+//
+//                resource.getFile().delete();
+//
+//                //썸네일이 존재하면
+//                if(contentType.startsWith("image")){
+//                    File thumbnailFile = new File(uploadPath + File.separator + "s_" + fileName);
+//
+//                    thumbnailFile.delete();
+//                }
+//            } catch (Exception e){
+//                log.error(e.getMessage());
+//            }
+//        }
+//    }
 }

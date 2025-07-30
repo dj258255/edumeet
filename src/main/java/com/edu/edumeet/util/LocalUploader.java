@@ -1,5 +1,6 @@
 package com.edu.edumeet.util;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.log4j.Log4j2;
 import net.coobird.thumbnailator.Thumbnailator;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +30,27 @@ public class LocalUploader {
     @Value("${edumeet.upload.path}")
     private String uploadPath;
 
+    //디렉토리가 없으면 생성 
+    @PostConstruct
+    public void init(){
+        log.info("=== 업로드 경로 설정 확인 ===");
+        log.info("업로드 경로 : {}", uploadPath);
+
+        //디렉토리가 없으면 생성
+        File uploadDir = new File(uploadPath);
+        if (!uploadDir.exists()){
+            boolean created = uploadDir.mkdirs();
+            if(created){
+                log.info("업로드 디렉토리 생성 완료: {}" , uploadPath);
+            } else{
+                log.error("업로드 디렉토리 생성 실패 : {}", uploadPath);
+            }
+        } else {
+            log.info("업로드 디렉토리 존재 확인 : {}", uploadPath);
+        }
+    }
+
+
     /**
      * MultipartFile 타입의 객체를 받아서 실제로 로컬폴더에 파일을 저장.
      * 이미지 파일일 경우엔 섬네일 생성.
@@ -53,8 +75,9 @@ public class LocalUploader {
             savePathList.add(savePath.toFile().getAbsolutePath());
 
             if(Files.probeContentType(savePath).startsWith("image")){
-                File thumbFile = new File(uploadPath, "s_" + saveFileName + "_");
+                File thumbFile = new File(uploadPath, "s_" + saveFileName);
                 savePathList.add(thumbFile.getAbsolutePath());
+                //이미지 리사이징
                 Thumbnailator.createThumbnail(savePath.toFile(), thumbFile,200,200);
             }
 

@@ -55,8 +55,6 @@ public class BoardJpaEntity extends BaseEntity {
     private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
 
 
-
-
     public void addImage(String uuid, String filename) {
 
         BoardImageJpaEntity boardImageJpaEntity = BoardImageJpaEntity.builder()

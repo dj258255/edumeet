@@ -7,7 +7,6 @@ import com.edu.edumeet.board.infrastructure.BoardImageJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
 import com.edu.edumeet.board.presentation.BoardService;
-import com.edu.edumeet.board.presentation.dto.BoardDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.infrastructure.ReplyJpaRepository;
@@ -22,7 +21,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.test.annotation.Commit;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -314,20 +312,20 @@ public class BoardRepositoryTests {
 //        log.info("==== BatchSize 테스트 완료 ====");
 //    }
 
-    @Transactional
-    @Test
-    public void testSearchImageReplyCount(){
-        Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
-
-        //BoardRepository.searchWithAll(null, null , pageable);
-
-        Page<BoardListAllDTO> result = boardSearchRepository.searchWithAll(null,null,pageable);
-
-        log.info("-----------------------------------------");
-        log.info(result.getTotalElements());
-
-        result.getContent().forEach(boardListAllDTO -> log.info(boardListAllDTO));
-    }
+//    @Transactional
+//    @Test
+//    public void 테스트_검색_이미지_댓글_카운팅(){
+//        Pageable pageable = PageRequest.of(0,10,Sort.by("id").descending());
+//
+//        //BoardRepository.searchWithAll(null, null , pageable);
+//
+//        Page<BoardListAllDTO> result = boardSearchRepository.searchWithAll(null,null,pageable);
+//
+//        log.info("-----------------------------------------");
+//        log.info(result.getTotalElements());
+//
+//        result.getContent().forEach(boardListAllDTO -> log.info(boardListAllDTO));
+//    }
 
 
 }

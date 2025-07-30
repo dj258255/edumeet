@@ -2,7 +2,7 @@ package com.edu.edumeet.reply.infrastructure;
 
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
 import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
-import com.edu.edumeet.reply.application.repository.ReplyRepository;
+import com.edu.edumeet.reply.application.ReplyRepository;
 import com.edu.edumeet.reply.domain.Reply;
 import com.edu.edumeet.reply.presentation.dto.ReplyDTO;
 import lombok.RequiredArgsConstructor;

@@ -55,10 +55,16 @@ public class S3Uploader {
     }
 
     public void removeS3File(String fileName) {
-        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                .bucket(bucket)
-                .key(fileName)
-                .build();
-        s3Client.deleteObject(deleteObjectRequest);
+        try {
+            DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(fileName)
+                    .build();
+            s3Client.deleteObject(deleteObjectRequest);
+            log.info("S3 파일 삭제 성공");
+        } catch (Exception e) {
+            log.error("S3 파일 삭제 실패: {} - {}", fileName, e.getMessage());
+            throw new RuntimeException(e.getMessage());
+        }
     }
 }

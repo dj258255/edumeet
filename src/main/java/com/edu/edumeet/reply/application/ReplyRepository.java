@@ -1,4 +1,4 @@
-package com.edu.edumeet.reply.application.repository;
+package com.edu.edumeet.reply.application;
 
 
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
