@@ -165,7 +165,7 @@ public class BoardController {
         // 경로 변수의 값으로 ID 설정
         boardDTO.setId(id);
         
-        boardService.modify(boardDTO);
+         boardService.modify(boardDTO);
         
         Map<String, String> resultMap = new HashMap<>();
         resultMap.put("result", "수정 완료");

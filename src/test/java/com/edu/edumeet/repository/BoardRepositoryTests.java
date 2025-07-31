@@ -11,6 +11,7 @@ import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.infrastructure.ReplyJpaRepository;
 import lombok.extern.log4j.Log4j2;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.test.annotation.Commit;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -29,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Log4j2
+@ActiveProfiles("test")
 public class BoardRepositoryTests {
 
     @Autowired
@@ -39,31 +42,67 @@ public class BoardRepositoryTests {
 
     @Autowired
     private ReplyJpaRepository replyJpaRepository;
-    @Autowired
-    private BoardService boardService;
 
-    @Test
-    public void 게시글100개씩넣기() {
-        IntStream.rangeClosed(1,100).forEach(i -> {
+//    @Autowired
+//    private BoardService boardService;
+
+    private Long testBoardId;
+
+
+    @BeforeEach
+    public void 테스트_더미데이터_100개씩(){
+        // 기존 데이터 삭제
+        replyJpaRepository.deleteAll();
+        boardJpaRepository.deleteAll();
+
+
+        for(int i = 1; i <= 100; i++){
             BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
                     .title("title..." +i)
                     .content("content..." + i)
                     .writer("user"+ (i % 10))
                     .build();
 
-            //jpa엔티티를 도메인으로 변환.
-            Board result = boardJpaRepository.save(boardJpaEntity).toModel();
-            log.info("board_id: " + result.getId());
-        });
+            for(int j = 0; j < 3; j++){
+
+                if(i % 5 ==0){
+                    continue;
+                }
+                boardJpaEntity.addImage(UUID.randomUUID().toString(), "file" + i + ".jpg");
+            }
+            BoardJpaEntity saved = boardJpaRepository.save(boardJpaEntity);
+
+
+            if(i ==1){
+                testBoardId = saved.getId();
+            }
+        }
+        log.info("테스트 데이터 생성완료. 첫 번째 게시글 ID:  " +  testBoardId);
     }
+
+//    @Test
+//    public void 게시글100개씩넣기() {
+//        IntStream.rangeClosed(1,100).forEach(i -> {
+//            BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
+//                    .title("title..." +i)
+//                    .content("content..." + i)
+//                    .writer("user"+ (i % 10))
+//                    .build();
+//
+//            //jpa엔티티를 도메인으로 변환.
+//            Board result = boardJpaRepository.save(boardJpaEntity).toModel();
+//            log.info("board_id: " + result.getId());
+//        });
+//    }
 
     @Test
     public void 게시글정보보기() {
-        Long id = 100L;
+        Optional<BoardJpaEntity> result = boardJpaRepository.findById(testBoardId);
 
-        Optional<BoardJpaEntity> result = boardJpaRepository.findById(id);
+        assertThat(result).isPresent();
+        BoardJpaEntity boardJpaEntity = result.get();
+        Board board = boardJpaEntity.toModel();
 
-        Board board = result.orElseThrow().toModel();
 
         log.info(board);
     }
@@ -128,12 +167,14 @@ public class BoardRepositoryTests {
     @Test
     public void 이미지와함께_게시글읽기(){
         // findById 대신 findByIdWithImages 사용
-        Optional<BoardJpaEntity> result = boardJpaRepository.findByIdWithImages(1L);
+        Optional<BoardJpaEntity> result = boardJpaRepository.findByIdWithImages(testBoardId);
         
-        BoardJpaEntity boardJpaEntity = result.orElseThrow();
+        BoardJpaEntity boardJpaEntity = result.orElseThrow(()->
+                new RuntimeException("게시글을 찾을 수 없습니다. ID: " + testBoardId));
 
         log.info(boardJpaEntity);
         log.info("------------------");
+
         for(BoardImageJpaEntity boardImageJpaEntity : boardJpaEntity.getImageSet()){
             log.info(boardImageJpaEntity);
         }
@@ -154,9 +195,9 @@ public class BoardRepositoryTests {
     @Commit
     @Test
     public void 이미지수정_테스트(){
-        Optional<BoardJpaEntity> result = boardJpaRepository.findByIdWithImages(1L);
-
-        BoardJpaEntity boardJpaEntity = result.orElseThrow();
+        Optional<BoardJpaEntity> result = boardJpaRepository.findByIdWithImages(testBoardId);
+        BoardJpaEntity boardJpaEntity = result.orElseThrow(()
+        -> new RuntimeException("게시글을 찾을 수 없습니다. ID: " + testBoardId));
 
         //기존의 첨부파일들은 삭제
         boardJpaEntity.clearImages();
@@ -184,25 +225,7 @@ public class BoardRepositoryTests {
         log.info("게시글 삭제 성공~");
     }
 
-    @Test
-    public void 테스트_더미데이터_100개씩(){
-        for(int i = 1; i <= 100; i++){
-            BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
-                    .title("title..." +i)
-                    .content("content..." + i)
-                    .writer("user"+ (i % 10))
-                    .build();
 
-            for(int j = 0; j < 3; j++){
-
-                if(i % 5 ==0){
-                    continue;
-                }
-                boardJpaEntity.addImage(UUID.randomUUID().toString(), "file" + i + ".jpg");
-            }
-            boardJpaRepository.save(boardJpaEntity);
-        }
-    }
 
 
 
