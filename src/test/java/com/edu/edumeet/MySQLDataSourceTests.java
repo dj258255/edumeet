@@ -31,7 +31,7 @@ public class MySQLDataSourceTests {
         String databaseProductName = metaData.getDatabaseProductName();
 
         log.info("=== MYSQL 데이터베이스 연결 테스트 ===");
-        log.info("데이터베이스 제품명 : " + databaseProductName);
+        log.info("데이터베이스 : " + databaseProductName);
         log.info("URL : " + metaData.getURL());
 
 

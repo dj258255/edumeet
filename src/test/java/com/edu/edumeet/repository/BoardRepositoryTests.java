@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Log4j2
+@Transactional
 @ActiveProfiles("test")
 public class BoardRepositoryTests {
 
@@ -97,7 +98,7 @@ public class BoardRepositoryTests {
 
     @Test
     public void 게시글정보보기() {
-        Optional<BoardJpaEntity> result = boardJpaRepository.findById(testBoardId);
+        Optional<BoardJpaEntity> result = boardJpaRepository.findByIdWithImages(testBoardId);
 
         assertThat(result).isPresent();
         BoardJpaEntity boardJpaEntity = result.get();

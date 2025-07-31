@@ -22,6 +22,8 @@ public class S3Config {
     @Value("${spring.cloud.aws.region.static}")
     private String region;
 
+
+
     @Bean
     public S3Client s3Client() {
         return S3Client.builder()

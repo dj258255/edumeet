@@ -5,10 +5,12 @@ import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
 import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.*;
 import lombok.extern.log4j.Log4j2;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
@@ -18,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Log4j2
+@Transactional
 @ActiveProfiles("test")
 public class BoardServiceTests {
 
@@ -30,6 +33,7 @@ public class BoardServiceTests {
     private Long testBoardId;
     private Long testBoardWithImagesId;
 
+    @BeforeEach
     public void 테스트_묵업데이터세팅(){
         boardJpaRepository.deleteAll();
 
