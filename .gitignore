@@ -19,6 +19,8 @@
 .idea/**/contentModel.xml
 
 application.properties
+application-test.properties
+application-prod.properties
 
 # Sensitive or high-churn files
 .idea/**/dataSources/
