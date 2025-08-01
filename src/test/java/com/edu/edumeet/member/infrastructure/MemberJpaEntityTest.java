@@ -4,9 +4,11 @@ import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.domain.Password;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
+@ActiveProfiles("test")
 @DisplayName("[MemberJpaEntity 테스트]")
 public class MemberJpaEntityTest {
 

@@ -1,28 +1,33 @@
-package com.edu.edumeet.board.application.repository.search;
+package com.edu.edumeet.board.infrastructure;
 
+import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
-import com.edu.edumeet.board.infrastructure.QBoardJpaEntity;
+import com.edu.edumeet.board.presentation.dto.BoardImageDTO;
+import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.infrastructure.QReplyJpaEntity;
 import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.JPQLQuery;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.support.QuerydslRepositorySupport;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * BoardSearch 인터페이스의 구현체
+ * BoardSearchRepository 인터페이스의 구현체
  * QueryDSL을 사용하여 게시글 검색 기능을 구현
  */
-public class BoardSearchImpl extends QuerydslRepositorySupport implements BoardSearch {
 
-    public BoardSearchImpl() {
+@Repository
+public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport implements BoardSearchRepository {
+
+    public BoardSearchRepositoryImpl() {
         super(BoardJpaEntity.class);
     }
 
@@ -135,4 +140,103 @@ public class BoardSearchImpl extends QuerydslRepositorySupport implements BoardS
             query.where(booleanBuilder);
         }
     }
+
+//    @Override
+//    public Page<BoardListReplyCountDTO> searchWithAll(String[] types,
+//                                                      String keyword,
+//                                                      Pageable pageable){
+//
+//        QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
+//        QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
+//
+//        JPQLQuery<BoardJpaEntity>  boardJpaEntityJPQLQuery = from(boardJpaEntity);
+//        boardJpaEntityJPQLQuery.leftJoin(replyJpaEntity).on(replyJpaEntity.board.eq(boardJpaEntity)); // 레프트 조인
+//
+//        getQuerydsl().applyPagination(pageable, boardJpaEntityJPQLQuery); // 페이징
+//
+//        List<BoardJpaEntity> boardList = boardJpaEntityJPQLQuery.fetch();
+//
+//        boardList.forEach(boardJpaEntity1 ->{
+//            System.out.println(boardJpaEntity1.getId());
+//            System.out.println(boardJpaEntity1.getImageSet());
+//            System.out.println("---------------");
+//        });
+//
+//
+//        return null;
+//    }
+
+    @Override
+    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Pageable pageable){
+
+        QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
+        QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
+
+        JPQLQuery<BoardJpaEntity> boardJpaEntityJPQLQuery = from(boardJpaEntity);
+        boardJpaEntityJPQLQuery.leftJoin(replyJpaEntity).on(replyJpaEntity.board.eq(boardJpaEntity)); // 레프트 조인
+
+        //검색 조건 추가
+        if( ( types != null && types.length > 0 ) && keyword != null ){
+            BooleanBuilder booleanBuilder = new BooleanBuilder();
+
+            for(String type : types){
+                switch(type){
+                    case "t":
+                        booleanBuilder.or(boardJpaEntity.title.contains(keyword));
+                        break;
+                    case "c":
+                        booleanBuilder.or(boardJpaEntity.content.contains(keyword));
+                        break;
+                    case "w":
+                        booleanBuilder.or(boardJpaEntity.writer.contains(keyword));
+                        break;
+                }
+            }
+            boardJpaEntityJPQLQuery.where(booleanBuilder);
+        }
+
+
+        boardJpaEntityJPQLQuery.groupBy(boardJpaEntity);
+
+        getQuerydsl().applyPagination(pageable, boardJpaEntityJPQLQuery); //페이징
+
+        JPQLQuery<Tuple> tupleJPQLQuery = boardJpaEntityJPQLQuery.select(boardJpaEntity, replyJpaEntity.countDistinct());
+
+        List<Tuple> tupleList = tupleJPQLQuery.fetch();
+
+        List<BoardListAllDTO> dtoList = tupleList.stream().map(tuple ->{
+
+            BoardJpaEntity board1 = (BoardJpaEntity) tuple.get(boardJpaEntity);
+            long replyCount = tuple.get(1,Long.class);
+
+            BoardListAllDTO dto = BoardListAllDTO.builder()
+                    .id(board1.getId())
+                    .title(board1.getTitle())
+                    .writer(board1.getWriter())
+                    .regDate(board1.getRegDate())
+                    .replyCount(replyCount)
+                    .build();
+
+            //BoardImage를 BoardImageDTO 처리할 부분
+            List<BoardImageDTO> imageDTOS = board1.getImageSet().stream().sorted()
+                    .map(boardImageJpaEntity -> BoardImageDTO.builder()
+                            .uuid(boardImageJpaEntity.getUuid())
+                            .fileName(boardImageJpaEntity.getFilename())
+                            .ord(boardImageJpaEntity.getOrd())
+                            .build()
+                    ).collect(Collectors.toList());
+
+            dto.setBoardImages(imageDTOS); // 처리된 BoardImageDTO들을 추가
+
+
+            return dto;
+        }).collect(Collectors.toList());
+
+        long totalCount = boardJpaEntityJPQLQuery.fetchCount();
+
+
+        return new PageImpl<>(dtoList, pageable, totalCount);
+
+    }
+
 }

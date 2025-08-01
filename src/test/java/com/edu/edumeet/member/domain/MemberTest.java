@@ -2,10 +2,12 @@ package com.edu.edumeet.member.domain;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 @DisplayName("[Memeber 테스트]")
+@ActiveProfiles("test")
 public class MemberTest {
     @Test
     void create_정상_생성한다() {

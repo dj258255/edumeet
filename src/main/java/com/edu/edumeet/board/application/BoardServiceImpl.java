@@ -1,12 +1,9 @@
 package com.edu.edumeet.board.application;
 
-import com.edu.edumeet.board.application.repository.BoardRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.BoardService;
-import com.edu.edumeet.board.presentation.dto.BoardDTO;
-import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
-import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
-import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
+import com.edu.edumeet.board.presentation.dto.*;
+import com.edu.edumeet.reply.application.ReplyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -33,50 +30,93 @@ public class BoardServiceImpl implements BoardService {
 
     // BoardJpaRepository 대신 BoardRepository 인터페이스 사용
     private final BoardRepository boardRepository;
+    private final ReplyRepository replyRepository;
 
     /**
      * 게시글 등록
      * @param boardDTO 등록할 게시글 정보
      * @return 등록된 게시글의 ID
      */
+//    @Override
+//    public Long register(BoardDTO boardDTO) {
+//
+//        Board board = modelMapper.map(boardDTO, Board.class);
+//
+//        Long bno = boardRepository.save(board).getBno();
+//
+//        return bno;
+//    }
     @Override
     public Long register(BoardDTO boardDTO) {
-        // DTO를 도메인 모델로 변환
-        Board board = modelMapper.map(boardDTO, Board.class);
-        // 레포지토리를 통해 저장하고 ID 반환
-        return boardRepository.save(board);
+        Board board = dtoToDomain(boardDTO);
+
+        Long id = boardRepository.save(board);
+
+        return id;
     }
+
+
 
     /**
      * 게시글 조회
      * @param id 조회할 게시글 ID
      * @return 조회된 게시글 정보
      */
+//    @Override
+//    public BoardDTO readOne(Long id) {
+//        // 레포지토리를 통해 도메인 모델 조회
+//        Optional<Board> result = boardRepository.findById(id);
+//        // 없으면 예외 발생
+//        Board board = result.orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다: " + id));
+//        // 도메인 모델을 DTO로 변환하여 반환
+//        return modelMapper.map(board, BoardDTO.class);
+//    }
     @Override
-    public BoardDTO readOne(Long id) {
-        // 레포지토리를 통해 도메인 모델 조회
+    public BoardDTO readOne(Long id){
+        //board_image까지 조인 처리되는 findByWithImages()를 이용
         Optional<Board> result = boardRepository.findById(id);
-        // 없으면 예외 발생
-        Board board = result.orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다: " + id));
-        // 도메인 모델을 DTO로 변환하여 반환
-        return modelMapper.map(board, BoardDTO.class);
+        Board board = result.orElseThrow();
+
+        return domainToDto(board);
     }
 
     /**
      * 게시글 수정
      * @param boardDTO 수정할 게시글 정보
      */
+//    @Override
+//    public void modify(BoardDTO boardDTO) {
+//        // 레포지토리를 통해 도메인 모델 조회
+//        Optional<Board> result = boardRepository.findById(boardDTO.getId());
+//        // 없으면 예외 발생
+//        Board board = result.orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다: " + boardDTO.getId()));
+//        // 도메인 모델 수정
+//        board.change(boardDTO.getTitle(), boardDTO.getContent());
+//        // 레포지토리를 통해 저장
+//        boardRepository.save(board);
+//    }
     @Override
     public void modify(BoardDTO boardDTO) {
-        // 레포지토리를 통해 도메인 모델 조회
         Optional<Board> result = boardRepository.findById(boardDTO.getId());
-        // 없으면 예외 발생
-        Board board = result.orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다: " + boardDTO.getId()));
-        // 도메인 모델 수정
+        Board board = result.orElseThrow();
+
+        //도메인 로직을 통한 변경사항 적용
         board.change(boardDTO.getTitle(), boardDTO.getContent());
-        // 레포지토리를 통해 저장
+
+        //첨부파일 처리 , 이미지 업데이트
+        board.clearImages();
+        // 새로운 이미지 추가 (기존 로직 활용)
+        if (boardDTO.getFileNames() != null) {
+            for(String fileName : boardDTO.getFileNames()){
+                String[] arr = fileName.split("_");
+                board.addImage(arr[0], arr[1]);
+            }
+        }
+
+        //저장
         boardRepository.save(board);
     }
+
 
     /**
      * 게시글 삭제
@@ -84,9 +124,10 @@ public class BoardServiceImpl implements BoardService {
      */
     @Override
     public void remove(Long id) {
-        // 레포지토리를 통해 삭제
+        replyRepository.deleteByBoardId(id);
         boardRepository.deleteById(id);
     }
+
 
     /**
      * 게시글 목록 조회
@@ -105,7 +146,7 @@ public class BoardServiceImpl implements BoardService {
 
         // 도메인 모델을 DTO로 변환
         List<BoardDTO> dtoList = result.getContent().stream()
-                .map(board -> modelMapper.map(board, BoardDTO.class))
+                .map(this::domainToDto)
                 .collect(Collectors.toList());
 
         // 페이징 응답 생성
@@ -139,5 +180,23 @@ public class BoardServiceImpl implements BoardService {
                 .dtoList(result.getContent())
                 .total((int)result.getTotalElements())
                 .build();
+    }
+
+
+
+    @Override
+    public PageResponseDTO<BoardListAllDTO> listWithAll(PageRequestDTO pageRequestDTO){
+        String[] types = pageRequestDTO.getTypes();
+        String keyword = pageRequestDTO.getKeyword();
+        Pageable pageable = pageRequestDTO.getPageable("id");
+
+        Page<BoardListAllDTO> result = boardRepository.searchWithAll(types, keyword, pageable);
+
+        return PageResponseDTO.<BoardListAllDTO>withAll()
+                .pageRequestDTO(pageRequestDTO)
+                .dtoList(result.getContent())
+                .total((int)result.getTotalElements())
+                .build();
+
     }
 }

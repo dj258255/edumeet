@@ -2,11 +2,16 @@ package com.edu.edumeet.board.infrastructure;
 
 import com.edu.edumeet.base.BaseEntity;
 import com.edu.edumeet.board.domain.Board;
+import com.edu.edumeet.board.domain.BoardImage;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 
 @Entity
@@ -32,14 +37,23 @@ public class BoardJpaEntity extends BaseEntity {
     @Column(name = "writer" , nullable = false, length = 100)
     private String writer;
 
+//      일단 임시
+//    @Column(name = "class_id")
+//    private Long classId;
 
     //Board의 모든 상태변화에 Image들도 같이 변경되도록 구성.
     //Board 객체 자체에서 BoardImage들을 관리.
+    //만일 하위 엔티티의 참조가 더 이상 없는 상태가 되면
+    //OneToMay에 orphanRemoval 속성값을 true로 지정해 줘야만 실제 삭제가 이루어진다.
     @OneToMany(mappedBy = "boardJpaEntity",
             cascade = {CascadeType.ALL},
-            fetch = FetchType.LAZY) //boardImage의 board변수이다.
+            fetch = FetchType.LAZY,
+            orphanRemoval = true) //boardImage의 board변수이다.
     @Builder.Default
+    @BatchSize(size = 20)
+    //@Fetch(FetchMode.SUBSELECT)
     private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
+
 
     public void addImage(String uuid, String filename) {
 
@@ -58,23 +72,30 @@ public class BoardJpaEntity extends BaseEntity {
         this.imageSet.clear();
     }
 
-
-
-    public void change(String title, String content){
-        this.title = title;
-        this.content = content;
-    }
-
     //보드 도메인을 모델로 변환
     public Board toModel(){
-        return Board.builder()
+        Board board = Board.builder()
                 .id(this.id)
                 .title(this.title)
                 .content(this.content)
                 .writer(this.writer)
-                .regDate(this.getRegDate())  // BaseEntity에서 상속받은 등록일시
-                .modDate(this.getModDate())  // BaseEntity에서 상속받은 수정일시
+                .regDate(this.getRegDate())
+                .modDate(this.getModDate())
                 .build();
+        
+        //이미지 정보 변환
+        if(this.imageSet != null && !this.imageSet.isEmpty()){
+            Set<BoardImage> domainImages = this.imageSet.stream()
+                    .map(imgEntity -> BoardImage.builder()
+                            .uuid(imgEntity.getUuid())
+                            .fileName(imgEntity.getFilename())
+                            .ord((imgEntity.getOrd()))
+                            .build())
+                    .collect(Collectors.toSet());
+            board.setImages(domainImages);
+        }
+        
+        return board;
     }
 
     //보드 도메인 모델로부터 JPA 엔티티를 생성하는 정적 팩토리 메소드
@@ -86,25 +107,35 @@ public class BoardJpaEntity extends BaseEntity {
                 .writer(board.getWriter())
                 .build();
 
-        // 새로운 엔티티가 아닌 경우(ID가 있는 경우) 타임스탬프 정보 복사
-        // 새로운 엔티티인 경우 JPA의 @CreatedDate, @LastModifiedDate가 자동으로 설정함
-        if(board.getId() != null) {
-            // 리플렉션이나 setter 메소드를 통해 설정할 수 있지만,
-            // BaseEntity가 final 필드를 사용하므로 여기서는 생략
-            // 실제로는 JPA가 엔티티를 로드할 때 이 값들을 설정함
+        //이미지 정보도 함께 변환
+        if (board.getImages() != null && !board.getImages().isEmpty()) {
+            board.getImages().forEach(domainImage ->
+                    entity.addImage(domainImage.getUuid(), domainImage.getFileName())
+            );
         }
 
         return entity;
     }
 
-
-    //보드 도메인 모델로 업데이트 하는 메소드
-    public void updateDomain(Board board){
-        // 기본 필드 업데이트
+    /**
+     * 도메인 객체로부터 엔티티를 업데이트
+     * @param board 업데이트할 도메인 객체
+     */
+    public void updateFromDomain(Board board) {
         this.title = board.getTitle();
         this.content = board.getContent();
-        this.writer = board.getWriter();
 
-        // 타임스탬프는 JPA의 @LastModifiedDate에 의해 자동으로 업데이트됨
+
+        //이미지 정보도 업데이트
+        this.clearImages();
+        if (board.getImages() != null && !board.getImages().isEmpty()) {
+            board.getImages().forEach(domainImage ->
+                    this.addImage(domainImage.getUuid(), domainImage.getFileName())
+            );
+        }
+
     }
+
+
+
 }

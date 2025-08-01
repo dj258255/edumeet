@@ -1,8 +1,10 @@
 package com.edu.edumeet.board.infrastructure;
 
 
-import com.edu.edumeet.board.application.repository.BoardRepository;
+import com.edu.edumeet.board.application.BoardRepository;
+import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
+import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -20,6 +22,7 @@ import java.util.Optional;
 public class BoardRepositoryImpl implements BoardRepository {
 
     private final BoardJpaRepository boardJpaRepository;
+    private final BoardSearchRepository boardSearchRepository;
 
     /**
      * 게시글 저장
@@ -28,19 +31,16 @@ public class BoardRepositoryImpl implements BoardRepository {
      */
     @Override
     public Long save(Board board) {
-        // 도메인 모델을 JPA 엔티티로 변환
-        BoardJpaEntity entity = BoardJpaEntity.fromDomain(board);
-        // JPA 레포지토리를 통해 저장
-        BoardJpaEntity savedEntity = boardJpaRepository.save(entity);
-        // 저장된 엔티티의 ID 반환
+        //도메인 -> JPA 엔티티 변환 후 저장
+        BoardJpaEntity boardJpaEntity = BoardJpaEntity.fromDomain(board);
+        BoardJpaEntity savedEntity = boardJpaRepository.save(boardJpaEntity);
         return savedEntity.getId();
+
     }
 
-    /**
-     * ID로 게시글 조회
-     * @param id 게시글 ID
-     * @return 조회된 게시글 (없으면 빈 Optional)
-     */
+
+    //id로 게시글 조회
+    //return 조회된 게시굴 , 없으면 빈 Optional
     @Override
     public Optional<Board> findById(Long id) {
         // JPA 레포지토리를 통해 엔티티 조회
@@ -49,10 +49,7 @@ public class BoardRepositoryImpl implements BoardRepository {
         return entityOptional.map(BoardJpaEntity::toModel);
     }
 
-    /**
-     * 게시글 삭제
-     * @param id 삭제할 게시글 ID
-     */
+    //매개변수 삭제할 게시글 id
     @Override
     public void deleteById(Long id) {
         // JPA 레포지토리를 통해 삭제
@@ -68,8 +65,8 @@ public class BoardRepositoryImpl implements BoardRepository {
      */
     @Override
     public Page<Board> searchAll(String[] types, String keyword, Pageable pageable) {
-        // BoardSearch 인터페이스의 searchAll 메소드 호출
-        return boardJpaRepository.searchAll(types, keyword, pageable);
+        // BoardSearchRepository 인터페이스의 searchAll 메소드 호출
+        return boardSearchRepository.searchAll(types, keyword, pageable);
     }
 
     /**
@@ -81,7 +78,14 @@ public class BoardRepositoryImpl implements BoardRepository {
      */
     @Override
     public Page<BoardListReplyCountDTO> searchWithReplyCount(String[] types, String keyword, Pageable pageable) {
-        // BoardSearch 인터페이스의 searchWithReplyCount 메소드 호출
-        return boardJpaRepository.searchWithReplyCount(types, keyword, pageable);
+        // BoardSearchRepository 인터페이스의 searchWithReplyCount 메소드 호출
+        return boardSearchRepository.searchWithReplyCount(types, keyword, pageable);
+    }
+
+
+    @Override
+    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Pageable pageable){
+        //BoardSearchRepository 인터페이스의 searchWithAll 메소드 호출 (JPA Repository에 위임)
+        return boardSearchRepository.searchWithAll(types, keyword, pageable);
     }
 }

@@ -2,7 +2,7 @@ package com.edu.edumeet.reply.infrastructure;
 
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
 import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
-import com.edu.edumeet.reply.application.repository.ReplyRepository;
+import com.edu.edumeet.reply.application.ReplyRepository;
 import com.edu.edumeet.reply.domain.Reply;
 import com.edu.edumeet.reply.presentation.dto.ReplyDTO;
 import lombok.RequiredArgsConstructor;
@@ -106,7 +106,16 @@ public class ReplyRepositoryImpl implements ReplyRepository {
         
         return new PageResponseDTO<>(pageRequestDTO, dtoList, (int)result.getTotalElements());
     }
-    
+
+
+    @Override
+    public void deleteByBoardId(Long boardId){
+        //Jpa Repository의 deleteByBoard_id 사용
+        replyJpaRepository.deleteByBoard_Id(boardId);
+    }
+
+
+
     /**
      * ReplyDTO를 Reply 도메인 객체로 변환
      * @param dto ReplyDTO 객체
@@ -150,4 +159,6 @@ public class ReplyRepositoryImpl implements ReplyRepository {
                 .modDate(entity.getModDate())
                 .build();
     }
+
+
 }

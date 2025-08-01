@@ -1,16 +1,104 @@
 package com.edu.edumeet.board.presentation;
 
 
-import com.edu.edumeet.board.presentation.dto.BoardDTO;
-import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
-import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
-import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
+import com.edu.edumeet.board.domain.Board;
+import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
+import com.edu.edumeet.board.presentation.dto.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 게시판 서비스 인터페이스
  * 애플리케이션 계층의 서비스로 도메인 모델을 사용하여 비즈니스 로직을 처리
  */
 public interface BoardService {
+
+    default Board dtoToDomain(BoardDTO boardDTO){
+        Board board = Board.builder()
+                .id(boardDTO.getId())
+                .title(boardDTO.getTitle())
+                .content(boardDTO.getContent())
+                .writer(boardDTO.getWriter())
+                .regDate(boardDTO.getRegDate())
+                .modDate(boardDTO.getModDate())
+                .build();
+
+        // 파일 정보를 도메인 이미지로 변환
+        if(boardDTO.getFileNames() != null){
+            boardDTO.getFileNames().forEach(fileName -> {
+                String[] arr = fileName.split("_");
+                board.addImage(arr[0], arr[1]);
+            });
+        }
+        return board;
+    }
+
+    /**
+     * Board 도메인 객체를 BoardDTO로 변환
+     */
+    default BoardDTO domainToDto(Board board){
+        BoardDTO boardDTO = BoardDTO.builder()
+                .id(board.getId())
+                .title(board.getTitle())
+                .content(board.getContent())
+                .writer(board.getWriter())
+                .regDate(board.getRegDate())
+                .modDate(board.getModDate())
+                .build();
+
+        // 도메인 이미지를 파일명으로 변환
+        if (board.getImages() != null && !board.getImages().isEmpty()) {
+            List<String> fileNames = board.getImages().stream()
+                    .sorted()
+                    .map(img -> img.getUuid() + "_" + img.getFileName())
+                    .collect(Collectors.toList());
+            boardDTO.setFileNames(fileNames);
+        }
+
+        return boardDTO;
+    }
+
+
+
+    //default 메소드
+    default BoardJpaEntity dtoToEntity(BoardDTO boardDTO){
+        BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
+                .id(boardDTO.getId())
+                .title(boardDTO.getTitle())
+                .content(boardDTO.getContent())
+                .writer(boardDTO.getWriter())
+                .build();
+
+        if(boardDTO.getFileNames() != null){
+            boardDTO.getFileNames().forEach(fileName -> {
+                String[] arr = fileName.split("_");
+                boardJpaEntity.addImage(arr[0], arr[1]);
+            });
+        }
+        return boardJpaEntity;
+    }
+
+    default BoardDTO entityToDto(BoardJpaEntity boardJpaEntity){
+        BoardDTO boardDTO = BoardDTO.builder()
+                .id(boardJpaEntity.getId())
+                .title(boardJpaEntity.getTitle())
+                .content(boardJpaEntity.getContent())
+                .writer(boardJpaEntity.getWriter())
+                .regDate(boardJpaEntity.getRegDate())
+                .modDate(boardJpaEntity.getModDate())
+                .build();
+
+        List<String> fileNames =
+                boardJpaEntity.getImageSet().stream().sorted().map(boardImageJpaEntity ->
+                        boardImageJpaEntity.getUuid()+"_"+boardImageJpaEntity.getFilename()).collect(Collectors.toList());
+
+        boardDTO.setFileNames(fileNames);
+
+        return boardDTO;
+    }
+
+
 
     /**
      * 게시글 등록
@@ -51,4 +139,7 @@ public interface BoardService {
      * @return 게시글 목록, 댓글 수 및 페이징 정보
      */
     PageResponseDTO<BoardListReplyCountDTO> listWithReplyCount(PageRequestDTO pageRequestDTO);
+
+    //게시글의 이미지와 댓글의 숫자까지 처리
+    PageResponseDTO<BoardListAllDTO> listWithAll(PageRequestDTO pageRequestDTO);
 }
