@@ -30,5 +30,4 @@ public class AuthCodeServiceImpl implements AuthCodeService {
 
         return code.equals(savedCode);
     }
-
 }

@@ -29,7 +29,7 @@ public class EmailController {
     public ResponseEntity<Map<String,String>> sendCodeVerificationCode(@RequestBody EmailRequest emailDTO) throws MessagingException {
 
         System.out.println("인증을 위한 이메일 : " + emailDTO.getEmail());
-        emailService.sendEmail(emailDTO.getEmail().trim());
+        emailService.sendEmail(emailDTO.getEmail().trim());  // 이메일 인증 코드 비동기 처리 전송
         // 이메일 service로 전송.
         return ResponseEntity.ok().body(Map.of(
                 "message", "인증코드를 이메일로 전송했습니다."
@@ -48,7 +48,4 @@ public class EmailController {
         }
 
     }
-
-
-
 }

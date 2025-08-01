@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.Random;
@@ -66,6 +67,7 @@ public class EmailServiceImpl {
     }
 
 
+    @Async("mailExecutor")
     // 메일 발송
     public void sendEmail(String email) throws MessagingException {
         String number = createNumber(); // 랜덤 인증번호 생성
