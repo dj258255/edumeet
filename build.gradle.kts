@@ -83,6 +83,9 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 
+    systemProperty("spring.profiles.active", "test")
+
+
     // 테스트 결과 로깅
     testLogging {
         events("passed", "skipped", "failed")// 어떤 테스트 이벤트를 출력할지
