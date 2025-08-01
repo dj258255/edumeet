@@ -9,11 +9,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+@ActiveProfiles("test")
 @ExtendWith(MockitoExtension.class)
 @DisplayName("[MemberRepositoryImpl 테스트]")
 public class MemberRepositoryImplTest {
