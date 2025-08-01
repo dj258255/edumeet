@@ -1,11 +1,15 @@
 package com.edu.edumeet.member.infrastructure;
 
 import com.edu.edumeet.base.BaseEntity;
+import com.edu.edumeet.classroom.domain.ClassMember;
+import com.edu.edumeet.classroom.domain.ClassRoom;
 import com.edu.edumeet.member.domain.Member;
 
 import com.edu.edumeet.member.domain.Password;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.List;
 
 @Entity
 @Table(name = "member")
@@ -26,6 +30,12 @@ public class MemberJpaEntity extends BaseEntity {
 
     @Column(nullable = false, length = 50)
     private String nickname;
+
+    @OneToMany(mappedBy = "member")
+    private List<ClassRoom> classRooms;
+
+    @OneToMany(mappedBy = "member")
+    private List<ClassMember> classMembers;
 
     public static MemberJpaEntity from(Member member) {
         return MemberJpaEntity.builder()
