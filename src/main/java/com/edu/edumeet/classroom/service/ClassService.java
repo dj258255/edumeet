@@ -2,11 +2,14 @@ package com.edu.edumeet.classroom.service;
 
 import com.edu.edumeet.classroom.domain.ClassRoom;
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
+import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.repository.ClassRepository;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
 import com.edu.edumeet.member.infrastructure.MemberJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -28,5 +31,15 @@ public class ClassService {
                         .description(description)
                         .participantLimit(limit)
                         .build());
+    }
+
+    public List<ClassInfoResponseDto> getMyClasses(Long memberId) {
+        List<ClassRoom> classRooms = classRepository.findAllByMemberId(memberId);
+        return classRooms.stream()
+                .map(classRoom -> ClassInfoResponseDto.builder()
+                        .title(classRoom.getTitle())
+                        .description(classRoom.getDescription())
+                        .build())
+                .toList();
     }
 }
