@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.support.QuerydslRepositorySupport;
 import org.springframework.stereotype.Repository;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -167,76 +168,97 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
 //    }
 
     @Override
-    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Pageable pageable){
+    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Pageable pageable){
 
         QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
         QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
 
-        JPQLQuery<BoardJpaEntity> boardJpaEntityJPQLQuery = from(boardJpaEntity);
-        boardJpaEntityJPQLQuery.leftJoin(replyJpaEntity).on(replyJpaEntity.board.eq(boardJpaEntity)); // 레프트 조인
+        JPQLQuery<BoardJpaEntity> query = from(boardJpaEntity);
+        query.leftJoin(replyJpaEntity).on(replyJpaEntity.board.eq(boardJpaEntity));
 
-        //검색 조건 추가
-        if( ( types != null && types.length > 0 ) && keyword != null ){
-            BooleanBuilder booleanBuilder = new BooleanBuilder();
+        // 검색 조건 빌더
+        BooleanBuilder booleanBuilder = new BooleanBuilder();
 
-            for(String type : types){
-                switch(type){
+        // 키워드 검색 조건
+        if ((types != null && types.length > 0) && keyword != null) {
+            BooleanBuilder keywordBuilder = new BooleanBuilder();
+
+            for (String type : types) {
+                switch (type) {
                     case "t":
-                        booleanBuilder.or(boardJpaEntity.title.contains(keyword));
+                        keywordBuilder.or(boardJpaEntity.title.contains(keyword));
                         break;
                     case "c":
-                        booleanBuilder.or(boardJpaEntity.content.contains(keyword));
+                        keywordBuilder.or(boardJpaEntity.content.contains(keyword));
                         break;
                     case "w":
-                        booleanBuilder.or(boardJpaEntity.writer.contains(keyword));
+                        keywordBuilder.or(boardJpaEntity.writer.contains(keyword));
                         break;
-                }
             }
-            boardJpaEntityJPQLQuery.where(booleanBuilder);
         }
-
-
-        boardJpaEntityJPQLQuery.groupBy(boardJpaEntity);
-
-        getQuerydsl().applyPagination(pageable, boardJpaEntityJPQLQuery); //페이징
-
-        JPQLQuery<Tuple> tupleJPQLQuery = boardJpaEntityJPQLQuery.select(boardJpaEntity, replyJpaEntity.countDistinct());
-
-        List<Tuple> tupleList = tupleJPQLQuery.fetch();
-
-        List<BoardListAllDTO> dtoList = tupleList.stream().map(tuple ->{
-
-            BoardJpaEntity board1 = (BoardJpaEntity) tuple.get(boardJpaEntity);
-            long replyCount = tuple.get(1,Long.class);
-
-            BoardListAllDTO dto = BoardListAllDTO.builder()
-                    .id(board1.getId())
-                    .title(board1.getTitle())
-                    .writer(board1.getWriter())
-                    .regDate(board1.getRegDate())
-                    .replyCount(replyCount)
-                    .build();
-
-            //BoardImage를 BoardImageDTO 처리할 부분
-            List<BoardImageDTO> imageDTOS = board1.getImageSet().stream().sorted()
-                    .map(boardImageJpaEntity -> BoardImageDTO.builder()
-                            .uuid(boardImageJpaEntity.getUuid())
-                            .fileName(boardImageJpaEntity.getFilename())
-                            .ord(boardImageJpaEntity.getOrd())
-                            .build()
-                    ).collect(Collectors.toList());
-
-            dto.setBoardImages(imageDTOS); // 처리된 BoardImageDTO들을 추가
-
-
-            return dto;
-        }).collect(Collectors.toList());
-
-        long totalCount = boardJpaEntityJPQLQuery.fetchCount();
-
-
-        return new PageImpl<>(dtoList, pageable, totalCount);
-
+        booleanBuilder.and(keywordBuilder);
     }
 
+    // ✨ classId 조건 추가 (중복 제거)
+    if (classId != null) {
+        booleanBuilder.and(boardJpaEntity.classId.eq(classId));
+    }
+
+    // 조건이 있으면 where절에 적용
+    if (booleanBuilder.hasValue()) {
+        query.where(booleanBuilder);
+    }
+
+    // 그룹화
+    query.groupBy(boardJpaEntity);
+
+    // ✨ 튜플로 select - 게시글과 댓글 수를 한 번에 조회
+    JPQLQuery<Tuple> tupleQuery = query.select(
+        boardJpaEntity, 
+        replyJpaEntity.countDistinct()
+    );
+
+    // 페이징 적용
+    this.getQuerydsl().applyPagination(pageable, tupleQuery);
+
+    // 쿼리 실행
+    List<Tuple> tupleList = tupleQuery.fetch();
+
+    //튜플을 DTO로 변환
+    List<BoardListAllDTO> dtoList = tupleList.stream().map(tuple -> {
+        BoardJpaEntity board = tuple.get(boardJpaEntity);
+        Long replyCount = tuple.get(1, Long.class);
+
+        // 기본 DTO 생성
+        BoardListAllDTO dto = BoardListAllDTO.builder()
+                .id(board.getId())
+                .title(board.getTitle())
+                .writer(board.getWriter())
+                .regDate(board.getRegDate())
+                .replyCount(replyCount)
+                .classId(board.getClassId())
+                .build();
+
+        //이미지 정보 변환 (N+1 문제 방지를 위해 batch size 활용)
+        if (board.getImageSet() != null && !board.getImageSet().isEmpty()) {
+            List<BoardImageDTO> imageDTOs = board.getImageSet().stream()
+                    .sorted(Comparator.comparingInt(BoardImageJpaEntity::getOrd))
+                    .map(boardImage -> BoardImageDTO.builder()
+                            .uuid(boardImage.getUuid())
+                            .fileName(boardImage.getFilename())
+                            .ord(boardImage.getOrd())
+                            .build())
+                    .collect(Collectors.toList());
+            
+            dto.setBoardImages(imageDTOs);
+        }
+
+        return dto;
+    }).collect(Collectors.toList());
+
+    // count 쿼리도 같은 조건으로 실행
+    long totalCount = query.fetchCount();
+
+    return new PageImpl<>(dtoList, pageable, totalCount);
+}
 }

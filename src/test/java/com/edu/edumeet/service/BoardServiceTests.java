@@ -1,5 +1,6 @@
 package com.edu.edumeet.service;
 
+import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
 import com.edu.edumeet.board.presentation.BoardService;
@@ -43,25 +44,32 @@ public class BoardServiceTests {
 
     private void createTestBoards(){
         //기본 게시글 생성( ID 101L 대신 사용)
-        BoardJpaEntity board1 = BoardJpaEntity.builder()
+        Board board1 = Board.builder()
                 .title("Test Board 1")
                 .content("Test Content 1")
                 .writer("testUser1")
+                .classId(1L)
                 .build();
-        testBoardId = boardJpaRepository.save(board1).getId();
+
+
+        BoardJpaEntity savedBoard1 = boardJpaRepository.save(BoardJpaEntity.fromDomain(board1));
+        testBoardId = savedBoard1.getId();
 
         // 이미지가 있는 게시글 생성 (ID 102L 대신 사용)
-        BoardJpaEntity board2 = BoardJpaEntity.builder()
-                .title("Test Board with Images")
-                .content("Test Content with Images")
-                .writer("testUser2")
+        Board board2 = Board.builder()
+                .title("테스트 보드 with 이미지")
+                .content("테스트 내용 with 이미지")
+                .writer("테스트_유저2")
+                .classId(1L)
                 .build();
 
         // 이미지 추가
         for (int i = 0; i < 3; i++) {
             board2.addImage(UUID.randomUUID().toString(), "testfile" + i + ".jpg");
         }
-        testBoardWithImagesId = boardJpaRepository.save(board2).getId();
+
+        BoardJpaEntity savedBoard2 = boardJpaRepository.save(BoardJpaEntity.fromDomain(board2));
+        testBoardWithImagesId = savedBoard2.getId();
 
         log.info("테스트 데이터 생성 완료. 기본 게시글 ID: {}, 이미지 게시글 ID: {}",
                 testBoardId, testBoardWithImagesId);
@@ -77,6 +85,7 @@ public class BoardServiceTests {
                 .title("Sample Title...")
                 .content("Sample Content...")
                 .writer("user00")
+                .classId(1L)
                 .build();
 
         Long board_id = boardService.register(boardDTO);
@@ -109,7 +118,7 @@ public class BoardServiceTests {
 
         PageRequestDTO pageRequestDTO = PageRequestDTO.builder()
                 .type("tcw")
-                .keyword("Test") //실제 존재하는 내용으로 검색하자.
+                .keyword("title") //실제 존재하는 내용으로 검색하자.
                 .page(1)
                 .size(10)
                 .build();
@@ -129,6 +138,7 @@ public class BoardServiceTests {
                 .title("파일 심플 제목")
                 .content("샘플 내용")
                 .writer("user00")
+                .classId(1L)
                 .build();
 
         boardDTO.setFileNames(

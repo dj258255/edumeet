@@ -35,6 +35,7 @@ public class ReplyServiceTests {
         BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
                 .title("Test Board")
                 .content("Test Content")
+                .classId(1L)
                 .writer("testUser")
                 .build();
 

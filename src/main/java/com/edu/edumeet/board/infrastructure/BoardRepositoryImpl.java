@@ -84,8 +84,8 @@ public class BoardRepositoryImpl implements BoardRepository {
 
 
     @Override
-    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Pageable pageable){
+    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Pageable pageable){
         //BoardSearchRepository 인터페이스의 searchWithAll 메소드 호출 (JPA Repository에 위임)
-        return boardSearchRepository.searchWithAll(types, keyword, pageable);
+        return boardSearchRepository.searchWithAll(types, keyword, classId, pageable);
     }
 }

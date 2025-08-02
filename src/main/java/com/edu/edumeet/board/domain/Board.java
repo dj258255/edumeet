@@ -22,6 +22,10 @@ public class Board {
     private String content;      // 내용
     private String writer;       // 작성자
 
+    private Long classId; // 클래스 아이디
+
+
+
     private LocalDateTime regDate;  // 등록일시
     private LocalDateTime modDate;  // 수정일시
 

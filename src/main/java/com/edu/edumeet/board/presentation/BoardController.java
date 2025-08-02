@@ -54,7 +54,7 @@ public class BoardController {
      * @param pageRequestDTO 페이지 요청 정보
      * @return 페이징된 게시글 목록
      */
-    @Operation(summary = "게시글 목록 조회", description = "페이징 및 검색 조건으로 게시글 목록을 조회합니다 (댓글 수 포함)")
+    @Operation(summary = "게시글 목록 조회", description = "페이징 및 검색 조건으로 게시글 목록을 조회합니다 (댓글 수 포함), 그리고 classId가 있으면 해당 클래스의 게시글만, 없으면 전체 게시글을 조회")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "조회 성공", 
                     content = @Content(schema = @Schema(implementation = PageResponseDTO.class))),
@@ -66,10 +66,22 @@ public class BoardController {
             @Parameter(description = "페이지 요청 정보 (페이지 번호, 크기, 검색 조건)") 
             PageRequestDTO pageRequestDTO) {
         log.info("게시글 목록 조회: {}", pageRequestDTO);
-        
+
+        if(pageRequestDTO.getClassId() != null){
+            log.info("클래스별 게시글 목록 조회 -> 클래스 ID : {} , 페이지 정보: {}",
+                    pageRequestDTO.getClassId(), pageRequestDTO);
+        } else{
+            log.info("전체 게시글 목록 조회: {}" , pageRequestDTO);
+        }
+
+
+
+
         //PageResponseDTO<BoardListReplyCountDTO> responseDTO = boardService.listWithReplyCount(pageRequestDTO);
         PageResponseDTO<BoardListAllDTO> responseDTO = boardService.listWithAll(pageRequestDTO);
-        log.info("responseDTO: {}", responseDTO);
+        log.info("조회 결과 -> 총{} 건, 현재 페이지 : {}",
+                responseDTO
+                        .getTotal(), responseDTO.getPage());
 
         return ResponseEntity.ok(responseDTO);
     }

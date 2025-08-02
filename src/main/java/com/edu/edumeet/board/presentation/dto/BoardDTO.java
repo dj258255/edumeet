@@ -38,6 +38,8 @@ public class BoardDTO {
     @NotEmpty(message = "작성자는 필수 입력값입니다")
     private String writer;
 
+    private Long classId;
+
     //첨부파일 이름들
     // BoardJpaEntity의 Set<BoardImage> 타입으로  변환되어야함.
     // private Set<BoardImageJpaEntity> imageSet = new HashSet<>();

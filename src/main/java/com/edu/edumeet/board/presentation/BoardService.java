@@ -20,6 +20,7 @@ public interface BoardService {
                 .title(boardDTO.getTitle())
                 .content(boardDTO.getContent())
                 .writer(boardDTO.getWriter())
+                .classId(boardDTO.getClassId())
                 .regDate(boardDTO.getRegDate())
                 .modDate(boardDTO.getModDate())
                 .build();
@@ -43,6 +44,7 @@ public interface BoardService {
                 .title(board.getTitle())
                 .content(board.getContent())
                 .writer(board.getWriter())
+                .classId(board.getClassId())
                 .regDate(board.getRegDate())
                 .modDate(board.getModDate())
                 .build();
@@ -60,44 +62,47 @@ public interface BoardService {
     }
 
 
+//
+//    //default 메소드
+//    default BoardJpaEntity dtoToEntity(BoardDTO boardDTO){
+//        BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
+//                .id(boardDTO.getId())
+//                .title(boardDTO.getTitle())
+//                .content(boardDTO.getContent())
+//                .writer(boardDTO.getWriter())
+//                .build();
+//
+//        if(boardDTO.getFileNames() != null){
+//            boardDTO.getFileNames().forEach(fileName -> {
+//                String[] arr = fileName.split("_");
+//                boardJpaEntity.addImage(arr[0], arr[1]);
+//            });
+//        }
+//        return boardJpaEntity;
+//    }
+//
+//    default BoardDTO entityToDto(BoardJpaEntity boardJpaEntity){
+//        BoardDTO boardDTO = BoardDTO.builder()
+//                .id(boardJpaEntity.getId())
+//                .title(boardJpaEntity.getTitle())
+//                .content(boardJpaEntity.getContent())
+//                .writer(boardJpaEntity.getWriter())
+//                .regDate(boardJpaEntity.getRegDate())
+//                .modDate(boardJpaEntity.getModDate())
+//                .build();
+//
+//        List<String> fileNames =
+//                boardJpaEntity.getImageSet().stream().sorted().map(boardImageJpaEntity ->
+//                        boardImageJpaEntity.getUuid()+"_"+boardImageJpaEntity.getFilename()).collect(Collectors.toList());
+//
+//        boardDTO.setFileNames(fileNames);
+//
+//        return boardDTO;
+//    }
 
-    //default 메소드
-    default BoardJpaEntity dtoToEntity(BoardDTO boardDTO){
-        BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
-                .id(boardDTO.getId())
-                .title(boardDTO.getTitle())
-                .content(boardDTO.getContent())
-                .writer(boardDTO.getWriter())
-                .build();
 
-        if(boardDTO.getFileNames() != null){
-            boardDTO.getFileNames().forEach(fileName -> {
-                String[] arr = fileName.split("_");
-                boardJpaEntity.addImage(arr[0], arr[1]);
-            });
-        }
-        return boardJpaEntity;
-    }
 
-    default BoardDTO entityToDto(BoardJpaEntity boardJpaEntity){
-        BoardDTO boardDTO = BoardDTO.builder()
-                .id(boardJpaEntity.getId())
-                .title(boardJpaEntity.getTitle())
-                .content(boardJpaEntity.getContent())
-                .writer(boardJpaEntity.getWriter())
-                .regDate(boardJpaEntity.getRegDate())
-                .modDate(boardJpaEntity.getModDate())
-                .build();
-
-        List<String> fileNames =
-                boardJpaEntity.getImageSet().stream().sorted().map(boardImageJpaEntity ->
-                        boardImageJpaEntity.getUuid()+"_"+boardImageJpaEntity.getFilename()).collect(Collectors.toList());
-
-        boardDTO.setFileNames(fileNames);
-
-        return boardDTO;
-    }
-
+    public void addImageToBoard(Long boardId, String uuid, String fileName);
 
 
     /**
@@ -141,5 +146,7 @@ public interface BoardService {
     PageResponseDTO<BoardListReplyCountDTO> listWithReplyCount(PageRequestDTO pageRequestDTO);
 
     //게시글의 이미지와 댓글의 숫자까지 처리
+    // classId가 있으면 해당 클래스의 게시글만, 없으면 전체 게시글 조회
+    // return : 게시글 목록 , 이미지 , 댓글 수 및 페이징 정보.
     PageResponseDTO<BoardListAllDTO> listWithAll(PageRequestDTO pageRequestDTO);
 }

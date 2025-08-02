@@ -37,9 +37,9 @@ public class BoardJpaEntity extends BaseEntity {
     @Column(name = "writer" , nullable = false, length = 100)
     private String writer;
 
-//      일단 임시
-//    @Column(name = "class_id")
-//    private Long classId;
+//    일단 임시
+    @Column(name = "class_id" , nullable = false)
+    private Long classId;
 
     //Board의 모든 상태변화에 Image들도 같이 변경되도록 구성.
     //Board 객체 자체에서 BoardImage들을 관리.
@@ -51,26 +51,14 @@ public class BoardJpaEntity extends BaseEntity {
             orphanRemoval = true) //boardImage의 board변수이다.
     @Builder.Default
     @BatchSize(size = 20)
-    //@Fetch(FetchMode.SUBSELECT)
+//    @Fetch(FetchMode.SUBSELECT)
     private Set<BoardImageJpaEntity> imageSet = new HashSet<>();
-
-
-    public void addImage(String uuid, String filename) {
-
-        BoardImageJpaEntity boardImageJpaEntity = BoardImageJpaEntity.builder()
-                .uuid(uuid)
-                .filename(filename)
-                .ord(imageSet.size())
-                .boardJpaEntity(this)
-                .build();
-        imageSet.add(boardImageJpaEntity);
-    }
-
-    public void clearImages(){
-        imageSet.forEach(boardImageJpaEntity -> boardImageJpaEntity.changeBoard(null));
-
-        this.imageSet.clear();
-    }
+//
+//    public void clearImages(){
+//        imageSet.forEach(boardImageJpaEntity -> boardImageJpaEntity.changeBoard(null));
+//
+//        this.imageSet.clear();
+//    }
 
     //보드 도메인을 모델로 변환
     public Board toModel(){
@@ -79,6 +67,7 @@ public class BoardJpaEntity extends BaseEntity {
                 .title(this.title)
                 .content(this.content)
                 .writer(this.writer)
+                .classId(this.classId)
                 .regDate(this.getRegDate())
                 .modDate(this.getModDate())
                 .build();
@@ -105,37 +94,56 @@ public class BoardJpaEntity extends BaseEntity {
                 .title(board.getTitle())
                 .content(board.getContent())
                 .writer(board.getWriter())
+                .classId(board.getClassId())
                 .build();
 
         //이미지 정보도 함께 변환
         if (board.getImages() != null && !board.getImages().isEmpty()) {
-            board.getImages().forEach(domainImage ->
-                    entity.addImage(domainImage.getUuid(), domainImage.getFileName())
-            );
+            Set<BoardImageJpaEntity> imageEntities = board.getImages().stream()
+                    .map(domainImage -> BoardImageJpaEntity.builder()
+                            .uuid(domainImage.getUuid())
+                            .filename(domainImage.getFileName())
+                            .ord(domainImage.getOrd())
+                            .boardJpaEntity(entity)
+                            .build())
+                    .collect(Collectors.toSet());
+            entity.imageSet = imageEntities;
         }
 
         return entity;
     }
 
     /**
-     * 도메인 객체로부터 엔티티를 업데이트
-     * @param board 업데이트할 도메인 객체
+     * 도메인 객체로부터 엔티티로 ㄱㄱ
+     */
+    /**
+     * 도메인 객체로부터 엔티티로 업데이트
+     */
+    /**
+     * 도메인 객체로부터 엔티티로 업데이트
      */
     public void updateFromDomain(Board board) {
         this.title = board.getTitle();
         this.content = board.getContent();
+        this.classId = board.getClassId();
 
+        // 기존 이미지들과의 연결 해제 (부모 참조 제거)
+        this.imageSet.forEach(image -> image.changeBoard(null));  // 이미 있는 메서드 사용!
+        this.imageSet.clear();
 
-        //이미지 정보도 업데이트
-        this.clearImages();
-        if (board.getImages() != null && !board.getImages().isEmpty()) {
-            board.getImages().forEach(domainImage ->
-                    this.addImage(domainImage.getUuid(), domainImage.getFileName())
-            );
+        // 새로운 이미지들 추가
+        if(board.getImages() != null && !board.getImages().isEmpty()){
+            Set<BoardImageJpaEntity> imageEntities = board.getImages().stream()
+                    .map(domainImage -> BoardImageJpaEntity.builder()
+                            .uuid(domainImage.getUuid())
+                            .filename(domainImage.getFileName())
+                            .ord(domainImage.getOrd())
+                            .boardJpaEntity(this)
+                            .build())
+                    .collect(Collectors.toSet());
+
+            // addAll을 사용하여 기존 컬렉션에 추가
+            this.imageSet.addAll(imageEntities);
         }
-
     }
-
-
-
 }
