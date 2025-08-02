@@ -5,6 +5,7 @@ import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.List;
 import java.util.Objects;
 
 @Entity
@@ -22,6 +23,12 @@ public class ClassRoom extends BaseEntity {
 
     @OneToOne(mappedBy = "classRoom", fetch = FetchType.LAZY)
     private ClassMember classMember;
+
+    @OneToOne(mappedBy = "classRoom", fetch = FetchType.LAZY)
+    private Thumbnail thumbnail;
+
+    @OneToMany(mappedBy = "id", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Tag> tags;
 
     private String title;
 
