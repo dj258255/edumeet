@@ -1,6 +1,7 @@
 package com.edu.edumeet.classroom.domain;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 
 @Entity
@@ -17,4 +18,12 @@ public class Thumbnail {
 
     @Column(nullable = false)
     private String imageUrl;
+
+    protected Thumbnail() {}
+
+    @Builder
+    private Thumbnail(ClassRoom classRoom, String imageUrl) {
+        this.classRoom = classRoom;
+        this.imageUrl = imageUrl;
+    }
 }

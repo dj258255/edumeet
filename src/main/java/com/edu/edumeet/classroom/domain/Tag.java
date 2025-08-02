@@ -1,6 +1,7 @@
 package com.edu.edumeet.classroom.domain;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 
 @Entity
@@ -15,4 +16,12 @@ public class Tag {
     private ClassRoom classRoom;
 
     private String name;
+
+    protected Tag() {}
+
+    @Builder
+    private Tag(ClassRoom classRoom, String name) {
+        this.classRoom = classRoom;
+        this.name = name;
+    }
 }
