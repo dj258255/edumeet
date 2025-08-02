@@ -27,7 +27,7 @@ public class ClassRoom extends BaseEntity {
     @OneToOne(mappedBy = "classRoom", fetch = FetchType.LAZY)
     private Thumbnail thumbnail;
 
-    @OneToMany(mappedBy = "id", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Tag> tags;
 
     private String title;
