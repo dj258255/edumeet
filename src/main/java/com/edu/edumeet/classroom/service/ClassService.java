@@ -65,11 +65,22 @@ public class ClassService {
 
     public List<ClassInfoResponseDto> getMyClasses(Long memberId) {
         List<ClassRoom> classRooms = classRepository.findAllByMemberId(memberId);
+
         return classRooms.stream()
-                .map(classRoom -> ClassInfoResponseDto.builder()
-                        .title(classRoom.getTitle())
-                        .description(classRoom.getDescription())
-                        .build())
-                .toList();
+            .map(classRoom -> ClassInfoResponseDto.builder()
+                .title(classRoom.getTitle())
+                .description(classRoom.getDescription())
+                .thumbnailUrl(
+                    classRoom.getThumbnail() != null ? classRoom.getThumbnail().getImageUrl() : null
+                )
+                .tags(
+                    classRoom.getTags() != null
+                        ? classRoom.getTags().stream()
+                        .map(Tag::getName)
+                        .toList()
+                        : List.of()
+                )
+                .build())
+            .toList();
     }
 }
