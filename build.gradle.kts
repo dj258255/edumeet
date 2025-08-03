@@ -96,6 +96,7 @@ tasks.withType<Test> {
 sourceSets {
     named("main") {
         java.srcDirs("src/main/java", "build/generated/sources/annotationProcessor/java/main")
+        resources.srcDirs("src/main/resources")
     }
     named("test") {
         java.srcDirs("src/test/java")
