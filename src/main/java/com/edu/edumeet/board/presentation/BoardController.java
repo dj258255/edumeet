@@ -51,8 +51,8 @@ public class BoardController {
 
     /**
      * 게시글 목록 조회
-     * @param pageRequestDTO 페이지 요청 정보
-     * @return 페이징된 게시글 목록
+     * request : pagerequestDTO
+     * response : 페이징된 게시글 목록
      */
     @Operation(summary = "게시글 목록 조회", description = "페이징 및 검색 조건으로 게시글 목록을 조회합니다 (댓글 수 포함), 그리고 classId가 있으면 해당 클래스의 게시글만, 없으면 전체 게시글을 조회")
     @ApiResponses({
@@ -88,10 +88,10 @@ public class BoardController {
 
     /**
      * 게시글 등록
-     * @param boardDTO 등록할 게시글 정보
-     * @param bindingResult 유효성 검사 결과
-     * @return 등록된 게시글 ID
-     * @throws BindException 유효성 검사 실패 시 발생
+     * request : boardDTO 등록할 게시글 정보
+     * bindingResult 유효성 검사 결과
+     * response: 등록된 게시글 ID
+     * throws -> BindException 유효성 검사 실패 시 발생
      */
     @Operation(summary = "게시글 등록", description = "새로운 게시글을 등록합니다")
     @ApiResponses({
@@ -123,8 +123,8 @@ public class BoardController {
 
     /**
      * 게시글 조회
-     * @param id 조회할 게시글 ID
-     * @return 조회된 게시글 정보
+     * request: id 조회할 게시글 ID
+     * response: 조회된 게시글 정보
      */
     @Operation(summary = "게시글 조회", description = "특정 게시글을 ID로 조회합니다")
     @ApiResponses({
@@ -146,11 +146,11 @@ public class BoardController {
 
     /**
      * 게시글 수정
-     * @param id 수정할 게시글 ID
-     * @param boardDTO 수정할 게시글 정보
-     * @param bindingResult 유효성 검사 결과
-     * @return 성공 메시지
-     * @throws BindException 유효성 검사 실패 시 발생
+     * request : id 수정할 게시글 ID
+     * request : boardDTO 수정할 게시글 정보
+     * request : bindingResult 유효성 검사 결과
+     * response: 성공 메시지
+     * throws-> BindException 유효성 검사 실패 시 발생
      */
     @Operation(summary = "게시글 수정", description = "특정 게시글을 수정합니다 request body에서 writer 없이 title, content만 보내주세요.")
     @ApiResponses({
@@ -187,8 +187,8 @@ public class BoardController {
 
     /**
      * 게시글 삭제
-     * @param id 삭제할 게시글 ID
-     * @return 성공 메시지
+     * request: id 삭제할 게시글 ID
+     * response: 성공 메시지
      */
     @Operation(summary = "게시글 삭제", description = "특정 게시글을 삭제합니다")
     @ApiResponses({
