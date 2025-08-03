@@ -47,4 +47,12 @@ public class ClassRoomController {
     public ResponseEntity<ClassInfoResponseDto> getClassDetail(@PathVariable Long classRoomId) {
         return ResponseEntity.ok(classService.getClassDetail(classRoomId));
     }
+
+    @DeleteMapping("/{classRoomId}")
+    public ResponseEntity<Void> deleteClass(
+            @PathVariable Long classRoomId,
+            @AuthenticationPrincipal SecurityMember member) {
+        classService.delete(member.getMemberId(), classRoomId);
+        return ResponseEntity.noContent().build();
+    }
 }

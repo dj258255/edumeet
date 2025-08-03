@@ -37,7 +37,14 @@ public class ClassRoom extends BaseEntity {
     @Column(name = "participant_limit")
     private int participantLimit;
 
+    @Column(name = "is_deleted", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean isDeleted = false;
+
     protected ClassRoom() {}
+
+    public void markAsDeleted() {
+        this.isDeleted = true;
+    }
 
     @Builder
     private ClassRoom(MemberJpaEntity member, String title, String description, int participantLimit) {

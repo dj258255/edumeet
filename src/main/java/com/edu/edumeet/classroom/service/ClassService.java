@@ -12,6 +12,7 @@ import com.edu.edumeet.classroom.repository.TagRepository;
 import com.edu.edumeet.classroom.repository.ThumbnailRepository;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
 import com.edu.edumeet.member.infrastructure.MemberJpaRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -68,7 +69,7 @@ public class ClassService {
     }
 
     public List<ClassInfoResponseDto> getMyClasses(Long memberId) {
-        List<ClassRoom> classRooms = classRepository.findAllByMemberId(memberId);
+        List<ClassRoom> classRooms = classRepository.findAllByMemberIdAndIsDeletedFalse(memberId);
 
         return classRooms.stream()
             .map(classRoom -> ClassInfoResponseDto.builder()
@@ -116,6 +117,7 @@ public class ClassService {
 
     public ClassInfoResponseDto getClassDetail(Long classRoomId) {
         ClassRoom classRoom = classRepository.findById(classRoomId)
+                .filter(c -> Boolean.FALSE.equals(c.getIsDeleted()))
                 .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
 
         return ClassInfoResponseDto.builder()
@@ -135,5 +137,17 @@ public class ClassService {
                                 .toList()
                 )
                 .build();
+    }
+
+    @Transactional
+    public void delete(Long memberId, Long classRoomId) {
+        ClassRoom classRoom = classRepository.findById(classRoomId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 클래스를 찾을 수 없습니다."));
+
+        if (!classRoom.getMember().getId().equals(memberId)) {
+            throw new IllegalArgumentException("클래스를 삭제할 권한이 없습니다.");
+        }
+
+        classRoom.markAsDeleted();
     }
 }
