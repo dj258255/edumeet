@@ -74,6 +74,7 @@ public class ClassService {
             .map(classRoom -> ClassInfoResponseDto.builder()
                 .title(classRoom.getTitle())
                 .description(classRoom.getDescription())
+                .participantLimit(classRoom.getParticipantLimit())
                 .thumbnailUrl(
                     classRoom.getThumbnail() != null ? classRoom.getThumbnail().getImageUrl() : null
                 )
@@ -96,6 +97,7 @@ public class ClassService {
                 .map(classRoom -> ClassInfoResponseDto.builder()
                         .title(classRoom.getTitle())
                         .description(classRoom.getDescription())
+                        .participantLimit(classRoom.getParticipantLimit())
                         .thumbnailUrl(
                                 Optional.ofNullable(classRoom.getThumbnail())
                                         .map(Thumbnail::getImageUrl)
@@ -110,5 +112,28 @@ public class ClassService {
                         )
                         .build())
                 .toList();
+    }
+
+    public ClassInfoResponseDto getClassDetail(Long classRoomId) {
+        ClassRoom classRoom = classRepository.findById(classRoomId)
+                .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
+
+        return ClassInfoResponseDto.builder()
+                .title(classRoom.getTitle())
+                .description(classRoom.getDescription())
+                .participantLimit(classRoom.getParticipantLimit())
+                .thumbnailUrl(
+                        Optional.ofNullable(classRoom.getThumbnail())
+                                .map(Thumbnail::getImageUrl)
+                                .orElse(null)
+                )
+                .tags(
+                        Optional.ofNullable(classRoom.getTags())
+                                .orElse(List.of())
+                                .stream()
+                                .map(Tag::getName)
+                                .toList()
+                )
+                .build();
     }
 }

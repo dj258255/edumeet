@@ -40,7 +40,11 @@ public class ClassRoomController {
     @GetMapping("/joined")
     public ResponseEntity<List<ClassInfoResponseDto>> getJoinedClasses(
             @AuthenticationPrincipal SecurityMember member) {
-        List<ClassInfoResponseDto> joinedClasses = classService.getJoinedClasses(member.getMemberId());
-        return ResponseEntity.ok(joinedClasses);
+        return ResponseEntity.ok(classService.getJoinedClasses(member.getMemberId()));
+    }
+
+    @GetMapping("/{classRoomId}")
+    public ResponseEntity<ClassInfoResponseDto> getClassDetail(@PathVariable Long classRoomId) {
+        return ResponseEntity.ok(classService.getClassDetail(classRoomId));
     }
 }
