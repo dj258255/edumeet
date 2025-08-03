@@ -2,7 +2,7 @@
 import {
   LocalVideoTrack,
   Room,
-  RoomEvent
+  RoomEvent,
 } from 'livekit-client';
 import { onMounted, onUnmounted, ref, shallowRef, type Ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -21,6 +21,14 @@ const roomName = ref('');
 const isJoining = ref(false);
 
 const activeRooms = ref<Array<{ name: string; participants: number }>>([]);
+
+// 메인화면 관리
+const mainTrack = ref<any>(null);
+const mainIdentity = ref<string>('');
+
+// 카메라/마이크 상태
+const isCameraOn = ref(true);
+const isMicOn = ref(true);
 
 let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
@@ -78,6 +86,8 @@ async function joinRoom(targetRoom?: string) {
     const firstVideoPub = room.value.localParticipant.videoTrackPublications.values().next().value;
     if (firstVideoPub) {
       localTrack.value = firstVideoPub.videoTrack;
+      mainTrack.value = firstVideoPub.videoTrack;
+      mainIdentity.value = participantName.value;
     }
 
     roomName.value = target;
@@ -97,6 +107,7 @@ async function leaveRoom() {
   }
   room.value = undefined;
   localTrack.value = undefined;
+  mainTrack.value = null;
   remoteTracksMap.value.clear();
 }
 
@@ -116,15 +127,32 @@ async function getToken(roomName: string, participantName: string) {
   const data = await response.json();
   return data.token;
 }
+
+// 메인화면 교체
+function setMainTrack(track: any, identity: string) {
+  mainTrack.value = track;
+  mainIdentity.value = identity;
+}
+
+// 카메라 ON/OFF
+function toggleCamera() {
+  isCameraOn.value = !isCameraOn.value;
+  room.value?.localParticipant.setCameraEnabled(isCameraOn.value);
+}
+
+// 마이크 ON/OFF
+function toggleMic() {
+  isMicOn.value = !isMicOn.value;
+  room.value?.localParticipant.setMicrophoneEnabled(isMicOn.value);
+}
 </script>
 
 <template>
   <div id="class-video-room">
     <!-- 방에 입장하지 않은 경우 -->
     <div v-if="!room" class="room-layout">
-      <!-- 좌측: 참가자 정보 입력 -->
       <div class="join-section">
-        <h2>화상채팅 방 참가</h2>
+        <h2>🎥 화상채팅 방 참가</h2>
         <form @submit.prevent="joinRoom()">
           <label>참가자 이름</label>
           <input v-model="participantName" type="text" />
@@ -138,9 +166,8 @@ async function getToken(roomName: string, participantName: string) {
         </form>
       </div>
 
-      <!-- 우측: 현재 진행 중인 방 목록 -->
       <div class="active-rooms-section">
-        <h2>현재 진행 중인 화상채팅방</h2>
+        <h2>📡 현재 진행 중인 화상채팅방</h2>
         <ul v-if="activeRooms.length">
           <li v-for="r in activeRooms" :key="r.name">
             <div class="room-card">
@@ -152,7 +179,7 @@ async function getToken(roomName: string, participantName: string) {
             </div>
           </li>
         </ul>
-        <p v-else>진행 중인 방이 없습니다.</p>
+        <p v-else class="empty">진행 중인 방이 없습니다.</p>
       </div>
     </div>
 
@@ -160,26 +187,47 @@ async function getToken(roomName: string, participantName: string) {
     <div v-else class="video-room">
       <div class="video-room-header">
         <h2>{{ roomName }}</h2>
-        <button @click="leaveRoom">퇴장하기</button>
+        <div class="controls">
+          <button :class="{ off: !isCameraOn }" @click="toggleCamera">
+            {{ isCameraOn ? '📷 카메라 끄기' : '📷 카메라 켜기' }}
+          </button>
+          <button :class="{ off: !isMicOn }" @click="toggleMic">
+            {{ isMicOn ? '🎤 마이크 끄기' : '🎤 마이크 켜기' }}
+          </button>
+          <button class="leave" @click="leaveRoom">🚪 퇴장하기</button>
+        </div>
       </div>
 
-      <div class="video-grid">
-        <!-- 로컬 비디오 -->
+      <!-- 메인화면 -->
+      <div class="main-video">
+        <VideoComponent
+          v-if="mainTrack"
+          :track="mainTrack"
+          :participantIdentity="mainIdentity"
+          class="main-tile"
+        />
+      </div>
+
+      <!-- 썸네일 리스트 -->
+      <div class="thumbnail-grid">
+        <!-- 내 화면 썸네일 -->
         <VideoComponent
           v-if="localTrack"
           :track="localTrack"
           :participantIdentity="participantName"
+          class="thumbnail"
           :local="true"
-          class="video-tile"
+          @click="setMainTrack(localTrack, participantName)"
         />
 
-        <!-- 원격 비디오 -->
+        <!-- 원격 썸네일 -->
         <template v-for="remoteTrack of remoteTracksMap.values()" :key="remoteTrack.trackPublication.trackSid">
           <VideoComponent
             v-if="remoteTrack.trackPublication.kind === 'video'"
             :track="remoteTrack.trackPublication.videoTrack!"
             :participantIdentity="remoteTrack.participantIdentity"
-            class="video-tile"
+            class="thumbnail"
+            @click="setMainTrack(remoteTrack.trackPublication.videoTrack!, remoteTrack.participantIdentity)"
           />
           <AudioComponent
             v-else
@@ -193,52 +241,53 @@ async function getToken(roomName: string, participantName: string) {
 </template>
 
 <style scoped>
-/* 전체 레이아웃 */
+/* 참가화면 레이아웃 */
 .room-layout {
   display: flex;
   gap: 2rem;
   padding: 2rem;
+  background: #f8fafc;
+  min-height: 100vh;
 }
 
-/* 좌측 참가 섹션 */
-.join-section {
-  flex: 1;
+.join-section,
+.active-rooms-section {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.join-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  gap: 1rem;
 }
 
 .join-section input {
   border: 1px solid #ddd;
   border-radius: 8px;
-  padding: 0.5rem;
+  padding: 0.6rem;
 }
 
 .join-section button {
   border: none;
-  background: #1d3557;
+  background: #2563eb;
   color: white;
-  padding: 0.6rem;
+  padding: 0.8rem;
   border-radius: 8px;
   font-weight: bold;
   cursor: pointer;
+  transition: 0.2s;
 }
 
-.join-section button:disabled {
-  background: #ccc;
+.join-section button:hover {
+  background: #1e3a8a;
 }
 
-/* 우측 방 목록 섹션 */
 .active-rooms-section {
   flex: 2;
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .active-rooms-section ul {
@@ -255,40 +304,84 @@ async function getToken(roomName: string, participantName: string) {
   border-radius: 8px;
   padding: 0.8rem;
   margin-bottom: 0.8rem;
-  background: #f9f9f9;
+  background: #f9fafb;
 }
 
 .room-card button {
-  background: #457b9d;
+  background: #10b981;
   color: white;
   border: none;
   padding: 0.4rem 0.8rem;
   border-radius: 6px;
   cursor: pointer;
 }
+.room-card button:hover {
+  background: #047857;
+}
+.empty {
+  color: #999;
+  text-align: center;
+  margin-top: 1rem;
+}
 
 /* 방 입장 후 레이아웃 */
 .video-room {
   padding: 1.5rem;
+  background: #f8fafc;
+  min-height: 100vh;
 }
 
 .video-room-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
 }
 
-.video-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr); /* 2x2 그리드 */
-  gap: 1rem;
+.controls button {
+  margin-left: 10px;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  background: #2563eb;
+  color: white;
+}
+.controls button.off {
+  background: #9ca3af;
+}
+.controls button.leave {
+  background: #ef4444;
 }
 
-.video-tile {
+.main-video {
   width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 8px;
+  height: 60vh;
+  margin-bottom: 1rem;
+}
+.main-tile {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
   background: black;
-  overflow: hidden;
+}
+
+.thumbnail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+.thumbnail {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 6px;
+  background: black;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: 0.2s;
+}
+.thumbnail:hover {
+  border-color: #2563eb;
 }
 </style>
