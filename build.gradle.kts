@@ -41,9 +41,8 @@ dependencies {
 
     // Database
     runtimeOnly("com.mysql:mysql-connector-j")           // 운영환경용 MySQL
+    runtimeOnly("com.h2database:h2")
     testRuntimeOnly("com.h2database:h2")                 // 테스트환경용 H2 인메모리
-    testRuntimeOnly("com.mysql:mysql-connector-j")
-
 
     // QueryDSL
     implementation("com.querydsl:querydsl-jpa:$queryDslVersion:jakarta")
@@ -84,6 +83,9 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 
+    systemProperty("spring.profiles.active", "test")
+
+
     // 테스트 결과 로깅
     testLogging {
         events("passed", "skipped", "failed")// 어떤 테스트 이벤트를 출력할지
@@ -96,7 +98,6 @@ tasks.withType<Test> {
 sourceSets {
     named("main") {
         java.srcDirs("src/main/java", "build/generated/sources/annotationProcessor/java/main")
-        resources.srcDirs("src/main/resources")
     }
     named("test") {
         java.srcDirs("src/test/java")
