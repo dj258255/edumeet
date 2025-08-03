@@ -1,10 +1,12 @@
 package com.edu.edumeet.classroom.service;
 
+import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.classroom.domain.ClassRoom;
 import com.edu.edumeet.classroom.domain.Tag;
 import com.edu.edumeet.classroom.domain.Thumbnail;
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
+import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import com.edu.edumeet.classroom.repository.ClassRepository;
 import com.edu.edumeet.classroom.repository.TagRepository;
 import com.edu.edumeet.classroom.repository.ThumbnailRepository;
@@ -14,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +24,7 @@ public class ClassService {
     private final ClassRepository classRepository;
     private final ThumbnailRepository thumbnailRepository;
     private final TagRepository tagRepository;
+    private final ClassMemberRepository classMemberRepository;
     private final MemberJpaRepository memberJpaRepository;
 
     public void create(Long memberId, ClassCreateRequestDto classCreateRequestDto) {
@@ -82,5 +86,29 @@ public class ClassService {
                 )
                 .build())
             .toList();
+    }
+
+    public List<ClassInfoResponseDto> getJoinedClasses(Long memberId) {
+        List<ClassMember> classMembers = classMemberRepository.findAllByMemberId(memberId);
+
+        return classMembers.stream()
+                .map(ClassMember::getClassRoom)
+                .map(classRoom -> ClassInfoResponseDto.builder()
+                        .title(classRoom.getTitle())
+                        .description(classRoom.getDescription())
+                        .thumbnailUrl(
+                                Optional.ofNullable(classRoom.getThumbnail())
+                                        .map(Thumbnail::getImageUrl)
+                                        .orElse(null)
+                        )
+                        .tags(
+                                Optional.ofNullable(classRoom.getTags())
+                                        .orElse(List.of())
+                                        .stream()
+                                        .map(Tag::getName)
+                                        .toList()
+                        )
+                        .build())
+                .toList();
     }
 }

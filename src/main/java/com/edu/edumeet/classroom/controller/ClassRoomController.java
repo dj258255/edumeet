@@ -36,4 +36,11 @@ public class ClassRoomController {
             @AuthenticationPrincipal SecurityMember member) {
         return ResponseEntity.ok(classService.getMyClasses(member.getMemberId()));
     }
+
+    @GetMapping("/joined")
+    public ResponseEntity<List<ClassInfoResponseDto>> getJoinedClasses(
+            @AuthenticationPrincipal SecurityMember member) {
+        List<ClassInfoResponseDto> joinedClasses = classService.getJoinedClasses(member.getMemberId());
+        return ResponseEntity.ok(joinedClasses);
+    }
 }
