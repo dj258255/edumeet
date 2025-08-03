@@ -41,8 +41,9 @@ dependencies {
 
     // Database
     runtimeOnly("com.mysql:mysql-connector-j")           // 운영환경용 MySQL
-    runtimeOnly("com.h2database:h2")
     testRuntimeOnly("com.h2database:h2")                 // 테스트환경용 H2 인메모리
+    testRuntimeOnly("com.mysql:mysql-connector-j")
+
 
     // QueryDSL
     implementation("com.querydsl:querydsl-jpa:$queryDslVersion:jakarta")
@@ -82,9 +83,6 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-
-    systemProperty("spring.profiles.active", "test")
-
 
     // 테스트 결과 로깅
     testLogging {
