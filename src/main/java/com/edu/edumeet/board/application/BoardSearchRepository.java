@@ -35,6 +35,7 @@ public interface BoardSearchRepository {
     //QueryDsl 튜플처리
     Page<BoardListAllDTO> searchWithAll(String[] types,
                                         String keyword,
+                                        Long classId,
                                         Pageable pageable);
 
 

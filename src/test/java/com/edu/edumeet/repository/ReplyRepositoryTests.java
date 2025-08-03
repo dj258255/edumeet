@@ -42,20 +42,23 @@ public class ReplyRepositoryTests {
         boardJpaRepository.deleteAll();
 
         for(int i = 1; i <= 100; i++){
-            BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
-                    .title("title..." +i)
-                    .content("content..." + i)
-                    .writer("user"+ (i % 10))
+            Board board = Board.builder()
+                    .title("제목..." + i)
+                    .content("내용..." + i)
+                    .writer("user" + (i % 10))
+                    .classId(1L)
                     .build();
 
+            //도메인로직으로 이미지 추가
             for(int j = 0; j < 3; j++){
-
                 if(i % 5 ==0){
                     continue;
                 }
-                boardJpaEntity.addImage(UUID.randomUUID().toString(), "file" + i + ".jpg");
+                board.addImage(UUID.randomUUID().toString(), "file" + i + ".jpg");
             }
-            BoardJpaEntity saved = boardJpaRepository.save(boardJpaEntity);
+
+            //도메인 모델을 jpa 엔티티로 변환 후 저장
+            BoardJpaEntity saved = boardJpaRepository.save(BoardJpaEntity.fromDomain(board));
 
             if(i==1){
                 testBoardId = saved.getId();
@@ -76,6 +79,10 @@ public class ReplyRepositoryTests {
                 .replayer("replyer1")
                 .build();
 
-        replyJpaRepository.save(ReplyJpaEntity.fromDomain(reply));
+        ReplyJpaEntity savedReply = replyJpaRepository.save(ReplyJpaEntity.fromDomain(reply));
+
+        log.info("저장된 댓글 ID: " + savedReply.getId());
+        log.info("댓글 내용: " + savedReply.getReplyText());
+
     }
 }

@@ -55,6 +55,14 @@ public class BoardServiceImpl implements BoardService {
         return id;
     }
 
+    @Override
+    public void addImageToBoard(Long boardId, String uuid, String fileName){
+        Optional<Board> result = boardRepository.findById(boardId);
+        Board board = result.orElseThrow();
+        board.addImage(uuid, fileName);
+        boardRepository.save(board);
+    }
+
 
 
     /**
@@ -189,8 +197,10 @@ public class BoardServiceImpl implements BoardService {
         String[] types = pageRequestDTO.getTypes();
         String keyword = pageRequestDTO.getKeyword();
         Pageable pageable = pageRequestDTO.getPageable("id");
+        Long classId = pageRequestDTO.getClassId(); // classId 추가
 
-        Page<BoardListAllDTO> result = boardRepository.searchWithAll(types, keyword, pageable);
+
+        Page<BoardListAllDTO> result = boardRepository.searchWithAll(types, keyword, classId, pageable);
 
         return PageResponseDTO.<BoardListAllDTO>withAll()
                 .pageRequestDTO(pageRequestDTO)

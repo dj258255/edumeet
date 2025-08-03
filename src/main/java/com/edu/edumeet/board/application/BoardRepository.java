@@ -42,5 +42,5 @@ public interface BoardRepository {
      */
     Page<BoardListReplyCountDTO> searchWithReplyCount(String[] types, String keyword, Pageable pageable);
 
-    Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Pageable pageable);
+    Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Pageable pageable);
 }
