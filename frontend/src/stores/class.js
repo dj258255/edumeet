@@ -16,7 +16,7 @@ export const useClassStore = defineStore('class', {
     activeRooms: [],
 
     // 개발용 Mock 모드
-    useMock: false,
+    useMock: true,
   }),
 
   getters: {
