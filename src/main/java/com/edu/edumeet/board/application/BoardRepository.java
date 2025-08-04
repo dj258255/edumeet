@@ -1,11 +1,28 @@
-package com.edu.edumeet.board.application.repository.search;
+package com.edu.edumeet.board.application;
 
 import com.edu.edumeet.board.domain.Board;
+import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-public interface BoardSearch {
+import java.util.Optional;
+
+/**
+ * 게시판 도메인 레포지토리 인터페이스
+ * DDD의 레포지토리 패턴을 구현한 인터페이스
+ */
+public interface BoardRepository {
+
+    //게시글 저장 , 게시글 ID 반환.
+    Long save(Board board); // board ->long
+
+    //id로 게시글 조회.
+    //없으면 빈 Optional 반환.
+    Optional<Board> findById(Long id); //long -> board
+
+    //게시글 삭제. 삭제할 게시글 id
+    void deleteById(Long id);
 
     /**
      * 타입과 키워드로 게시글 검색
@@ -25,4 +42,5 @@ public interface BoardSearch {
      */
     Page<BoardListReplyCountDTO> searchWithReplyCount(String[] types, String keyword, Pageable pageable);
 
+    Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Pageable pageable);
 }

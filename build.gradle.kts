@@ -1,4 +1,4 @@
-val queryDslVersion = "5.0.0"
+val queryDslVersion = "5.1.0"
 
 
 plugins {
@@ -27,7 +27,7 @@ repositories {
 }
 
 dependencies {
-    // Spring Boot
+    // Spring Boot Core
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-mail")
@@ -36,24 +36,13 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
 
     // Swagger (OpenAPI)
+    // API Documentation(Swagger)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
 
     // Database
-    runtimeOnly("com.mysql:mysql-connector-j")
-
-    // Lombok
-    compileOnly("org.projectlombok:lombok")
-    annotationProcessor("org.projectlombok:lombok")
-    testCompileOnly("org.projectlombok:lombok")
-    testAnnotationProcessor("org.projectlombok:lombok")
-
-    // Devtools
-    developmentOnly("org.springframework.boot:spring-boot-devtools")
-
-    // Testing
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    runtimeOnly("com.mysql:mysql-connector-j")           // 운영환경용 MySQL
+    runtimeOnly("com.h2database:h2")
+    testRuntimeOnly("com.h2database:h2")                 // 테스트환경용 H2 인메모리
 
     // QueryDSL
     implementation("com.querydsl:querydsl-jpa:$queryDslVersion:jakarta")
@@ -61,6 +50,23 @@ dependencies {
     annotationProcessor("com.querydsl:querydsl-apt:$queryDslVersion:jakarta")
     annotationProcessor("jakarta.annotation:jakarta.annotation-api")
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
+
+    // Lombok
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+    testCompileOnly("org.projectlombok:lombok")
+    testAnnotationProcessor("org.projectlombok:lombok")
+
+    // AWS S3
+    implementation("io.awspring.cloud:spring-cloud-aws-starter:3.4.0")
+    implementation("software.amazon.awssdk:s3:2.32.9")
+
+    // Testing
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+
 
     // DTO ↔ Entity Mapping
     implementation("org.modelmapper:modelmapper:3.1.0")
@@ -76,16 +82,20 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    testLogging {
-        events("passed", "skipped", "failed")
+
+    if (!systemProperties.containsKey("spring.profiles.active")) {
+        systemProperty("spring.profiles.active", "test")
     }
+    
+    // 테스트 결과 로깅
+    testLogging {
+        events("passed", "skipped", "failed")// 어떤 테스트 이벤트를 출력할지
+    }
+    //테스트 파일 패턴 지정
     include("**/*Test.class", "**/*Tests.class", "**/*IT.class")
 }
 
-tasks.named<Test>("test") {
-    useJUnitPlatform()
-}
-
+// QueryDSL Q클래스 생성을 위한 소스 경로 설정
 sourceSets {
     named("main") {
         java.srcDirs("src/main/java", "build/generated/sources/annotationProcessor/java/main")
@@ -93,6 +103,12 @@ sourceSets {
     named("test") {
         java.srcDirs("src/test/java")
         resources.srcDirs("src/test/resources")
+    }
+}
 
+// Clean 시 QueryDSL 생성 파일도 삭제
+tasks.named("clean") {
+    doLast {
+        file("build/generated/sources/annotationProcessor/java/main").deleteRecursively()
     }
 }

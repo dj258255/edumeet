@@ -40,11 +40,14 @@ public class PageRequestDTO {
     @Schema(description = "검색 키워드", example = "title")
     private String keyword;
 
+    @Schema(description = "클래스 ID (특정 클래스의 게시글만 조회)" , example = "1")
+    private Long classId;
+
     /**
      * 검색 유형을 배열로 변환
      * @return 검색 유형 배열 (null이면 검색하지 않음)
      */
-    @JsonIgnore
+
     @Schema(hidden = true)
     public String[] getTypes(){
         if(type == null || type.isEmpty()){
@@ -58,7 +61,7 @@ public class PageRequestDTO {
      * @param props 정렬 기준 필드
      * @return Pageable 객체
      */
-    @JsonIgnore
+
     @Schema(hidden = true)
     public Pageable getPageable(String...props) {
         return PageRequest.of(this.page -1, this.size, Sort.by(props).descending());

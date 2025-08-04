@@ -19,6 +19,9 @@
 .idea/**/contentModel.xml
 
 application.properties
+application-test.properties
+application-prod.properties
+application-*.properties
 
 # Sensitive or high-churn files
 .idea/**/dataSources/
@@ -233,6 +236,7 @@ upload/
 *.properties
 .env
 *.env
-
+*.env.*
+*.properties.*
 
 # End of https://www.toptal.com/developers/gitignore/api/java,intellij+all,gradle,windows,macos,visualstudiocode
