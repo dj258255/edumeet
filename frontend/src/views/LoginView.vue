@@ -80,32 +80,6 @@
         </div>
         <div class="role-selection">
           <p class="role-label">또는 다음으로 로그인</p>
-          <div class="role-buttons">
-            <button 
-              class="role-btn" 
-              :class="{ active: selectedRole === 'student' }"
-              @click="selectedRole = 'student'"
-            >
-              <span class="role-icon">🎓</span>
-              <span class="role-text">STUDENT</span>
-            </button>
-            <button 
-              class="role-btn" 
-              :class="{ active: selectedRole === 'tutor' }"
-              @click="selectedRole = 'tutor'"
-            >
-              <span class="role-icon">📊</span>
-              <span class="role-text">TUTOR</span>
-            </button>
-            <button 
-              class="role-btn" 
-              :class="{ active: selectedRole === 'parent' }"
-              @click="selectedRole = 'parent'"
-            >
-              <span class="role-icon">👨‍👩‍👧‍👦</span>
-              <span class="role-text">PARENT</span>
-            </button>
-          </div>
         </div>
         
         <!-- 카카오 로그인 섹션 -->

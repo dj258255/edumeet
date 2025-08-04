@@ -14,6 +14,7 @@
     "gsap": "^3.13.0",
     "livekit": "^0.0.1",
     "livekit-client": "^2.15.4",
+    "openvidu-browser": "^2.31.0",
     "pinia": "^3.0.3",
     "socket.io-client": "^4.8.1",
     "vue": "^3.5.17",
