@@ -237,6 +237,8 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
                 .regDate(board.getRegDate())
                 .replyCount(replyCount)
                 .classId(board.getClassId())
+                .view(board.getView())
+                .favorite(board.getFavorite())
                 .build();
 
         //이미지 정보 변환 (N+1 문제 방지를 위해 batch size 활용)

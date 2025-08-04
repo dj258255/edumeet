@@ -275,6 +275,41 @@ public class BoardController {
         String extension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
         return Arrays.asList("jpg", "jpeg", "png", "gif","bmp","webp").contains(extension);
     }
+    
+    /**
+     * 게시글 좋아요 토글
+     */
+    @Operation(summary = "게시글 좋아요 토글", description = "게시글의 좋아요를 토글합니다 (좋아요가 있으면 취소, 없으면 추가)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "토글 성공"),
+        @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping("/{id}/favorite")
+    public ResponseEntity<Map<String, Long>> toggleFavorite(
+            @Parameter(description = "클래스 ID", required = true)
+            @PathVariable("classId") Long classId,
+            @Parameter(description = "좋아요 토글할 게시글 ID", required = true) 
+            @PathVariable("id") Long id) {
+        
+        log.info("게시글 좋아요 토글 -> 클래스 ID: {}, 게시글 ID: {}", classId, id);
+        
+        // 게시글이 해당 클래스에 속하는지 확인
+        BoardDTO boardDTO = boardService.readOne(id);
+        if (!classId.equals(boardDTO.getClassId())) {
+            log.warn("권한 없는 좋아요 토글 시도 - 요청 클래스 ID: {}, 실제 게시글 클래스 ID: {}", 
+                    classId, boardDTO.getClassId());
+            throw new IllegalArgumentException("해당 클래스의 게시글이 아닙니다.");
+        }
+        
+        // 좋아요 토글
+        long favoriteCount = boardService.toggleFavorite(id);
+        
+        Map<String, Long> resultMap = new HashMap<>();
+        resultMap.put("favoriteCount", favoriteCount);
+        
+        return ResponseEntity.ok(resultMap);
+    }
 
 //    public void removeFiles(List<String> files) {
 //        for(String fileName:files){

@@ -23,14 +23,14 @@ public class BaseEntity {
     @Column(name = "modDate")
     private LocalDateTime modDate;
 
-    @Column(name = "deletedAt")
-    private LocalDateTime deletedAt;
-
-    public void markDeleted() {
-        this.deletedAt = LocalDateTime.now();
-    }
-
-    public boolean isDeleted() {
-        return this.deletedAt != null;
-    }
+//    @Column(name = "deletedAt")
+//    private LocalDateTime deletedAt;
+//
+//    public void markDeleted() {
+//        this.deletedAt = LocalDateTime.now();
+//    }
+//
+//    public boolean isDeleted() {
+//        return this.deletedAt != null;
+//    }
 }

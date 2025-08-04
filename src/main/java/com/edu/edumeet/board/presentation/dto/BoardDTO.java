@@ -39,6 +39,12 @@ public class BoardDTO {
     private String writer;
 
     private Long classId;
+    
+    @Schema(description = "조회수", example = "0")
+    private long view;
+    
+    @Schema(description = "좋아요 수", example = "0")
+    private long favorite;
 
     //첨부파일 이름들
     // BoardJpaEntity의 Set<BoardImage> 타입으로  변환되어야함.
