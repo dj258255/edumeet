@@ -43,6 +43,7 @@ dependencies {
     runtimeOnly("com.mysql:mysql-connector-j")           // 운영환경용 MySQL
     runtimeOnly("com.h2database:h2")
     testRuntimeOnly("com.h2database:h2")                 // 테스트환경용 H2 인메모리
+    testRuntimeOnly("com.mysql:mysql-connector-j")
 
     // QueryDSL
     implementation("com.querydsl:querydsl-jpa:$queryDslVersion:jakarta")
@@ -80,20 +81,41 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 }
 
+// 기본 테스트 태스크 (MySQL 테스트 제외)
 tasks.withType<Test> {
-    useJUnitPlatform()
-
-    if (!systemProperties.containsKey("spring.profiles.active")) {
-        systemProperty("spring.profiles.active", "test")
+    useJUnitPlatform {
+        // MySQL 태그가 있는 테스트 제외
+        excludeTags = setOf("mysql")
     }
-    
+
+    systemProperty("spring.profiles.active", "test")
+    systemProperty("spring.jpa.show-sql", "false")
+
     // 테스트 결과 로깅
     testLogging {
-        events("passed", "skipped", "failed")// 어떤 테스트 이벤트를 출력할지
+        events("passed", "skipped", "failed")
     }
     //테스트 파일 패턴 지정
     include("**/*Test.class", "**/*Tests.class", "**/*IT.class")
 }
+
+
+// MySQL 테스트만 실행하는 별도 태스크
+tasks.register<Test>("mysqlTest") {
+    useJUnitPlatform {
+        // MySQL 태그가 있는 테스트만 포함
+        includeTags = setOf("mysql")
+    }
+
+    systemProperty("spring.profiles.active", "prod")
+
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
+    include("**/*Test.class", "**/*Tests.class", "**/*IT.class")
+}
+
+
 
 // QueryDSL Q클래스 생성을 위한 소스 경로 설정
 sourceSets {
