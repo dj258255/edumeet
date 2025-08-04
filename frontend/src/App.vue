@@ -154,10 +154,10 @@ const cancelPress = () => {
         <button class="close-btn" @click="toggleSidebar">×</button>
       </div>
       <div class="sidebar-content">
-        <RouterLink to="/products" @click="toggleSidebar">Products</RouterLink>
+        <RouterLink to="/class/create" @click="toggleSidebar">Class</RouterLink>
         <RouterLink to="/solutions" @click="toggleSidebar">Solutions</RouterLink>
         <RouterLink to="/community" @click="toggleSidebar">Community</RouterLink>
-        <RouterLink to="/articles" @click="toggleSidebar">articles</RouterLink>
+        <RouterLink to="/articles" @click="toggleSidebar">Articles</RouterLink>
         <RouterLink to="/pricing" @click="toggleSidebar">Pricing</RouterLink>
         <RouterLink to="/contact" @click="toggleSidebar">Contact</RouterLink>
         <RouterLink to="/link" @click="toggleSidebar">Link</RouterLink>
