@@ -44,6 +44,7 @@ public class EmailController {
     @PostMapping("/verification")
     public ResponseEntity<?> verifyCode(@RequestBody EmailVarificationRequest request) throws MessagingException {
         boolean result = authCodeService.verifyCode(request.getEmail(), request.getCode());
+        System.out.println("result" + result);
         if(result){
             return ResponseEntity.ok(Map.of(
                     "message", "인증 성공"
@@ -51,7 +52,7 @@ public class EmailController {
         }
         else{
 
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+            return ResponseEntity.ok(Map.of(
                     "message" , "인증 실패"
             ));
         }
