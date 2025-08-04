@@ -25,6 +25,10 @@ public class BoardListAllDTO {
     private Long replyCount;
 
     private Long classId;
+    
+    private long view;
+    
+    private long favorite;
 
     private List<BoardImageDTO> boardImages;
 }

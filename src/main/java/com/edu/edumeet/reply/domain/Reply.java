@@ -2,6 +2,8 @@ package com.edu.edumeet.reply.domain;
 
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @Builder
@@ -12,4 +14,7 @@ public class Reply {
     private Long boardId; //게시글 id
     private String replyText;
     private String replayer;
+    private LocalDateTime regDate;
+    private LocalDateTime modDate;
+
 }

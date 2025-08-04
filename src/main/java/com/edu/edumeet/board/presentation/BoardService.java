@@ -23,6 +23,8 @@ public interface BoardService {
                 .classId(boardDTO.getClassId())
                 .regDate(boardDTO.getRegDate())
                 .modDate(boardDTO.getModDate())
+                .view(boardDTO.getView())
+                .favorite(boardDTO.getFavorite())
                 .build();
 
         // 파일 정보를 도메인 이미지로 변환
@@ -47,6 +49,8 @@ public interface BoardService {
                 .classId(board.getClassId())
                 .regDate(board.getRegDate())
                 .modDate(board.getModDate())
+                .view(board.getView())
+                .favorite(board.getFavorite())
                 .build();
 
         // 도메인 이미지를 파일명으로 변환
@@ -149,4 +153,12 @@ public interface BoardService {
     // classId가 있으면 해당 클래스의 게시글만, 없으면 전체 게시글 조회
     // return : 게시글 목록 , 이미지 , 댓글 수 및 페이징 정보.
     PageResponseDTO<BoardListAllDTO> listWithAll(PageRequestDTO pageRequestDTO);
+    
+    /**
+     * 게시글 좋아요 토글
+     * 이미 좋아요가 되어 있으면 좋아요 취소, 아니면 좋아요 추가
+     * @param id 좋아요 토글할 게시글 ID
+     * @return 토글 후 좋아요 수
+     */
+    long toggleFavorite(Long id);
 }

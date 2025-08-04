@@ -47,3 +47,4 @@ public class H2DataSourceTests {
         Assertions.assertNotNull(con);
     }
 }
+
