@@ -441,4 +441,176 @@ body {
     padding: var(--spacing-sm) var(--spacing-md);
     font-size: var(--font-size-sm);
   }
+}
+
+/* 사용자 정보 스타일 */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.profile-link {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--brand-main);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  flex-shrink: 0;
+}
+
+.profile-avatar:hover {
+  transform: scale(1.1);
+  border-color: var(--brand-sub);
+  box-shadow: 0 4px 12px rgba(34, 122, 83, 0.3);
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 0;
+  flex: 1;
+}
+
+.user-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.user-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: color var(--transition-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.user-email {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  transition: color var(--transition-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.dark-mode .user-name {
+  color: var(--text-primary);
+}
+
+.dark-mode .user-email {
+  color: var(--text-secondary);
+}
+
+.btn.logout {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.btn.logout:hover {
+  background: #f56565;
+  color: white;
+  transform: scale(1.05);
+}
+
+/* 사이드바 사용자 정보 */
+.sidebar-user {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+}
+
+.sidebar-user .profile-avatar {
+  width: 50px;
+  height: 50px;
+}
+
+.sidebar-user .user-details {
+  width: 100%;
+}
+
+.sidebar-user .user-name {
+  font-size: var(--font-size-base);
+  max-width: none;
+}
+
+.sidebar-user .user-email {
+  font-size: var(--font-size-sm);
+  max-width: none;
+}
+
+.sidebar-user .user-info-row {
+  margin-bottom: var(--spacing-xs);
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .user-info {
+    gap: var(--spacing-sm);
+  }
+  
+  .profile-avatar {
+    width: 35px;
+    height: 35px;
+  }
+  
+  .user-details {
+    gap: 2px;
+  }
+  
+  .user-name {
+    font-size: var(--font-size-xs);
+    max-width: 80px;
+  }
+  
+  .user-email {
+    font-size: 10px;
+    max-width: 80px;
+  }
+  
+  .btn.logout {
+    padding: 4px;
+    min-width: 28px;
+    height: 28px;
+  }
+  
+  .btn.logout svg {
+    width: 14px;
+    height: 14px;
+  }
 } 
