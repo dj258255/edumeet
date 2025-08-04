@@ -8,6 +8,7 @@ import AboutView from "../views/AboutView.vue"
 import CreateClassView from "../views/CreateClassView.vue"
 import KaKaoView from "../views/KaKaoView.vue"
 import ClassVideoRoomView from "@/views/ClassVideoRoomView.vue"
+import MyPageView from "@/views/MyPageView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -61,7 +62,13 @@ const router = createRouter({
     { path: '/class/:classId/video',
       name: 'class-video-room',
       component: ClassVideoRoomView 
-    }
+    },
+    {
+      path: '/mypage',
+      name: 'mypage',
+      component: MyPageView,
+      meta: { requiresAuth: true }
+    },
   ],
 })
 
