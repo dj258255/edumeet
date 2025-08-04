@@ -265,36 +265,33 @@ const useAuthStore = defineStore('auth', {
     },
 
     // 인증 코드 검증
-      async verifyCode(verifyInfo) {
-      this.loading = true;
-      this.error = null;
+async verifyCode(verifyInfo) {
+  this.loading = true;
+  this.error = null;
 
-      try {
-        // verifyInfo가 ref/배열이면 먼저 구조 분해
-        const [email, code] = Array.isArray(verifyInfo.value)
-          ? verifyInfo.value
-          : [verifyInfo.email, verifyInfo.code];
+  try {
+    const payload = verifyInfo.value || verifyInfo;
+    
+    // API 호출
+    const result = await authAPI.verifyCode(payload);
 
-        const payload = { email, code };
+    // 백엔드의 메시지 내용을 직접 확인하여 성공/실패를 구분
+    if (result.data?.message === "인증 성공") {
+      return { success: true, message: result.data.message };
+    } else {
+      // '인증 실패' 메시지를 받으면, error 상태 업데이트 후 실패 반환
+      this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
+      return { success: false, message: this.error };
+    }
+  } catch (error) {
+    // API 호출 자체에 실패했을 때 (네트워크 오류 등)만 이 블록이 실행됩니다.
+    this.error = error.message || '인증 코드 검증 중 네트워크 오류가 발생했습니다.';
+    return { success: false, message: this.error };
+  } finally {
+    this.loading = false;
+  }
+},
 
-        console.log("payload", payload);
-
-        const result = await authAPI.verifyCode(payload);
-        console.log("RESULT:", result.data);
-
-        if (result.data?.message) {
-          return { success: true, message: result.data.message };
-        } else {
-          this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
-          throw new Error(this.error);
-        }
-      } catch (error) {
-        this.error = error.message || '인증 코드 검증에 실패했습니다.';
-        throw error;
-      } finally {
-        this.loading = false;
-      }
-    },
 
 
     // 인증 코드 재전송
