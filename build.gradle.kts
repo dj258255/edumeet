@@ -1,6 +1,5 @@
 val queryDslVersion = "5.1.0"
 
-
 plugins {
     java
     id("org.springframework.boot") version "3.5.3"
@@ -67,8 +66,6 @@ dependencies {
     testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
-
-
     // DTO ↔ Entity Mapping
     implementation("org.modelmapper:modelmapper:3.1.0")
 
@@ -82,7 +79,7 @@ dependencies {
 }
 
 // 기본 테스트 태스크 (MySQL 테스트 제외)
-tasks.withType<Test> {
+tasks.named<Test>("test") {
     useJUnitPlatform {
         // MySQL 태그가 있는 테스트 제외
         excludeTags = setOf("mysql")
@@ -99,11 +96,10 @@ tasks.withType<Test> {
     include("**/*Test.class", "**/*Tests.class", "**/*IT.class")
 }
 
-
 // MySQL 테스트만 실행하는 별도 태스크
 tasks.register<Test>("mysqlTest") {
     useJUnitPlatform {
-        // MySQL 태그가 있는 테스트만 포함
+        // MySQL 태그가 있는 테스트만 포함 (exclude 설정 상속 안함)
         includeTags = setOf("mysql")
     }
 
@@ -113,9 +109,11 @@ tasks.register<Test>("mysqlTest") {
         events("passed", "skipped", "failed")
     }
     include("**/*Test.class", "**/*Tests.class", "**/*IT.class")
+
+    // 기본 test 태스크의 exclude 설정을 무시
+    group = "verification"
+    description = "Run MySQL connection tests"
 }
-
-
 
 // QueryDSL Q클래스 생성을 위한 소스 경로 설정
 sourceSets {
