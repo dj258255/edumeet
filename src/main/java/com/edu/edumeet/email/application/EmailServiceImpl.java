@@ -74,15 +74,6 @@ public class EmailServiceImpl {
         System.out.println("랜덤 인증 번호 : " + number);
         MimeMessage message = createMail(email, number); // 메일 생성
 
-//        // MimeMessage 전체 내용 확인용
-//        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-//            message.writeTo(baos); // MimeMessage 내용을 스트림에 씀
-//            String rawMessage = baos.toString("UTF-8");
-//            System.out.println("📧 MimeMessage 내용:\n" + rawMessage);
-//        } catch (Exception ex) {
-//            ex.printStackTrace();
-//        }
-
         javaMailSender.send(message); // 메일 발송
         authCodeService.saveAuthCode(email, number); // 인증 코드 Redis 저장.
 
