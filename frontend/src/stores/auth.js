@@ -286,7 +286,7 @@ const useAuthStore = defineStore('auth', {
       this.error = null
       try {
         // 더미 데이터 사용
-        const result = await resendDummyCode(email)
+        const result = await resendCode(email)
         if (result.success) {
           console.log('재발송된 인증 코드:', result.code) // 개발용 로그
           return { success: true, message: result.message }

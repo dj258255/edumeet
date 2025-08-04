@@ -164,7 +164,7 @@ body {
 .desktop-only { display: flex; }
 .mobile-only { display: none; }
 
-@media (max-width: 1000px) {
+@media (max-width: 1400px) {
   .desktop-only { display: none !important; }
   .mobile-only { display: flex !important; }
 }
