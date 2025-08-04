@@ -21,6 +21,7 @@ import java.util.Map;
 @Log4j2
 @RequiredArgsConstructor
 public class MemberController {
+
     private final MemberService memberService;
     private final JwtService jwtService;
 
