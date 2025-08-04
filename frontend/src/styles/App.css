@@ -164,7 +164,7 @@ body {
 .desktop-only { display: flex; }
 .mobile-only { display: none; }
 
-@media (max-width: 1000px) {
+@media (max-width: 1400px) {
   .desktop-only { display: none !important; }
   .mobile-only { display: flex !important; }
 }
@@ -288,8 +288,9 @@ body {
   transition: background-color var(--transition-normal);
   margin: var(--spacing-sm) 0;
   width: 100%;
-  justify-content: flex-start;
+  justify-content: center;
   white-space: nowrap;
+  
 }
 
 .sidebar-dark-mode:hover {

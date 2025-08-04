@@ -310,7 +310,8 @@ const verifyCode = async () => {
   message.value = ''
   try {
     const code = codeDigits.value.join('')
-    await authStore.verifyCode(email.value, code)
+    const verifyInfo=ref([email.value,code])
+    await authStore.verifyCode(verifyInfo)
     isEmailVerified.value = true
     message.value = '이메일 인증이 완료되었습니다.'
     if (timer.value) {

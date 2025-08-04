@@ -77,9 +77,12 @@ const authAPI = {
   },
 
   // 인증 확인
-  verifyCode:(verifyInfo)=>{
-    return apiClient.post("/members/verification",verifyInfo)
+  verifyCode: (payload) => {
+    return apiClient.post("/members/verification", payload, {
+      headers: { "Content-Type": "application/json" }
+    });
   },
+
 
   // 이메일 중복 확인
   checkEmail: (email) => {
@@ -243,15 +246,16 @@ const useAuthStore = defineStore('auth', {
       this.error = null
       try {
         // 더미 데이터 사용
-          const result = await authAPI.sendVerificationCode(email);
+        const result = await authAPI.sendVerificationCode(email);
+        console.log("API 응답 결과:", result);
           console.log('API 응답 결과:', result.data.message); // 여기에 로그 추가
-        if (result.data.message) {
-          console.log('발송된 인증 코드:', result.code) // 개발용 로그
-          return { success: true, message: result.message }
-        } else {
-          this.error = result.message
-          throw new Error(result.message)
-        }
+        // if (result.data.message) {
+        //   console.log('발송된 인증 코드:', result.code) // 개발용 로그
+        //   return { success: true, message: result.message }
+        // } else {
+        //   this.error = result.message
+        //   throw new Error(result.message)
+        // }
       } catch (error) {
         this.error = error.message || '인증 코드 전송에 실패했습니다.'
         throw error
@@ -261,23 +265,27 @@ const useAuthStore = defineStore('auth', {
     },
 
     // 인증 코드 검증
-    async verifyCode(email, code) {
+      async verifyCode(verifyInfo) {
       this.loading = true;
       this.error = null;
 
-      // ref로 데이터 감싸기 (이 부분은 그대로 유지)
-      const verifyInfo = ref({ email, code });
-
       try {
-        // API 호출 시 .value를 사용해서 실제 객체를 전달
-        const result = await authAPI.verifyCode(verifyInfo.value); 
-        
-        // 백엔드 응답에 맞게 로직 수정
-        console.log(result);
-        if (result.message) {
-          return { success: true, message: result.message };
+        // verifyInfo가 ref/배열이면 먼저 구조 분해
+        const [email, code] = Array.isArray(verifyInfo.value)
+          ? verifyInfo.value
+          : [verifyInfo.email, verifyInfo.code];
+
+        const payload = { email, code };
+
+        console.log("payload", payload);
+
+        const result = await authAPI.verifyCode(payload);
+        console.log("RESULT:", result.data);
+
+        if (result.data?.message) {
+          return { success: true, message: result.data.message };
         } else {
-          this.error = result.message || '인증 코드 검증에 실패했습니다.';
+          this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
           throw new Error(this.error);
         }
       } catch (error) {
@@ -287,6 +295,7 @@ const useAuthStore = defineStore('auth', {
         this.loading = false;
       }
     },
+
 
     // 인증 코드 재전송
     async resendCode(email) {
