@@ -4,12 +4,10 @@ import LoginView from "../views/LoginView.vue"
 import SignupView from "../views/SignupView.vue"
 import ArticlesView from "../views/ArticlesView.vue"
 import SearchView from "../views/SearchView.vue"
-import RoomView from "../views/RoomView.vue"
 import AboutView from "../views/AboutView.vue"
-import ClassView from "../views/ClassView.vue"
 import CreateClassView from "../views/CreateClassView.vue"
 import KaKaoView from "../views/KaKaoView.vue"
-import MyPageView from "../views/MyPageView.vue"
+import ClassVideoRoomView from "@/views/ClassVideoRoomView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -42,34 +40,16 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: "/room/:roomId",
-      name: "room-basic",
-      component: RoomView,
-      meta: { requiresAuth: true }
-    },
-    {
       path: "/about",
       name: "about",
       component: AboutView,
       meta: { requiresAuth: true }
     },
     {
-      path: "/class/:classId",
-      name: "class",
-      component: ClassView,
-      meta: { requiresAuth: true }
-    },
-    {
       path: '/class/create',
       name: "create-class",
       component: CreateClassView,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/class/:classId/room/:roomId',
-      name: 'room',
-      component: RoomView,
-      meta: { requiresAuth: true }
+      // meta: { requiresAuth: true }
     },
     {
       path: '/kakao',
@@ -77,11 +57,10 @@ const router = createRouter({
       component: KaKaoView,
       meta: { requiresAuth: true }
     },
-    {
-      path: '/mypage',
-      name: 'mypage',
-      component: MyPageView,
-      meta: { requiresAuth: true }
+    // router 설정
+    { path: '/class/:classId/video',
+      name: 'class-video-room',
+      component: ClassVideoRoomView 
     }
   ],
 })
