@@ -4,6 +4,7 @@ package com.edu.edumeet.email.application;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -17,6 +18,7 @@ import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EmailServiceImpl {
 
     private final JavaMailSender javaMailSender;
@@ -71,7 +73,7 @@ public class EmailServiceImpl {
     // 메일 발송
     public void sendEmail(String email) throws MessagingException {
         String number = createNumber(); // 랜덤 인증번호 생성
-        System.out.println("랜덤 인증 번호 : " + number);
+        log.debug("랜덤 인증 번호 : {}", number);
         MimeMessage message = createMail(email, number); // 메일 생성
 
         javaMailSender.send(message); // 메일 발송
