@@ -17,6 +17,7 @@ import java.sql.SQLException;
 @SpringBootTest
 @Log4j2
 @ActiveProfiles("prod")
+@Tag("mysql")
 public class MySQLDataSourceTests {
 
     @Autowired
