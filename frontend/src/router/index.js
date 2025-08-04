@@ -44,7 +44,7 @@ const router = createRouter({
       path: "/about",
       name: "about",
       component: AboutView,
-      meta: { requiresAuth: true }
+      // meta: { requiresAuth: true }
     },
     {
       path: '/class/create',

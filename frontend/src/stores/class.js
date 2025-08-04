@@ -9,7 +9,8 @@ export const useClassStore = defineStore('class', {
 
     // DB (클래스 관련)
     classInfo: null,
-    myClasses: [],
+    myCreatedClasses: [], // 내가 만든 클래스
+    myJoinedClasses: [], // 내가 속한 클래스
 
     // Redis (화상채팅 관련)
     roomList: [],
@@ -25,7 +26,13 @@ export const useClassStore = defineStore('class', {
 
     // DB
     getCurrentClassInfo: (state) => state.classInfo,
-    getMyClasses: (state) => state.myClasses,
+    getMyCreatedClasses: (state) => state.myCreatedClasses,
+    getMyJoinedClasses: (state) => state.myJoinedClasses,
+    
+    // 모든 클래스 합치기 (필요시 사용)
+    getAllMyClasses: (state) => {
+      return [...state.myCreatedClasses, ...state.myJoinedClasses]
+    },
 
     // Redis
     getRoomList: (state) => state.roomList,
@@ -38,13 +45,15 @@ export const useClassStore = defineStore('class', {
       this.useMock = value
       // 데이터 초기화
       this.classInfo = null
-      this.myClasses = []
+      this.myCreatedClasses = []
+      this.myJoinedClasses = []
       this.roomList = []
       this.activeRooms = []
 
       // Mock 해제 → 실제 데이터 자동 로드
       if (!value) {
-        await this.fetchMyClasses()
+        await this.fetchMyCreatedClasses()
+        await this.fetchMyJoinedClasses()
         if (classId) {
           await this.fetchRoomList(classId)
           await this.fetchActiveRooms(classId)
@@ -71,7 +80,7 @@ async createClass(classData) {
       // **FormData.getAll('tags')를 사용하여 태그 배열을 가져오도록 수정**
       tags: classData.getAll('tags').length > 0 ? classData.getAll('tags') : ['Mock', '테스트'],
     }
-    this.myClasses.push(newClass)
+    this.myCreatedClasses.push(newClass)
     this.loading = false
     return newClass
   }
@@ -80,10 +89,10 @@ async createClass(classData) {
     // FormData인지 확인하고 헤더를 추가
     const headers = classData instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
     
-    // DB API 호출
-    const response = await apiClient.post('/class', classData, { headers })
+    // DB API 호출 - 내가 만든 클래스 API
+    const response = await apiClient.post('/api/v1/class', classData, { headers })
     
-    await this.fetchMyClasses()
+    await this.fetchMyCreatedClasses()
     return response.data
   } catch (error) {
     this.error = error.response?.data?.message || '클래스 생성에 실패했습니다.'
@@ -111,7 +120,7 @@ async createClass(classData) {
       }
 
       try {
-        const response = await apiClient.get(`/class/${classId}`) // DB API
+        const response = await apiClient.get(`/api/v1/class/${classId}`) // DB API
         this.classInfo = response.data
         return response.data
       } catch (error) {
@@ -123,13 +132,13 @@ async createClass(classData) {
       }
     },
 
-    /** 내가 속한 클래스 목록 가져오기 */
-    async fetchMyClasses() {
+    /** 내가 만든 클래스 목록 가져오기 */
+    async fetchMyCreatedClasses() {
       this.loading = true
       this.error = null
 
       if (this.useMock) {
-        this.myClasses = [
+        this.myCreatedClasses = [
           {
             id: 1,
             title: '테스트 반 1',
@@ -138,24 +147,63 @@ async createClass(classData) {
             tags: ['Vue3', 'Mock'],
           },
           {
+            id: 3,
+            title: '내가 만든 수학반',
+            description: '기초 수학을 배우는 반입니다.',
+            image: null,
+            tags: ['수학', '기초'],
+          }
+        ]
+        this.loading = false
+        return this.myCreatedClasses
+      }
+
+      try {
+        const response = await apiClient.get('/api/v1/class') // 내가 만든 클래스 API
+        this.myCreatedClasses = response.data
+        return response.data
+      } catch (error) {
+        this.error = error.response?.data?.message || '내가 만든 클래스 목록을 불러오는 데 실패했습니다.'
+        this.myCreatedClasses = []
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    /** 내가 속한 클래스 목록 가져오기 */
+    async fetchMyJoinedClasses() {
+      this.loading = true
+      this.error = null
+
+      if (this.useMock) {
+        this.myJoinedClasses = [
+          {
             id: 2,
             title: '테스트 반 2',
             description: '임시 데이터입니다.',
             image: null,
             tags: ['Pinia', 'Mock'],
           },
+          {
+            id: 4,
+            title: '친구가 만든 영어반',
+            description: '영어 회화를 연습하는 반입니다.',
+            image: null,
+            tags: ['영어', '회화'],
+          }
         ]
         this.loading = false
-        return this.myClasses
+        return this.myJoinedClasses
       }
 
       try {
-        const response = await apiClient.get('/class') // DB API
-        this.myClasses = response.data
+        const response = await apiClient.get('/api/v1/class/joined') // 내가 속한 클래스 API
+        this.myJoinedClasses = response.data
         return response.data
       } catch (error) {
-        this.error = error.response?.data?.message || '클래스 목록을 불러오는 데 실패했습니다.'
-        this.myClasses = []
+        this.error = error.response?.data?.message || '내가 속한 클래스 목록을 불러오는 데 실패했습니다.'
+        this.myJoinedClasses = []
         throw error
       } finally {
         this.loading = false
