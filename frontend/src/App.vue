@@ -125,8 +125,27 @@ const cancelPress = () => {
       <RouterLink v-if="!isLoggedIn" class="btn login" to="/login">login</RouterLink>
       <RouterLink v-if="!isLoggedIn" class="btn signup" to="/signup">Register</RouterLink>
       <div v-if="isLoggedIn" class="user-info">
-        <span class="user-name">{{ currentUser?.name || currentUser?.email || '사용자' }}</span>
-        <button class="btn logout" @click="authStore.logout">로그아웃</button>
+        <RouterLink to="/mypage" class="profile-link">
+          <div class="profile-avatar">
+            <img 
+              src="@/assets/member/1.png" 
+              alt="프로필 이미지" 
+              class="avatar-image"
+            />
+          </div>
+        </RouterLink>
+        <div class="user-details">
+          <div class="user-info-row">
+            <span class="user-name">{{ currentUser?.name || currentUser?.email || '사용자' }}</span>
+            <button class="btn logout" @click="authStore.logout" title="로그아웃">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16,17 21,12 16,7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
     <!-- 모바일 사이드바 -->
@@ -169,8 +188,28 @@ const cancelPress = () => {
         <RouterLink v-if="!isLoggedIn" class="btn login" to="/login" @click="toggleSidebar">login</RouterLink>
         <RouterLink v-if="!isLoggedIn" class="btn signup" to="/signup" @click="toggleSidebar">Register</RouterLink>
         <div v-if="isLoggedIn" class="user-info sidebar-user">
-          <span class="user-name">{{ currentUser?.name || currentUser?.email || '사용자' }}</span>
-          <button class="btn logout" @click="() => { authStore.logout(); toggleSidebar(); }">로그아웃</button>
+          <RouterLink to="/mypage" class="profile-link" @click="toggleSidebar">
+            <div class="profile-avatar">
+              <img 
+                src="@/assets/member/1.png" 
+                alt="프로필 이미지" 
+                class="avatar-image"
+              />
+            </div>
+          </RouterLink>
+          <div class="user-details">
+            <div class="user-info-row">
+              <span class="user-name">{{ currentUser?.name || currentUser?.email || '사용자' }}</span>
+              <button class="btn logout" @click="() => { authStore.logout(); toggleSidebar(); }" title="로그아웃">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16,17 21,12 16,7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+              </button>
+            </div>
+            <span class="user-email">{{ currentUser?.email }}</span>
+          </div>
         </div>
       </div>
     </div>

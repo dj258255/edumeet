@@ -9,6 +9,7 @@ import AboutView from "../views/AboutView.vue"
 import ClassView from "../views/ClassView.vue"
 import CreateClassView from "../views/CreateClassView.vue"
 import KaKaoView from "../views/KaKaoView.vue"
+import MyPageView from "../views/MyPageView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -74,6 +75,12 @@ const router = createRouter({
       path: '/kakao',
       name: 'kakao',
       component: KaKaoView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/mypage',
+      name: 'mypage',
+      component: MyPageView,
       meta: { requiresAuth: true }
     }
   ],
