@@ -3,6 +3,7 @@ package com.edu.edumeet.board.presentation;
 
 import com.edu.edumeet.board.presentation.dto.*;
 import com.edu.edumeet.util.S3Uploader;
+import io.lettuce.core.dynamic.annotation.Param;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -35,7 +36,7 @@ import java.util.Map;
  * RESTful API 방식으로 게시글 관련 요청을 처리
  */
 @RestController
-@RequestMapping("/api/v1/boards")
+@RequestMapping("/api/v1/class/{classId}/boards")
 @Log4j2
 @RequiredArgsConstructor
 @Tag(name = "게시판 API", description = "게시글 관련 API")
@@ -54,64 +55,75 @@ public class BoardController {
      * request : pagerequestDTO
      * response : 페이징된 게시글 목록
      */
-    @Operation(summary = "게시글 목록 조회", description = "페이징 및 검색 조건으로 게시글 목록을 조회합니다 (댓글 수 포함), 그리고 classId가 있으면 해당 클래스의 게시글만, 없으면 전체 게시글을 조회")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "조회 성공", 
-                    content = @Content(schema = @Schema(implementation = PageResponseDTO.class))),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
-    })
-    @GetMapping
+//    @Operation(summary = "게시글 목록 조회", description = "페이징 및 검색 조건으로 게시글 목록을 조회합니다 (댓글 수 포함), 그리고 classId가 있으면 해당 클래스의 게시글만, 없으면 전체 게시글을 조회")
+//    @ApiResponses({
+//        @ApiResponse(responseCode = "200", description = "조회 성공",
+//                    content = @Content(schema = @Schema(implementation = PageResponseDTO.class))),
+//        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+//        @ApiResponse(responseCode = "500", description = "서버 오류")
+//    })
+//    @GetMapping
+//    public ResponseEntity<PageResponseDTO<BoardListAllDTO>> list(
+//            @Parameter(description = "페이지 요청 정보 (페이지 번호, 크기, 검색 조건)")
+//            PageRequestDTO pageRequestDTO) {
+//        log.info("게시글 목록 조회: {}", pageRequestDTO);
+//
+//        if(pageRequestDTO.getClassId() != null){
+//            log.info("클래스별 게시글 목록 조회 -> 클래스 ID : {} , 페이지 정보: {}",
+//                    pageRequestDTO.getClassId(), pageRequestDTO);
+//        } else{
+//            log.info("전체 게시글 목록 조회: {}" , pageRequestDTO);
+//        }
+//
+//        //PageResponseDTO<BoardListReplyCountDTO> responseDTO = boardService.listWithReplyCount(pageRequestDTO);
+//        PageResponseDTO<BoardListAllDTO> responseDTO = boardService.listWithAll(pageRequestDTO);
+//        log.info("조회 결과 -> 총{} 건, 현재 페이지 : {}",
+//                responseDTO
+//                        .getTotal(), responseDTO.getPage());
+//
+//        return ResponseEntity.ok(responseDTO);
+//    }
+
+
     public ResponseEntity<PageResponseDTO<BoardListAllDTO>> list(
-            @Parameter(description = "페이지 요청 정보 (페이지 번호, 크기, 검색 조건)") 
-            PageRequestDTO pageRequestDTO) {
-        log.info("게시글 목록 조회: {}", pageRequestDTO);
+            @Parameter(description = "클래스 ID", required = true)
+            @PathVariable("classId") Long classId,
+            @Parameter(description = "페이지 요청 정보")
+            PageRequestDTO pageRequestDTO){
 
-        if(pageRequestDTO.getClassId() != null){
-            log.info("클래스별 게시글 목록 조회 -> 클래스 ID : {} , 페이지 정보: {}",
-                    pageRequestDTO.getClassId(), pageRequestDTO);
-        } else{
-            log.info("전체 게시글 목록 조회: {}" , pageRequestDTO);
-        }
+        log.info("클래스별 게시글 목록 조회 -> 클래스 ID: {} , 페이지 정보 : {} " , classId, pageRequestDTO);
 
+        //pageRequestDTO에 classId 설정
+        pageRequestDTO.setClassId(classId);
 
-
-
-        //PageResponseDTO<BoardListReplyCountDTO> responseDTO = boardService.listWithReplyCount(pageRequestDTO);
         PageResponseDTO<BoardListAllDTO> responseDTO = boardService.listWithAll(pageRequestDTO);
-        log.info("조회 결과 -> 총{} 건, 현재 페이지 : {}",
-                responseDTO
-                        .getTotal(), responseDTO.getPage());
+        log.info("조회 결과 -> 총{} 건 , 현재 페이지 : {} ", responseDTO.getTotal(), responseDTO.getPage());
 
         return ResponseEntity.ok(responseDTO);
     }
 
+
     /**
-     * 게시글 등록
-     * request : boardDTO 등록할 게시글 정보
-     * bindingResult 유효성 검사 결과
-     * response: 등록된 게시글 ID
-     * throws -> BindException 유효성 검사 실패 시 발생
+     * 특정 클래스에 게시글 등록
      */
     @Operation(summary = "게시글 등록", description = "새로운 게시글을 등록합니다")
-    @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "등록 성공"),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
-    })
     @PostMapping
     public ResponseEntity<Map<String, Long>> register(
-            @Parameter(description = "등록할 게시글 정보", required = true) 
+            @Parameter(description = "클래스 ID", required = true)
+            @PathVariable("classId") Long classId,
+            @Parameter(description = "등록할 게시글 정보", required = true)
             @Valid @RequestBody BoardDTO boardDTO,
             BindingResult bindingResult) throws BindException {
         
-        log.info("게시글 등록: {}", boardDTO);
+        log.info("클래스별 게시글 등록 -> URL 클래스 ID : {} , 게시글 : {} ", classId, boardDTO);
         
         if(bindingResult.hasErrors()) {
-            log.info("유효성 검사 오류: {}", bindingResult.getAllErrors());
             throw new BindException(bindingResult);
         }
         log.info(boardDTO);
+
+        //urL 경로의 클래스Id가 중요
+        boardDTO.setClassId(classId);
 
         Long boardId = boardService.register(boardDTO);
         
@@ -135,22 +147,25 @@ public class BoardController {
     })
     @GetMapping("/{id}")
     public ResponseEntity<BoardDTO> read(
+            @Parameter(description = "클래스 ID" , required = true)
+            @PathVariable("classId") Long classId,
             @Parameter(description = "조회할 게시글 ID", required = true) 
             @PathVariable("id") Long id) {
-        log.info("게시글 조회: {}", id);
-        
+        log.info("클래스별 게시글 조회 -> 클래스 ID: {}, 게시글 ID: {}", classId, id);
+
         BoardDTO boardDTO = boardService.readOne(id);
-        
+
+        if (!classId.equals(boardDTO.getClassId())) {
+            log.warn("권한 없는 접근 시도 - 요청 클래스 ID: {}, 실제 게시글 클래스 ID: {}",
+                    classId, boardDTO.getClassId());
+            throw new IllegalArgumentException("해당 클래스의 게시글이 아닙니다.");
+        }
+
         return ResponseEntity.ok(boardDTO);
     }
 
     /**
-     * 게시글 수정
-     * request : id 수정할 게시글 ID
-     * request : boardDTO 수정할 게시글 정보
-     * request : bindingResult 유효성 검사 결과
-     * response: 성공 메시지
-     * throws-> BindException 유효성 검사 실패 시 발생
+     * 특정 클래스의 게시글 수정
      */
     @Operation(summary = "게시글 수정", description = "특정 게시글을 수정합니다 request body에서 writer 없이 title, content만 보내주세요.")
     @ApiResponses({
@@ -161,23 +176,32 @@ public class BoardController {
     })
     @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, String>> modify(
+            @Parameter(description = "클래스 ID", required = true)
+            @PathVariable("classId") Long classId,
             @Parameter(description = "수정할 게시글 ID", required = true) 
             @PathVariable("id") Long id,
             @Parameter(description = "수정할 게시글 정보", required = true) 
             @Valid @RequestBody BoardDTO boardDTO,
             BindingResult bindingResult) throws BindException {
-        
-        log.info("게시글 수정: {}", boardDTO);
-        
+
+        log.info("클래스별 게시글 수정 -> 클래스 ID: {}, 게시글 ID: {}, 수정 내용: {}", classId, id, boardDTO);
+
         if(bindingResult.hasErrors()) {
             log.info("유효성 검사 오류: {}", bindingResult.getAllErrors());
             throw new BindException(bindingResult);
         }
-        
+
+        BoardDTO existingBoard = boardService.readOne(id);
+        if(!classId.equals(existingBoard.getClassId())) {
+            log.warn("권한 없는 수정 시도 - 요청 클래스 ID: {}, 실제 게시글 클래스 ID: {}",  classId, existingBoard.getClassId());
+            throw new IllegalArgumentException("해당 클래스의 게시글이 아닙니다.");
+        }
+
         // 경로 변수의 값으로 ID 설정
         boardDTO.setId(id);
-        
-         boardService.modify(boardDTO);
+        boardDTO.setClassId(classId);
+
+        boardService.modify(boardDTO);
         
         Map<String, String> resultMap = new HashMap<>();
         resultMap.put("result", "수정 완료");
@@ -187,8 +211,6 @@ public class BoardController {
 
     /**
      * 게시글 삭제
-     * request: id 삭제할 게시글 ID
-     * response: 성공 메시지
      */
     @Operation(summary = "게시글 삭제", description = "특정 게시글을 삭제합니다")
     @ApiResponses({
@@ -198,12 +220,22 @@ public class BoardController {
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> remove(
+            @Parameter(description = "클래스 ID" , required = true)
+            @PathVariable("classId") Long classId,
             @Parameter(description = "삭제할 게시글 ID", required = true) 
             @PathVariable("id") Long id) {
-        log.info("게시글 삭제: {}", id);
+
+        log.info("클래스별 게시글 삭제 -> 클래스 ID: {}, 게시글 ID: {}", classId, id);
 
         //삭제하기전에 정보저장
         BoardDTO boardDTO = boardService.readOne(id);
+
+        if (!classId.equals(boardDTO.getClassId())) {
+            log.warn("권한 없는 삭제 시도 - 요청 클래스 ID: {}, 실제 게시글 클래스 ID: {}",
+                    classId, boardDTO.getClassId());
+            throw new IllegalArgumentException("해당 클래스의 게시글이 아닙니다.");
+        }
+
         //삭제
         boardService.remove(id);
 
