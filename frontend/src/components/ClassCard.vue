@@ -20,7 +20,7 @@
           <span class="stat">⭐ 4.8</span>
           <span class="stat">👥 1.2k</span>
         </div>
-        <button class="enroll-btn" @click="handleEnroll">수강하기</button>
+        <button class="enroll-btn" @click="handleEnroll">입장하기</button>
       </div>
     </div>
   </div>

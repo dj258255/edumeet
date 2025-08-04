@@ -56,35 +56,42 @@ export const useClassStore = defineStore('class', {
     //        DB 관련 (Class)
     // ==============================
 
-    /** 새로운 클래스 생성 */
-    async createClass(classData) {
-      this.loading = true
-      this.error = null
+/** 새로운 클래스 생성 */
+async createClass(classData) {
+  this.loading = true
+  this.error = null
 
-      if (this.useMock) {
-        const newClass = {
-          id: Date.now(),
-          title: classData.name,
-          description: classData.description || '설명 없음',
-          image: null,
-          tags: ['Mock', '테스트'],
-        }
-        this.myClasses.push(newClass)
-        this.loading = false
-        return newClass
-      }
+  if (this.useMock) {
+    // Mock 모드일 때 파일이 있으면 URL로 변환하여 처리
+    const newClass = {
+      id: Date.now(),
+      title: classData.get('name') || `테스트 반 ${Date.now()}`,
+      description: classData.get('description') || '설명 없음',
+      image: classData.get('image') ? URL.createObjectURL(classData.get('image')) : null,
+      // **FormData.getAll('tags')를 사용하여 태그 배열을 가져오도록 수정**
+      tags: classData.getAll('tags').length > 0 ? classData.getAll('tags') : ['Mock', '테스트'],
+    }
+    this.myClasses.push(newClass)
+    this.loading = false
+    return newClass
+  }
 
-      try {
-        const response = await apiClient.post('/class', classData) // DB API
-        await this.fetchMyClasses()
-        return response.data
-      } catch (error) {
-        this.error = error.response?.data?.message || '클래스 생성에 실패했습니다.'
-        throw error
-      } finally {
-        this.loading = false
-      }
-    },
+  try {
+    // FormData인지 확인하고 헤더를 추가
+    const headers = classData instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
+    
+    // DB API 호출
+    const response = await apiClient.post('/class', classData, { headers })
+    
+    await this.fetchMyClasses()
+    return response.data
+  } catch (error) {
+    this.error = error.response?.data?.message || '클래스 생성에 실패했습니다.'
+    throw error
+  } finally {
+    this.loading = false
+  }
+},
 
     /** 클래스 정보 가져오기 */
     async fetchClassInfo(classId) {
