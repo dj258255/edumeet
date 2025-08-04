@@ -5,18 +5,29 @@
   --brand-sub: #b3f0c7;
   --brand-accent: #27ae60;
   
+  /* 기존 컬러 (호환성) */
+  --primary-color: #227a53;
+  --primary-hover: #27ae60;
+  --success-color: #10b981;
+  --danger-color: #ef4444;
+  --disabled-color: #9ca3af;
+  
   /* 배경색 */
   --bg-primary: #ffffff;
   --bg-secondary: #fafafd;
   --bg-tertiary: #f8fafc;
   --bg-card: #ffffff;
   --bg-overlay: rgba(0, 0, 0, 0.5);
+  --bg-color: #ffffff;
+  --card-bg: #ffffff;
+  --input-bg: #fafafd;
   
   /* 텍스트 색상 */
   --text-primary: #1a202c;
   --text-secondary: #4a5568;
   --text-tertiary: #718096;
   --text-inverse: #ffffff;
+  --text-color: #1a202c;
   
   /* 테두리 색상 */
   --border-color: #e2e8f0;
@@ -29,6 +40,7 @@
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-navbar: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-color: rgba(0, 0, 0, 0.1);
   
   /* 간격 */
   --spacing-xs: 4px;
@@ -72,18 +84,29 @@
   --brand-sub: #22c55e;
   --brand-accent: #16a34a;
   
+  /* 기존 컬러 (호환성) */
+  --primary-color: #4ade80;
+  --primary-hover: #22c55e;
+  --success-color: #10b981;
+  --danger-color: #ef4444;
+  --disabled-color: #6b7280;
+  
   /* 배경색 (다크모드) */
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
   --bg-tertiary: #334155;
   --bg-card: #1e293b;
   --bg-overlay: rgba(0, 0, 0, 0.7);
+  --bg-color: #0f172a;
+  --card-bg: #1e293b;
+  --input-bg: #1e293b;
   
   /* 텍스트 색상 (다크모드) */
   --text-primary: #f7fafc;
   --text-secondary: #e2e8f0;
   --text-tertiary: #cbd5e0;
   --text-inverse: #0f172a;
+  --text-color: #f7fafc;
   
   /* 테두리 색상 (다크모드) */
   --border-color: #334155;
@@ -96,6 +119,7 @@
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-navbar: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-color: rgba(0, 0, 0, 0.4);
 }
 
 /* 전역 리셋 */
