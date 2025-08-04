@@ -13,36 +13,36 @@ const apiClient = axios.create({
   },
 })
 
-// 요청 인터셉터 - 토큰 자동 추가
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+// // 요청 인터셉터 - 토큰 자동 추가
+// apiClient.interceptors.request.use(
+//   (config) => {
+//     const token = localStorage.getItem("token")
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`
+//     }
+//     return config
+//   },
+//   (error) => {
+//     return Promise.reject(error)
+//   }
+// )
 
-// 응답 인터셉터 - 에러 처리
-apiClient.interceptors.response.use(
-  (response) => {
-    return response
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      // 토큰이 만료되었거나 유효하지 않은 경우
-      localStorage.removeItem("token")
-      localStorage.removeItem("user")
-      // 로그인 페이지로 리다이렉트
-      window.location.href = "/login"
-    }
-    return Promise.reject(error)
-  }
-)
+// // 응답 인터셉터 - 에러 처리
+// apiClient.interceptors.response.use(
+//   (response) => {
+//     return response
+//   },
+//   (error) => {
+//     if (error.response?.status === 401) {
+//       // 토큰이 만료되었거나 유효하지 않은 경우
+//       localStorage.removeItem("token")
+//       localStorage.removeItem("user")
+//       // 로그인 페이지로 리다이렉트
+//       window.location.href = "/login"
+//     }
+//     return Promise.reject(error)
+//   }
+// )
 
 // 인증 관련 API 함수들
 const authAPI = {
@@ -73,12 +73,12 @@ const authAPI = {
 
   // 이메일 인증
   sendVerificationCode:(email)=>{
-    return apiClient.post("/members/sendcode",email)
+    return apiClient.post("/members/send-code",email)
   },
 
   // 인증 확인
   verifyCode:(verifyInfo)=>{
-    return apiClient.get("/members/verification",verifyInfo)
+    return apiClient.post("/members/verification",verifyInfo)
   },
 
   // 이메일 중복 확인
@@ -243,8 +243,9 @@ const useAuthStore = defineStore('auth', {
       this.error = null
       try {
         // 더미 데이터 사용
-        const result = await sendDummyCode(email)
-        if (result.success) {
+          const result = await authAPI.sendVerificationCode(email);
+          console.log('API 응답 결과:', result.data.message); // 여기에 로그 추가
+        if (result.data.message) {
           console.log('발송된 인증 코드:', result.code) // 개발용 로그
           return { success: true, message: result.message }
         } else {
@@ -261,22 +262,29 @@ const useAuthStore = defineStore('auth', {
 
     // 인증 코드 검증
     async verifyCode(email, code) {
-      this.loading = true
-      this.error = null
+      this.loading = true;
+      this.error = null;
+
+      // ref로 데이터 감싸기 (이 부분은 그대로 유지)
+      const verifyInfo = ref({ email, code });
+
       try {
-        // 더미 데이터 사용
-        const result = await verifyDummyCode(email, code)
-        if (result.success) {
-          return { success: true, message: result.message }
+        // API 호출 시 .value를 사용해서 실제 객체를 전달
+        const result = await authAPI.verifyCode(verifyInfo.value); 
+        
+        // 백엔드 응답에 맞게 로직 수정
+        console.log(result);
+        if (result.message) {
+          return { success: true, message: result.message };
         } else {
-          this.error = result.message
-          throw new Error(result.message)
+          this.error = result.message || '인증 코드 검증에 실패했습니다.';
+          throw new Error(this.error);
         }
       } catch (error) {
-        this.error = error.message || '인증 코드 검증에 실패했습니다.'
-        throw error
+        this.error = error.message || '인증 코드 검증에 실패했습니다.';
+        throw error;
       } finally {
-        this.loading = false
+        this.loading = false;
       }
     },
 
