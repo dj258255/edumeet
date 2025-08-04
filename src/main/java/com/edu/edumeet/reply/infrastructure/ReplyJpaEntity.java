@@ -48,6 +48,8 @@ public class ReplyJpaEntity extends BaseEntity {
                 .boardId(this.board.getId())
                 .replyText(this.replyText)
                 .replayer(this.replayer)
+                .regDate(this.getRegDate())
+                .modDate(this.getModDate())
                 .build();
     }
 }

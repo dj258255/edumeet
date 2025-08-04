@@ -80,10 +80,15 @@ public class BoardServiceImpl implements BoardService {
 //        return modelMapper.map(board, BoardDTO.class);
 //    }
     @Override
+    @Transactional
     public BoardDTO readOne(Long id){
         //board_image까지 조인 처리되는 findByWithImages()를 이용
         Optional<Board> result = boardRepository.findById(id);
         Board board = result.orElseThrow();
+        
+        // 조회수 증가
+        board.setView(board.getView() + 1);
+        boardRepository.save(board);
 
         return domainToDto(board);
     }
@@ -207,6 +212,31 @@ public class BoardServiceImpl implements BoardService {
                 .dtoList(result.getContent())
                 .total((int)result.getTotalElements())
                 .build();
-
+    }
+    
+    /**
+     * 게시글 좋아요 토글
+     * 이미 좋아요가 되어 있으면 좋아요 취소, 아니면 좋아요 추가
+     * @param id 좋아요 토글할 게시글 ID
+     * @return 토글 후 좋아요 수
+     */
+    @Override
+    @Transactional
+    public long toggleFavorite(Long id) {
+        Optional<Board> result = boardRepository.findById(id);
+        Board board = result.orElseThrow();
+        
+        // 현재 좋아요 상태에 따라 토글
+        if (board.getFavorite() > 0) {
+            // 이미 좋아요가 있으면 좋아요 취소
+            board.setFavorite(board.getFavorite() - 1);
+        } else {
+            // 좋아요가 없으면 좋아요 추가
+            board.setFavorite(board.getFavorite() + 1);
+        }
+        
+        boardRepository.save(board);
+        
+        return board.getFavorite();
     }
 }

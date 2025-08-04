@@ -40,6 +40,12 @@ public class BoardJpaEntity extends BaseEntity {
 //    일단 임시
     @Column(name = "class_id" , nullable = false)
     private Long classId;
+    
+    @Column(name = "view", columnDefinition = "BIGINT DEFAULT 0")
+    private long view;
+    
+    @Column(name = "favorite", columnDefinition = "BIGINT DEFAULT 0")
+    private long favorite;
 
     //Board의 모든 상태변화에 Image들도 같이 변경되도록 구성.
     //Board 객체 자체에서 BoardImage들을 관리.
@@ -70,6 +76,8 @@ public class BoardJpaEntity extends BaseEntity {
                 .classId(this.classId)
                 .regDate(this.getRegDate())
                 .modDate(this.getModDate())
+                .view(this.view)
+                .favorite(this.favorite)
                 .build();
         
         //이미지 정보 변환
@@ -95,6 +103,8 @@ public class BoardJpaEntity extends BaseEntity {
                 .content(board.getContent())
                 .writer(board.getWriter())
                 .classId(board.getClassId())
+                .view(board.getView())
+                .favorite(board.getFavorite())
                 .build();
 
         //이미지 정보도 함께 변환
@@ -126,6 +136,8 @@ public class BoardJpaEntity extends BaseEntity {
         this.title = board.getTitle();
         this.content = board.getContent();
         this.classId = board.getClassId();
+        this.view = board.getView();
+        this.favorite = board.getFavorite();
 
         // 기존 이미지들과의 연결 해제 (부모 참조 제거)
         this.imageSet.forEach(image -> image.changeBoard(null));  // 이미 있는 메서드 사용!

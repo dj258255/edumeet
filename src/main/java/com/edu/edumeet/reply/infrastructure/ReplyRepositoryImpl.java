@@ -127,6 +127,8 @@ public class ReplyRepositoryImpl implements ReplyRepository {
                 .boardId(dto.getBoardId())
                 .replyText(dto.getReplyText())
                 .replayer(dto.getReplayer())
+                .regDate(dto.getRegDate())
+                .modDate(dto.getModDate())
                 .build();
     }
     
@@ -141,6 +143,8 @@ public class ReplyRepositoryImpl implements ReplyRepository {
                 .boardId(domain.getBoardId())
                 .replyText(domain.getReplyText())
                 .replayer(domain.getReplayer())
+                .regDate(domain.getRegDate())
+                .modDate(domain.getModDate())
                 .build();
     }
     

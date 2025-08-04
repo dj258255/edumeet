@@ -32,7 +32,8 @@ public class Board {
     @Builder.Default
     private Set<BoardImage> images = new HashSet<>();
 
-
+    private long view;
+    private long favorite;
     /**
      * 왜 JpaEntity에 안넣고 여기에 넣음??
      *  -> 이 메서드는 도메인에 요구되는 요구사항임 -> 그래서 도메인 로직임
