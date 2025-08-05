@@ -72,7 +72,9 @@
               <ClassCard
                 :card="classItem"
                 :animationDelay="idx * 0.1"
+                :isMyCreatedClass="activeTab === 'created'"
                 @enroll="goToVideoRoom"
+                @createClass="handleCreateClass"
               />
             </div>
           </div>
@@ -120,6 +122,14 @@
       @close="showCreateForm = false"
       @created="handleClassCreated"
     />
+
+    <!-- 수업 생성 모달 -->
+    <CreateClassModal
+      :isOpen="showCreateClassModal"
+      :defaultClassName="pendingClassData?.className || ''"
+      @close="handleCreateClassModalClose"
+      @create="handleCreateClassConfirm"
+    />
   </div>
 </template>
 
@@ -129,12 +139,15 @@ import { useRouter } from 'vue-router'
 import { useClassStore } from '@/stores/class'
 import ClassCard from '../components/ClassCard.vue'
 import CreateClassForm from '../components/CreateClassForm.vue'
+import CreateClassModal from '../components/CreateClassModal.vue'
 import ClassInfo from '../components/ClassInfo.vue'
 import '../styles/ClassRelated.css'
 
 const listError = ref('')
 const showCreateForm = ref(false)
 const selectedClass = ref(null)
+const showCreateClassModal = ref(false)
+const pendingClassData = ref(null)
 
 const router = useRouter()
 const classStore = useClassStore()
@@ -174,6 +187,35 @@ function selectClass(classItem) {
 // ClassCard의 enroll 이벤트로 호출됨
 function goToVideoRoom(classId) {
   router.push(`/class/${classId}/video`);
+}
+
+// ClassCard의 createClass 이벤트로 호출됨 (내가 만든 반의 수업 생성)
+function handleCreateClass(classData) {
+  // 모달을 열고 클래스 데이터를 저장
+  pendingClassData.value = classData
+  showCreateClassModal.value = true
+}
+
+// 모달에서 수업 생성 확인 시 호출됨
+function handleCreateClassConfirm(modalData) {
+  // ClassVideoRoomView로 이동하면서 방 이름은 roomName, 제목은 className으로 설정
+  router.push({
+    path: `/class/${pendingClassData.value.classId}/video`,
+    query: {
+      roomName: modalData.roomName,
+      className: modalData.className, // className을 제목으로 사용
+      isCreator: 'true',
+      creatorName: modalData.creatorName
+    }
+  });
+  showCreateClassModal.value = false
+  pendingClassData.value = null
+}
+
+// 모달 닫기
+function handleCreateClassModalClose() {
+  showCreateClassModal.value = false
+  pendingClassData.value = null
 }
 
 // 반 상세 보기

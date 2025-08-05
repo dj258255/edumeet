@@ -22,10 +22,12 @@ const remoteTracksMap: Ref<Map<string, any>> = ref(new Map());
 const participantName = ref('Participant' + Math.floor(Math.random() * 100));
 const roomName = ref('');
 const isJoining = ref(false);
+
 const activeRooms = ref<Array<{ name: string; participants: number }>>([]);
 
 const mainTrack = ref<any>(null);
 const mainIdentity = ref<string>('');
+const className = ref(''); // 모달에서 입력한 className을 제목으로 사용
 const isCameraOn = ref(true);
 const isMicOn = ref(true);
 
@@ -50,6 +52,28 @@ configureUrls();
 
 onMounted(() => {
   fetchActiveRooms();
+  
+  // URL 쿼리 파라미터에서 방 이름, 제목, 생성자 여부 확인
+  const queryRoomName = route.query.roomName as string;
+  const queryClassName = route.query.className as string;
+  const isCreator = route.query.isCreator === 'true';
+  const creatorName = route.query.creatorName as string;
+  
+  if (queryRoomName) {
+    roomName.value = queryRoomName;
+    // 모달에서 입력한 className을 제목으로 사용
+    if (queryClassName) {
+      className.value = queryClassName;
+    }
+    // 생성자인 경우 자동으로 방에 참가
+    if (isCreator) {
+      // 모달에서 입력받은 생성자 이름을 사용
+      if (creatorName) {
+        participantName.value = creatorName;
+      }
+      joinRoom(queryRoomName);
+    }
+  }
 });
 
 function fetchActiveRooms() {
@@ -247,9 +271,9 @@ function handleCaptionStatus(status) {
     </div>
 
     <div v-else class="video-room">
-      <div class="video-room-header">
-        <h2>{{ roomName }}</h2>
-        <div class="controls">
+              <div class="video-room-header">
+          <h2>{{ className || roomName }}</h2>
+          <div class="controls">
           <button :class="{ off: !isCameraOn }" @click="toggleCamera">
             {{ isCameraOn ? '📷 카메라 끄기' : '📷 카메라 켜기' }}
           </button>

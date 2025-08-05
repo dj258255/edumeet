@@ -20,7 +20,13 @@
           <span class="stat">⭐ 4.8</span>
           <span class="stat">👥 1.2k</span>
         </div>
-        <button class="enroll-btn" @click="handleEnroll">입장하기</button>
+        <button 
+          class="enroll-btn" 
+          :class="{ 'create-btn': isMyCreatedClass }"
+          @click="handleButtonClick"
+        >
+          {{ isMyCreatedClass ? '수업 생성' : '입장하기' }}
+        </button>
       </div>
     </div>
   </div>
@@ -38,10 +44,14 @@ const props = defineProps({
   animationDelay: {
     type: Number,
     default: 0
+  },
+  isMyCreatedClass: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['enroll'])
+const emit = defineEmits(['enroll', 'createClass'])
 
 const cardImage = computed(() => {
   // card.image가 없거나 빈 문자열이거나 유효하지 않은 경우 기본 이미지 사용
@@ -51,8 +61,17 @@ const cardImage = computed(() => {
   return props.card.image
 })
 
-const handleEnroll = () => {
-  emit('enroll', props.card.id)
+const handleButtonClick = () => {
+  if (props.isMyCreatedClass) {
+    // 내가 만든 반이면 수업 생성 이벤트 발생
+    emit('createClass', {
+      classId: props.card.id,
+      className: props.card.title
+    })
+  } else {
+    // 내가 속한 반이면 기존 입장 이벤트 발생
+    emit('enroll', props.card.id)
+  }
 }
 </script>
 

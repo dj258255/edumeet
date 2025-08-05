@@ -235,7 +235,7 @@ async function handleSubmit() {
     };
 
     // 3. 생성된 JSON 객체로 반 생성 API를 호출합니다.
-    await classStore.createClass(classDto);
+    const newClass = await classStore.createClass(classDto);
 
     // 목록 다시 갱신
     await classStore.fetchMyCreatedClasses();
@@ -249,6 +249,11 @@ async function handleSubmit() {
     classDescription.value = '';
     removeImage();
     classTags.value = '';
+    
+    // 생성된 클래스 이름을 localStorage에 저장
+    localStorage.setItem('lastCreatedClassName', classDto.title);
+    console.log('🔍 CreateClassForm - 저장된 클래스 이름:', classDto.title);
+    console.log('🔍 CreateClassForm - localStorage 확인:', localStorage.getItem('lastCreatedClassName'));
     
     // 부모 컴포넌트에 생성 완료 알림
     emit('created', newClass);

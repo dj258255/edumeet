@@ -356,6 +356,25 @@
   box-shadow: var(--shadow-md);
 }
 
+/* 수업 생성 버튼 스타일 */
+.create-btn {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%) !important;
+  color: white !important;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.create-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+  background: linear-gradient(135deg, #ff5252 0%, #d32f2f 100%) !important;
+}
+
 .cards-indicator {
   display: flex;
   justify-content: center;
