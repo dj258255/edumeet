@@ -1,6 +1,7 @@
 package com.edu.edumeet.member.presentation;
 
 import com.edu.edumeet.config.jwt.JwtService;
+import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
 import com.edu.edumeet.member.application.MemberService;
 import com.edu.edumeet.member.presentation.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.presentation.dto.request.RefreshTokenRequest;
@@ -68,5 +69,13 @@ public class MemberController {
                     "message", "잘못된 토큰입니다."
             ));
         }
+    }
+
+    @GetMapping("/email-check")
+    public ResponseEntity<Map<String, String>> emailCheck(@RequestBody EmailRequest emailRequest) {
+        memberService.emailCheck(emailRequest);
+        return ResponseEntity.ok().body(Map.of(
+                "message", "사용할 수 있는 이메일입니다."
+        ));
     }
 }

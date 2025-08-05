@@ -1,6 +1,7 @@
 package com.edu.edumeet.member.application;
 
 import com.edu.edumeet.config.jwt.JwtService;
+import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
 import com.edu.edumeet.member.application.repository.MemberRepository;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.domain.Password;
@@ -141,6 +142,11 @@ public class MemberServiceImpl implements MemberService {
         log.info("로그아웃 요청: memberId={}", memberId);
         refreshTokenService.deleteByMemberId(memberId);
         log.info("로그아웃 완료: memberId={}", memberId);
+    }
+
+    @Override
+    public void emailCheck(EmailRequest emailRequest) {
+        validateIsExistsMember(emailRequest.getEmail());
     }
 
     private void validateIsExistsMember(String email) {

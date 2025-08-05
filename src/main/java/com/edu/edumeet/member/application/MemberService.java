@@ -1,5 +1,6 @@
 package com.edu.edumeet.member.application;
 
+import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
 import com.edu.edumeet.member.presentation.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.presentation.dto.request.RefreshTokenRequest;
 import com.edu.edumeet.member.presentation.dto.request.SignupRequestDto;
@@ -10,4 +11,5 @@ public interface MemberService {
     TokenResponseDto login(LoginRequestDto loginRequest);
     TokenResponseDto refreshAccessToken(RefreshTokenRequest request);
     void logout(Long memberId);
+    void emailCheck(EmailRequest emailRequest);
 }
