@@ -2,10 +2,12 @@ package com.edu.edumeet.member.infrastructure;
 
 import com.edu.edumeet.member.application.repository.MemberRepository;
 import com.edu.edumeet.member.domain.Member;
+import com.edu.edumeet.member.domain.Password;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -47,5 +49,24 @@ public class MemberRepositoryImpl implements MemberRepository {
                     log.debug("Member 조회 성공 - id: {}, email: {}", member.getId(), member.getEmail());
                     return member;
                 });
+    }
+
+    @Override
+    public List<Member> findByEmailContainingIgnoreCase(String keyword) {
+        log.debug("Member 검색 by keyword: {}", keyword);
+
+        return memberJpaRepository.findByEmailContainingIgnoreCase(keyword).stream()
+                .map(entity -> {
+                    // 검색용이므로 민감정보(비밀번호)는 제외하고 매핑
+                    Member member = Member.of(
+                            entity.getId(),
+                            entity.getEmail(),
+                            null, // 검색 결과에서는 비밀번호 제외
+                            entity.getNickname()
+                    );
+                    log.debug("검색된 Member - id: {}, email: {}", member.getId(), member.getEmail());
+                    return member;
+                })
+                .toList();
     }
 }

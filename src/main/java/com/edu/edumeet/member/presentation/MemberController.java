@@ -6,6 +6,7 @@ import com.edu.edumeet.member.application.MemberService;
 import com.edu.edumeet.member.presentation.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.presentation.dto.request.RefreshTokenRequest;
 import com.edu.edumeet.member.presentation.dto.request.SignupRequestDto;
+import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
 import com.edu.edumeet.member.presentation.dto.response.TokenResponseDto;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -78,4 +80,40 @@ public class MemberController {
                 "message", "사용할 수 있는 이메일입니다."
         ));
     }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<SignupResponseDto>> searchMembersByEmail(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            if (page < 0) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (size <= 0 || size > 100) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            List<SignupResponseDto> results = memberService.searchByEmail(keyword);
+
+            int start = page * size;
+            int end = Math.min(start + size, results.size());
+
+            if (start >= results.size()) {
+                return ResponseEntity.ok(List.of());
+            }
+
+            List<SignupResponseDto> pagedResults = results.subList(start, end);
+
+            return ResponseEntity.ok(pagedResults);
+
+        } catch (IllegalArgumentException e) {
+            log.warn("검색 요청 검증 실패: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            log.error("회원 검색 중 오류 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
 }
