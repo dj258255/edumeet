@@ -5,10 +5,11 @@ import {
   RoomEvent,
   DataPacket_Kind,
 } from 'livekit-client';
-import { onMounted, onUnmounted, ref, type Ref } from 'vue';
+import { onMounted, onUnmounted, ref, type Ref, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import VideoComponent from '@/components/VideoComponent.vue';
 import AudioComponent from '@/components/AudioComponent.vue';
+import LiveCaption from '@/components/LiveCaption.vue';
 import '@/styles/ClassRelated.css';
 
 const route = useRoute();
@@ -30,6 +31,7 @@ const isMicOn = ref(true);
 
 const chatMessagesList = ref<Array<{ sender: string; message: string }>>([]);
 const chatInput = ref('');
+const chatBoxRef = ref<HTMLElement | null>(null);
 
 let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
@@ -90,6 +92,11 @@ async function joinRoom(targetRoom?: string) {
         chatMessagesList.value.push({
           sender: data.sender || participant?.identity || '익명',
           message: data.message,
+        });
+        
+        // 새 메시지 수신 시 자동 스크롤
+        nextTick(() => {
+          scrollToBottom();
         });
       }
     } catch (e) {
@@ -172,6 +179,34 @@ function sendChatMessage() {
   room.value.localParticipant.publishData(payload, DataPacket_Kind.RELIABLE);
   chatMessagesList.value.push({ sender: '나', message: msg });
   chatInput.value = '';
+  
+  // 채팅 전송 후 자동 스크롤
+  nextTick(() => {
+    scrollToBottom();
+  });
+}
+
+function scrollToBottom() {
+  if (chatBoxRef.value) {
+    chatBoxRef.value.scrollTop = chatBoxRef.value.scrollHeight;
+  }
+}
+
+// LiveCaption 이벤트 핸들러들
+function handleLiveCaption(data) {
+  console.log('🎤 실시간 자막:', data.text);
+  console.log('🎤 신뢰도:', data.confidence);
+  console.log('🎤 최종 결과 여부:', data.isFinal);
+  
+  // 실시간 자막은 자막창에만 표시하고 채팅창에는 입력하지 않음
+}
+
+function handleCaptionError(error) {
+  console.error('🎤 자막 오류:', error);
+}
+
+function handleCaptionStatus(status) {
+  console.log('🎤 자막 상태:', status);
 }
 </script>
 
@@ -226,46 +261,56 @@ function sendChatMessage() {
       </div>
 
       <div class="video-body">
-        <div class="video-section">
-          <div class="main-video">
-            <VideoComponent
-              v-if="mainTrack"
-              :track="mainTrack"
-              :participantIdentity="mainIdentity"
-              class="main-tile"
-            />
-          </div>
-
-          <div class="thumbnail-grid">
-            <VideoComponent
-              v-if="localTrack && localTrack !== mainTrack"
-              :track="localTrack"
-              :participantIdentity="participantName"
-              class="thumbnail"
-              :local="true"
-              @click="setMainTrack(localTrack, participantName)"
-            />
-
-            <template v-for="remoteTrack of remoteTracksMap.values()" :key="remoteTrack.trackPublication.trackSid">
+        <div class="main-content">
+          <div class="video-section">
+            <div class="main-video">
               <VideoComponent
-                v-if="remoteTrack.trackPublication.kind === 'video' && remoteTrack.trackPublication.videoTrack !== mainTrack"
-                :track="remoteTrack.trackPublication.videoTrack!"
-                :participantIdentity="remoteTrack.participantIdentity"
+                v-if="mainTrack"
+                :track="mainTrack"
+                :participantIdentity="mainIdentity"
+                class="main-tile"
+              />
+            </div>
+
+            <div class="live-caption-section">
+              <LiveCaption 
+                @transcript="handleLiveCaption"
+                @error="handleCaptionError"
+                @status="handleCaptionStatus"
+              />
+            </div>
+
+            <div class="thumbnail-grid">
+              <VideoComponent
+                v-if="localTrack && localTrack !== mainTrack"
+                :track="localTrack"
+                :participantIdentity="participantName"
                 class="thumbnail"
-                @click="setMainTrack(remoteTrack.trackPublication.videoTrack!, remoteTrack.participantIdentity)"
+                :local="true"
+                @click="setMainTrack(localTrack, participantName)"
               />
-              <AudioComponent
-                v-else
-                :track="remoteTrack.trackPublication.audioTrack!"
-                hidden
-              />
-            </template>
+
+              <template v-for="remoteTrack of remoteTracksMap.values()" :key="remoteTrack.trackPublication.trackSid">
+                <VideoComponent
+                  v-if="remoteTrack.trackPublication.kind === 'video' && remoteTrack.trackPublication.videoTrack !== mainTrack"
+                  :track="remoteTrack.trackPublication.videoTrack!"
+                  :participantIdentity="remoteTrack.participantIdentity"
+                  class="thumbnail"
+                  @click="setMainTrack(remoteTrack.trackPublication.videoTrack!, remoteTrack.participantIdentity)"
+                />
+                <AudioComponent
+                  v-else
+                  :track="remoteTrack.trackPublication.audioTrack!"
+                  hidden
+                />
+              </template>
+            </div>
           </div>
         </div>
-
+        
         <div class="chat-section">
           <h3>💬 채팅</h3>
-          <div class="chat-box">
+          <div class="chat-box" ref="chatBoxRef">
             <div v-for="(msg, idx) in chatMessagesList" :key="idx" class="chat-message">
               <strong>{{ msg.sender }}:</strong> {{ msg.message }}
             </div>
