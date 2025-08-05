@@ -6,7 +6,7 @@ import com.edu.edumeet.classroom.dto.request.InviteStudentsRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.service.ClassService;
 import com.edu.edumeet.member.domain.SecurityMember;
-import jdk.javadoc.doclet.Reporter;
+import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -85,5 +85,12 @@ public class ClassRoomController {
         return ResponseEntity.ok().body(Map.of(
                 "message", "상태 변경을 완료하였습니다."
         ));
+    }
+
+    @GetMapping("/{classId}/members")
+    public ResponseEntity<List<SignupResponseDto>> getMembers(
+            @AuthenticationPrincipal SecurityMember member,
+            @PathVariable Long classId) {
+        return ResponseEntity.ok().body(classService.getClassMembers(member.getMemberId(), classId));
     }
 }

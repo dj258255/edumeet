@@ -9,4 +9,8 @@ public interface ClassMemberRepository extends JpaRepository<ClassMember, Long> 
     List<ClassMember> findAllByMemberId(Long memberId);
 
     ClassMember save(ClassMember classMember);
+
+    List<ClassMember> findAllByClassRoomId(Long classId);
+
+    boolean existsByClassRoomIdAndMemberId(Long classId, Long memberId);
 }

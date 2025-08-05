@@ -7,10 +7,12 @@ import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.repository.*;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
 import com.edu.edumeet.member.infrastructure.MemberJpaRepository;
+import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -223,5 +225,38 @@ public class ClassService {
         else {
             invite.changeStatus(InviteStatus.DENIED);
         }
+    }
+
+    public List<SignupResponseDto> getClassMembers(Long memberId, Long classId) {
+        ClassRoom classRoom = classRepository.findByIdAndIsDeletedFalse(classId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 클래스를 찾을 수 없습니다."));
+
+        boolean isMember = classMemberRepository.existsByClassRoomIdAndMemberId(classId, memberId)
+                || classRoom.getMember().getId().equals(memberId);
+        if (!isMember) {
+            throw new IllegalArgumentException("해당 클래스에 접근할 수 없습니다.");
+        }
+
+        List<ClassMember> classMembers = classMemberRepository.findAllByClassRoomId(classId);
+
+        MemberJpaEntity owner = classRoom.getMember();
+
+        List<SignupResponseDto> result = new ArrayList<>();
+
+        result.add(SignupResponseDto.builder()
+                .email(owner.getEmail())
+                .nickname(owner.getNickname())
+                .build());
+
+        result.addAll(classMembers.stream()
+                .map(ClassMember::getMember)
+                .filter(member -> !member.getId().equals(owner.getId())) // 방장 중복 방지
+                .map(member -> SignupResponseDto.builder()
+                        .email(member.getEmail())
+                        .nickname(member.getNickname())
+                        .build())
+                .toList());
+
+        return result;
     }
 }
