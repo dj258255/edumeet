@@ -104,15 +104,24 @@
       <button class="action-btn primary" @click="$emit('enter-class', classData.id)">
         수업 참여
       </button>
-      <button class="action-btn secondary" @click="$emit('view-details', classData.id)">
+      <button class="action-btn secondary" @click="openInviteModal">
         초대 하기
       </button>
     </div>
   </div>
+  
+  <!-- 초대하기 모달 -->
+  <InviteModal 
+    :open="inviteModalOpen"
+    :class-id="classData.id"
+    @close="closeInviteModal"
+    @invite="handleInvite"
+  />
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import InviteModal from './InviteModal.vue'
 
 const props = defineProps({
   classData: {
@@ -121,7 +130,39 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['enter-class', 'view-details'])
+const emit = defineEmits(['enter-class', 'view-details', 'invite'])
+
+const inviteModalOpen = ref(false)
+
+const openInviteModal = () => {
+  inviteModalOpen.value = true
+}
+
+const closeInviteModal = () => {
+  inviteModalOpen.value = false
+}
+
+const handleInvite = (inviteData) => {
+  console.log('초대 데이터:', inviteData)
+  
+  // 백엔드로 전송할 데이터 형식 확인
+  // inviteData = { users: ['user1@example.com', 'user2@example.com'], classId: "class_123" }
+  
+  // 여기에 실제 초대 API 호출 로직을 추가할 수 있습니다
+  // 예시: 백엔드 API 호출
+  /*
+  fetch('/api/classes/invite', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(inviteData)
+  })
+  */
+  
+  emit('invite', inviteData)
+}
 
 // 출석률 계산 (임시 데이터)
 const attendanceRate = computed(() => {

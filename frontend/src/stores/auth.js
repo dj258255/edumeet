@@ -292,6 +292,7 @@ const useAuthStore = defineStore('auth', {
     },
 
     // 인증 코드 검증
+<<<<<<< HEAD
     async verifyCode(verifyInfo) {
       this.loading = true;
       this.error = null;
@@ -314,6 +315,35 @@ const useAuthStore = defineStore('auth', {
         this.loading = false;
       }
     },
+=======
+async verifyCode(verifyInfo) {
+  this.loading = true;
+  this.error = null;
+
+  try {
+    const payload = verifyInfo.value || verifyInfo;
+    
+    // API 호출
+    const result = await authAPI.verifyCode(payload);
+
+    // 백엔드의 메시지 내용을 직접 확인하여 성공/실패를 구분
+    if (result.data?.message === "인증 성공") {
+      return { success: true, message: result.data.message };
+    } else {
+      // '인증 실패' 메시지를 받으면, error 상태 업데이트 후 실패 반환
+      this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
+      return { success: false, message: this.error };
+    }
+  } catch (error) {
+    // API 호출 자체에 실패했을 때 (네트워크 오류 등)만 이 블록이 실행됩니다.
+    this.error = error.message || '인증 코드 검증 중 네트워크 오류가 발생했습니다.';
+    return { success: false, message: this.error };
+  } finally {
+    this.loading = false;
+  }
+},
+
+>>>>>>> 1cc9ec5a15a55dab691948b53f9d344d0fe8412a
 
     // 인증 코드 재전송
     async resendCode(email) {
