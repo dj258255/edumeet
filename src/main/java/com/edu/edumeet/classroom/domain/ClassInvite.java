@@ -33,4 +33,8 @@ public class ClassInvite extends BaseEntity {
         this.invitee = invitee;
         this.status = status;
     }
+
+    public void changeStatus(InviteStatus newStatus) {
+        this.status = newStatus;
+    }
 }

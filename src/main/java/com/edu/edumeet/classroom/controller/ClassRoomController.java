@@ -1,6 +1,7 @@
 package com.edu.edumeet.classroom.controller;
 
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
+import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
 import com.edu.edumeet.classroom.dto.request.InviteStudentsRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.service.ClassService;
@@ -74,5 +75,15 @@ public class ClassRoomController {
     @GetMapping("/invite")
     public ResponseEntity<List<ClassInfoResponseDto>> getInviteList(@AuthenticationPrincipal SecurityMember member) {
         return ResponseEntity.ok().body(classService.getInvitedClass(member.getMemberId()));
+    }
+
+    @PatchMapping("/status")
+    public ResponseEntity<Map<String, String>> changeStatus(
+            @AuthenticationPrincipal SecurityMember member,
+            @RequestBody ClassStatusChangeRequestDto classStatusChangeRequestDto) {
+        classService.changeStatus(member.getMemberId(), classStatusChangeRequestDto);
+        return ResponseEntity.ok().body(Map.of(
+                "message", "상태 변경을 완료하였습니다."
+        ));
     }
 }

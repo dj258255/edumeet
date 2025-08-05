@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface ClassMemberRepository extends JpaRepository<ClassMember, Long> {
     List<ClassMember> findAllByMemberId(Long memberId);
+
+    ClassMember save(ClassMember classMember);
 }

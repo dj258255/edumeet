@@ -2,6 +2,7 @@ package com.edu.edumeet.classroom.service;
 
 import com.edu.edumeet.classroom.domain.*;
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
+import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.repository.*;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
@@ -192,5 +193,35 @@ public class ClassService {
                             .build();
                 })
                 .toList();
+    }
+
+    @Transactional
+    public void changeStatus(Long memberId, ClassStatusChangeRequestDto classStatusChangeRequestDto) {
+        InviteStatus newStatus = classStatusChangeRequestDto.getStatus();
+
+        if (newStatus != InviteStatus.ACCEPTED && newStatus != InviteStatus.DENIED) {
+            throw new IllegalArgumentException("유효하지 않은 초대 상태입니다.");
+        }
+
+        ClassInvite invite = classInviteRepository.findByClassRoomIdAndInviteeId(classStatusChangeRequestDto.getClassId(), memberId)
+                .orElseThrow(() -> new IllegalArgumentException("초대 정보를 찾을 수 없습니다."));
+
+        if (invite.getStatus() != InviteStatus.APPLIED) {
+            throw new IllegalArgumentException("이미 응답한 초대는 상태를 변경할 수 없습니다.");
+        }
+
+
+        if (newStatus == InviteStatus.ACCEPTED) {
+            ClassMember classMember = ClassMember.builder()
+                    .classRoom(invite.getClassRoom())
+                    .member(invite.getInvitee())
+                    .build();
+            classMemberRepository.save(classMember);
+
+            classInviteRepository.delete(invite);
+        }
+        else {
+            invite.changeStatus(InviteStatus.DENIED);
+        }
     }
 }
