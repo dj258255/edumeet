@@ -1,13 +1,16 @@
 package com.edu.edumeet.member.application;
 
 import com.edu.edumeet.config.jwt.JwtService;
+import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
 import com.edu.edumeet.member.application.repository.MemberRepository;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.domain.Password;
 import com.edu.edumeet.member.domain.RefreshToken;
+import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
 import com.edu.edumeet.member.presentation.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.presentation.dto.request.RefreshTokenRequest;
 import com.edu.edumeet.member.presentation.dto.request.SignupRequestDto;
+import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
 import com.edu.edumeet.member.presentation.dto.response.TokenResponseDto;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -141,6 +145,36 @@ public class MemberServiceImpl implements MemberService {
         log.info("로그아웃 요청: memberId={}", memberId);
         refreshTokenService.deleteByMemberId(memberId);
         log.info("로그아웃 완료: memberId={}", memberId);
+    }
+
+    @Override
+    public void emailCheck(EmailRequest emailRequest) {
+        validateIsExistsMember(emailRequest.getEmail());
+    }
+
+    @Override
+    public List<SignupResponseDto> searchByEmail(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            throw new IllegalArgumentException("검색 키워드는 비어있을 수 없습니다.");
+        }
+
+        String trimmedKeyword = keyword.trim();
+        if (trimmedKeyword.length() < 2) {
+            throw new IllegalArgumentException("검색 키워드는 최소 2자 이상이어야 합니다.");
+        }
+
+        log.info("회원 검색 요청 - keyword: {}", trimmedKeyword);
+
+        List<Member> members = memberRepository.findByEmailContainingIgnoreCase(trimmedKeyword);
+
+        log.info("검색 결과 - 총 {}명의 회원을 찾았습니다.", members.size());
+
+        return members.stream()
+                .map(member -> SignupResponseDto.builder()
+                        .email(member.getEmail())
+                        .nickname(member.getNickname())
+                        .build())
+                .toList();
     }
 
     private void validateIsExistsMember(String email) {
