@@ -32,6 +32,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.data:spring-data-redis:3.2.5")
     // Spring Security
     implementation("org.springframework.boot:spring-boot-starter-security")
 
