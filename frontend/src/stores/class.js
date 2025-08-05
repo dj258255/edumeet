@@ -93,9 +93,8 @@ export const useClassStore = defineStore('class', {
       
       // 백엔드 API 호출 - /classroom 엔드포인트는 그대로 유지
       const response = await apiClient.post('/classroom', classData)
-      
+      console.log('aaa',response)
       // 클래스 생성 후 목록을 새로고침합니다.
-      await this.fetchMyCreatedClasses()
       return response.data
     } catch (error) {
       this.error = error.response?.data?.message || '클래스 생성에 실패했습니다.'
