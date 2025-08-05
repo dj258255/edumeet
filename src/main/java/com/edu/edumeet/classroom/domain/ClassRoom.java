@@ -21,8 +21,8 @@ public class ClassRoom extends BaseEntity {
     @JoinColumn(name = "member_id")
     private MemberJpaEntity member;
 
-    @OneToOne(mappedBy = "classRoom", fetch = FetchType.LAZY)
-    private ClassMember classMember;
+    @OneToMany(mappedBy = "classRoom", fetch = FetchType.LAZY)
+    private List<ClassMember> classMember;
 
     @OneToOne(mappedBy = "classRoom", fetch = FetchType.LAZY)
     private Thumbnail thumbnail;

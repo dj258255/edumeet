@@ -15,8 +15,8 @@ public class ClassMember {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "class_room_id", unique = true)
+    @ManyToOne
+    @JoinColumn(name = "class_room_id")
     private ClassRoom classRoom;
 
     @ManyToOne(fetch = FetchType.LAZY)
