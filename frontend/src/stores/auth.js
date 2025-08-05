@@ -13,36 +13,71 @@ const apiClient = axios.create({
   },
 })
 
-// // 요청 인터셉터 - 토큰 자동 추가
-// apiClient.interceptors.request.use(
-//   (config) => {
-//     const token = localStorage.getItem("token")
-//     if (token) {
-//       config.headers.Authorization = `Bearer ${token}`
-//     }
-//     return config
-//   },
-//   (error) => {
-//     return Promise.reject(error)
-//   }
-// )
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token")
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    
+    // 이 부분에 console.log를 추가하여 헤더를 확인합니다.
+    console.log('API 요청 헤더:', config.headers);
+    console.log('전체 요청 설정:', config);
+    
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
 
-// // 응답 인터셉터 - 에러 처리
-// apiClient.interceptors.response.use(
-//   (response) => {
-//     return response
-//   },
-//   (error) => {
-//     if (error.response?.status === 401) {
-//       // 토큰이 만료되었거나 유효하지 않은 경우
-//       localStorage.removeItem("token")
-//       localStorage.removeItem("user")
-//       // 로그인 페이지로 리다이렉트
-//       window.location.href = "/login"
-//     }
-//     return Promise.reject(error)
-//   }
-// )
+// 응답 인터셉터 - 에러 처리 및 토큰 갱신
+apiClient.interceptors.response.use(
+  (response) => {
+    return response
+  },
+  async (error) => {
+    const originalRequest = error.config;
+    // 401 에러이고, 토큰 갱신을 시도한 요청이 아니라면
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true; // 재시도 플래그 설정
+      
+      try {
+        const refreshToken = localStorage.getItem("refreshToken");
+        if (!refreshToken) {
+          throw new Error('리프레시 토큰이 없습니다.');
+        }
+
+        // 토큰 갱신 API 호출
+        const refreshResponse = await axios.post(`${API_BASE_URL}/members/refresh`, { refreshToken });
+        // console.log(refreshResponse)
+        const newAccessToken=refreshResponse.data.accessToken
+        const newRefreshToken=refreshResponse.data.refreshToken
+        // console.log(newAccessToken,newRefreshToken)
+        
+        // 새로운 토큰 저장
+        localStorage.setItem("token", newAccessToken);
+        localStorage.setItem("refreshToken", newRefreshToken);
+        
+        // 실패했던 요청의 헤더에 새로운 토큰 설정
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        
+        // 원래 요청을 다시 보냄
+        return apiClient(originalRequest);
+        
+      } catch (refreshError) {
+        // 리프레시 토큰이 없거나, 갱신 실패 시
+        console.error('토큰 갱신 실패:', refreshError);
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return Promise.reject(refreshError);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // 인증 관련 API 함수들
 const authAPI = {
@@ -83,7 +118,6 @@ const authAPI = {
     });
   },
 
-
   // 이메일 중복 확인
   checkEmail: (email) => {
     return apiClient.get(`/members/check-email?email=${email}`)
@@ -118,7 +152,7 @@ const tokenManager = {
     }
     
     try {
-      // JWT 토큰의 만료 시간 확인 (선택사항)
+      // JWT 토큰의 만료 시간 확인
       const payload = JSON.parse(atob(token.split(".")[1]))
       return payload.exp * 1000 > Date.now()
     } catch (error) {
@@ -197,17 +231,18 @@ const useAuthStore = defineStore('auth', {
         
         // 응답 데이터 구조 확인 및 안전한 처리
         const responseData = response.data || {}
-        const userEmail = responseData.email || email // 백엔드에서 email이 없으면 입력한 email 사용
+        const userEmail = responseData.email || email
         const accessToken = responseData.accessToken || responseData.token || 'mock_token_' + Date.now()
         const refreshToken = responseData.refreshToken
         
-        // 토큰 저장
+        // 토큰 저장 (리프레시 토큰도 함께 저장)
         tokenManager.setToken(accessToken)
+        localStorage.setItem("refreshToken", refreshToken)
         
         // 임시 사용자 정보 (이메일 기반)
         const tempUser = {
           email: userEmail,
-          nickname: userEmail ? userEmail.split('@')[0] : '사용자' // 이메일에서 닉네임 추출, 안전 처리
+          nickname: userEmail ? userEmail.split('@')[0] : '사용자'
         }
         
         // 사용자 정보 저장
@@ -245,17 +280,9 @@ const useAuthStore = defineStore('auth', {
       this.loading = true
       this.error = null
       try {
-        // 더미 데이터 사용
         const result = await authAPI.sendVerificationCode(email);
         console.log("API 응답 결과:", result);
-          console.log('API 응답 결과:', result.data.message); // 여기에 로그 추가
-        // if (result.data.message) {
-        //   console.log('발송된 인증 코드:', result.code) // 개발용 로그
-        //   return { success: true, message: result.message }
-        // } else {
-        //   this.error = result.message
-        //   throw new Error(result.message)
-        // }
+        console.log('API 응답 결과:', result.data.message);
       } catch (error) {
         this.error = error.message || '인증 코드 전송에 실패했습니다.'
         throw error
@@ -265,47 +292,37 @@ const useAuthStore = defineStore('auth', {
     },
 
     // 인증 코드 검증
-      async verifyCode(verifyInfo) {
+    async verifyCode(verifyInfo) {
       this.loading = true;
       this.error = null;
 
       try {
-        // verifyInfo가 ref/배열이면 먼저 구조 분해
-        const [email, code] = Array.isArray(verifyInfo.value)
-          ? verifyInfo.value
-          : [verifyInfo.email, verifyInfo.code];
-
-        const payload = { email, code };
-
-        console.log("payload", payload);
-
+        const payload = verifyInfo.value || verifyInfo;
+        console.log(payload)
         const result = await authAPI.verifyCode(payload);
-        console.log("RESULT:", result.data);
 
-        if (result.data?.message) {
+        if (result.data?.message === "인증 성공") {
           return { success: true, message: result.data.message };
         } else {
           this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
-          throw new Error(this.error);
+          return { success: false, message: this.error };
         }
       } catch (error) {
-        this.error = error.message || '인증 코드 검증에 실패했습니다.';
-        throw error;
+        this.error = error.message || '인증 코드 검증 중 네트워크 오류가 발생했습니다.';
+        return { success: false, message: this.error };
       } finally {
         this.loading = false;
       }
     },
-
 
     // 인증 코드 재전송
     async resendCode(email) {
       this.loading = true
       this.error = null
       try {
-        // 더미 데이터 사용
         const result = await resendDummyCode(email)
         if (result.success) {
-          console.log('재발송된 인증 코드:', result.code) // 개발용 로그
+          console.log('재발송된 인증 코드:', result.code)
           return { success: true, message: result.message }
         } else {
           this.error = result.message
@@ -328,11 +345,10 @@ const useAuthStore = defineStore('auth', {
       } catch (error) {
         console.error('로그아웃 API 호출 실패:', error)
       } finally {
-        // 로컬 상태 정리
         tokenManager.removeToken()
         userManager.removeUser()
+        localStorage.removeItem("refreshToken")
         
-        // 상태 초기화
         this.user = null
         this.isAuthenticated = false
         this.loading = false
@@ -349,7 +365,6 @@ const useAuthStore = defineStore('auth', {
         const response = await authAPI.getProfile()
         const user = response.data
         
-        // 사용자 정보 업데이트
         userManager.setUser(user)
         this.user = user
         
@@ -395,7 +410,6 @@ const useAuthStore = defineStore('auth', {
 
     // 초기화 (앱 시작 시 호출)
     initialize() {
-      // 잘못된 localStorage 데이터 정리
       this.cleanupLocalStorage()
       
       const user = userManager.getUser()
@@ -408,10 +422,15 @@ const useAuthStore = defineStore('auth', {
     // localStorage 정리
     cleanupLocalStorage() {
       const token = localStorage.getItem("token")
+      const refreshToken = localStorage.getItem("refreshToken")
       const user = localStorage.getItem("user")
       
       if (token === "undefined" || token === "null") {
         localStorage.removeItem("token")
+      }
+      
+      if (refreshToken === "undefined" || refreshToken === "null") {
+        localStorage.removeItem("refreshToken")
       }
       
       if (user === "undefined" || user === "null") {
@@ -427,7 +446,6 @@ export default apiClient
 
 export async function login(email, password) {
   const response = await apiClient.post("/members/login", { email, password })
-  // 필요시 토큰 저장 등 추가
   return response.data
 }
 
@@ -451,4 +469,4 @@ export async function resendCode(email) {
 }
 
 // auth store export
-export { useAuthStore } 
+export { useAuthStore }

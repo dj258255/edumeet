@@ -308,19 +308,27 @@ const verifyCode = async () => {
   }
   errors.value = {}
   message.value = ''
-  try {
-    const code = codeDigits.value.join('')
-    const verifyInfo=ref([email.value,code])
-    await authStore.verifyCode(verifyInfo)
+
+  const code = codeDigits.value.join('')
+  const verifyInfo = { email: email.value, code: code }
+
+  const result = await authStore.verifyCode(verifyInfo) // 수정된 액션 호출
+
+  // result.success 값으로 명확하게 분기 처리
+  if (result.success) {
+    // 인증 성공 시
     isEmailVerified.value = true
     message.value = '이메일 인증이 완료되었습니다.'
     if (timer.value) {
       clearInterval(timer.value)
       countdown.value = 0
     }
-  } catch (error) {
-    errors.value.code = authStore.error || '인증 코드가 올바르지 않습니다.'
-    message.value = '인증에 실패했습니다.'
+  } else {
+    // 인증 실패 시 (result.message에 "인증 실패"가 포함됨)
+    errors.value.code = result.message || '인증 코드가 올바르지 않습니다.'
+    message.value = errors.value.code
+    // 코드 입력란을 초기화하여 재입력을 유도
+    codeDigits.value = ['', '', '', '', '', '', '', '']
   }
 }
 const resendCode = async () => {

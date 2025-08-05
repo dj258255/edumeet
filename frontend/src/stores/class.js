@@ -1,6 +1,8 @@
 // src/stores/class.js
 import { defineStore } from 'pinia'
-import apiClient from '@/stores/auth'
+// apiClient를 명시적으로 import하는 것이 더 안전하고 명확합니다.
+// 하지만 현재 auth.js의 export 구조상 default export로 가져와도 동작합니다.
+import apiClient from '@/stores/auth.js'; // 이 부분이 올바르게 되어 있는지 확
 
 export const useClassStore = defineStore('class', {
   state: () => ({
@@ -17,7 +19,7 @@ export const useClassStore = defineStore('class', {
     activeRooms: [],
 
     // 개발용 Mock 모드
-    useMock: true,
+    useMock: false,
   }),
 
   getters: {
@@ -62,45 +64,46 @@ export const useClassStore = defineStore('class', {
     },
 
     // ==============================
-    //        DB 관련 (Class)
+    //        DB 관련 (Class)
     // ==============================
+  /** 새로운 클래스 생성 */
+  async createClass(classData) {
+    this.loading = true
+    this.error = null
 
-/** 새로운 클래스 생성 */
-async createClass(classData) {
-  this.loading = true
-  this.error = null
-
-  if (this.useMock) {
-    // Mock 모드일 때 파일이 있으면 URL로 변환하여 처리
-    const newClass = {
-      id: Date.now(),
-      title: classData.get('name') || `테스트 반 ${Date.now()}`,
-      description: classData.get('description') || '설명 없음',
-      image: classData.get('image') ? URL.createObjectURL(classData.get('image')) : null,
-      // **FormData.getAll('tags')를 사용하여 태그 배열을 가져오도록 수정**
-      tags: classData.getAll('tags').length > 0 ? classData.getAll('tags') : ['Mock', '테스트'],
+    if (this.useMock) {
+      // Mock 모드 로직도 JSON 객체에 맞춰 수정
+      const newClass = {
+        id: Date.now(),
+        title: classData.title || `테스트 반 ${Date.now()}`,
+        description: classData.description || '설명 없음',
+        thumbnailUrl: classData.thumbnailUrl || null,
+        limit: classData.limit,
+        tags: classData.tags || ['Mock', '테스트'],
+      }
+      this.myCreatedClasses.push(newClass)
+      this.loading = false
+      return newClass
     }
-    this.myCreatedClasses.push(newClass)
-    this.loading = false
-    return newClass
-  }
 
-  try {
-    // FormData인지 확인하고 헤더를 추가
-    const headers = classData instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {};
-    
-    // DB API 호출 - 내가 만든 클래스 API
-    const response = await apiClient.post('/api/v1/class', classData, { headers })
-    
-    await this.fetchMyCreatedClasses()
-    return response.data
-  } catch (error) {
-    this.error = error.response?.data?.message || '클래스 생성에 실패했습니다.'
-    throw error
-  } finally {
-    this.loading = false
-  }
-},
+    try {
+      // Axios는 객체를 JSON으로 자동 직렬화하고
+      // Content-Type을 'application/json'으로 설정합니다.
+      console.log('classData:', classData)
+      
+      // 백엔드 API 호출 - /classroom 엔드포인트는 그대로 유지
+      const response = await apiClient.post('/classroom', classData)
+      
+      // 클래스 생성 후 목록을 새로고침합니다.
+      await this.fetchMyCreatedClasses()
+      return response.data
+    } catch (error) {
+      this.error = error.response?.data?.message || '클래스 생성에 실패했습니다.'
+      throw error
+    } finally {
+      this.loading = false
+    }
+  },
 
     /** 클래스 정보 가져오기 */
     async fetchClassInfo(classId) {
@@ -120,7 +123,8 @@ async createClass(classData) {
       }
 
       try {
-        const response = await apiClient.get(`/api/v1/class/${classId}`) // DB API
+        // /api/v1이 중복되므로 엔드포인트를 `/class/${classId}`로 수정
+        const response = await apiClient.get(`/class/${classId}`)
         this.classInfo = response.data
         return response.data
       } catch (error) {
@@ -159,7 +163,9 @@ async createClass(classData) {
       }
 
       try {
-        const response = await apiClient.get('/api/v1/class') // 내가 만든 클래스 API
+        // /api/v1이 중복되므로 엔드포인트를 `/class`로 수정
+        const response = await apiClient.get('/classroom')
+        console.log('방목록:',response)
         this.myCreatedClasses = response.data
         return response.data
       } catch (error) {
@@ -198,7 +204,8 @@ async createClass(classData) {
       }
 
       try {
-        const response = await apiClient.get('/api/v1/class/joined') // 내가 속한 클래스 API
+        // /api/v1이 중복되므로 엔드포인트를 `/class/joined`로 수정
+        const response = await apiClient.get('/class/joined')
         this.myJoinedClasses = response.data
         return response.data
       } catch (error) {
@@ -211,7 +218,7 @@ async createClass(classData) {
     },
 
     // ==============================
-    //     Redis 관련 (화상채팅)
+    //     Redis 관련 (화상채팅)
     // ==============================
 
     /** 특정 클래스의 화상채팅방 목록 가져오기 */
@@ -229,7 +236,8 @@ async createClass(classData) {
       }
 
       try {
-        const response = await apiClient.get(`/meeting?classId=${classId}`) // Redis API
+        // URL 매개변수를 params 옵션으로 전달하는 방식으로 수정
+        const response = await apiClient.get('/meeting', { params: { classId } })
         this.roomList = response.data
         return response.data
       } catch (error) {
@@ -256,7 +264,8 @@ async createClass(classData) {
       }
 
       try {
-        const response = await apiClient.get(`/meeting/active?classId=${classId}`) // Redis API
+        // URL 매개변수를 params 옵션으로 전달하는 방식으로 수정
+        const response = await apiClient.get('/meeting/active', { params: { classId } })
         this.activeRooms = response.data
         return response.data
       } catch (error) {
@@ -285,7 +294,8 @@ async createClass(classData) {
       }
 
       try {
-        const response = await apiClient.post(`/meeting?classId=${classId}`, roomData) // Redis API
+        // URL 매개변수를 params 옵션으로 전달하는 방식으로 수정
+        const response = await apiClient.post('/meeting', roomData, { params: { classId } })
         await this.fetchRoomList(classId)
         return response.data
       } catch (error) {

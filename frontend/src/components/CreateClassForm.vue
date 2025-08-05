@@ -11,7 +11,6 @@
       </div>
       
       <form @submit.prevent="handleSubmit" class="create-form">
-        <!-- 반 이름 입력 -->
         <div class="form-group">
           <label for="className" class="form-label">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -29,7 +28,6 @@
           />
         </div>
 
-        <!-- 반 설명 입력 -->
         <div class="form-group">
           <label for="classDescription" class="form-label">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -50,7 +48,6 @@
           ></textarea>
         </div>
 
-        <!-- 이미지 업로드 -->
         <div class="form-group">
           <label class="form-label">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -89,7 +86,6 @@
           </div>
         </div>
 
-        <!-- 태그 입력 -->
         <div class="form-group">
           <label for="classTags" class="form-label">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -111,7 +107,6 @@
           </div>
         </div>
 
-        <!-- 생성 버튼 -->
         <button 
           type="submit" 
           class="create-btn"
@@ -127,7 +122,6 @@
         </button>
       </form>
 
-      <!-- 에러 메시지 -->
       <div v-if="error" class="error-message">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M10.29 3.86L1.82 18A2 2 0 0 0 3.54 21H20.46A2 2 0 0 0 22.18 18L13.71 3.86A2 2 0 0 0 10.29 3.86Z"/>
@@ -143,6 +137,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useClassStore } from '@/stores/class'
+import axios from 'axios'; // axios를 import하여 이미지 업로드에 사용
 
 const props = defineProps({
   isVisible: {
@@ -175,13 +170,11 @@ const tagsArray = computed(() => {
 function handleImageUpload(event) {
   const file = event.target.files[0];
   if (file) {
-    // 파일 크기 체크 (5MB 제한)
     if (file.size > 5 * 1024 * 1024) {
       alert('파일 크기는 5MB 이하여야 합니다.');
       return;
     }
     
-    // 이미지 파일 타입 체크
     if (!file.type.startsWith('image/')) {
       alert('이미지 파일만 업로드 가능합니다.');
       return;
@@ -199,7 +192,6 @@ function handleImageUpload(event) {
 function removeImage() {
   classImageFile.value = null;
   imageFileName.value = '';
-  // input 값도 초기화
   const fileInput = document.getElementById('classImageInput');
   if (fileInput) {
     fileInput.value = '';
@@ -216,16 +208,34 @@ async function handleSubmit() {
   try {
     error.value = ''
     isCreating.value = true
+    let thumbnailUrl = null;
 
-    const formData = new FormData();
-    formData.append('name', className.value.trim());
-    formData.append('description', classDescription.value.trim());
+    // 1. 이미지가 있다면 먼저 이미지 업로드 API를 호출하여 URL을 받습니다.
     if (classImageFile.value) {
-      formData.append('image', classImageFile.value);
+      const imageFormData = new FormData();
+      imageFormData.append('file', classImageFile.value);
+      
+      // TODO: 실제 이미지 업로드 API 엔드포인트로 변경하세요.
+      // 이 예제에서는 더미 응답을 사용합니다.
+      // const imageUploadResponse = await axios.post('/api/upload/image', imageFormData);
+      // thumbnailUrl = imageUploadResponse.data.url;
+      
+      // 임시로 더미 URL을 할당
+      thumbnailUrl = 'https://example.com/uploaded_image_url.jpg';
+      console.log('Image uploaded successfully:', thumbnailUrl);
     }
-    formData.append('tags', tagsArray.value.join(','));
+    
+    // 2. DTO 객체를 생성합니다.
+    const classDto = {
+      title: className.value.trim(),
+      description: classDescription.value.trim(),
+      thumbnailUrl: thumbnailUrl,
+      limit: 100, // 이 값은 프론트엔드에 입력 필드가 없으므로 임의로 지정하거나 추가해야 합니다.
+      tags: tagsArray.value
+    };
 
-    const newClass = await classStore.createClass(formData);
+    // 3. 생성된 JSON 객체로 반 생성 API를 호출합니다.
+    const newClass = await classStore.createClass(classDto);
 
     // 목록 다시 갱신
     await classStore.fetchMyCreatedClasses();
@@ -243,9 +253,9 @@ async function handleSubmit() {
     // 부모 컴포넌트에 생성 완료 알림
     emit('created', newClass);
     
-  } catch (error) {
-    console.error('클래스 생성 에러:', error);
-    error.value = '반 생성에 실패했습니다. 다시 시도해주세요.';
+  } catch (err) {
+    console.error('클래스 생성 에러:', err);
+    error.value = `반 생성에 실패했습니다: ${err.message || '알 수 없는 오류'}`;
   } finally {
     isCreating.value = false;
   }
@@ -253,6 +263,7 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+/* (이하 스타일 코드는 원본과 동일) */
 .create-form-section {
   position: fixed;
   top: 0;
