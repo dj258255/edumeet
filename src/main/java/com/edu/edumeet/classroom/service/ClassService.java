@@ -3,6 +3,7 @@ package com.edu.edumeet.classroom.service;
 import com.edu.edumeet.classroom.domain.*;
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
 import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
+import com.edu.edumeet.classroom.dto.request.EvictionRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.repository.*;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
@@ -258,5 +259,27 @@ public class ClassService {
                 .toList());
 
         return result;
+    }
+
+    @Transactional
+    public void evictStudent(Long requesterId, EvictionRequestDto evictionRequestDto) {
+        Long classId = evictionRequestDto.getClassId();
+        Long studentId = evictionRequestDto.getStudentId();
+
+        ClassRoom classRoom = classRepository.findByIdAndIsDeletedFalse(classId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 클래스가 존재하지 않습니다."));
+
+        if (!classRoom.getMember().getId().equals(requesterId)) {
+            throw new IllegalArgumentException("해당 작업에 대한 권한이 없습니다."); // 또는 CLASS_OWNER_ONLY
+        }
+
+        if (requesterId.equals(studentId)) {
+            throw new IllegalArgumentException("방장은 스스로를 강제 퇴장시킬 수 없습니다.");
+        }
+
+        ClassMember classMember = classMemberRepository.findByClassRoomIdAndMemberId(classId, studentId)
+                .orElseThrow(() -> new IllegalArgumentException("클래스에 해당 학생이 존재하지 않습니다."));
+
+        classMemberRepository.delete(classMember);
     }
 }

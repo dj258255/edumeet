@@ -2,6 +2,7 @@ package com.edu.edumeet.classroom.controller;
 
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
 import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
+import com.edu.edumeet.classroom.dto.request.EvictionRequestDto;
 import com.edu.edumeet.classroom.dto.request.InviteStudentsRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.service.ClassService;
@@ -92,5 +93,13 @@ public class ClassRoomController {
             @AuthenticationPrincipal SecurityMember member,
             @PathVariable Long classId) {
         return ResponseEntity.ok().body(classService.getClassMembers(member.getMemberId(), classId));
+    }
+
+    @DeleteMapping("/{classId}/eviction")
+    public ResponseEntity<Map<String, String>> evict(
+            @AuthenticationPrincipal SecurityMember member,
+            @RequestBody EvictionRequestDto evictionRequestDto) {
+        classService.evictStudent(member.getMemberId(), evictionRequestDto);
+        return ResponseEntity.ok(Map.of("message", "강제 퇴장 처리되었습니다."));
     }
 }

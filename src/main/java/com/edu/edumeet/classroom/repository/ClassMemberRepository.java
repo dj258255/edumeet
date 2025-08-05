@@ -4,6 +4,7 @@ import com.edu.edumeet.classroom.domain.ClassMember;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ClassMemberRepository extends JpaRepository<ClassMember, Long> {
     List<ClassMember> findAllByMemberId(Long memberId);
@@ -13,4 +14,6 @@ public interface ClassMemberRepository extends JpaRepository<ClassMember, Long> 
     List<ClassMember> findAllByClassRoomId(Long classId);
 
     boolean existsByClassRoomIdAndMemberId(Long classId, Long memberId);
+
+    Optional<ClassMember> findByClassRoomIdAndMemberId(Long classId, Long studentId);
 }
