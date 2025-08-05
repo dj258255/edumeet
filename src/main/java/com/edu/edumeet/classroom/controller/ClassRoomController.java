@@ -1,6 +1,7 @@
 package com.edu.edumeet.classroom.controller;
 
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
+import com.edu.edumeet.classroom.dto.request.InviteStudentsRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.service.ClassService;
 import com.edu.edumeet.member.domain.SecurityMember;
@@ -49,10 +50,23 @@ public class ClassRoomController {
     }
 
     @DeleteMapping("/{classRoomId}")
-    public ResponseEntity<Void> deleteClass(
+    public ResponseEntity<Map<String, String>> deleteClass(
             @PathVariable Long classRoomId,
             @AuthenticationPrincipal SecurityMember member) {
         classService.delete(member.getMemberId(), classRoomId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok().body(Map.of(
+                "message", "삭제가 완료되었습니다."
+        ));
+    }
+
+    @PostMapping("/{classId}/invite")
+    public ResponseEntity<Map<String, String>> inviteStudents(
+            @PathVariable Long classId,
+            @RequestBody InviteStudentsRequestDto request,
+            @AuthenticationPrincipal SecurityMember member) {
+        classService.inviteStudents(classId, member.getMemberId(), request.getEmails());
+        return ResponseEntity.ok().body(Map.of(
+                "message", "초대가 완료되었습니다."
+        ));
     }
 }

@@ -1,15 +1,9 @@
 package com.edu.edumeet.classroom.service;
 
-import com.edu.edumeet.classroom.domain.ClassMember;
-import com.edu.edumeet.classroom.domain.ClassRoom;
-import com.edu.edumeet.classroom.domain.Tag;
-import com.edu.edumeet.classroom.domain.Thumbnail;
+import com.edu.edumeet.classroom.domain.*;
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
-import com.edu.edumeet.classroom.repository.ClassMemberRepository;
-import com.edu.edumeet.classroom.repository.ClassRepository;
-import com.edu.edumeet.classroom.repository.TagRepository;
-import com.edu.edumeet.classroom.repository.ThumbnailRepository;
+import com.edu.edumeet.classroom.repository.*;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
 import com.edu.edumeet.member.infrastructure.MemberJpaRepository;
 import jakarta.transaction.Transactional;
@@ -26,6 +20,7 @@ public class ClassService {
     private final ThumbnailRepository thumbnailRepository;
     private final TagRepository tagRepository;
     private final ClassMemberRepository classMemberRepository;
+    private final ClassInviteRepository classInviteRepository;
     private final MemberJpaRepository memberJpaRepository;
 
     public void create(Long memberId, ClassCreateRequestDto classCreateRequestDto) {
@@ -149,5 +144,29 @@ public class ClassService {
         }
 
         classRoom.markAsDeleted();
+    }
+
+    public void inviteStudents(Long classId, Long memberId, List<String> emails) {
+        ClassRoom classRoom = classRepository.findById(classId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 클래스는 존재하지 않습니다."));
+
+        if (!classRoom.getMember().getId().equals(memberId)) {
+            throw new IllegalArgumentException("권한이 없습니다.");
+        }
+
+        for (String email : emails) {
+            MemberJpaEntity invitee = memberJpaRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
+
+            boolean alreadyInvited = classInviteRepository.existsByClassRoomAndInvitee(classRoom, invitee);
+            if (!alreadyInvited) {
+                ClassInvite invite = ClassInvite.builder()
+                        .classRoom(classRoom)
+                        .invitee(invitee)
+                        .status(InviteStatus.APPLIED)
+                        .build();
+                classInviteRepository.save(invite);
+            }
+        }
     }
 }
