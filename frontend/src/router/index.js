@@ -9,6 +9,7 @@ import CreateClassView from "../views/CreateClassView.vue"
 import KaKaoView from "../views/KaKaoView.vue"
 import ClassVideoRoomView from "@/views/ClassVideoRoomView.vue"
 import MyPageView from "@/views/MyPageView.vue"
+import DocumentSummaryView from "@/views/DocumentSummaryView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -68,6 +69,12 @@ const router = createRouter({
       name: 'mypage',
       component: MyPageView,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/document-summary',
+      name: 'document-summary',
+      component: DocumentSummaryView,
+      // meta: { requiresAuth: true }  // 필요시 주석 해제
     },
   ],
 })
