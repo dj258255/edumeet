@@ -235,14 +235,14 @@ async function handleSubmit() {
     };
 
     // 3. 생성된 JSON 객체로 반 생성 API를 호출합니다.
-    const newClass = await classStore.createClass(classDto);
+    await classStore.createClass(classDto);
 
     // 목록 다시 갱신
     await classStore.fetchMyCreatedClasses();
-    await classStore.fetchMyJoinedClasses();
-
+    // await classStore.fetchMyJoinedClasses();
+    console.log('newClass',newClass)
     // 성공 메시지
-    alert(`반 "${newClass.title}" 이(가) 성공적으로 생성되었습니다!`);
+    alert(`반 "${classDto.title}" 이(가) 성공적으로 생성되었습니다!`);
     
     // 폼 초기화
     className.value = '';
