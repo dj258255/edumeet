@@ -5,6 +5,7 @@ import com.edu.edumeet.classroom.dto.request.InviteStudentsRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.service.ClassService;
 import com.edu.edumeet.member.domain.SecurityMember;
+import jdk.javadoc.doclet.Reporter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
@@ -68,5 +69,10 @@ public class ClassRoomController {
         return ResponseEntity.ok().body(Map.of(
                 "message", "초대가 완료되었습니다."
         ));
+    }
+
+    @GetMapping("/invite")
+    public ResponseEntity<List<ClassInfoResponseDto>> getInviteList(@AuthenticationPrincipal SecurityMember member) {
+        return ResponseEntity.ok().body(classService.getInvitedClass(member.getMemberId()));
     }
 }

@@ -169,4 +169,28 @@ public class ClassService {
             }
         }
     }
+
+    public List<ClassInfoResponseDto> getInvitedClass(Long memberId) {
+        List<ClassInvite> invites = classInviteRepository.findByInviteeId(memberId);
+
+        return invites.stream()
+                .filter(invite -> invite.getStatus() == InviteStatus.APPLIED)
+                .map(invite -> {
+                    ClassRoom classRoom = invite.getClassRoom();
+                    return ClassInfoResponseDto.builder()
+                            .title(classRoom.getTitle())
+                            .description(classRoom.getDescription())
+                            .thumbnailUrl(
+                                    classRoom.getThumbnail() != null
+                                            ? classRoom.getThumbnail().getImageUrl()
+                                            : null
+                            )
+                            .tags(classRoom.getTags().stream()
+                                    .map(Tag::getName)
+                                    .toList())
+                            .participantLimit(classRoom.getParticipantLimit())
+                            .build();
+                })
+                .toList();
+    }
 }
