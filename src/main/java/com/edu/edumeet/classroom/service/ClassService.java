@@ -72,6 +72,7 @@ public class ClassService {
 
         return classRooms.stream()
             .map(classRoom -> ClassInfoResponseDto.builder()
+                .classId(classRoom.getId())
                 .title(classRoom.getTitle())
                 .description(classRoom.getDescription())
                 .participantLimit(classRoom.getParticipantLimit())
@@ -95,6 +96,7 @@ public class ClassService {
         return classMembers.stream()
                 .map(ClassMember::getClassRoom)
                 .map(classRoom -> ClassInfoResponseDto.builder()
+                        .classId(classRoom.getId())
                         .title(classRoom.getTitle())
                         .description(classRoom.getDescription())
                         .participantLimit(classRoom.getParticipantLimit())
@@ -120,6 +122,7 @@ public class ClassService {
                 .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
 
         return ClassInfoResponseDto.builder()
+                .classId(classRoom.getId())
                 .title(classRoom.getTitle())
                 .description(classRoom.getDescription())
                 .participantLimit(classRoom.getParticipantLimit())
@@ -182,6 +185,7 @@ public class ClassService {
                 .map(invite -> {
                     ClassRoom classRoom = invite.getClassRoom();
                     return ClassInfoResponseDto.builder()
+                            .classId(classRoom.getId())
                             .title(classRoom.getTitle())
                             .description(classRoom.getDescription())
                             .thumbnailUrl(

@@ -47,16 +47,16 @@ public class ClassRoomController {
         return ResponseEntity.ok(classService.getJoinedClasses(member.getMemberId()));
     }
 
-    @GetMapping("/{classRoomId}")
-    public ResponseEntity<ClassInfoResponseDto> getClassDetail(@PathVariable Long classRoomId) {
-        return ResponseEntity.ok(classService.getClassDetail(classRoomId));
+    @GetMapping("/{classId}")
+    public ResponseEntity<ClassInfoResponseDto> getClassDetail(@PathVariable Long classId) {
+        return ResponseEntity.ok(classService.getClassDetail(classId));
     }
 
-    @DeleteMapping("/{classRoomId}")
+    @DeleteMapping("/{classId}")
     public ResponseEntity<Map<String, String>> deleteClass(
-            @PathVariable Long classRoomId,
+            @PathVariable Long classId,
             @AuthenticationPrincipal SecurityMember member) {
-        classService.delete(member.getMemberId(), classRoomId);
+        classService.delete(member.getMemberId(), classId);
         return ResponseEntity.ok().body(Map.of(
                 "message", "삭제가 완료되었습니다."
         ));
