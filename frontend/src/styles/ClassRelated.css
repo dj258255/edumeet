@@ -255,9 +255,40 @@
   margin-bottom: 1rem;
 }
 
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .video-room-header h2 {
   color: var(--text-color);
   margin: 0;
+}
+
+.user-role {
+  display: flex;
+  align-items: center;
+}
+
+.creator-badge {
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  color: #8b4513;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+}
+
+.participant-badge {
+  background: linear-gradient(135deg, #4a90e2, #7bb3f0);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
 }
 
 .controls button {

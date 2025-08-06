@@ -22,6 +22,7 @@ const remoteTracksMap: Ref<Map<string, any>> = ref(new Map());
 const participantName = ref('Participant' + Math.floor(Math.random() * 100));
 const roomName = ref('');
 const isJoining = ref(false);
+const isUserCreator = ref(false); // 생성자 여부
 
 const activeRooms = ref<Array<{ name: string; participants: number }>>([]);
 
@@ -58,6 +59,14 @@ onMounted(() => {
   const queryClassName = route.query.className as string;
   const isCreator = route.query.isCreator === 'true';
   const creatorName = route.query.creatorName as string;
+  const participantNameParam = route.query.participantName as string;
+  
+  console.log('🔍 ClassVideoRoomView - URL 파라미터:')
+  console.log('🔍 roomName:', queryRoomName)
+  console.log('🔍 className:', queryClassName)
+  console.log('🔍 isCreator:', isCreator)
+  console.log('🔍 creatorName:', creatorName)
+  console.log('🔍 participantName:', participantNameParam)
   
   if (queryRoomName) {
     roomName.value = queryRoomName;
@@ -65,12 +74,24 @@ onMounted(() => {
     if (queryClassName) {
       className.value = queryClassName;
     }
+    
+    // 생성자 여부 설정
+    isUserCreator.value = isCreator;
+    
+    // 참여자 이름이 있으면 설정
+    if (participantNameParam) {
+      participantName.value = participantNameParam;
+    }
+    
     // 생성자인 경우 자동으로 방에 참가
     if (isCreator) {
       // 모달에서 입력받은 생성자 이름을 사용
       if (creatorName) {
         participantName.value = creatorName;
       }
+      joinRoom(queryRoomName);
+    } else {
+      // 참여자인 경우도 자동으로 방에 참가
       joinRoom(queryRoomName);
     }
   }
@@ -232,6 +253,33 @@ function handleCaptionError(error) {
 function handleCaptionStatus(status) {
   console.log('🎤 자막 상태:', status);
 }
+
+// 첫 번째 원격 비디오 트랙 가져오기
+function getFirstRemoteVideoTrack() {
+  if (!room.value) return null;
+  
+  const remoteParticipants = Array.from(room.value.remoteParticipants.values());
+  for (const participant of remoteParticipants) {
+    if (participant.videoTrackPublications.size > 0) {
+      const videoTrack = participant.videoTrackPublications.values().next().value;
+      if (videoTrack && videoTrack.videoTrack) {
+        return videoTrack.videoTrack;
+      }
+    }
+  }
+  return null;
+}
+
+// 첫 번째 원격 참가자 identity 가져오기
+function getFirstRemoteParticipantIdentity() {
+  if (!room.value) return '';
+  
+  const remoteParticipants = Array.from(room.value.remoteParticipants.values());
+  if (remoteParticipants.length > 0) {
+    return remoteParticipants[0].identity;
+  }
+  return '';
+}
 </script>
 
 <!-- 나머지 template 부분은 동일하므로 생략 가능. 필요시 다시 제공 가능. -->
@@ -272,7 +320,13 @@ function handleCaptionStatus(status) {
 
     <div v-else class="video-room">
               <div class="video-room-header">
-          <h2>{{ className || roomName }}</h2>
+          <div class="header-info">
+            <h2>{{ className || roomName }}</h2>
+            <div class="user-role">
+              <span v-if="isUserCreator" class="creator-badge">👑 생성자</span>
+              <span v-else class="participant-badge">👤 참여자</span>
+            </div>
+          </div>
           <div class="controls">
           <button :class="{ off: !isCameraOn }" @click="toggleCamera">
             {{ isCameraOn ? '📷 카메라 끄기' : '📷 카메라 켜기' }}
@@ -288,8 +342,16 @@ function handleCaptionStatus(status) {
         <div class="main-content">
           <div class="video-section">
             <div class="main-video">
+              <!-- 참여자인 경우 원격 참가자 화면을 메인에 표시 -->
               <VideoComponent
-                v-if="mainTrack"
+                v-if="!isUserCreator && getFirstRemoteVideoTrack()"
+                :track="getFirstRemoteVideoTrack()"
+                :participantIdentity="getFirstRemoteParticipantIdentity()"
+                class="main-tile"
+              />
+              <!-- 생성자인 경우 기존 로직 유지 -->
+              <VideoComponent
+                v-else-if="mainTrack"
                 :track="mainTrack"
                 :participantIdentity="mainIdentity"
                 class="main-tile"
@@ -305,8 +367,19 @@ function handleCaptionStatus(status) {
             </div>
 
             <div class="thumbnail-grid">
+              <!-- 참여자인 경우 로컬 화면을 썸네일에 표시 -->
               <VideoComponent
-                v-if="localTrack && localTrack !== mainTrack"
+                v-if="!isUserCreator && localTrack"
+                :track="localTrack"
+                :participantIdentity="participantName"
+                class="thumbnail"
+                :local="true"
+                @click="setMainTrack(localTrack, participantName)"
+              />
+              
+              <!-- 생성자인 경우 기존 로직 유지 -->
+              <VideoComponent
+                v-else-if="localTrack && localTrack !== mainTrack"
                 :track="localTrack"
                 :participantIdentity="participantName"
                 class="thumbnail"
@@ -315,15 +388,18 @@ function handleCaptionStatus(status) {
               />
 
               <template v-for="remoteTrack of remoteTracksMap.values()" :key="remoteTrack.trackPublication.trackSid">
+                <!-- 참여자인 경우 첫 번째 원격 참가자는 메인에 표시되므로 썸네일에서 제외 -->
                 <VideoComponent
-                  v-if="remoteTrack.trackPublication.kind === 'video' && remoteTrack.trackPublication.videoTrack !== mainTrack"
+                  v-if="remoteTrack.trackPublication.kind === 'video' && 
+                         remoteTrack.trackPublication.videoTrack !== mainTrack &&
+                         !(getFirstRemoteVideoTrack() === remoteTrack.trackPublication.videoTrack && !isUserCreator)"
                   :track="remoteTrack.trackPublication.videoTrack!"
                   :participantIdentity="remoteTrack.participantIdentity"
                   class="thumbnail"
                   @click="setMainTrack(remoteTrack.trackPublication.videoTrack!, remoteTrack.participantIdentity)"
                 />
                 <AudioComponent
-                  v-else
+                  v-else-if="remoteTrack.trackPublication.kind === 'audio'"
                   :track="remoteTrack.trackPublication.audioTrack!"
                   hidden
                 />

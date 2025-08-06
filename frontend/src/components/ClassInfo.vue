@@ -113,7 +113,7 @@
   <!-- 초대하기 모달 -->
   <InviteModal 
     :open="inviteModalOpen"
-    :class-id="classData.id"
+    :class-id="String(classData.id || classData.classId || '')"
     @close="closeInviteModal"
     @invite="handleInvite"
   />
@@ -135,6 +135,10 @@ const emit = defineEmits(['enter-class', 'view-details', 'invite'])
 const inviteModalOpen = ref(false)
 
 const openInviteModal = () => {
+  console.log('🔍 ClassInfo - classData:', props.classData)
+  console.log('🔍 ClassInfo - classData.id:', props.classData.id)
+  console.log('🔍 ClassInfo - classData.classId:', props.classData.classId)
+  console.log('🔍 ClassInfo - 모든 키:', Object.keys(props.classData))
   inviteModalOpen.value = true
 }
 
@@ -142,25 +146,12 @@ const closeInviteModal = () => {
   inviteModalOpen.value = false
 }
 
-const handleInvite = (inviteData) => {
+const handleInvite = async (inviteData) => {
   console.log('초대 데이터:', inviteData)
   
-  // 백엔드로 전송할 데이터 형식 확인
-  // inviteData = { users: ['user1@example.com', 'user2@example.com'], classId: "class_123" }
-  
-  // 여기에 실제 초대 API 호출 로직을 추가할 수 있습니다
-  // 예시: 백엔드 API 호출
-  /*
-  fetch('/api/classes/invite', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify(inviteData)
-  })
-  */
-  
+  // 백엔드 API 호출은 이미 InviteModal에서 처리됨
+  // 여기서는 성공 메시지만 표시
+  alert('초대가 성공적으로 전송되었습니다!')
   emit('invite', inviteData)
 }
 

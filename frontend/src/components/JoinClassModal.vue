@@ -2,7 +2,7 @@
   <div v-if="isOpen" class="modal-overlay" @click="handleOverlayClick">
     <div class="modal-content" @click.stop>
       <div class="modal-header">
-        <h3 class="modal-title">수업 생성</h3>
+        <h3 class="modal-title">수업 참여</h3>
         <button class="close-btn" @click="$emit('close')">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6L18 18"/>
@@ -11,36 +11,20 @@
       </div>
       
       <div class="modal-body">
-        <div class="form-group">
-          <label for="className">수업명</label>
-          <input 
-            id="className"
-            v-model="className" 
-            type="text" 
-            placeholder="수업명을 입력하세요"
-            class="form-input"
-          />
+        <div class="class-info">
+          <h4 class="class-title">{{ className }}</h4>
+          <p class="class-description">{{ classDescription }}</p>
         </div>
         
         <div class="form-group">
-          <label for="creatorName">생성자 이름</label>
+          <label for="participantName">참여자 이름</label>
           <input 
-            id="creatorName"
-            v-model="creatorName" 
+            id="participantName"
+            v-model="participantName" 
             type="text" 
-            placeholder="생성자 이름을 입력하세요"
+            placeholder="참여자 이름을 입력하세요"
             class="form-input"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label for="roomName">반 이름</label>
-          <input
-            id="roomName"
-            v-model="roomName" 
-            type="text" 
-            placeholder="방 이름을 입력하세요"
-            class="form-input"
+            @keyup.enter="handleJoin"
           />
         </div>
       </div>
@@ -48,11 +32,11 @@
       <div class="modal-footer">
         <button class="cancel-btn" @click="$emit('close')">취소</button>
         <button 
-          class="create-btn" 
-          @click="handleCreate"
-          :disabled="!className || !creatorName || !roomName"
+          class="join-btn" 
+          @click="handleJoin"
+          :disabled="!participantName"
         >
-          수업 생성
+          수업 참여
         </button>
       </div>
     </div>
@@ -67,7 +51,11 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  defaultClassName: {
+  className: {
+    type: String,
+    default: ''
+  },
+  classDescription: {
     type: String,
     default: ''
   },
@@ -77,49 +65,28 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'create'])
+const emit = defineEmits(['close', 'join'])
 
-const className = ref('')
-const creatorName = ref('')
-const roomName = ref('')
-
-// 기본 클래스 이름이 있으면 자동으로 설정
-watch(() => props.defaultClassName, (newValue) => {
-  if (newValue) {
-    className.value = newValue
-    roomName.value = newValue
-  }
-})
-
-// 기본 클래스 이름이 있으면 자동으로 설정
-if (props.defaultClassName) {
-  className.value = props.defaultClassName;
-  roomName.value = props.defaultClassName;
-  console.log('🔍 CreateClassModal - 기본 클래스 이름 설정됨:', props.defaultClassName);
-}
+const participantName = ref('')
 
 // 모달이 열릴 때마다 초기화
 watch(() => props.isOpen, (newValue) => {
   if (newValue) {
-    if (props.defaultClassName) {
-      className.value = props.defaultClassName
-      roomName.value = props.defaultClassName
-      console.log('🔍 CreateClassModal - 모달 열림 시 클래스 이름 설정:', props.defaultClassName);
-    } else {
-      className.value = ''
-      roomName.value = ''
-    }
-    creatorName.value = ''
+    participantName.value = ''
   }
 })
 
-const handleCreate = () => {
-  if (className.value && creatorName.value && roomName.value) {
-    emit('create', {
+const handleJoin = () => {
+  console.log('🔍 JoinClassModal - props.classId:', props.classId)
+  console.log('🔍 JoinClassModal - props.className:', props.className)
+  console.log('🔍 JoinClassModal - participantName:', participantName.value)
+  
+  if (participantName.value) {
+    emit('join', {
       classId: props.classId,
-      className: className.value,
-      creatorName: creatorName.value,
-      roomName: roomName.value
+      className: props.className,
+      participantName: participantName.value,
+      roomName: props.className // className을 roomName으로 사용
     })
   }
 }
@@ -200,6 +167,27 @@ const handleOverlayClick = () => {
   padding: 1.5rem;
 }
 
+.class-info {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border-left: 4px solid var(--brand-main);
+}
+
+.class-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.class-description {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
 .form-group {
   margin-bottom: 1.5rem;
 }
@@ -262,7 +250,7 @@ const handleOverlayClick = () => {
   border-color: var(--text-secondary);
 }
 
-.create-btn {
+.join-btn {
   flex: 1;
   padding: 0.75rem 1rem;
   border: none;
@@ -275,12 +263,12 @@ const handleOverlayClick = () => {
   transition: all 0.2s ease;
 }
 
-.create-btn:hover:not(:disabled) {
+.join-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 15px rgba(34, 122, 83, 0.3);
 }
 
-.create-btn:disabled {
+.join-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
@@ -314,7 +302,7 @@ const handleOverlayClick = () => {
   }
   
   .cancel-btn,
-  .create-btn {
+  .join-btn {
     flex: none;
   }
 }

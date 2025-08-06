@@ -204,7 +204,7 @@ export const useClassStore = defineStore('class', {
 
       try {
         // /api/v1이 중복되므로 엔드포인트를 `/class/joined`로 수정
-        const response = await apiClient.get('/class/joined')
+        const response = await apiClient.get('/classroom/joined')
         this.myJoinedClasses = response.data
         return response.data
       } catch (error) {
@@ -213,6 +213,101 @@ export const useClassStore = defineStore('class', {
         throw error
       } finally {
         this.loading = false
+      }
+    },
+
+    // ==============================
+    //     초대 관련 API
+    // ==============================
+
+    // 회원 검색 API
+    async searchMembers(keyword, page = 0, size = 10) {
+      console.log('🔍 class.js - searchMembers 호출됨:', { keyword, page, size })
+      try {
+        const url = `/members/search?keyword=${encodeURIComponent(keyword)}&page=${page}&size=${size}`
+        console.log('🔍 class.js - API URL:', url)
+        const response = await apiClient.get(url)
+        console.log('🔍 class.js - API 응답:', response.data)
+        return response.data
+      } catch (error) {
+        console.error('🔍 class.js - 회원 검색 실패:', error)
+        throw error
+      }
+    },
+
+    // 학생 초대 API
+    async inviteStudents(classId, emails) {
+      try {
+        const response = await apiClient.post(`/classroom/${classId}/invite`, {
+          emails: emails
+        })
+        return response.data
+      } catch (error) {
+        console.error('학생 초대 실패:', error)
+        throw error
+      }
+    },
+
+    // 초대 목록 조회 API
+    async fetchInviteList() {
+      console.log('🔍 class.js - fetchInviteList 호출됨');
+      console.log('🔍 localStorage token:', localStorage.getItem('token') ? '있음' : '없음');
+      
+      try {
+        console.log('🔍 초대 목록 API 요청 시작: GET /classroom/invite');
+        const response = await apiClient.get('/classroom/invite');
+        console.log('🔍 초대 목록 API 응답:', response.data);
+        console.log('🔍 응답 데이터 타입:', typeof response.data);
+        console.log('🔍 응답 데이터 길이:', Array.isArray(response.data) ? response.data.length : '배열이 아님');
+        return response.data;
+      } catch (error) {
+        console.error('🔍 초대 목록 조회 실패 - 상세 정보:');
+        console.error('🔍 에러 메시지:', error.message);
+        console.error('🔍 응답 상태:', error.response?.status);
+        console.error('🔍 응답 데이터:', error.response?.data);
+        console.error('🔍 요청 URL:', error.config?.url);
+        console.error('🔍 요청 헤더:', error.config?.headers);
+        throw error;
+      }
+    },
+
+    // 클래스 삭제 API
+    async deleteClass(classId) {
+      try {
+        const response = await apiClient.delete(`/classroom/${classId}`)
+        return response.data
+      } catch (error) {
+        console.error('클래스 삭제 실패:', error)
+        throw error
+      }
+    },
+
+    // 초대 응답 API (수락/거절)
+    async respondToInvite(requestData) {
+      console.log('🔥🔥🔥 NEW VERSION - 초대 응답 API 호출됨 🔥🔥🔥');
+      console.log('🔍 받은 requestData:', requestData);
+      console.log('🔍 requestData 타입:', typeof requestData);
+      console.log('🔍 localStorage token:', localStorage.getItem('token') ? '있음' : '없음');
+      
+      const classId = requestData.classId;
+      const status = requestData.status;
+      
+      console.log('🔍 classId:', classId, 'type:', typeof classId);
+      console.log('🔍 status:', status);
+      
+      try {
+        console.log('🔍 요청 URL:', `/classroom/status`);
+        
+        const response = await apiClient.patch(`/classroom/status`, requestData)
+        console.log('🔍 초대 응답 성공:', response.data)
+        return response.data
+      } catch (error) {
+        console.error('🔍 초대 응답 실패 - 상세 정보:');
+        console.error('🔍 에러 메시지:', error.message);
+        console.error('🔍 응답 상태:', error.response?.status);
+        console.error('🔍 응답 데이터:', error.response?.data);
+        console.error('🔍 요청 헤더:', error.config?.headers);
+        throw error
       }
     },
 
