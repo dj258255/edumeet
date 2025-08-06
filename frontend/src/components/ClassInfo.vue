@@ -6,39 +6,9 @@
         {{ getStatusText(classData.status) }}
       </div>
     </div>
-    
+
     <div class="info-content">
-      <div class="info-section">
-        <h4 class="section-title">출석률</h4>
-        <div class="attendance-info">
-          <div class="attendance-circle">
-            <svg width="60" height="60" viewBox="0 0 60 60">
-              <circle cx="30" cy="30" r="25" fill="none" stroke="#e5e7eb" stroke-width="4"/>
-              <circle 
-                cx="30" cy="30" r="25" 
-                fill="none" 
-                stroke="#10b981" 
-                stroke-width="4"
-                stroke-dasharray="157"
-                :stroke-dashoffset="157 - (157 * attendanceRate) / 100"
-                transform="rotate(-90 30 30)"
-              />
-            </svg>
-            <span class="attendance-text">{{ attendanceRate }}%</span>
-          </div>
-          <div class="attendance-details">
-            <div class="detail-item">
-              <span class="label">출석</span>
-              <span class="value">{{ attendanceCount }}회</span>
-            </div>
-            <div class="detail-item">
-              <span class="label">총 수업</span>
-              <span class="value">{{ totalClasses }}회</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
+      <!-- 과제 제출률 -->
       <div class="info-section">
         <h4 class="section-title">과제 제출률</h4>
         <div class="assignment-info">
@@ -69,37 +39,80 @@
           </div>
         </div>
       </div>
-      
+
+      <!-- 공지사항 게시판 -->
       <div class="info-section">
-        <h4 class="section-title">학습 진행률</h4>
-        <div class="progress-info">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: learningProgress + '%' }"></div>
-          </div>
-          <span class="progress-text">{{ learningProgress }}% 완료</span>
+        <h4 class="section-title">게시판</h4>
+        
+        <!-- 탭 버튼 -->
+        <div class="tab-buttons">
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'notice' }"
+            @click="activeTab = 'notice'"
+          >
+            📢 공지사항
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'assignment' }"
+            @click="activeTab = 'assignment'"
+          >
+            📝 과제
+          </button>
         </div>
-      </div>
-      
-      <div class="info-section">
-        <h4 class="section-title">최근 활동</h4>
-        <div class="recent-activities">
-          <div v-for="activity in recentActivities" :key="activity.id" class="activity-item">
-            <div class="activity-icon" :class="activity.type">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path v-if="activity.type === 'attendance'" d="M12 2L2 7L12 12L22 7L12 2Z"/>
-                <path v-else-if="activity.type === 'assignment'" d="M14 2H6A2 2 0 0 0 4 4V20A2 2 0 0 0 6 22H18A2 2 0 0 0 20 20V8L14 2Z"/>
-                <path v-else-if="activity.type === 'comment'" d="M21 15A2 2 0 0 1 19 17H7L3 21V5A2 2 0 0 1 5 3H19A2 2 0 0 1 21 5Z"/>
-              </svg>
+
+        <!-- 공지사항 탭 -->
+        <div v-if="activeTab === 'notice'" class="tab-content">
+          <!-- 공지사항 필터 -->
+          <div class="filter-section">
+            <select v-model="noticeFilter" class="filter-select">
+              <option value="all">전체</option>
+              <option value="required">필수</option>
+              <option value="general">일반</option>
+            </select>
+          </div>
+          
+          <div class="notice-board">
+            <div
+              v-for="notice in filteredNotices"
+              :key="notice.id"
+              class="notice-item"
+              :class="{ required: notice.required }"
+            >
+              <span class="badge">{{ notice.required ? '필수' : '일반' }}</span>
+              <span class="text">{{ notice.title }}</span>
             </div>
-            <div class="activity-content">
-              <span class="activity-text">{{ activity.text }}</span>
-              <span class="activity-time">{{ formatTime(activity.time) }}</span>
+          </div>
+        </div>
+
+        <!-- 과제 탭 -->
+        <div v-if="activeTab === 'assignment'" class="tab-content">
+          <!-- 과제 필터 -->
+          <div class="filter-section">
+            <select v-model="assignmentFilter" class="filter-select">
+              <option value="all">전체</option>
+              <option value="incomplete">미완료</option>
+              <option value="complete">완료</option>
+            </select>
+          </div>
+          
+          <div class="assignment-board">
+            <div
+              v-for="task in filteredAssignments"
+              :key="task.id"
+              class="task-item"
+              :class="{ done: task.done }"
+            >
+              <span class="status">{{ task.done ? '완료' : '미완료' }}</span>
+              <span class="text">{{ task.title }}</span>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
+
+    <!-- 하단 버튼 -->
     <div class="info-actions">
       <button class="action-btn primary" @click="$emit('enter-class', classData.id)">
         수업 참여
@@ -108,19 +121,19 @@
         초대 하기
       </button>
     </div>
+
+    <!-- 초대 모달 -->
+    <InviteModal 
+      :open="inviteModalOpen"
+      :class-id="String(classData.id || classData.classId || '')"
+      @close="closeInviteModal"
+      @invite="handleInvite"
+    />
   </div>
-  
-  <!-- 초대하기 모달 -->
-  <InviteModal 
-    :open="inviteModalOpen"
-    :class-id="String(classData.id || classData.classId || '')"
-    @close="closeInviteModal"
-    @invite="handleInvite"
-  />
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { ref, computed } from 'vue'
 import InviteModal from './InviteModal.vue'
 
 const props = defineProps({
@@ -130,15 +143,11 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['enter-class', 'view-details', 'invite'])
+const emit = defineEmits(['enter-class', 'invite'])
 
 const inviteModalOpen = ref(false)
 
 const openInviteModal = () => {
-  console.log('🔍 ClassInfo - classData:', props.classData)
-  console.log('🔍 ClassInfo - classData.id:', props.classData.id)
-  console.log('🔍 ClassInfo - classData.classId:', props.classData.classId)
-  console.log('🔍 ClassInfo - 모든 키:', Object.keys(props.classData))
   inviteModalOpen.value = true
 }
 
@@ -146,77 +155,68 @@ const closeInviteModal = () => {
   inviteModalOpen.value = false
 }
 
-const handleInvite = async (inviteData) => {
-  console.log('초대 데이터:', inviteData)
-  
-  // 백엔드 API 호출은 이미 InviteModal에서 처리됨
-  // 여기서는 성공 메시지만 표시
+const handleInvite = (data) => {
   alert('초대가 성공적으로 전송되었습니다!')
-  emit('invite', inviteData)
+  emit('invite', data)
 }
 
-// 출석률 계산 (임시 데이터)
-const attendanceRate = computed(() => {
-  return props.classData.attendanceRate || Math.floor(Math.random() * 30) + 70
-})
-
-const attendanceCount = computed(() => {
-  return props.classData.attendanceCount || Math.floor(Math.random() * 10) + 15
-})
-
-const totalClasses = computed(() => {
-  return props.classData.totalClasses || 20
-})
-
-// 과제 제출률 계산 (임시 데이터)
+// 과제 제출률
 const assignmentRate = computed(() => {
-  return props.classData.assignmentRate || Math.floor(Math.random() * 40) + 60
+  return props.classData.assignmentRate || 78
 })
-
 const submittedAssignments = computed(() => {
-  return props.classData.submittedAssignments || Math.floor(Math.random() * 8) + 12
+  return props.classData.submittedAssignments || 14
 })
-
 const totalAssignments = computed(() => {
-  return props.classData.totalAssignments || 20
+  return props.classData.totalAssignments || 18
 })
 
-// 학습 진행률 (임시 데이터)
-const learningProgress = computed(() => {
-  return props.classData.learningProgress || Math.floor(Math.random() * 30) + 70
-})
+// 공지사항
+const notices = ref([
+  { id: 1, title: '중간고사 일정 안내', required: true },
+  { id: 2, title: 'Zoom 접속 링크 변경', required: false }
+])
 
-// 최근 활동 (임시 데이터)
-const recentActivities = computed(() => {
-  return props.classData.recentActivities || [
-    { id: 1, type: 'attendance', text: '오늘 수업에 참석했습니다', time: new Date(Date.now() - 2 * 60 * 60 * 1000) },
-    { id: 2, type: 'assignment', text: '과제를 제출했습니다', time: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-    { id: 3, type: 'comment', text: '질문을 남겼습니다', time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }
-  ]
-})
+// 과제 게시판
+const assignments = ref([
+  { id: 1, title: '1주차 과제', done: true },
+  { id: 2, title: '2주차 과제', done: false },
+  { id: 3, title: '3주차 과제', done: true }
+])
 
-function getStatusText(status) {
-  const statusMap = {
-    'active': '진행중',
-    'completed': '완료',
-    'upcoming': '예정'
-  }
-  return statusMap[status] || '진행중'
-}
+const activeTab = ref('notice')
+const noticeFilter = ref('all')
+const assignmentFilter = ref('all')
 
-function formatTime(time) {
-  const now = new Date()
-  const diff = now - time
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(hours / 24)
-  
-  if (days > 0) {
-    return `${days}일 전`
-  } else if (hours > 0) {
-    return `${hours}시간 전`
+// 필터링된 공지사항
+const filteredNotices = computed(() => {
+  if (noticeFilter.value === 'all') {
+    return notices.value
+  } else if (noticeFilter.value === 'required') {
+    return notices.value.filter(notice => notice.required)
   } else {
-    return '방금 전'
+    return notices.value.filter(notice => !notice.required)
   }
+})
+
+// 필터링된 과제
+const filteredAssignments = computed(() => {
+  if (assignmentFilter.value === 'all') {
+    return assignments.value
+  } else if (assignmentFilter.value === 'complete') {
+    return assignments.value.filter(task => task.done)
+  } else {
+    return assignments.value.filter(task => !task.done)
+  }
+})
+
+const getStatusText = (status) => {
+  const map = {
+    active: '진행중',
+    completed: '완료',
+    upcoming: '예정'
+  }
+  return map[status] || '진행중'
 }
 </script>
 
@@ -225,9 +225,10 @@ function formatTime(time) {
   background: var(--bg-primary);
   border-radius: 16px;
   padding: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   border: 1px solid var(--border-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   height: 100%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
@@ -236,16 +237,13 @@ function formatTime(time) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1rem;
 }
 
 .class-title {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0;
 }
 
 .class-status {
@@ -275,162 +273,167 @@ function formatTime(time) {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  margin-bottom: 1rem;
 }
 
-.info-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.section-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.attendance-info,
+/* 과제 제출률 스타일 */
 .assignment-info {
   display: flex;
-  align-items: center;
   gap: 1rem;
+  align-items: center;
 }
-
-.attendance-circle,
 .assignment-circle {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 60px;
+  height: 60px;
 }
-
-.attendance-text,
 .assignment-text {
   position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text-primary);
 }
-
-.attendance-details,
 .assignment-details {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-
 .detail-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-}
-
-.detail-item .label {
   font-size: 0.8rem;
+}
+.detail-item .label {
   color: var(--text-secondary);
 }
-
 .detail-item .value {
-  font-size: 0.8rem;
   font-weight: 600;
-  color: var(--text-primary);
 }
 
-.progress-info {
+/* 공지사항 */
+.notice-board {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
+.notice-item {
+  padding: 0.5rem;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.notice-item.required {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
   background: var(--bg-tertiary);
-  border-radius: 4px;
-  overflow: hidden;
+  color: var(--text-color);
 }
 
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--brand-main), var(--brand-accent));
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.recent-activities {
+/* 과제 게시판 */
+.assignment-board {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
-
-.activity-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.task-item {
   padding: 0.5rem;
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-secondary);
-}
-
-.activity-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
   display: flex;
+  gap: 0.5rem;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
 }
-
-.activity-icon.attendance {
+.task-item .status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+.task-item.done .status {
   background: rgba(16, 185, 129, 0.1);
   color: #10b981;
 }
-
-.activity-icon.assignment {
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
+.task-item:not(.done) .status {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
-.activity-icon.comment {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-}
-
-.activity-content {
-  flex: 1;
+/* 탭 스타일 */
+.tab-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
 }
-
-.activity-text {
-  font-size: 0.8rem;
-  color: var(--text-primary);
+.tab-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.9rem;
   font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: none;
+  transition: 0.3s ease;
+}
+.tab-btn.active {
+  color: var(--brand-main);
+  border-bottom-color: var(--brand-main);
+}
+.tab-btn:hover {
+  color: var(--brand-main);
+}
+.tab-content {
+  /* No specific styles needed here, content will be hidden/shown */
 }
 
-.activity-time {
-  font-size: 0.7rem;
-  color: var(--text-tertiary);
+/* 필터 스타일 */
+.filter-section {
+  margin-bottom: 1rem;
 }
 
+.filter-select {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--brand-main);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.filter-select:hover {
+  border-color: var(--border-dark);
+}
+
+/* 버튼 */
 .info-actions {
   display: flex;
   gap: 0.75rem;
-  margin-top: 1.5rem;
+  margin-top: auto;
   padding-top: 1rem;
   border-top: 1px solid var(--border-color);
 }
-
 .action-btn {
   flex: 1;
   padding: 0.75rem 1rem;
@@ -438,38 +441,23 @@ function formatTime(time) {
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
   border: none;
+  transition: 0.3s ease;
 }
-
 .action-btn.primary {
   background: var(--brand-main);
   color: white;
 }
-
 .action-btn.primary:hover {
   background: var(--brand-accent);
-  transform: translateY(-1px);
 }
-
 .action-btn.secondary {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
 }
-
 .action-btn.secondary:hover {
   background: var(--bg-card);
   border-color: var(--border-dark);
-}
-
-/* 다크모드 대응 */
-:global(.dark-mode) .class-info {
-  background: var(--bg-primary);
-  border-color: var(--border-color);
-}
-
-:global(.dark-mode) .activity-item {
-  background: var(--bg-secondary);
 }
 </style>

@@ -4,7 +4,7 @@
       <img :src="cardImage" :alt="card.title" />
       <div class="card-overlay">
         <div class="card-hover-content">
-          <span class="view-more">자세히 보기</span>
+          <span class="view-more" @click.stop="handleViewDetail">자세히 보기</span>
         </div>
       </div>
       <div class="card-badge">{{ card.tags[0] }}</div>
@@ -61,7 +61,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['enroll', 'createClass', 'deleteClass', 'joinClass'])
+const emit = defineEmits(['enroll', 'createClass', 'deleteClass', 'joinClass', 'viewDetail'])
 
 const cardImage = computed(() => {
   // card.image가 없거나 빈 문자열이거나 유효하지 않은 경우 기본 이미지 사용
@@ -70,6 +70,11 @@ const cardImage = computed(() => {
   }
   return props.card.image
 })
+
+const handleViewDetail = () => {
+  console.log('🔍 ClassCard - 자세히 보기 클릭:', props.card)
+  emit('viewDetail', props.card)
+}
 
 const handleButtonClick = () => {
   console.log('🔍 ClassCard - props.card:', props.card)

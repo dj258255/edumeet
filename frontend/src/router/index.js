@@ -51,7 +51,7 @@ const router = createRouter({
       path: '/class/create',
       name: "create-class",
       component: CreateClassView,
-      // meta: { requiresAuth: true }
+      meta: { requiresAuth: true }
     },
     {
       path: '/kakao',
