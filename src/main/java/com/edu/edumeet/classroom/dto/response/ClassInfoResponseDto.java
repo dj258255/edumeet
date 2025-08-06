@@ -8,6 +8,7 @@ import java.util.List;
 
 @Getter
 public class ClassInfoResponseDto {
+    private Long classId;
     private String title;
     private String description;
     private String thumbnailUrl;
@@ -15,7 +16,8 @@ public class ClassInfoResponseDto {
     private int participantLimit;
 
     @Builder
-    public ClassInfoResponseDto(String title, String description, String thumbnailUrl, List<String> tags, int participantLimit) {
+    public ClassInfoResponseDto(Long classId, String title, String description, String thumbnailUrl, List<String> tags, int participantLimit) {
+        this.classId = classId;
         this.title = title;
         this.description = description;
         this.thumbnailUrl = thumbnailUrl;
