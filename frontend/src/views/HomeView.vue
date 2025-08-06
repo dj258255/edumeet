@@ -96,7 +96,10 @@
               :key="card.id"
               :card="card"
               :animation-delay="index * 0.1"
+              :isMyCreatedClass="card.isMyCreatedClass"
               @enroll="handleEnroll"
+              @joinClass="handleJoinClass"
+              @createClass="handleCreateClass"
             />
           </div>
         </div>
@@ -173,6 +176,25 @@
       </div>
     </section>
   </div>
+  
+  <!-- 수업 참여 모달 -->
+  <JoinClassModal
+    :isOpen="isJoinModalOpen"
+    :className="selectedClass?.className || ''"
+    :classDescription="selectedClass?.classDescription || ''"
+    :classId="selectedClass?.classId || ''"
+    @close="closeJoinModal"
+    @join="handleJoinClassConfirm"
+  />
+  
+  <!-- 수업 생성 모달 -->
+  <CreateClassModal
+    :isOpen="isCreateModalOpen"
+    :defaultClassName="selectedClassForCreate?.className || ''"
+    @close="closeCreateModal"
+    @create="handleCreateClassConfirm"
+  />
+  
   <footer class="footer">
     <div class="footer-content">
       <span class="footer-title">EduMeet</span>
@@ -192,6 +214,8 @@ import gsap from "gsap"
 import ScrollTrigger from "gsap/ScrollTrigger"
 import ClassCard from "../components/ClassCard.vue"
 import MainSection from "../components/MainSection.vue"
+import JoinClassModal from "../components/JoinClassModal.vue"
+import CreateClassModal from "../components/CreateClassModal.vue"
 import "../styles/HomeView.css"
 gsap.registerPlugin(ScrollTrigger)
 
@@ -256,6 +280,14 @@ const members = [
 
 // 선택된 팀원 상태
 const selectedMember = ref(null)
+
+// 수업 참여 모달 관련 상태
+const isJoinModalOpen = ref(false)
+const selectedClass = ref(null)
+
+// 수업 생성 모달 관련 상태
+const isCreateModalOpen = ref(false)
+const selectedClassForCreate = ref(null)
 
 // 드래그 가능한 카드 데이터
 const draggableCards = ref([])
@@ -329,15 +361,65 @@ const loadClasses = async () => {
   
   // 백엔드가 없으므로 기본 데이터 사용
   console.log('백엔드 없음: 기본 데이터 사용')
-  draggableCards.value = defaultClasses
+  
+  // 내가 만든 반과 내가 속한 반을 구분하여 표시
+  // 실제로는 백엔드에서 사용자의 클래스 목록을 가져와야 함
+  const myCreatedClasses = [
+    {
+      id: 1,
+      title: "Vue.js 마스터 클래스",
+      description: "Vue.js의 핵심 개념부터 고급 기능까지 체계적으로 학습하세요. 실무에서 바로 활용할 수 있는 실습 중심의 강의입니다.",
+      image: "",
+      tags: ["프론트엔드", "Vue.js", "JavaScript"],
+      isMyCreatedClass: true
+    },
+    {
+      id: 3,
+      title: "Node.js 백엔드 개발",
+      description: "Express.js와 MongoDB를 활용한 실전 백엔드 개발. RESTful API 설계부터 배포까지 완벽 가이드.",
+      image: "",
+      tags: ["백엔드", "Node.js", "Express"],
+      isMyCreatedClass: true
+    }
+  ]
+  
+  const myJoinedClasses = [
+    {
+      id: 2,
+      title: "React 완전 정복",
+      description: "React의 기본부터 고급 패턴까지. Hooks, Context API, 상태 관리 등 현대적인 React 개발을 배워보세요.",
+      image: "",
+      tags: ["프론트엔드", "React", "JavaScript"],
+      isMyCreatedClass: false
+    },
+    {
+      id: 4,
+      title: "Python 데이터 분석",
+      description: "Pandas, NumPy, Matplotlib을 활용한 데이터 분석과 시각화. 실무 데이터로 배우는 데이터 사이언스.",
+      image: "",
+      tags: ["데이터분석", "Python", "Pandas"],
+      isMyCreatedClass: false
+    }
+  ]
+  
+  // 두 배열을 합쳐서 표시
+  draggableCards.value = [...myCreatedClasses, ...myJoinedClasses]
   isLoading.value = false
   
   // 백엔드가 준비되면 아래 주석을 해제하고 사용
   /*
   try {
-    // 백엔드에서 인기 클래스 데이터 가져오기
-    const classes = await classService.getPopularClasses(8)
-    draggableCards.value = classes
+    // 백엔드에서 사용자의 클래스 목록 가져오기
+    const [createdClasses, joinedClasses] = await Promise.all([
+      classService.getMyCreatedClasses(),
+      classService.getMyJoinedClasses()
+    ])
+    
+    // isMyCreatedClass 플래그 추가
+    const processedCreatedClasses = createdClasses.map(cls => ({ ...cls, isMyCreatedClass: true }))
+    const processedJoinedClasses = joinedClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
+    
+    draggableCards.value = [...processedCreatedClasses, ...processedJoinedClasses]
   } catch (err) {
     console.error('클래스 데이터 로드 실패:', err)
     error.value = '클래스 데이터를 불러오는데 실패했습니다.'
@@ -475,6 +557,70 @@ const handleEnroll = async (classId) => {
     alert('수강 신청에 실패했습니다. 다시 시도해주세요.')
   }
   */
+}
+
+// 수업 참여 모달 열기
+const handleJoinClass = (classData) => {
+  selectedClass.value = classData
+  isJoinModalOpen.value = true
+}
+
+// 수업 참여 모달 닫기
+const closeJoinModal = () => {
+  isJoinModalOpen.value = false
+  selectedClass.value = null
+}
+
+// 수업 참여 확인 처리
+const handleJoinClassConfirm = (joinData) => {
+  console.log('수업 참여 데이터:', joinData)
+  
+  // 화상 수업 페이지로 이동
+  const queryParams = {
+    roomName: joinData.roomName,
+    className: joinData.className,
+    participantName: joinData.participantName,
+    isCreator: 'false' // 참여자는 생성자가 아님
+  }
+  
+  // URL 쿼리 파라미터로 데이터 전달
+  const queryString = new URLSearchParams(queryParams).toString()
+  router.push(`/class/${joinData.classId}/video?${queryString}`)
+  
+  // 모달 닫기
+  closeJoinModal()
+}
+
+// 수업 생성 모달 열기
+const handleCreateClass = (classData) => {
+  selectedClassForCreate.value = classData
+  isCreateModalOpen.value = true
+}
+
+// 수업 생성 모달 닫기
+const closeCreateModal = () => {
+  isCreateModalOpen.value = false
+  selectedClassForCreate.value = null
+}
+
+// 수업 생성 확인 처리
+const handleCreateClassConfirm = (createData) => {
+  console.log('수업 생성 데이터:', createData)
+  
+  // 화상 수업 페이지로 이동
+  const queryParams = {
+    roomName: createData.roomName,
+    className: createData.className,
+    creatorName: createData.creatorName,
+    isCreator: 'true' // 생성자임
+  }
+  
+  // URL 쿼리 파라미터로 데이터 전달
+  const queryString = new URLSearchParams(queryParams).toString()
+  router.push(`/class/${createData.classId}/video?${queryString}`)
+  
+  // 모달 닫기
+  closeCreateModal()
 }
 
 

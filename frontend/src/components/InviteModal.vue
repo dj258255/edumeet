@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useClassStore } from '@/stores/class'
 
 const props = defineProps({
   open: {
@@ -7,12 +8,14 @@ const props = defineProps({
     default: false
   },
   classId: {
-    type: String,
+    type: [String, Number],
     default: ''
   }
 })
 
 const emit = defineEmits(['close', 'invite'])
+
+const classStore = useClassStore()
 
 const searchEmail = ref('')
 const isSearching = ref(false)
@@ -21,51 +24,37 @@ const selectedUsers = ref([])
 const isInviting = ref(false)
 const inviteMessage = ref('')
 
-// 임시 회원 데이터 (실제로는 API에서 가져올 데이터)
-const mockUsers = [
-  { id: 1, email: 'user1@example.com', name: '김철수', avatar: '/src/assets/member/1.png' },
-  { id: 2, email: 'user2@example.com', name: '이영희', avatar: '/src/assets/member/2.png' },
-  { id: 3, email: 'user3@example.com', name: '박민수', avatar: '/src/assets/member/3.png' },
-  { id: 4, email: 'user4@example.com', name: '정수진', avatar: '/src/assets/member/4.png' },
-  { id: 5, email: 'user5@example.com', name: '최동현', avatar: '/src/assets/member/5.png' },
-  { id: 6, email: 'user6@example.com', name: '한미영', avatar: '/src/assets/member/6.png' }
-]
-
-// 이메일 검색 결과
-const filteredUsers = computed(() => {
-  if (!searchEmail.value.trim()) return []
-  
-  const searchTerm = searchEmail.value.toLowerCase()
-  return mockUsers.filter(user => 
-    user.email.toLowerCase().includes(searchTerm) ||
-    user.name.toLowerCase().includes(searchTerm)
-  )
-})
-
-// 이메일 검색
+// 실제 회원 검색 함수
 const searchUsers = async () => {
+  console.log('🔍 searchUsers 호출됨, 검색어:', searchEmail.value)
+  
   if (!searchEmail.value.trim()) {
+    console.log('🔍 검색어가 비어있음, 결과 초기화')
     searchResults.value = []
     return
   }
 
   isSearching.value = true
+  console.log('🔍 API 호출 시작...')
   
   try {
-    // 실제로는 API 호출
-    await new Promise(resolve => setTimeout(resolve, 500))
-    searchResults.value = filteredUsers.value
+    const results = await classStore.searchMembers(searchEmail.value.trim(), 0, 20)
+    console.log('🔍 API 응답 결과:', results)
+    console.log('🔍 결과 타입:', typeof results)
+    console.log('🔍 결과 길이:', Array.isArray(results) ? results.length : '배열이 아님')
+    searchResults.value = Array.isArray(results) ? results : []
   } catch (error) {
-    console.error('사용자 검색 실패:', error)
+    console.error('🔍 회원 검색 실패:', error)
     searchResults.value = []
   } finally {
     isSearching.value = false
+    console.log('🔍 검색 완료, 결과 개수:', searchResults.value.length)
   }
 }
 
 // 사용자 선택/해제
 const toggleUserSelection = (user) => {
-  const index = selectedUsers.value.findIndex(u => u.id === user.id)
+  const index = selectedUsers.value.findIndex(u => u.email === user.email)
   if (index > -1) {
     selectedUsers.value.splice(index, 1)
   } else {
@@ -74,8 +63,8 @@ const toggleUserSelection = (user) => {
 }
 
 // 선택된 사용자 제거
-const removeSelectedUser = (userId) => {
-  selectedUsers.value = selectedUsers.value.filter(u => u.id !== userId)
+const removeSelectedUser = (userEmail) => {
+  selectedUsers.value = selectedUsers.value.filter(u => u.email !== userEmail)
 }
 
 // 초대 전송
@@ -85,25 +74,19 @@ const handleInvite = async () => {
     return
   }
 
+  console.log('🔍 InviteModal - props.classId:', props.classId)
+  console.log('🔍 InviteModal - selectedUsers:', selectedUsers.value)
+
   isInviting.value = true
   
   try {
-    // 각 선택된 사용자별로 초대 처리
-    for (const user of selectedUsers.value) {
-      try {
-        // 여기에 실제 초대 API 호출 로직을 추가할 수 있습니다
-        await new Promise(resolve => setTimeout(resolve, 300))
-        
-        console.log(`${user.name}(${user.email}) 초대 전송 완료`)
-        
-      } catch (error) {
-        console.error(`${user.name} 초대 실패:`, error)
-      }
-    }
+    // 백엔드 API로 초대 전송
+    const emails = selectedUsers.value.map(user => user.email)
+    await classStore.inviteStudents(props.classId, emails)
     
-    // 백엔드로 전송할 데이터 형식: 이메일 배열
+    // 초대 완료 후 처리
     const inviteData = {
-      users: selectedUsers.value.map(user => user.email),
+      emails: emails,
       classId: props.classId
     }
     
@@ -120,8 +103,8 @@ const handleInvite = async () => {
       emit('close')
       inviteMessage.value = ''
     }, 2000)
-    console.log(selectedUsers.value)    
   } catch (error) {
+    console.error('초대 전송 실패:', error)
     alert('초대 전송에 실패했습니다. 다시 시도해주세요.')
   } finally {
     isInviting.value = false
@@ -144,9 +127,12 @@ const handleKeyup = (event) => {
 
 // 이메일 입력 감지
 watch(searchEmail, (newValue) => {
+  console.log('🔍 searchEmail 변경됨:', newValue)
   if (newValue.trim()) {
+    console.log('🔍 검색어가 있음, 검색 시작')
     searchUsers()
   } else {
+    console.log('🔍 검색어가 비어있음, 결과 초기화')
     searchResults.value = []
   }
 })
@@ -183,16 +169,16 @@ watch(searchEmail, (newValue) => {
              <div class="user-list">
                <div 
                  v-for="user in searchResults" 
-                 :key="user.id" 
+                 :key="user.email" 
                  class="user-item"
-                 :class="{ selected: selectedUsers.some(u => u.id === user.id) }"
+                 :class="{ selected: selectedUsers.some(u => u.email === user.email) }"
                  @click="toggleUserSelection(user)"
                >
                  <div class="user-avatar">
-                   <img :src="user.avatar" :alt="user.name" />
+                   <div class="avatar-placeholder">{{ user.nickname?.charAt(0) || user.email.charAt(0) }}</div>
                  </div>
                  <div class="user-info">
-                   <span class="user-name">{{ user.name }}</span>
+                   <span class="user-name">{{ user.nickname || '사용자' }}</span>
                    <span class="user-email">{{ user.email }}</span>
                  </div>
                  <div class="user-action">
@@ -209,19 +195,19 @@ watch(searchEmail, (newValue) => {
              <div class="selected-list">
                <div 
                  v-for="user in selectedUsers" 
-                 :key="user.id" 
+                 :key="user.email" 
                  class="selected-item"
                >
                  <div class="user-avatar small">
-                   <img :src="user.avatar" :alt="user.name" />
+                   <div class="avatar-placeholder">{{ user.nickname?.charAt(0) || user.email.charAt(0) }}</div>
                  </div>
                  <div class="user-info">
-                   <span class="user-name">{{ user.name }}</span>
+                   <span class="user-name">{{ user.nickname || '사용자' }}</span>
                    <span class="user-email">{{ user.email }}</span>
                  </div>
                  <button 
                    class="remove-btn" 
-                   @click="removeSelectedUser(user.id)"
+                   @click="removeSelectedUser(user.email)"
                    :disabled="isInviting"
                  >
                    ×
@@ -427,6 +413,19 @@ watch(searchEmail, (newValue) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  background-color: #3b82f6;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .user-info {

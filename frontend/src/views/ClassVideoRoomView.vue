@@ -22,6 +22,7 @@ const remoteTracksMap: Ref<Map<string, any>> = ref(new Map());
 const participantName = ref('Participant' + Math.floor(Math.random() * 100));
 const roomName = ref('');
 const isJoining = ref(false);
+const isUserCreator = ref(false); // 생성자 여부
 
 const activeRooms = ref<Array<{ name: string; participants: number }>>([]);
 
@@ -58,6 +59,14 @@ onMounted(() => {
   const queryClassName = route.query.className as string;
   const isCreator = route.query.isCreator === 'true';
   const creatorName = route.query.creatorName as string;
+  const participantNameParam = route.query.participantName as string;
+  
+  console.log('🔍 ClassVideoRoomView - URL 파라미터:')
+  console.log('🔍 roomName:', queryRoomName)
+  console.log('🔍 className:', queryClassName)
+  console.log('🔍 isCreator:', isCreator)
+  console.log('🔍 creatorName:', creatorName)
+  console.log('🔍 participantName:', participantNameParam)
   
   if (queryRoomName) {
     roomName.value = queryRoomName;
@@ -65,12 +74,24 @@ onMounted(() => {
     if (queryClassName) {
       className.value = queryClassName;
     }
+    
+    // 생성자 여부 설정
+    isUserCreator.value = isCreator;
+    
+    // 참여자 이름이 있으면 설정
+    if (participantNameParam) {
+      participantName.value = participantNameParam;
+    }
+    
     // 생성자인 경우 자동으로 방에 참가
     if (isCreator) {
       // 모달에서 입력받은 생성자 이름을 사용
       if (creatorName) {
         participantName.value = creatorName;
       }
+      joinRoom(queryRoomName);
+    } else {
+      // 참여자인 경우도 자동으로 방에 참가
       joinRoom(queryRoomName);
     }
   }
@@ -272,7 +293,13 @@ function handleCaptionStatus(status) {
 
     <div v-else class="video-room">
               <div class="video-room-header">
-          <h2>{{ className || roomName }}</h2>
+          <div class="header-info">
+            <h2>{{ className || roomName }}</h2>
+            <div class="user-role">
+              <span v-if="isUserCreator" class="creator-badge">👑 생성자</span>
+              <span v-else class="participant-badge">👤 참여자</span>
+            </div>
+          </div>
           <div class="controls">
           <button :class="{ off: !isCameraOn }" @click="toggleCamera">
             {{ isCameraOn ? '📷 카메라 끄기' : '📷 카메라 켜기' }}
