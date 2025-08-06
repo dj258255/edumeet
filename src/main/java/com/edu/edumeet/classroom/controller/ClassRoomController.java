@@ -95,7 +95,7 @@ public class ClassRoomController {
         return ResponseEntity.ok().body(classService.getClassMembers(member.getMemberId(), classId));
     }
 
-    @DeleteMapping("/{classId}/eviction")
+    @DeleteMapping("/eviction")
     public ResponseEntity<Map<String, String>> evict(
             @AuthenticationPrincipal SecurityMember member,
             @RequestBody EvictionRequestDto evictionRequestDto) {
