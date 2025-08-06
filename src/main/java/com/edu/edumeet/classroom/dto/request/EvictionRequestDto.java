@@ -6,11 +6,11 @@ import lombok.Getter;
 @Getter
 public class EvictionRequestDto {
     private Long classId;
-    private Long studentId;
+    private String email;
 
     @Builder
-    public EvictionRequestDto(Long classId, Long studentId) {
+    public EvictionRequestDto(Long classId, String email) {
         this.classId = classId;
-        this.studentId = studentId;
+        this.email = email;
     }
 }

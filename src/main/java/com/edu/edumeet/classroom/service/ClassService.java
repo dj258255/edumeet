@@ -6,6 +6,7 @@ import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
 import com.edu.edumeet.classroom.dto.request.EvictionRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.repository.*;
+import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
 import com.edu.edumeet.member.infrastructure.MemberJpaRepository;
 import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
@@ -268,13 +269,18 @@ public class ClassService {
     @Transactional
     public void evictStudent(Long requesterId, EvictionRequestDto evictionRequestDto) {
         Long classId = evictionRequestDto.getClassId();
-        Long studentId = evictionRequestDto.getStudentId();
+        String email = evictionRequestDto.getEmail();
+
+        MemberJpaEntity memberEntity = memberJpaRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("해당 이메일의 회원이 존재하지 않습니다."));
+
+        Long studentId = memberEntity.getId();
 
         ClassRoom classRoom = classRepository.findByIdAndIsDeletedFalse(classId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 클래스가 존재하지 않습니다."));
 
         if (!classRoom.getMember().getId().equals(requesterId)) {
-            throw new IllegalArgumentException("해당 작업에 대한 권한이 없습니다."); // 또는 CLASS_OWNER_ONLY
+            throw new IllegalArgumentException("해당 작업에 대한 권한이 없습니다.");
         }
 
         if (requesterId.equals(studentId)) {
@@ -286,4 +292,6 @@ public class ClassService {
 
         classMemberRepository.delete(classMember);
     }
+
+
 }
