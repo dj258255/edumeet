@@ -250,12 +250,20 @@
 }
 
 .view-more {
-  font-size: var(--font-size-base);
+  color: white;
   font-weight: 600;
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border: 2px solid var(--text-inverse);
-  border-radius: 25px;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: var(--radius-md);
   transition: all var(--transition-normal);
+  user-select: none;
+}
+
+.view-more:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.05);
 }
 
 .draggable-card:hover .view-more {

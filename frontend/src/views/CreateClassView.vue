@@ -48,36 +48,27 @@
           <p>반 목록을 불러오는 중...</p>
         </div>
 
-        <!-- 빈 상태 -->
-        <div v-else-if="currentClasses.length === 0 && !listError" class="empty-state">
-          <div class="empty-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M2 3H6L7.68 14.39C7.77 14.99 8.31 15.44 8.92 15.44H19.5C20.1 15.44 20.64 14.99 20.73 14.39L22 6H6"/>
-            </svg>
-          </div>
-          <h3>{{ activeTab === 'created' ? '아직 만든 반이 없어요' : '아직 속한 반이 없어요' }}</h3>
-          <p>{{ activeTab === 'created' ? '위에서 새로운 반을 만들어보세요!' : '친구가 만든 반에 참여해보세요!' }}</p>
-        </div>
-
-        <!-- 반 목록 -->
-        <div v-else class="class-cards-container">
-          <div class="class-cards-grid">
-            <div 
-              v-for="(classItem, idx) in currentClasses" 
-              :key="`${activeTab}-${classItem.id}-${classItem.title}`"
-              class="class-card-item"
-              :class="{ 'selected': selectedClass?.id === classItem.id }"
-              @click="selectClass(classItem)"
-            >
-              <ClassCard
-                :card="classItem"
-                :animationDelay="idx * 0.1"
-                :isMyCreatedClass="activeTab === 'created'"
-                @enroll="goToVideoRoom"
-                @joinClass="handleJoinClass"
-                @createClass="handleCreateClass"
-                @deleteClass="handleDeleteClass"
-              />
+        <!-- 카드 섹션 -->
+        <div class="cards-section">
+          <div class="cards-scroll-container">
+            <div class="class-cards-grid">
+              <div 
+                v-for="(classItem, idx) in currentClasses" 
+                :key="`${activeTab}-${classItem.id}-${classItem.title}`"
+                class="class-card-item"
+                @click="selectClass(classItem)"
+              >
+                <ClassCard
+                  :card="classItem"
+                  :animationDelay="idx * 0.1"
+                  :isMyCreatedClass="activeTab === 'created'"
+                  @enroll="goToVideoRoom"
+                  @joinClass="handleJoinClass"
+                  @createClass="handleCreateClass"
+                  @deleteClass="handleDeleteClass"
+                  @viewDetail="selectClass"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -90,6 +81,15 @@
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
           {{ listError }}
+        </div>
+
+        <!-- 빈 상태 -->
+        <div v-if="currentClasses.length === 0 && !listError" class="empty-state">
+          <div class="empty-icon">
+            {{ activeTab === 'created' ? '📚' : '👥' }}
+          </div>
+          <h3>{{ activeTab === 'created' ? '아직 만든 반이 없어요' : '아직 속한 반이 없어요' }}</h3>
+          <p>{{ activeTab === 'created' ? '위에서 새로운 반을 만들어보세요!' : '친구가 만든 반에 참여해보세요!' }}</p>
         </div>
       </div>
 
@@ -125,15 +125,6 @@
       @created="handleClassCreated"
     />
 
-      <!-- 수업 생성 모달 -->
-  <CreateClassModal
-    :isOpen="showCreateClassModal"
-    :defaultClassName="pendingClassData?.className || ''"
-    :classId="pendingClassData?.classId || ''"
-    @close="handleCreateClassModalClose"
-    @create="handleCreateClassConfirm"
-  />
-    
     <!-- 수업 참여 모달 -->
     <JoinClassModal
       :isOpen="isJoinModalOpen"
