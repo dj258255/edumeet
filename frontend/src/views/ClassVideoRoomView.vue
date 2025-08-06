@@ -6,13 +6,14 @@ import {
   DataPacket_Kind,
 } from 'livekit-client';
 import { onMounted, onUnmounted, ref, type Ref, nextTick } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import VideoComponent from '@/components/VideoComponent.vue';
 import AudioComponent from '@/components/AudioComponent.vue';
 import LiveCaption from '@/components/LiveCaption.vue';
 import '@/styles/ClassRelated.css';
 
 const route = useRoute();
+const router = useRouter();
 const classId = route.params.classId as string;
 
 const room = ref<Room | null>(null);
@@ -181,6 +182,9 @@ async function leaveRoom() {
   mainTrack.value = null;
   remoteTracksMap.value.clear();
   chatMessagesList.value = [];
+  
+  // /class/create 페이지로 이동
+  router.push('/class/create');
 }
 
 onUnmounted(leaveRoom);
