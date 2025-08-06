@@ -1,4 +1,4 @@
-package com.edu.edumeet.repository;
+package com.edu.edumeet.board.repository;
 
 import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
@@ -155,8 +155,8 @@ public class BoardRepositoryTests {
     public void 테스트_검색_이미지_댓글개수() {
         Pageable pageable = PageRequest.of(0, 10, Sort.by("id").descending());
 
-        // classId 파라미터 추가 (null = 전체 조회)
-        Page<BoardListAllDTO> result = boardSearchRepository.searchWithAll(null, null, null, pageable);
+        // classId, categoryId, boardType 파라미터 추가 (null = 전체 조회)
+        Page<BoardListAllDTO> result = boardSearchRepository.searchWithAll(null, null, null, null, null, pageable);
 
         log.info("조회된 게시글 수: " + result.getContent().size());
         log.info("전체 게시글 수 : " + result.getTotalElements());
@@ -181,11 +181,11 @@ public class BoardRepositoryTests {
 
         // 클래스 1만 조회
         Page<BoardListAllDTO> result1 = boardSearchRepository
-                .searchWithAll(null, null, 1L, pageable);
+                .searchWithAll(null, null, 1L, null, null, pageable);
 
         // 클래스 2만 조회
         Page<BoardListAllDTO> result2 = boardSearchRepository
-                .searchWithAll(null, null, 2L, pageable);
+                .searchWithAll(null, null, 2L, null, null, pageable);
 
         log.info("클래스 1 게시글 수: {}", result1.getTotalElements());
         log.info("클래스 2 게시글 수: {}", result2.getTotalElements());
@@ -208,7 +208,7 @@ public class BoardRepositoryTests {
         
         // 키워드 검색 테스트
         Page<BoardListAllDTO> keywordResult = boardSearchRepository
-                .searchWithAll(new String[]{"t"}, "title", 1L, pageable);
+                .searchWithAll(new String[]{"t"}, "title", 1L, null, null, pageable);
                 
         log.info("클래스 1에서 'title' 검색 결과: {}건", keywordResult.getTotalElements());
         

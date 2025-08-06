@@ -1,4 +1,4 @@
-package com.edu.edumeet.repository;
+package com.edu.edumeet.reply;
 
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;

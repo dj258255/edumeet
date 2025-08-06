@@ -85,19 +85,40 @@ public class BoardController {
 //    }
 
 
+    @Operation(summary = "게시글 목록 조회", description = "클래스별 게시글 목록을 조회합니다. 카테고리 ID와 게시글 타입으로 필터링할 수 있습니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = PageResponseDTO.class))),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @GetMapping
     public ResponseEntity<PageResponseDTO<BoardListAllDTO>> list(
             @Parameter(description = "클래스 ID", required = true)
             @PathVariable("classId") Long classId,
+            @Parameter(description = "카테고리 ID (특정 카테고리의 게시글만 조회)")
+            @RequestParam(required = false) Long categoryId,
+            @Parameter(description = "게시글 타입 (NORMAL: 일반, NOTICE: 공지사항, RECOMMENDED: 추천게시글)")
+            @RequestParam(required = false) String boardType,
             @Parameter(description = "페이지 요청 정보")
             PageRequestDTO pageRequestDTO){
 
-        log.info("클래스별 게시글 목록 조회 -> 클래스 ID: {} , 페이지 정보 : {} " , classId, pageRequestDTO);
+        log.info("클래스별 게시글 목록 조회 -> 클래스 ID: {}, 카테고리 ID: {}, 게시글 타입: {}, 페이지 정보: {}", 
+                classId, categoryId, boardType, pageRequestDTO);
 
-        //pageRequestDTO에 classId 설정
+        // pageRequestDTO에 필터링 조건 설정
         pageRequestDTO.setClassId(classId);
+        
+        if (categoryId != null) {
+            pageRequestDTO.setCategoryId(categoryId);
+        }
+        
+        if (boardType != null && !boardType.isEmpty()) {
+            pageRequestDTO.setBoardType(boardType);
+        }
 
         PageResponseDTO<BoardListAllDTO> responseDTO = boardService.listWithAll(pageRequestDTO);
-        log.info("조회 결과 -> 총{} 건 , 현재 페이지 : {} ", responseDTO.getTotal(), responseDTO.getPage());
+        log.info("조회 결과 -> 총 {} 건, 현재 페이지: {}", responseDTO.getTotal(), responseDTO.getPage());
 
         return ResponseEntity.ok(responseDTO);
     }
@@ -210,9 +231,9 @@ public class BoardController {
     }
 
     /**
-     * 게시글 삭제
+     * 게시글 삭제 (논리적 삭제)
      */
-    @Operation(summary = "게시글 삭제", description = "특정 게시글을 삭제합니다")
+    @Operation(summary = "게시글 삭제", description = "특정 게시글을 논리적으로 삭제합니다")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "삭제 성공"),
         @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
@@ -236,18 +257,58 @@ public class BoardController {
             throw new IllegalArgumentException("해당 클래스의 게시글이 아닙니다.");
         }
 
-        //삭제
+        //논리적 삭제 (물리적 파일 삭제는 하지 않음)
         boardService.remove(id);
 
-        //게시물이 삭제되었다면 첨부파일도 삭제
-        log.info(boardDTO.getFileNames());
-        List<String> fileNames = boardDTO.getFileNames();
-        if(fileNames != null && !fileNames.isEmpty()) {
-            removeFiles(fileNames);
-        }
+        // 논리적 삭제이므로 파일은 삭제하지 않음
+        // 복원 시 파일을 다시 사용할 수 있도록 함
+        // log.info(boardDTO.getFileNames());
+        // List<String> fileNames = boardDTO.getFileNames();
+        // if(fileNames != null && !fileNames.isEmpty()) {
+        //     removeFiles(fileNames);
+        // }
 
 
         return ResponseEntity.noContent().build();
+    }
+    
+    /**
+     * 삭제된 게시글 복원
+     */
+    @Operation(summary = "게시글 복원", description = "논리적으로 삭제된 게시글을 복원합니다")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "복원 성공"),
+        @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
+        @ApiResponse(responseCode = "400", description = "이미 복원된 게시글"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PatchMapping("/{id}/restore")
+    public ResponseEntity<Map<String, String>> restore(
+            @Parameter(description = "클래스 ID", required = true)
+            @PathVariable("classId") Long classId,
+            @Parameter(description = "복원할 게시글 ID", required = true)
+            @PathVariable("id") Long id) {
+        
+        log.info("게시글 복원 -> 클래스 ID: {}, 게시글 ID: {}", classId, id);
+        
+        try {
+            // 게시글 복원
+            boardService.restore(id);
+            
+            Map<String, String> result = new HashMap<>();
+            result.put("result", "success");
+            result.put("message", "게시글이 성공적으로 복원되었습니다.");
+            
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            // 게시글을 찾을 수 없는 경우
+            log.warn("게시글 복원 실패 - 게시글을 찾을 수 없음: {}", id);
+            throw e;
+        } catch (IllegalStateException e) {
+            // 이미 복원된 게시글인 경우
+            log.warn("게시글 복원 실패 - 이미 복원된 게시글: {}", id);
+            throw e;
+        }
     }
 
     //removeFiles를 S3 삭제로 수정
@@ -277,11 +338,11 @@ public class BoardController {
     }
     
     /**
-     * 게시글 좋아요 토글
+     * 게시글 좋아요 추가
      */
-    @Operation(summary = "게시글 좋아요 토글", description = "게시글의 좋아요를 토글합니다 (좋아요가 있으면 취소, 없으면 추가)")
+    @Operation(summary = "게시글 좋아요 추가", description = "게시글에 좋아요를 추가합니다")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "토글 성공"),
+        @ApiResponse(responseCode = "200", description = "좋아요 추가 성공"),
         @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
@@ -289,24 +350,59 @@ public class BoardController {
     public ResponseEntity<Map<String, Long>> toggleFavorite(
             @Parameter(description = "클래스 ID", required = true)
             @PathVariable("classId") Long classId,
-            @Parameter(description = "좋아요 토글할 게시글 ID", required = true) 
+            @Parameter(description = "좋아요 추가할 게시글 ID", required = true) 
             @PathVariable("id") Long id) {
         
-        log.info("게시글 좋아요 토글 -> 클래스 ID: {}, 게시글 ID: {}", classId, id);
+        log.info("게시글 좋아요 추가 -> 클래스 ID: {}, 게시글 ID: {}", classId, id);
         
         // 게시글이 해당 클래스에 속하는지 확인
         BoardDTO boardDTO = boardService.readOne(id);
         if (!classId.equals(boardDTO.getClassId())) {
-            log.warn("권한 없는 좋아요 토글 시도 - 요청 클래스 ID: {}, 실제 게시글 클래스 ID: {}", 
+            log.warn("권한 없는 좋아요 추가 시도 - 요청 클래스 ID: {}, 실제 게시글 클래스 ID: {}", 
                     classId, boardDTO.getClassId());
             throw new IllegalArgumentException("해당 클래스의 게시글이 아닙니다.");
         }
         
-        // 좋아요 토글
+        // 좋아요 추가
         long favoriteCount = boardService.toggleFavorite(id);
         
         Map<String, Long> resultMap = new HashMap<>();
         resultMap.put("favoriteCount", favoriteCount);
+        
+        return ResponseEntity.ok(resultMap);
+    }
+    
+    /**
+     * 게시글 싫어요 추가
+     */
+    @Operation(summary = "게시글 싫어요 추가", description = "게시글에 싫어요를 추가합니다")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "싫어요 추가 성공"),
+        @ApiResponse(responseCode = "404", description = "게시글을 찾을 수 없음"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping("/{id}/dislike")
+    public ResponseEntity<Map<String, Long>> toggleDislike(
+            @Parameter(description = "클래스 ID", required = true)
+            @PathVariable("classId") Long classId,
+            @Parameter(description = "싫어요 추가할 게시글 ID", required = true) 
+            @PathVariable("id") Long id) {
+        
+        log.info("게시글 싫어요 추가 -> 클래스 ID: {}, 게시글 ID: {}", classId, id);
+        
+        // 게시글이 해당 클래스에 속하는지 확인
+        BoardDTO boardDTO = boardService.readOne(id);
+        if (!classId.equals(boardDTO.getClassId())) {
+            log.warn("권한 없는 싫어요 추가 시도 - 요청 클래스 ID: {}, 실제 게시글 클래스 ID: {}", 
+                    classId, boardDTO.getClassId());
+            throw new IllegalArgumentException("해당 클래스의 게시글이 아닙니다.");
+        }
+        
+        // 싫어요 추가
+        long dislikeCount = boardService.toggleDislike(id);
+        
+        Map<String, Long> resultMap = new HashMap<>();
+        resultMap.put("dislikeCount", dislikeCount);
         
         return ResponseEntity.ok(resultMap);
     }

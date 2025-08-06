@@ -29,6 +29,27 @@ public class ReplyRepositoryImpl implements ReplyRepository {
      */
     @Override
     public Long register(ReplyDTO replyDTO) {
+        // 부모 댓글 ID가 있는 경우 (대댓글)
+        if (replyDTO.getParentReplyId() != null) {
+            // 부모 댓글 조회
+            Optional<ReplyJpaEntity> parentEntity = replyJpaRepository.findByIdNotDeleted(replyDTO.getParentReplyId());
+            if (parentEntity.isEmpty()) {
+                throw new IllegalArgumentException("부모 댓글이 존재하지 않습니다: " + replyDTO.getParentReplyId());
+            }
+            
+            // 부모 댓글이 이미 대댓글인 경우 (최대 1계층까지만 허용)
+            ReplyJpaEntity parent = parentEntity.get();
+            if (parent.getParentReply() != null) {
+                throw new IllegalArgumentException("대댓글에는 댓글을 달 수 없습니다. 최대 1계층까지만 허용됩니다.");
+            }
+            
+            // 대댓글 깊이 설정
+            replyDTO.setDepth(1);
+        } else {
+            // 최상위 댓글
+            replyDTO.setDepth(0);
+        }
+        
         Reply reply = dtoToDomain(replyDTO);
         ReplyJpaEntity entity = ReplyJpaEntity.fromDomain(reply);
         ReplyJpaEntity savedEntity = replyJpaRepository.save(entity);
@@ -36,13 +57,14 @@ public class ReplyRepositoryImpl implements ReplyRepository {
     }
 
     /**
-     * 댓글 조회
+     * 댓글 조회 (삭제된 댓글 제외)
      * @param reply_id 조회할 댓글 ID
      * @return 조회된 댓글 정보
      */
     @Override
     public ReplyDTO read(Long reply_id) {
-        Optional<ReplyJpaEntity> result = replyJpaRepository.findById(reply_id);
+        // 삭제되지 않은 댓글만 조회
+        Optional<ReplyJpaEntity> result = replyJpaRepository.findByIdNotDeleted(reply_id);
         if (result.isEmpty()) {
             return null;
         }
@@ -62,27 +84,40 @@ public class ReplyRepositoryImpl implements ReplyRepository {
             return;
         }
         
-        // 댓글 내용만 수정 가능
-        Reply reply = dtoToDomain(replyDTO);
-        ReplyJpaEntity entity = ReplyJpaEntity.fromDomain(reply);
-        // 기존 엔티티의 board 관계를 유지
-        entity = ReplyJpaEntity.builder()
-                .id(entity.getId())
-                .replyText(entity.getReplyText())
-                .replayer(entity.getReplayer())
-                .board(result.get().getBoard())
-                .build();
+        ReplyJpaEntity existingEntity = result.get();
         
-        replyJpaRepository.save(entity);
+        // 기존 엔티티의 모든 관계와 메타데이터를 보존하면서 내용만 수정
+        existingEntity.setReplyText(replyDTO.getReplyText());
+        existingEntity.setReplayer(replyDTO.getReplayer());
+        // modDate는 BaseEntity의 @PreUpdate에 의해 자동 설정됨
+        
+        replyJpaRepository.save(existingEntity);
     }
 
     /**
-     * 댓글 삭제
+     * 댓글 삭제 (논리적 삭제)
+     * 댓글 삭제 시 하위 댓글도 함께 삭제
      * @param reply_id 삭제할 댓글 ID
      */
     @Override
     public void remove(Long reply_id) {
-        replyJpaRepository.deleteById(reply_id);
+        Optional<ReplyJpaEntity> result = replyJpaRepository.findById(reply_id);
+        if (result.isPresent()) {
+            ReplyJpaEntity entity = result.get();
+            
+            // 1. 해당 댓글 논리적 삭제
+            entity.markDeleted();
+            replyJpaRepository.save(entity);
+            
+            // 2. 하위 댓글이 있는 경우 모두 논리적 삭제
+            List<ReplyJpaEntity> childReplies = replyJpaRepository.findByParentReplyId(reply_id);
+            if (!childReplies.isEmpty()) {
+                childReplies.forEach(childReply -> {
+                    childReply.markDeleted();
+                    replyJpaRepository.save(childReply);
+                });
+            }
+        }
     }
 
     /**
@@ -101,17 +136,81 @@ public class ReplyRepositoryImpl implements ReplyRepository {
         Page<ReplyJpaEntity> result = replyJpaRepository.listOfBoard(board_id, pageable);
         
         List<ReplyDTO> dtoList = result.getContent().stream()
-                .map(entity -> entityToDto(entity))
+                .map(this::entityToDto)
                 .collect(Collectors.toList());
         
         return new PageResponseDTO<>(pageRequestDTO, dtoList, (int)result.getTotalElements());
     }
+    
+    /**
+     * 특정 게시글의 계층형 댓글 목록 조회 (페이징)
+     * 최상위 댓글만 페이징하고, 각 최상위 댓글의 대댓글은 모두 포함
+     * @param board_id 게시글 ID
+     * @param pageRequestDTO 페이지 요청 정보
+     * @return 페이징된 계층형 댓글 목록
+     */
+    @Override
+    public PageResponseDTO<ReplyDTO> getHierarchicalListOfBoard(Long board_id, PageRequestDTO pageRequestDTO) {
+        // 최상위 댓글만 페이징 조회
+        Pageable pageable = PageRequest.of(
+                pageRequestDTO.getPage() - 1,
+                pageRequestDTO.getSize(),
+                Sort.by("id").ascending());
+        
+        Page<ReplyJpaEntity> result = replyJpaRepository.listOfBoardRootReplies(board_id, pageable);
+        
+        // 최상위 댓글을 DTO로 변환
+        List<ReplyDTO> rootReplies = result.getContent().stream()
+                .map(this::entityToDto)
+                .collect(Collectors.toList());
+        
+        // 각 최상위 댓글에 대댓글 추가
+        rootReplies.forEach(rootReply -> {
+            List<ReplyDTO> childReplies = getChildReplies(rootReply.getId());
+            rootReply.setChildren(childReplies);
+        });
+        
+        return new PageResponseDTO<>(pageRequestDTO, rootReplies, (int)result.getTotalElements());
+    }
+    
+    /**
+     * 특정 부모 댓글의 대댓글 목록 조회
+     * @param parent_id 부모 댓글 ID
+     * @return 대댓글 목록
+     */
+    @Override
+    public List<ReplyDTO> getChildReplies(Long parent_id) {
+        List<ReplyJpaEntity> childEntities = replyJpaRepository.findByParentReplyId(parent_id);
+        return childEntities.stream()
+                .map(this::entityToDto)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 특정 댓글이 대댓글을 가지고 있는지 확인
+     * @param reply_id 댓글 ID
+     * @return 대댓글 존재 여부
+     */
+    @Override
+    public boolean hasChildReplies(Long reply_id) {
+        return replyJpaRepository.hasChildReplies(reply_id);
+    }
 
 
+    /**
+     * 게시글에 속한 모든 댓글 삭제 (논리적 삭제)
+     * @param boardId 게시글 ID
+     */
     @Override
     public void deleteByBoardId(Long boardId){
-        //Jpa Repository의 deleteByBoard_id 사용
-        replyJpaRepository.deleteByBoard_Id(boardId);
+        // 게시글에 속한 모든 댓글 조회
+        List<ReplyJpaEntity> replies = replyJpaRepository.findByBoard_Id(boardId);
+        
+        // 각 댓글을 논리적으로 삭제
+        for (ReplyJpaEntity reply : replies) {
+            reply.markDeleted(); // BaseEntity의 markDeleted 메서드 호출
+            replyJpaRepository.save(reply);
+        }
     }
 
 
@@ -122,14 +221,21 @@ public class ReplyRepositoryImpl implements ReplyRepository {
      * @return Reply 도메인 객체
      */
     private Reply dtoToDomain(ReplyDTO dto) {
-        return Reply.builder()
+        Reply.ReplyBuilder builder = Reply.builder()
                 .id(dto.getId())
                 .boardId(dto.getBoardId())
                 .replyText(dto.getReplyText())
                 .replayer(dto.getReplayer())
                 .regDate(dto.getRegDate())
                 .modDate(dto.getModDate())
-                .build();
+                .depth(dto.getDepth());
+                
+        // 부모 댓글 ID가 있는 경우 설정
+        if (dto.getParentReplyId() != null) {
+            builder.parentReplyId(dto.getParentReplyId());
+        }
+        
+        return builder.build();
     }
     
     /**
@@ -138,14 +244,21 @@ public class ReplyRepositoryImpl implements ReplyRepository {
      * @return ReplyDTO 객체
      */
     private ReplyDTO domainToDto(Reply domain) {
-        return ReplyDTO.builder()
+        ReplyDTO.ReplyDTOBuilder builder = ReplyDTO.builder()
                 .id(domain.getId())
                 .boardId(domain.getBoardId())
                 .replyText(domain.getReplyText())
                 .replayer(domain.getReplayer())
                 .regDate(domain.getRegDate())
                 .modDate(domain.getModDate())
-                .build();
+                .depth(domain.getDepth());
+                
+        // 부모 댓글 ID가 있는 경우 설정
+        if (domain.getParentReplyId() != null) {
+            builder.parentReplyId(domain.getParentReplyId());
+        }
+        
+        return builder.build();
     }
     
     /**
@@ -154,14 +267,21 @@ public class ReplyRepositoryImpl implements ReplyRepository {
      * @return ReplyDTO 객체
      */
     private ReplyDTO entityToDto(ReplyJpaEntity entity) {
-        return ReplyDTO.builder()
+        ReplyDTO.ReplyDTOBuilder builder = ReplyDTO.builder()
                 .id(entity.getId())
                 .boardId(entity.getBoard().getId())
                 .replyText(entity.getReplyText())
                 .replayer(entity.getReplayer())
                 .regDate(entity.getRegDate())
                 .modDate(entity.getModDate())
-                .build();
+                .depth(entity.getDepth());
+                
+        // 부모 댓글이 있는 경우 부모 댓글 ID 설정
+        if (entity.getParentReply() != null) {
+            builder.parentReplyId(entity.getParentReply().getId());
+        }
+        
+        return builder.build();
     }
 
 

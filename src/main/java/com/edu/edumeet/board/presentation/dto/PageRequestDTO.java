@@ -42,6 +42,12 @@ public class PageRequestDTO {
 
     @Schema(description = "클래스 ID (특정 클래스의 게시글만 조회)" , example = "1")
     private Long classId;
+    
+    @Schema(description = "카테고리 ID (특정 카테고리의 게시글만 조회)", example = "1")
+    private Long categoryId;
+    
+    @Schema(description = "게시글 타입 (NORMAL: 일반, NOTICE: 공지사항, RECOMMENDED: 추천게시글)", example = "NOTICE")
+    private String boardType;
 
     /**
      * 검색 유형을 배열로 변환

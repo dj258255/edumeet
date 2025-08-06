@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Log4j2
@@ -68,5 +70,40 @@ public class ReplyServiceImpl implements ReplyService {
     public PageResponseDTO<ReplyDTO> getListOfBoard(Long board_id, PageRequestDTO pageRequestDTO) {
         log.info("게시글 {}의 댓글 목록 조회, 페이지: {}", board_id, pageRequestDTO);
         return replyRepository.getListOfBoard(board_id, pageRequestDTO);
+    }
+    
+    /**
+     * 특정 게시글의 계층형 댓글 목록 조회 (페이징)
+     * 최상위 댓글만 페이징하고, 각 최상위 댓글의 대댓글은 모두 포함
+     * @param board_id 게시글 ID
+     * @param pageRequestDTO 페이지 요청 정보
+     * @return 페이징된 계층형 댓글 목록
+     */
+    @Override
+    public PageResponseDTO<ReplyDTO> getHierarchicalListOfBoard(Long board_id, PageRequestDTO pageRequestDTO) {
+        log.info("게시글 {}의 계층형 댓글 목록 조회, 페이지: {}", board_id, pageRequestDTO);
+        return replyRepository.getHierarchicalListOfBoard(board_id, pageRequestDTO);
+    }
+    
+    /**
+     * 특정 부모 댓글의 대댓글 목록 조회
+     * @param parent_id 부모 댓글 ID
+     * @return 대댓글 목록
+     */
+    @Override
+    public List<ReplyDTO> getChildReplies(Long parent_id) {
+        log.info("부모 댓글 {}의 대댓글 목록 조회", parent_id);
+        return replyRepository.getChildReplies(parent_id);
+    }
+    
+    /**
+     * 특정 댓글이 대댓글을 가지고 있는지 확인
+     * @param reply_id 댓글 ID
+     * @return 대댓글 존재 여부
+     */
+    @Override
+    public boolean hasChildReplies(Long reply_id) {
+        log.info("댓글 {}의 대댓글 존재 여부 확인", reply_id);
+        return replyRepository.hasChildReplies(reply_id);
     }
 }

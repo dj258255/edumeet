@@ -38,13 +38,23 @@ public class BoardDTO {
     @NotEmpty(message = "작성자는 필수 입력값입니다")
     private String writer;
 
+    @Schema(description = "클래스 ID", example = "1", required = true)
     private Long classId;
+    
+    @Schema(description = "카테고리 ID", example = "1")
+    private Long categoryId;
+    
+    @Schema(description = "게시글 타입 (NORMAL: 일반, NOTICE: 공지사항, RECOMMENDED: 추천게시글)", example = "NORMAL")
+    private String boardType;
     
     @Schema(description = "조회수", example = "0")
     private long view;
     
     @Schema(description = "좋아요 수", example = "0")
     private long favorite;
+    
+    @Schema(description = "싫어요 수", example = "0")
+    private long dislike;
 
     //첨부파일 이름들
     // BoardJpaEntity의 Set<BoardImage> 타입으로  변환되어야함.

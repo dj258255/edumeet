@@ -31,8 +31,24 @@ public class BoardRepositoryImpl implements BoardRepository {
      */
     @Override
     public Long save(Board board) {
+        BoardJpaEntity boardJpaEntity;
+
+        if(board.getId() != null) {
+            //기존 게시글 업데이트
+            Optional<BoardJpaEntity> existingEntity = boardJpaRepository.findById(board.getId());
+            if(existingEntity.isPresent()){
+                //기존 엔티티 업데이트
+                boardJpaEntity = existingEntity.get();
+                boardJpaEntity.updateFromDomain(board);
+            }else{
+                throw new IllegalArgumentException("게시글을 찾을 수 없습니다 : " + board.getId() );
+            }
+        }else{
+            //새로운 게시글 생성
+            boardJpaEntity = BoardJpaEntity.fromDomain(board);
+        }
+
         //도메인 -> JPA 엔티티 변환 후 저장
-        BoardJpaEntity boardJpaEntity = BoardJpaEntity.fromDomain(board);
         BoardJpaEntity savedEntity = boardJpaRepository.save(boardJpaEntity);
         return savedEntity.getId();
 
@@ -45,6 +61,12 @@ public class BoardRepositoryImpl implements BoardRepository {
     public Optional<Board> findById(Long id) {
         // JPA 레포지토리를 통해 엔티티 조회
         Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        
+        // 삭제된 엔티티는 제외
+        if (entityOptional.isPresent() && entityOptional.get().isDeleted()) {
+            return Optional.empty();
+        }
+        
         // 엔티티를 도메인 모델로 변환하여 반환
         return entityOptional.map(BoardJpaEntity::toModel);
     }
@@ -52,8 +74,42 @@ public class BoardRepositoryImpl implements BoardRepository {
     //매개변수 삭제할 게시글 id
     @Override
     public void deleteById(Long id) {
-        // JPA 레포지토리를 통해 삭제
-        boardJpaRepository.deleteById(id);
+        // 물리적 삭제 대신 논리적 삭제 수행
+        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        if (entityOptional.isPresent()) {
+            BoardJpaEntity entity = entityOptional.get();
+            entity.markDeleted(); // BaseEntity의 markDeleted 메서드 호출
+            boardJpaRepository.save(entity);
+        }
+    }
+    
+    /**
+     * 삭제된 게시글 복원
+     * @param id 복원할 게시글 ID
+     */
+    @Override
+    public void restoreById(Long id) {
+        // 삭제된 게시글 포함하여 조회
+        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        if (entityOptional.isPresent()) {
+            BoardJpaEntity entity = entityOptional.get();
+            // deletedAt 필드를 null로 설정하여 복원
+            entity.restoreDeleted();
+            boardJpaRepository.save(entity);
+        }
+    }
+    
+    /**
+     * 삭제된 게시글 포함하여 조회
+     * @param id 조회할 게시글 ID
+     * @return 조회된 게시글 (삭제된 게시글 포함)
+     */
+    @Override
+    public Optional<Board> findByIdIncludeDeleted(Long id) {
+        // JPA 레포지토리를 통해 엔티티 조회 (삭제 여부 관계없이)
+        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        // 엔티티를 도메인 모델로 변환하여 반환
+        return entityOptional.map(BoardJpaEntity::toModel);
     }
 
     /**
@@ -84,8 +140,8 @@ public class BoardRepositoryImpl implements BoardRepository {
 
 
     @Override
-    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Pageable pageable){
+    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Long categoryId, String boardType, Pageable pageable){
         //BoardSearchRepository 인터페이스의 searchWithAll 메소드 호출 (JPA Repository에 위임)
-        return boardSearchRepository.searchWithAll(types, keyword, classId, pageable);
+        return boardSearchRepository.searchWithAll(types, keyword, classId, categoryId, boardType, pageable);
     }
 }
