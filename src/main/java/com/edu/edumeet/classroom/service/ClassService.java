@@ -183,23 +183,22 @@ public class ClassService {
 
         return invites.stream()
                 .filter(invite -> invite.getStatus() == InviteStatus.APPLIED)
-                .map(invite -> {
-                    ClassRoom classRoom = invite.getClassRoom();
-                    return ClassInfoResponseDto.builder()
-                            .classId(classRoom.getId())
-                            .title(classRoom.getTitle())
-                            .description(classRoom.getDescription())
-                            .thumbnailUrl(
-                                    classRoom.getThumbnail() != null
-                                            ? classRoom.getThumbnail().getImageUrl()
-                                            : null
-                            )
-                            .tags(classRoom.getTags().stream()
-                                    .map(Tag::getName)
-                                    .toList())
-                            .participantLimit(classRoom.getParticipantLimit())
-                            .build();
-                })
+                .map(ClassInvite::getClassRoom)
+                .filter(classRoom -> !classRoom.getIsDeleted())
+                .map(classRoom -> ClassInfoResponseDto.builder()
+                        .classId(classRoom.getId())
+                        .title(classRoom.getTitle())
+                        .description(classRoom.getDescription())
+                        .thumbnailUrl(
+                                classRoom.getThumbnail() != null
+                                        ? classRoom.getThumbnail().getImageUrl()
+                                        : null
+                        )
+                        .tags(classRoom.getTags().stream()
+                                .map(Tag::getName)
+                                .toList())
+                        .participantLimit(classRoom.getParticipantLimit())
+                        .build())
                 .toList();
     }
 
