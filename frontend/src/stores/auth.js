@@ -342,23 +342,27 @@ async verifyCode(verifyInfo) {
 
     // 로그아웃
     async logout() {
-      this.loading = true
+      this.loading = true;
       
       try {
-        await authAPI.logout()
-
+        await authAPI.logout();
+        console.log('로그아웃 API 호출 성공');
       } catch (error) {
-        console.error('로그아웃 API 호출 실패:', error)
+        console.error('로그아웃 API 호출 실패:', error);
       } finally {
-        tokenManager.removeToken()
-        userManager.removeUser()
-        localStorage.removeItem("refreshToken")
+        tokenManager.removeToken();
+        userManager.removeUser();
+        localStorage.removeItem("refreshToken");
         
-        this.user = null
-        this.isAuthenticated = false
-        this.loading = false
-        this.error = null
-
+        this.user = null;
+        this.isAuthenticated = false;
+        this.loading = false;
+        this.error = null;
+        
+        // 여기에 페이지 리다이렉션 로직 추가
+        window.location.href = "/login"; // 로그인 페이지로 리다이렉션
+        // 또는
+        // window.location.href = "/"; // 홈 페이지로 리다이렉션
       }
     },
 
