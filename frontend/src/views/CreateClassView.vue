@@ -67,6 +67,7 @@
                   @createClass="handleCreateClass"
                   @deleteClass="handleDeleteClass"
                   @viewDetail="selectClass"
+                  @viewMembers="handleViewMembers"
                 />
               </div>
             </div>
@@ -143,6 +144,14 @@
       @close="handleCreateClassModalClose"
       @create="handleCreateClassConfirm"
     />
+
+    <!-- 학생 목록 모달 -->
+    <MembersModal
+      :isVisible="isMembersModalOpen"
+      :classId="selectedClassForMembers?.classId || ''"
+      :className="selectedClassForMembers?.className || ''"
+      @close="closeMembersModal"
+    />
   </div>
 </template>
 
@@ -154,6 +163,7 @@ import ClassCard from '../components/ClassCard.vue'
 import CreateClassForm from '../components/CreateClassForm.vue'
 import CreateClassModal from '../components/CreateClassModal.vue'
 import JoinClassModal from '../components/JoinClassModal.vue'
+import MembersModal from '../components/MembersModal.vue'
 import ClassInfo from '../components/ClassInfo.vue'
 import '../styles/ClassRelated.css'
 
@@ -166,6 +176,10 @@ const pendingClassData = ref(null)
 // 수업 참여 모달 관련 상태
 const isJoinModalOpen = ref(false)
 const selectedClassForJoin = ref(null)
+
+// 학생 목록 모달 관련 상태
+const isMembersModalOpen = ref(false)
+const selectedClassForMembers = ref(null)
 
 const router = useRouter()
 const classStore = useClassStore()
@@ -323,6 +337,19 @@ async function handleDeleteClass(classId) {
     console.error('클래스 삭제 실패:', error)
     alert('클래스 삭제에 실패했습니다. 다시 시도해주세요.')
   }
+}
+
+// 학생 목록 모달 열기
+function handleViewMembers(classData) {
+  console.log('학생 목록 조회:', classData)
+  selectedClassForMembers.value = classData
+  isMembersModalOpen.value = true
+}
+
+// 학생 목록 모달 닫기
+function closeMembersModal() {
+  isMembersModalOpen.value = false
+  selectedClassForMembers.value = null
 }
 </script>
 

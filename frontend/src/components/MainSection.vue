@@ -6,7 +6,7 @@
         <div class="nav-buttons">
           <button type="button" @click="slideTransition(0)" :class="{ active: currentSlide === 0 }" class="nav-btn">
             <span class="nav-icon">🎓</span>
-            <span class="nav-text">online class</span>
+            <span class="nav-text">온라인 클래스</span>
           </button>
           <button type="button" @click="slideTransition(1)" :class="{ active: currentSlide === 1 }" class="nav-btn">
             <span class="nav-icon">🤖</span>
