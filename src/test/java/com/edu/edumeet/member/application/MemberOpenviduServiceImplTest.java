@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("[MemberService 테스트]")
 @ActiveProfiles("test")
-public class MemberServiceImplTest {
+public class MemberOpenviduServiceImplTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 

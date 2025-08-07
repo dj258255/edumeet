@@ -77,6 +77,9 @@ dependencies {
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
+
+    // LiveKit Server SDK
+    implementation("io.livekit:livekit-server:0.8.2")
 }
 
 // 기본 테스트 태스크 (MySQL 테스트 제외)
