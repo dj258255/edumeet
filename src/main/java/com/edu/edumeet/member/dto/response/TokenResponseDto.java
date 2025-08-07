@@ -1,4 +1,4 @@
-package com.edu.edumeet.member.presentation.dto.response;
+package com.edu.edumeet.member.dto.response;
 
 import lombok.Builder;
 import lombok.Getter;

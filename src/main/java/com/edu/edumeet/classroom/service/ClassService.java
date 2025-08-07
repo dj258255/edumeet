@@ -7,9 +7,8 @@ import com.edu.edumeet.classroom.dto.request.EvictionRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.repository.*;
 import com.edu.edumeet.member.domain.Member;
-import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
-import com.edu.edumeet.member.infrastructure.MemberJpaRepository;
-import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
+import com.edu.edumeet.member.dto.response.SignupResponseDto;
+import com.edu.edumeet.member.repository.MemberRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,17 +25,17 @@ public class ClassService {
     private final TagRepository tagRepository;
     private final ClassMemberRepository classMemberRepository;
     private final ClassInviteRepository classInviteRepository;
-    private final MemberJpaRepository memberJpaRepository;
+    private final MemberRepository memberRepository;
 
     public void create(Long memberId, ClassCreateRequestDto classCreateRequestDto) {
-        MemberJpaEntity member = getMemberOrThrow(memberId);
+        Member member = getMemberOrThrow(memberId);
 
         ClassRoom classRoom = saveClassRoom(classCreateRequestDto, member);
         saveThumbnail(classCreateRequestDto.getThumbnailUrl(), classRoom);
         saveTags(classCreateRequestDto.getTags(), classRoom);
     }
 
-    private ClassRoom saveClassRoom(ClassCreateRequestDto classCreateRequestDto, MemberJpaEntity member) {
+    private ClassRoom saveClassRoom(ClassCreateRequestDto classCreateRequestDto, Member member) {
         ClassRoom classRoom = ClassRoom.builder()
                 .member(member)
                 .title(classCreateRequestDto.getTitle())
@@ -46,8 +45,8 @@ public class ClassService {
         return classRepository.save(classRoom);
     }
 
-    private MemberJpaEntity getMemberOrThrow(Long memberId) {
-        return memberJpaRepository.findById(memberId)
+    private Member getMemberOrThrow(Long memberId) {
+        return memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
     }
 
@@ -163,7 +162,7 @@ public class ClassService {
         }
 
         for (String email : emails) {
-            MemberJpaEntity invitee = memberJpaRepository.findByEmail(email)
+            Member invitee = memberRepository.findByEmail(email)
                     .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
 
             boolean alreadyInvited = classInviteRepository.existsByClassRoomAndInvitee(classRoom, invitee);
@@ -244,7 +243,7 @@ public class ClassService {
 
         List<ClassMember> classMembers = classMemberRepository.findAllByClassRoomId(classId);
 
-        MemberJpaEntity owner = classRoom.getMember();
+        Member owner = classRoom.getMember();
 
         List<SignupResponseDto> result = new ArrayList<>();
 
@@ -270,7 +269,7 @@ public class ClassService {
         Long classId = evictionRequestDto.getClassId();
         String email = evictionRequestDto.getEmail();
 
-        MemberJpaEntity memberEntity = memberJpaRepository.findByEmail(email)
+        Member memberEntity = memberRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("해당 이메일의 회원이 존재하지 않습니다."));
 
         Long studentId = memberEntity.getId();

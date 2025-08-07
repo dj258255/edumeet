@@ -1,7 +1,7 @@
 package com.edu.edumeet.classroom.domain;
 
 import com.edu.edumeet.base.BaseEntity;
-import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
+import com.edu.edumeet.member.domain.Member;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -19,7 +19,7 @@ public class ClassRoom extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id")
-    private MemberJpaEntity member;
+    private Member member;
 
     @OneToMany(mappedBy = "classRoom", fetch = FetchType.LAZY)
     private List<ClassMember> classMember;
@@ -47,7 +47,7 @@ public class ClassRoom extends BaseEntity {
     }
 
     @Builder
-    private ClassRoom(MemberJpaEntity member, String title, String description, int participantLimit) {
+    private ClassRoom(Member member, String title, String description, int participantLimit) {
         this.member = member;
         this.title = title;
         this.description = description;
