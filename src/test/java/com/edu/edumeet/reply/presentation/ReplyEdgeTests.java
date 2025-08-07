@@ -81,9 +81,9 @@ public class ReplyEdgeTests {
                 .boardId(testBoardId)
                 .build();
         
-        // when & then - Spring이 번역한 예외 타입으로 검증 
+        // when & then - 실제로 발생하는 예외 타입으로 검증
         assertThatThrownBy(() -> replyService.register(replyDTO))
-                .isInstanceOf(InvalidDataAccessApiUsageException.class)  // ← 변경
+                .isInstanceOf(IllegalArgumentException.class)  // ← 변경
                 .hasMessageContaining("댓글 내용은 255자를 초과할 수 없습니다");
         
         log.info("긴 내용 댓글 등록 제한 확인: 시도된 길이={}", longText.length());
@@ -99,9 +99,9 @@ public class ReplyEdgeTests {
                 .boardId(testBoardId)
                 .build();
         
-        // when & then - Spring이 번역한 예외 타입으로 검증 ✅
+        // when & then - 실제로 발생하는 예외 타입으로 검증
         assertThatThrownBy(() -> replyService.register(replyDTO))
-                .isInstanceOf(InvalidDataAccessApiUsageException.class)  // ← 변경
+                .isInstanceOf(IllegalArgumentException.class)  // ← 변경
                 .hasMessageContaining("댓글 내용은 비어있을 수 없습니다");
         
         log.info("내용 없는 댓글 등록 제한 확인");

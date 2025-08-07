@@ -30,41 +30,7 @@ public class ReplyRepositoryImpl implements ReplyRepository {
      */
     @Override
     public Long register(ReplyDTO replyDTO) {
-        // 모든 댓글에 공통으로 적용되는 유효성 검사
-        if(replyDTO.getReplyText() == null || replyDTO.getReplyText().trim().isEmpty()) {
-            throw new IllegalArgumentException("댓글 내용은 비어있을 수 없습니다.");
-        }
-
-        if(replyDTO.getReplyText().trim().length() > 255) {
-            throw new IllegalArgumentException("댓글 내용은 255자를 초과할 수 없습니다.");
-        }
-
-        // 부모 댓글 ID가 있는 경우 (대댓글) - 추가 검증
-        if (replyDTO.getParentReplyId() != null) {
-            //부모 댓글 조회
-            Optional<ReplyJpaEntity> parentEntity = replyJpaRepository.findByIdNotDeleted(replyDTO.getParentReplyId());
-            if (parentEntity.isEmpty()) {
-                throw new IllegalArgumentException("부모 댓글이 존재하지 않습니다: " + replyDTO.getParentReplyId());
-            }
-
-            // 부모 댓글이 이미 대댓글인 경우 (최대 1계층까지만 허용)
-            ReplyJpaEntity parent = parentEntity.get();
-            if (parent.getParentReply() != null) {
-                throw new IllegalArgumentException("대댓글에는 댓글을 달 수 없습니다. 최대 1계층까지만 허용됩니다.");
-            }
-
-            // 다른 게시글의 댓글에 대한 대댓글 못달게
-            if(!parent.getBoard().getId().equals(replyDTO.getBoardId())) {
-                throw new IllegalArgumentException("다른 게시글에 달려있는 댓글에 대댓글은 못답니다.");
-            }
-
-            // 대댓글 깊이 설정
-            replyDTO.setDepth(1);
-        } else {
-            // 최상위 댓글
-            replyDTO.setDepth(0);
-        }
-
+        // 서비스 계층에서 이미 유효성 검사를 수행했으므로 여기서는 저장만 수행
         Reply reply = dtoToDomain(replyDTO);
         ReplyJpaEntity entity = ReplyJpaEntity.fromDomain(reply);
         ReplyJpaEntity savedEntity = replyJpaRepository.save(entity);

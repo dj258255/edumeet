@@ -26,6 +26,41 @@ public class ReplyServiceImpl implements ReplyService {
     @Override
     public Long register(ReplyDTO replyDTO) {
         log.info("댓글 등록: {}", replyDTO);
+        
+        // 모든 댓글에 공통으로 적용되는 유효성 검사
+        if(replyDTO.getReplyText() == null || replyDTO.getReplyText().trim().isEmpty()) {
+            throw new IllegalArgumentException("댓글 내용은 비어있을 수 없습니다.");
+        }
+
+        if(replyDTO.getReplyText().trim().length() > 255) {
+            throw new IllegalArgumentException("댓글 내용은 255자를 초과할 수 없습니다.");
+        }
+
+        // 부모 댓글 ID가 있는 경우 (대댓글) - 추가 검증
+        if (replyDTO.getParentReplyId() != null) {
+            // 부모 댓글 조회
+            ReplyDTO parentReply = replyRepository.read(replyDTO.getParentReplyId());
+            if (parentReply == null) {
+                throw new IllegalArgumentException("부모 댓글이 존재하지 않습니다: " + replyDTO.getParentReplyId());
+            }
+
+            // 부모 댓글이 이미 대댓글인 경우 (최대 1계층까지만 허용)
+            if (parentReply.getDepth() > 0) {
+                throw new IllegalArgumentException("대댓글에는 댓글을 달 수 없습니다. 최대 1계층까지만 허용됩니다.");
+            }
+
+            // 다른 게시글의 댓글에 대한 대댓글 못달게
+            if(!parentReply.getBoardId().equals(replyDTO.getBoardId())) {
+                throw new IllegalArgumentException("다른 게시글에 달려있는 댓글에 대댓글은 못답니다.");
+            }
+
+            // 대댓글 깊이 설정
+            replyDTO.setDepth(1);
+        } else {
+            // 최상위 댓글
+            replyDTO.setDepth(0);
+        }
+        
         return replyRepository.register(replyDTO);
     }
 
@@ -47,6 +82,22 @@ public class ReplyServiceImpl implements ReplyService {
     @Override
     public void modify(ReplyDTO replyDTO) {
         log.info("댓글 수정: {}", replyDTO);
+        
+        // 댓글 내용 유효성 검사
+        if(replyDTO.getReplyText() == null || replyDTO.getReplyText().trim().isEmpty()) {
+            throw new IllegalArgumentException("댓글 내용은 비어있을 수 없습니다.");
+        }
+
+        if(replyDTO.getReplyText().trim().length() > 255) {
+            throw new IllegalArgumentException("댓글 내용은 255자를 초과할 수 없습니다.");
+        }
+        
+        // 댓글 존재 여부 확인
+        ReplyDTO existingReply = replyRepository.read(replyDTO.getId());
+        if (existingReply == null) {
+            throw new IllegalArgumentException("수정할 댓글이 존재하지 않습니다: " + replyDTO.getId());
+        }
+        
         replyRepository.modify(replyDTO);
     }
 
@@ -57,6 +108,13 @@ public class ReplyServiceImpl implements ReplyService {
     @Override
     public void remove(Long reply_id) {
         log.info("댓글 삭제: {}", reply_id);
+        
+        // 댓글 존재 여부 확인
+        ReplyDTO existingReply = replyRepository.read(reply_id);
+        if (existingReply == null) {
+            throw new IllegalArgumentException("삭제할 댓글이 존재하지 않습니다: " + reply_id);
+        }
+        
         replyRepository.remove(reply_id);
     }
 
