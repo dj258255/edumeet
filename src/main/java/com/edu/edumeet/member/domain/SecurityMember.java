@@ -37,7 +37,7 @@ public class SecurityMember implements UserDetails {
 
     @Override
     public String getPassword() {
-        return member.getPassword().getEncoded();
+        return member.getEncodedPassword();
     }
 
     @Override

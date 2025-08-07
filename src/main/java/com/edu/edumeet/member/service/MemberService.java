@@ -1,17 +1,16 @@
-package com.edu.edumeet.member.application;
+package com.edu.edumeet.member.service;
 
 import com.edu.edumeet.config.jwt.JwtService;
 import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
-import com.edu.edumeet.member.application.repository.MemberRepository;
+import com.edu.edumeet.member.repository.MemberRepository;
+import com.edu.edumeet.member.repository.RefreshTokenRepository;
 import com.edu.edumeet.member.domain.Member;
-import com.edu.edumeet.member.domain.Password;
 import com.edu.edumeet.member.domain.RefreshToken;
-import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
-import com.edu.edumeet.member.presentation.dto.request.LoginRequestDto;
-import com.edu.edumeet.member.presentation.dto.request.RefreshTokenRequest;
-import com.edu.edumeet.member.presentation.dto.request.SignupRequestDto;
-import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
-import com.edu.edumeet.member.presentation.dto.response.TokenResponseDto;
+import com.edu.edumeet.member.dto.request.LoginRequestDto;
+import com.edu.edumeet.member.dto.request.RefreshTokenRequest;
+import com.edu.edumeet.member.dto.request.SignupRequestDto;
+import com.edu.edumeet.member.dto.response.SignupResponseDto;
+import com.edu.edumeet.member.dto.response.TokenResponseDto;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,28 +28,26 @@ import java.util.List;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class MemberServiceImpl implements MemberService {
+public class MemberService {
     private final MemberRepository memberRepository;
-    private final RefreshTokenService refreshTokenService;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
 
-    @Override
     public void signup(SignupRequestDto signupRequestDto) {
         String email = signupRequestDto.getEmail();
         String nickname = signupRequestDto.getNickname();
+        String rawPassword = signupRequestDto.getPassword();
 
         validateIsExistsMember(email);
 
-        Password password = Password.encode(signupRequestDto.getPassword(), passwordEncoder);
-        Member member = Member.create(email, password, nickname);
-
+        Member member = Member.create(email, rawPassword, nickname, passwordEncoder);
         Member savedMember = memberRepository.save(member);
+        
         log.info("회원가입 완료 - 생성된 id: {}, email: {}", savedMember.getId(), email);
     }
 
-    @Override
     public TokenResponseDto login(LoginRequestDto loginRequest) {
         String email = loginRequest.getEmail();
         String password = loginRequest.getPassword();
@@ -64,7 +61,6 @@ public class MemberServiceImpl implements MemberService {
 
         if (member.getId() == null) {
             log.error("조회된 Member의 ID가 null입니다! - email: {}", email);
-            log.error("Member 객체 상태 - email: {}, nickname: {}", member.getEmail(), member.getNickname());
             throw new RuntimeException("회원 데이터 오류: ID가 없습니다. 관리자에게 문의하세요.");
         }
 
@@ -78,14 +74,18 @@ public class MemberServiceImpl implements MemberService {
         LocalDateTime refreshTokenExpiration = LocalDateTime.now()
                 .plusSeconds(jwtService.getRefreshTokenExpTime() / 1000);
 
-        RefreshToken refreshToken = RefreshToken.create(refreshTokenValue, refreshTokenExpiration);
+        RefreshToken refreshToken = RefreshToken.create(
+                member.getId(), 
+                refreshTokenValue, 
+                refreshTokenExpiration
+        );
 
-        log.info("RefreshToken 도메인 객체 생성 완료 - memberId: {}, expiration: {}",
+        log.info("RefreshToken 엔티티 생성 완료 - memberId: {}, expiration: {}",
                 member.getId(), refreshTokenExpiration);
 
         try {
             log.info("RefreshToken 저장 시작 - memberId: {}", member.getId());
-            refreshTokenService.save(member.getId(), refreshToken);
+            saveOrUpdateRefreshToken(member.getId(), refreshToken);
             log.info("RefreshToken 저장 성공 - memberId: {}", member.getId());
         } catch (Exception e) {
             log.error("RefreshToken 저장 실패 - memberId: {}, member 객체: {}",
@@ -102,7 +102,6 @@ public class MemberServiceImpl implements MemberService {
                 .build();
     }
 
-    @Override
     public TokenResponseDto refreshAccessToken(RefreshTokenRequest request) {
         String refreshTokenValue = request.getRefreshToken();
 
@@ -117,7 +116,7 @@ public class MemberServiceImpl implements MemberService {
 
         log.info("토큰에서 추출한 정보 - memberId: {}, email: {}", memberId, email);
 
-        RefreshToken storedRefreshToken = refreshTokenService.findByMemberId(memberId)
+        RefreshToken storedRefreshToken = refreshTokenRepository.findByMemberId(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("저장된 RefreshToken을 찾을 수 없습니다."));
 
         if (!storedRefreshToken.getToken().equals(refreshTokenValue)) {
@@ -125,7 +124,7 @@ public class MemberServiceImpl implements MemberService {
         }
 
         if (storedRefreshToken.isExpired(LocalDateTime.now())) {
-            refreshTokenService.deleteByMemberId(memberId);
+            refreshTokenRepository.deleteByMemberId(memberId);
             throw new IllegalArgumentException("만료된 RefreshToken입니다.");
         }
 
@@ -140,19 +139,16 @@ public class MemberServiceImpl implements MemberService {
                 .build();
     }
 
-    @Override
     public void logout(Long memberId) {
         log.info("로그아웃 요청: memberId={}", memberId);
-        refreshTokenService.deleteByMemberId(memberId);
+        refreshTokenRepository.deleteByMemberId(memberId);
         log.info("로그아웃 완료: memberId={}", memberId);
     }
 
-    @Override
     public void emailCheck(EmailRequest emailRequest) {
         validateIsExistsMember(emailRequest.getEmail());
     }
 
-    @Override
     public List<SignupResponseDto> searchByEmail(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
             throw new IllegalArgumentException("검색 키워드는 비어있을 수 없습니다.");
@@ -197,6 +193,17 @@ public class MemberServiceImpl implements MemberService {
         } catch (Exception e) {
             log.error("인증 과정에서 예외 발생: {}", email, e);
             throw new IllegalArgumentException("로그인 중 오류가 발생했습니다.");
+        }
+    }
+
+    private void saveOrUpdateRefreshToken(Long memberId, RefreshToken refreshToken) {
+        if (refreshTokenRepository.existsByMemberId(memberId)) {
+            RefreshToken existingToken = refreshTokenRepository.findByMemberId(memberId)
+                    .orElseThrow(() -> new RuntimeException("RefreshToken 조회 실패"));
+            existingToken.updateToken(refreshToken.getToken(), refreshToken.getExpiration());
+            refreshTokenRepository.save(existingToken);
+        } else {
+            refreshTokenRepository.save(refreshToken);
         }
     }
 }

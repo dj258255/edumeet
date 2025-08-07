@@ -1,7 +1,7 @@
 package com.edu.edumeet.classroom.domain;
 
-import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
-import com.edu.edumeet.member.infrastructure.MemberJpaRepository;
+import com.edu.edumeet.member.domain.Member;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,12 +21,12 @@ public class ClassMember {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id")
-    private MemberJpaEntity member;
+    private Member member;
 
     protected ClassMember() {}
 
     @Builder
-    private ClassMember(ClassRoom classRoom, MemberJpaEntity member) {
+    private ClassMember(ClassRoom classRoom, Member member) {
         this.classRoom = classRoom;
         this.member = member;
     }

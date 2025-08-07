@@ -1,19 +1,18 @@
-package com.edu.edumeet.member.presentation;
+package com.edu.edumeet.member.controller;
 
 import com.edu.edumeet.config.jwt.JwtService;
 import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
-import com.edu.edumeet.member.application.MemberService;
-import com.edu.edumeet.member.presentation.dto.request.LoginRequestDto;
-import com.edu.edumeet.member.presentation.dto.request.RefreshTokenRequest;
-import com.edu.edumeet.member.presentation.dto.request.SignupRequestDto;
-import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
-import com.edu.edumeet.member.presentation.dto.response.TokenResponseDto;
+import com.edu.edumeet.member.dto.request.LoginRequestDto;
+import com.edu.edumeet.member.dto.request.RefreshTokenRequest;
+import com.edu.edumeet.member.dto.request.SignupRequestDto;
+import com.edu.edumeet.member.dto.response.SignupResponseDto;
+import com.edu.edumeet.member.dto.response.TokenResponseDto;
+import com.edu.edumeet.member.service.MemberService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
