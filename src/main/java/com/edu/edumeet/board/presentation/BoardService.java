@@ -2,8 +2,10 @@ package com.edu.edumeet.board.presentation;
 
 
 import com.edu.edumeet.board.domain.Board;
+import com.edu.edumeet.board.domain.BoardType;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.presentation.dto.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,25 +17,41 @@ import java.util.stream.Collectors;
 public interface BoardService {
 
     default Board dtoToDomain(BoardDTO boardDTO){
+        // BoardType 설정
+        BoardType boardTypeEnum = BoardType.NORMAL; // 기본값
+        if (boardDTO.getBoardType() != null && !boardDTO.getBoardType().isEmpty()) {
+            try {
+                boardTypeEnum = BoardType.valueOf(boardDTO.getBoardType());
+            } catch (IllegalArgumentException e) {
+                // 잘못된 boardType이면 기본값 사용
+                // 로그 추가 가능
+            }
+        }
+        
+        // 기본 Board 객체 생성
         Board board = Board.builder()
                 .id(boardDTO.getId())
                 .title(boardDTO.getTitle())
                 .content(boardDTO.getContent())
                 .writer(boardDTO.getWriter())
                 .classId(boardDTO.getClassId())
+                .categoryId(boardDTO.getCategoryId())
+                .boardType(boardTypeEnum)
                 .regDate(boardDTO.getRegDate())
                 .modDate(boardDTO.getModDate())
                 .view(boardDTO.getView())
                 .favorite(boardDTO.getFavorite())
+                .dislike(boardDTO.getDislike())
                 .build();
 
         // 파일 정보를 도메인 이미지로 변환
         if(boardDTO.getFileNames() != null){
-            boardDTO.getFileNames().forEach(fileName -> {
+            for (String fileName : boardDTO.getFileNames()) {
                 String[] arr = fileName.split("_");
                 board.addImage(arr[0], arr[1]);
-            });
+            }
         }
+        
         return board;
     }
 
@@ -47,10 +65,13 @@ public interface BoardService {
                 .content(board.getContent())
                 .writer(board.getWriter())
                 .classId(board.getClassId())
+                .categoryId(board.getCategoryId())
+                .boardType(board.getBoardType() != null ? board.getBoardType().name() : null)
                 .regDate(board.getRegDate())
                 .modDate(board.getModDate())
                 .view(board.getView())
                 .favorite(board.getFavorite())
+                .dislike(board.getDislike())
                 .build();
 
         // 도메인 이미지를 파일명으로 변환
@@ -155,10 +176,22 @@ public interface BoardService {
     PageResponseDTO<BoardListAllDTO> listWithAll(PageRequestDTO pageRequestDTO);
     
     /**
-     * 게시글 좋아요 토글
-     * 이미 좋아요가 되어 있으면 좋아요 취소, 아니면 좋아요 추가
-     * @param id 좋아요 토글할 게시글 ID
-     * @return 토글 후 좋아요 수
+     * 게시글 좋아요 추가
+     * @param id 좋아요 추가할 게시글 ID
+     * @return 좋아요 추가 후 좋아요 수
      */
     long toggleFavorite(Long id);
+    
+    /**
+     * 게시글 싫어요 추가
+     * @param id 싫어요 추가할 게시글 ID
+     * @return 싫어요 추가 후 싫어요 수
+     */
+    long toggleDislike(Long id);
+    
+    /**
+     * 삭제된 게시글 복원
+     * @param id 복원할 게시글 ID
+     */
+    void restore(Long id);
 }

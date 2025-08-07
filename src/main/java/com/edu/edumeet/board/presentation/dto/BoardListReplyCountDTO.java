@@ -27,4 +27,10 @@ public class BoardListReplyCountDTO {
 
     @Schema(description = "댓글 수", example = "5")
     private Long replyCount; // 댓글 개수
+    
+    @Schema(description = "좋아요 수", example = "0")
+    private long favorite; // 좋아요 수
+    
+    @Schema(description = "싫어요 수", example = "0")
+    private long dislike; // 싫어요 수
 }

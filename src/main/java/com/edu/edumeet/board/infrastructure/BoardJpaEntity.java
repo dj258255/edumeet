@@ -3,6 +3,7 @@ package com.edu.edumeet.board.infrastructure;
 import com.edu.edumeet.base.BaseEntity;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardImage;
+import com.edu.edumeet.board.domain.BoardType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
@@ -28,7 +29,7 @@ public class BoardJpaEntity extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "title" , nullable = false , length = 200)
+    @Column(name = "title" , nullable = false , length = 50)
     private String title;
 
     @Column(name = "content" , columnDefinition = "TEXT")
@@ -41,11 +42,21 @@ public class BoardJpaEntity extends BaseEntity {
     @Column(name = "class_id" , nullable = false)
     private Long classId;
     
+    @Column(name = "category_id")
+    private Long categoryId;
+    
+    @Column(name = "board_type", columnDefinition = "VARCHAR(20) DEFAULT 'NORMAL'")
+    @Enumerated(EnumType.STRING)
+    private BoardType boardType;
+    
     @Column(name = "view", columnDefinition = "BIGINT DEFAULT 0")
     private long view;
     
     @Column(name = "favorite", columnDefinition = "BIGINT DEFAULT 0")
     private long favorite;
+    
+    @Column(name = "dislike", columnDefinition = "BIGINT DEFAULT 0")
+    private long dislike;
 
     //Board의 모든 상태변화에 Image들도 같이 변경되도록 구성.
     //Board 객체 자체에서 BoardImage들을 관리.
@@ -74,10 +85,14 @@ public class BoardJpaEntity extends BaseEntity {
                 .content(this.content)
                 .writer(this.writer)
                 .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(this.boardType)
                 .regDate(this.getRegDate())
                 .modDate(this.getModDate())
+                .deletedAt(this.getDeletedAt())
                 .view(this.view)
                 .favorite(this.favorite)
+                .dislike(this.dislike)
                 .build();
         
         //이미지 정보 변환
@@ -103,9 +118,16 @@ public class BoardJpaEntity extends BaseEntity {
                 .content(board.getContent())
                 .writer(board.getWriter())
                 .classId(board.getClassId())
+                .categoryId(board.getCategoryId())
+                .boardType(board.getBoardType())
                 .view(board.getView())
                 .favorite(board.getFavorite())
+                .dislike(board.getDislike())
                 .build();
+
+        if(board.getDeletedAt() != null){
+            entity.markDeleted();
+        }
 
         //이미지 정보도 함께 변환
         if (board.getImages() != null && !board.getImages().isEmpty()) {
@@ -136,9 +158,11 @@ public class BoardJpaEntity extends BaseEntity {
         this.title = board.getTitle();
         this.content = board.getContent();
         this.classId = board.getClassId();
+        this.categoryId = board.getCategoryId();
+        this.boardType = board.getBoardType();
         this.view = board.getView();
         this.favorite = board.getFavorite();
-
+        this.dislike = board.getDislike();
         // 기존 이미지들과의 연결 해제 (부모 참조 제거)
         this.imageSet.forEach(image -> image.changeBoard(null));  // 이미 있는 메서드 사용!
         this.imageSet.clear();

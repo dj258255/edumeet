@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -11,7 +12,6 @@ import java.util.Set;
  * DDD의 애그리게이트 루트 역할을 하는 도메인 객체
  */
 @Getter
-@Setter
 @Builder
 @RequiredArgsConstructor
 @AllArgsConstructor
@@ -22,41 +22,277 @@ public class Board {
     private String content;      // 내용
     private String writer;       // 작성자
 
-    private Long classId; // 클래스 아이디
+    private Long classId;        // 클래스 아이디
+    private Long categoryId;     // 카테고리 ID
 
+    @Builder.Default
+    private BoardType boardType = BoardType.NORMAL; // 게시글 타입
 
-
-    private LocalDateTime regDate;  // 등록일시
-    private LocalDateTime modDate;  // 수정일시
-
+    /**
+     * -- SETTER --
+     *  이미지 세트 설정
+     *
+     * @param images 이미지 세트
+     */
+    @Setter
     @Builder.Default
     private Set<BoardImage> images = new HashSet<>();
 
+    private LocalDateTime regDate;  // 등록일시
+    private LocalDateTime modDate;  // 수정일시
+    // getter 추가
+    // setter 또는 빌더에서 사용할 수 있도록
+    @Setter
+    private LocalDateTime deletedAt; // 삭제일시
+
     private long view;
-    private long favorite;
-    /**
-     * 왜 JpaEntity에 안넣고 여기에 넣음??
-     *  -> 이 메서드는 도메인에 요구되는 요구사항임 -> 그래서 도메인 로직임
-     *  그리고 도메인 로직은 도메인 모델이 처리하는게 더 자연스러움
-     *  만약 도메인 로직이 영속성 객체에 위치하면 JpaEntity랑 분리하는 의미가 없음
-     *  영속성 라이브러리가 JPA에서 MongoDB로 바뀌듯 영속성 객체의 형태가 바뀐다고 해도
-     *  도메인 로직이 영향을 받아서는 안된다.
-     *  그래서 Change 같은 도메인 로직은 도메인 모델인 Board가 가지고 있는게 더 자연스러움
-     *  만약 영속성 객체가 도메인 로직을 가지게 된다면 영속성 코드의 변경이 도메인 로직에 영향을 줄 수 있게 된다는 의미다.
-     *  결론적으로 영속성 객체에는 데이터 영속화와 관련된 코드만 들어가야 한다.
-     */
+    @Builder.Default
+    private long favorite = 0L;
+    @Builder.Default
+    private long dislike = 0L;
+
+    //게시글 내용과 타입 모두 바꿈
+    public Board changeAll(String title, String content, BoardType newBoardType) {
+        // 동일한 타입으로의 전환은 허용 (내용만 변경하는 경우)
+        if (newBoardType != null && newBoardType != this.boardType && !this.boardType.canTransitionTo(newBoardType)) {
+            throw new IllegalStateException(
+                String.format("%s에서 %s로 전환할 수 없습니다.", 
+                this.boardType.getDescription(), 
+                newBoardType.getDescription())
+            );
+        }
+
+        BoardType finalBoardType = newBoardType != null ? newBoardType : this.boardType;
+
+        return Board.builder()
+                .id(this.id)
+                .title(title)
+                .content(content)
+                .writer(this.writer)
+                .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(finalBoardType)
+                .regDate(this.regDate)
+                .modDate(LocalDateTime.now())
+                .images(new HashSet<>(this.images))
+                .view(this.view)
+                .favorite(this.favorite)
+                .dislike(this.dislike)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+    //게시글 내용 변경
+    public Board change(String title, String content) {
+        return changeAll(title, content, this.boardType);
+    }
+
+    //게시글 타입 변경 , 요청 사용자 , 클래스 생성자
+    public Board changeBoardType(BoardType newBoardType, String requestUser, String classCreator) {
+        if (newBoardType == null) {
+            throw new IllegalArgumentException("게시글 타입은 null일 수 없습니다.");
+        }
+
+        // enum의 전환 규칙 검증
+        if (!this.boardType.canTransitionTo(newBoardType)) {
+            throw new IllegalStateException(
+                String.format("%s에서 %s로 전환할 수 없습니다.", 
+                this.boardType.getDescription(), 
+                newBoardType.getDescription())
+            );
+        }
+
+        // 공지사항으로 전환 시 추가 검증
+        if (newBoardType == BoardType.NOTICE) {
+            validateNoticePermission(requestUser, classCreator);
+        }
+
+        return Board.builder()
+                .id(this.id)
+                .title(this.title)
+                .content(this.content)
+                .writer(this.writer)
+                .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(newBoardType)
+                .regDate(this.regDate)
+                .modDate(LocalDateTime.now())
+                .images(new HashSet<>(this.images))
+                .view(this.view)
+                .favorite(this.favorite)
+                .dislike(this.dislike)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+
+    //게시글 타입 변경 . 권한 검증 x
+    public Board changeBoardType(BoardType newBoardType) {
+        return changeBoardType(newBoardType, null, null);
+    }
 
     /**
-     * 게시글 내용 변경
-     * @param title 새 제목
-     * @param content 새 내용
+     * 공지사항 설정 (기존 메서드를 새로운 방식으로 구현)
+     * @param requestUser 요청 사용자
+     * @param classCreator 클래스 생성자
+     * @return 변경된 게시글
+     * @deprecated changeBoardType(BoardType.NOTICE, requestUser, classCreator) 사용 권장
      */
-    public void change(String title, String content) {
-        this.title = title;
-        this.content = content;
+    @Deprecated
+    public Board setAsNotice(String requestUser, String classCreator) {
+        return changeBoardType(BoardType.NOTICE, requestUser, classCreator);
+    }
+
+
+    //공지사항 권한 검증
+    private void validateNoticePermission(String requestUser, String classCreator) {
+        if (requestUser == null || classCreator == null) {
+            return; // 권한 검증을 하지 않는 경우 (내부 로직에서 호출 시)
+        }
+        
+        if (!requestUser.equals(classCreator)) {
+            throw new IllegalStateException("공지사항은 클래스 생성자만 설정할 수 있습니다.");
+        }
+    }
+
+    // 추천 수가 카테고리별 기준값 이상인 경우 추천 게시글로 자동 전환
+    // 싫어요 수는 더 이상 게시글 타입 변경에 영향을 주지 않음
+    private Board checkAndSetRecommended(long newFavorite, long newDislike, int threshold) {
+        // enum의 비즈니스 로직 활용 - 좋아요 수만 고려
+        BoardType newType = this.boardType.getRecommendedType(newFavorite, threshold);
+
+        return Board.builder()
+                .id(this.id)
+                .title(this.title)
+                .content(this.content)
+                .writer(this.writer)
+                .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(newType)
+                .regDate(this.regDate)
+                .modDate(LocalDateTime.now())
+                .images(this.images)
+                .view(this.view)
+                .favorite(newFavorite)
+                .dislike(newDislike)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+    //추천 수 증가. 기본 기준값
+    public Board increaseFavorite() {
+        long newFavorite = this.favorite;
+        if (newFavorite < Long.MAX_VALUE) {
+            newFavorite = this.favorite + 1;
+        }
+
+        return checkAndSetRecommended(newFavorite, this.dislike, 10);
     }
     
-    //이미지 추가 - 도메인 로직
+    //추천 수 증가. 카테고리별 기준 값
+    public Board increaseFavorite(int threshold) {
+        if (threshold < 0) {
+            throw new IllegalArgumentException("추천 기준값은 0 이상이어야 한다.");
+        }
+
+        long newFavorite = this.favorite;
+        if (newFavorite < Long.MAX_VALUE) {
+            newFavorite = this.favorite + 1;
+        }
+
+        return checkAndSetRecommended(newFavorite, this.dislike, threshold);
+    }
+
+    /**
+     * 싫어요 수 증가 (게시글 타입 변경 없음)
+     * @return 싫어요 수가 증가된 새로운 Board 객체
+     */
+    public Board increaseDislike() {
+        long newDislike = this.dislike;
+        if (newDislike < Long.MAX_VALUE) {
+            newDislike = this.dislike + 1;
+        }
+    
+        return Board.builder()
+                .id(this.id)
+                .title(this.title)
+                .content(this.content)
+                .writer(this.writer)
+                .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(this.boardType)
+                .regDate(this.regDate)
+                .modDate(LocalDateTime.now())
+                .images(this.images)
+                .view(this.view)
+                .favorite(this.favorite)
+                .dislike(newDislike)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+    /**
+     * 싫어요 수 증가 (카테고리별 기준값 사용, 게시글 타입 변경 없음)
+     * 
+     * @param threshold 카테고리별 기준값 (현재는 사용되지 않음)
+     * @return 싫어요 수가 증가된 새로운 Board 객체
+     * @deprecated 대신 {@link #increaseDislike()} 사용 권장
+     */
+    @Deprecated
+    public Board increaseDislike(int threshold) {
+        if (threshold < 0) {
+            throw new IllegalArgumentException("추천 기준값은 0 이상이어야 한다.");
+        }
+
+        long newDislike = this.dislike;
+        if (newDislike < Long.MAX_VALUE) {
+            newDislike = this.dislike + 1;
+        }
+        
+        return Board.builder()
+                .id(this.id)
+                .title(this.title)
+                .content(this.content)
+                .writer(this.writer)
+                .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(this.boardType)
+                .regDate(this.regDate)
+                .modDate(LocalDateTime.now())
+                .images(this.images)
+                .view(this.view)
+                .favorite(this.favorite)
+                .dislike(newDislike)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+    //조회수 증가
+    public Board increaseView() {
+        long newView = this.view;
+        if (newView < Long.MAX_VALUE) {
+            newView = this.view + 1;
+        }
+
+        return Board.builder()
+                .id(this.id)
+                .title(this.title)
+                .content(this.content)
+                .writer(this.writer)
+                .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(this.boardType)
+                .regDate(this.regDate)
+                .modDate(this.modDate)
+                .images(this.images)
+                .view(newView)
+                .favorite(this.favorite)
+                .dislike(this.dislike)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+    //이미지 추가
     public void addImage(String uuid, String fileName) {
         BoardImage boardImage = BoardImage.builder()
                 .uuid(uuid)
@@ -66,11 +302,66 @@ public class Board {
         images.add(boardImage);
     }
     
-    
-    //모든 이미지 제거 - 도메인 로직
+    ///모든 이미지 제거
     public void clearImages() {
         this.images.clear();
     }
+    
+    // 게시글 삭제 확인
+    public boolean isDeleted() {
+        return this.deletedAt != null;
+    }
 
+    //기존 이미지 제거후 새 이미지 추가
+    public Board changeImages(List<String> fileNames) {
+        Set<BoardImage> newImages = new HashSet<>();
 
+        if (fileNames != null) {
+            for (int i = 0; i < fileNames.size(); i++) {
+                String fileName = fileNames.get(i);
+                String[] arr = fileName.split("_");
+                if (arr.length >= 2) {
+                    BoardImage boardImage = BoardImage.builder()
+                            .uuid(arr[0])
+                            .fileName(arr[1])
+                            .ord(i)
+                            .build();
+                    newImages.add(boardImage);
+                }
+            }
+        }
+
+        return Board.builder()
+                .id(this.id)
+                .title(this.title)
+                .content(this.content)
+                .writer(this.writer)
+                .classId(this.classId)
+                .categoryId(this.categoryId)
+                .boardType(this.boardType)
+                .regDate(this.regDate)
+                .modDate(LocalDateTime.now())
+                .images(newImages)
+                .view(this.view)
+                .favorite(this.favorite)
+                .dislike(this.dislike)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+    /**
+     * 게시글 타입 문자열로부터 안전하게 변경
+     * @param boardTypeString 게시글 타입 문자열
+     * @return 변경된 게시글 (변환 실패 시 기존 타입 유지)
+     */
+    public Board changeBoardTypeFromString(String boardTypeString) {
+        BoardType newBoardType = BoardType.safeValueOf(boardTypeString, this.boardType);
+        
+        // 같은 타입이면 변경하지 않음
+        if (newBoardType == this.boardType) {
+            return this;
+        }
+        
+        return changeBoardType(newBoardType);
+    }
 }

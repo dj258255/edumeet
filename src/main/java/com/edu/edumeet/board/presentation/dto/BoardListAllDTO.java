@@ -1,5 +1,6 @@
 package com.edu.edumeet.board.presentation.dto;
 
+import com.edu.edumeet.board.domain.BoardType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,10 +26,16 @@ public class BoardListAllDTO {
     private Long replyCount;
 
     private Long classId;
-    
+
+    private Long categoryId;
+
+    private BoardType boardType;
+
     private long view;
     
     private long favorite;
+    
+    private long dislike;
 
     private List<BoardImageDTO> boardImages;
 }
