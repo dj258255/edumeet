@@ -1,7 +1,10 @@
+// 이 파일은 더 이상 사용되지 않습니다.
+// 새로운 구조에서는 ThumbnailRepository가 제거되고
+// ClassThumbnailService에서 임시 저장소를 사용합니다.
+
 package com.edu.edumeet.classroom.repository;
 
-import com.edu.edumeet.classroom.domain.Thumbnail;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-public interface ThumbnailRepository extends JpaRepository<Thumbnail, Long> {
+@Deprecated
+public interface ThumbnailRepository {
+    // 이 인터페이스는 더 이상 사용되지 않습니다.
 }
