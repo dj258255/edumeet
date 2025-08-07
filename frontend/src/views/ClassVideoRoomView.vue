@@ -10,6 +10,7 @@ import { useRoute, useRouter } from 'vue-router';
 import VideoComponent from '@/components/VideoComponent.vue';
 import AudioComponent from '@/components/AudioComponent.vue';
 import LiveCaption from '@/components/LiveCaption.vue';
+import SharedLiveCaption from '@/components/SharedLiveCaption.vue';
 import '@/styles/ClassRelated.css';
 
 const route = useRoute();
@@ -36,6 +37,12 @@ const isMicOn = ref(true);
 const chatMessagesList = ref<Array<{ sender: string; message: string }>>([]);
 const chatInput = ref('');
 const chatBoxRef = ref<HTMLElement | null>(null);
+
+// 공유 자막 관련 상태
+const sharedCaption = ref('');
+const sharedCaptionConfidence = ref(0);
+const isSharedCaptionActive = ref(false);
+const isCaptionVisible = ref(true); // 자막 표시/숨김 상태
 
 let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
@@ -134,6 +141,14 @@ async function joinRoom(targetRoom?: string) {
 
       if (!decoded || decoded.trim() === '') return;
       const data = JSON.parse(decoded);
+      
+      // 자막 데이터 처리
+      if (data.type === 'caption') {
+        handleCaptionData(decoded);
+        return;
+      }
+      
+      // 채팅 메시지 처리
       if (data.message && data.sender) {
         chatMessagesList.value.push({
           sender: data.sender || participant?.identity || '익명',
@@ -146,7 +161,7 @@ async function joinRoom(targetRoom?: string) {
         });
       }
     } catch (e) {
-      console.error('채팅 메시지 해석 실패:', e);
+      console.error('데이터 해석 실패:', e);
     }
   });
 
@@ -214,6 +229,10 @@ function toggleMic() {
   room.value?.localParticipant.setMicrophoneEnabled(isMicOn.value);
 }
 
+function toggleCaption() {
+  isCaptionVisible.value = !isCaptionVisible.value;
+}
+
 function sendChatMessage() {
   const msg = chatInput.value.trim();
   if (!msg || !room.value) return;
@@ -248,6 +267,69 @@ function handleLiveCaption(data) {
   console.log('🎤 최종 결과 여부:', data.isFinal);
   
   // 실시간 자막은 자막창에만 표시하고 채팅창에는 입력하지 않음
+}
+
+// 공유 실시간 자막 이벤트 핸들러
+function handleSharedCaption(data) {
+  console.log('🎤 공유 실시간 자막:', data.text);
+  console.log('🎤 신뢰도:', data.confidence);
+  console.log('🎤 최종 결과 여부:', data.isFinal);
+  
+  // 생성자의 음성만 전체 학생들이 볼 수 있도록 처리
+  if (isUserCreator.value) {
+    // 실시간 자막을 모든 참여자에게 공유 (중간 결과 포함)
+    shareCaptionToAll(data.text, data.confidence, data.isFinal);
+  }
+}
+
+// 자막을 모든 참여자에게 공유
+function shareCaptionToAll(text, confidence, isFinal) {
+  if (!room.value) return;
+  
+  const captionData = {
+    type: 'caption',
+    text: text,
+    confidence: confidence,
+    isFinal: isFinal,
+    sender: participantName.value,
+    timestamp: Date.now()
+  };
+  
+  const encoder = new TextEncoder();
+  const payload = encoder.encode(JSON.stringify(captionData));
+  
+  console.log('📤 자막 공유:', captionData);
+  room.value.localParticipant.publishData(payload, DataPacket_Kind.RELIABLE);
+}
+
+// 다른 참여자로부터 자막 데이터 수신
+function handleCaptionData(data) {
+  try {
+    const captionData = JSON.parse(data);
+    
+    if (captionData.type === 'caption') {
+      console.log('📥 자막 수신:', captionData);
+      
+      // 생성자의 자막만 표시
+      if (captionData.sender !== participantName.value) {
+        sharedCaption.value = captionData.text;
+        sharedCaptionConfidence.value = captionData.confidence;
+        isSharedCaptionActive.value = true;
+        
+        // 최종 결과가 아닌 경우에만 자동 숨김 (실시간 유지)
+        if (captionData.isFinal) {
+          // 최종 결과는 3초 후 숨김
+          setTimeout(() => {
+            if (sharedCaption.value === captionData.text) {
+              isSharedCaptionActive.value = false;
+            }
+          }, 3000);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('자막 데이터 파싱 오류:', error);
+  }
 }
 
 function handleCaptionError(error) {
@@ -338,6 +420,9 @@ function getFirstRemoteParticipantIdentity() {
           <button :class="{ off: !isMicOn }" @click="toggleMic">
             {{ isMicOn ? '🎤 마이크 끄기' : '🎤 마이크 켜기' }}
           </button>
+          <button :class="{ off: !isCaptionVisible }" @click="toggleCaption">
+            {{ isCaptionVisible ? '📝 자막 숨기기' : '📝 자막 보기' }}
+          </button>
           <button class="leave" @click="leaveRoom">🚪 퇴장하기</button>
         </div>
       </div>
@@ -362,13 +447,7 @@ function getFirstRemoteParticipantIdentity() {
               />
             </div>
 
-            <div class="live-caption-section">
-              <LiveCaption 
-                @transcript="handleLiveCaption"
-                @error="handleCaptionError"
-                @status="handleCaptionStatus"
-              />
-            </div>
+
 
             <div class="thumbnail-grid">
               <!-- 참여자인 경우 로컬 화면을 썸네일에 표시 -->
@@ -426,5 +505,17 @@ function getFirstRemoteParticipantIdentity() {
         </div>
       </div>
     </div>
+    
+    <!-- 공유 실시간 자막 (화면 하단 오버레이) -->
+    <SharedLiveCaption
+      :isCreator="isUserCreator"
+      :isVisible="isCaptionVisible"
+      :sharedCaption="sharedCaption"
+      :sharedCaptionConfidence="sharedCaptionConfidence"
+      :isSharedCaptionActive="isSharedCaptionActive"
+      @transcript="handleSharedCaption"
+      @error="handleCaptionError"
+      @status="handleCaptionStatus"
+    />
   </div>
 </template>
