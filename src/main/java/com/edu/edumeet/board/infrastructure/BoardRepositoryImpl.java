@@ -1,6 +1,5 @@
 package com.edu.edumeet.board.infrastructure;
 
-
 import com.edu.edumeet.board.application.BoardRepository;
 import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
@@ -27,65 +26,101 @@ public class BoardRepositoryImpl implements BoardRepository {
     /**
      * 게시글 저장
      * @param board 저장할 게시글 도메인 객체
-     * @return 저장된 게시글의 ID
+     * @return 저장된 게시글의 ID, 업데이트할 게시글이 존재하지 않을 경우 null
      */
     @Override
     public Long save(Board board) {
+        BoardJpaEntity boardJpaEntity;
+
+        if(board.getId() != null) {
+            //기존 게시글 업데이트
+            Optional<BoardJpaEntity> existingEntity = boardJpaRepository.findById(board.getId());
+            if(existingEntity.isPresent()){
+                //기존 엔티티 업데이트
+                boardJpaEntity = existingEntity.get();
+                boardJpaEntity.updateFromDomain(board);
+            }else{
+                // 예외를 던지지 않고 null 반환하여 서비스에서 처리하도록 함
+                return null;
+            }
+        }else{
+            //새로운 게시글 생성
+            boardJpaEntity = BoardJpaEntity.fromDomain(board);
+        }
+
         //도메인 -> JPA 엔티티 변환 후 저장
-        BoardJpaEntity boardJpaEntity = BoardJpaEntity.fromDomain(board);
         BoardJpaEntity savedEntity = boardJpaRepository.save(boardJpaEntity);
         return savedEntity.getId();
-
     }
 
-
-    //id로 게시글 조회
-    //return 조회된 게시굴 , 없으면 빈 Optional
     @Override
     public Optional<Board> findById(Long id) {
         // JPA 레포지토리를 통해 엔티티 조회
+        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        
+        // 삭제된 엔티티는 제외
+        if (entityOptional.isPresent() && entityOptional.get().isDeleted()) {
+            return Optional.empty();
+        }
+        
+        // 엔티티를 도메인 모델로 변환하여 반환
+        return entityOptional.map(BoardJpaEntity::toModel);
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        // 물리적 삭제 대신 논리적 삭제 수행
+        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        if (entityOptional.isPresent()) {
+            BoardJpaEntity entity = entityOptional.get();
+            entity.markDeleted(); // BaseEntity의 markDeleted 메서드 호출
+            boardJpaRepository.save(entity);
+        }
+        // 게시글이 존재하지 않아도 예외를 던지지 않음 (서비스에서 처리)
+    }
+    
+    /**
+     * 삭제된 게시글 복원
+     * @param id 복원할 게시글 ID
+     * @return 복원 성공 여부
+     */
+    @Override
+    public boolean restoreById(Long id) {
+        // 삭제된 게시글 포함하여 조회
+        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        if (entityOptional.isPresent()) {
+            BoardJpaEntity entity = entityOptional.get();
+            // deletedAt 필드를 null로 설정하여 복원
+            entity.restoreDeleted();
+            boardJpaRepository.save(entity);
+            return true;
+        }
+        return false; // 게시글이 존재하지 않음을 서비스에 알림
+    }
+    
+    @Override
+    public Optional<Board> findByIdIncludeDeleted(Long id) {
+        // JPA 레포지토리를 통해 엔티티 조회 (삭제 여부 관계없이)
         Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
         // 엔티티를 도메인 모델로 변환하여 반환
         return entityOptional.map(BoardJpaEntity::toModel);
     }
 
-    //매개변수 삭제할 게시글 id
-    @Override
-    public void deleteById(Long id) {
-        // JPA 레포지토리를 통해 삭제
-        boardJpaRepository.deleteById(id);
-    }
-
-    /**
-     * 타입과 키워드로 게시글 검색
-     * @param types 검색 타입 (t: 제목, c: 내용, w: 작성자)
-     * @param keyword 검색 키워드
-     * @param pageable 페이징 정보
-     * @return 검색 결과
-     */
     @Override
     public Page<Board> searchAll(String[] types, String keyword, Pageable pageable) {
         // BoardSearchRepository 인터페이스의 searchAll 메소드 호출
         return boardSearchRepository.searchAll(types, keyword, pageable);
     }
 
-    /**
-     * 게시글과 댓글 수를 함께 조회
-     * @param types 검색 타입 (t: 제목, c: 내용, w: 작성자)
-     * @param keyword 검색 키워드
-     * @param pageable 페이징 정보
-     * @return 게시글과 댓글 수 정보
-     */
     @Override
     public Page<BoardListReplyCountDTO> searchWithReplyCount(String[] types, String keyword, Pageable pageable) {
         // BoardSearchRepository 인터페이스의 searchWithReplyCount 메소드 호출
         return boardSearchRepository.searchWithReplyCount(types, keyword, pageable);
     }
 
-
     @Override
-    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Pageable pageable){
+    public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Long categoryId, String boardType, Pageable pageable){
         //BoardSearchRepository 인터페이스의 searchWithAll 메소드 호출 (JPA Repository에 위임)
-        return boardSearchRepository.searchWithAll(types, keyword, classId, pageable);
+        return boardSearchRepository.searchWithAll(types, keyword, classId, categoryId, boardType, pageable);
     }
 }

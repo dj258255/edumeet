@@ -42,11 +42,18 @@ public class PageRequestDTO {
 
     @Schema(description = "클래스 ID (특정 클래스의 게시글만 조회)" , example = "1")
     private Long classId;
+    
+    @Schema(description = "카테고리 ID (특정 카테고리의 게시글만 조회)", example = "1")
+    private Long categoryId;
+    
+    @Schema(description = "게시글 타입 (NORMAL: 일반, NOTICE: 공지사항, RECOMMENDED: 추천게시글)", example = "NOTICE")
+    private String boardType;
 
     /**
      * 검색 유형을 배열로 변환
      * @return 검색 유형 배열 (null이면 검색하지 않음)
      */
+
 
     @Schema(hidden = true)
     public String[] getTypes(){
@@ -64,7 +71,23 @@ public class PageRequestDTO {
 
     @Schema(hidden = true)
     public Pageable getPageable(String...props) {
-        return PageRequest.of(this.page -1, this.size, Sort.by(props).descending());
+        int validPage = Math.max(1, this.page);
+
+        int validSize = Math.max(1 , Math.min(100, this.size));
+
+        return PageRequest.of(validPage-1, validSize, Sort.by(props).descending());
     }
+
+
+    // Setter에서도 유효성 검증
+    public void setPage(int page) {
+        this.page = Math.max(1, page);
+    }
+
+    public void setSize(int size) {
+        this.size = Math.max(1, Math.min(100, size));
+    }
+
+
 
 }

@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -49,14 +50,20 @@ public class PageResponseDTO<E> {
      */
     @Builder(builderMethodName = "withAll")
     public PageResponseDTO(PageRequestDTO pageRequestDTO, List<E> dtoList, int total){
-        if(total <= 0){
-            return;
-        }
-
-        this.page = pageRequestDTO.getPage();
-        this.size = pageRequestDTO.getSize();
+        this.page = Math.max(1, pageRequestDTO.getPage());
+        this.size = Math.max(1,Math.min(100, pageRequestDTO.getSize()));
         this.total = total;
-        this.dtoList = dtoList;
+        this.dtoList = dtoList != null ? dtoList : new ArrayList<>();
+
+        if(total <= 0){
+            // 빈 결과에 대한 기본값 설정
+            this.start = 1;
+            this.end = 1;
+            this.prev = false;
+            this.next = false;
+            return;
+
+        }
 
         // 페이지 네비게이션 계산
         this.end = (int)(Math.ceil(this.page / 10.0)) * 10;
@@ -112,8 +119,8 @@ public class PageResponseDTO<E> {
         
         public PageResponseDTO<E> build() {
             PageRequestDTO pageRequestDTO = PageRequestDTO.builder()
-                    .page(this.page)
-                    .size(this.size)
+                    .page(Math.max(1, this.page))  // 유효한 페이지 번호 보장
+                    .size(Math.max(1, Math.min(100, this.size)))  // 유효한 사이즈 보장
                     .build();
             return new PageResponseDTO<>(pageRequestDTO, this.dtoList, this.total);
         }
