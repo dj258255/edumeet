@@ -11,6 +11,7 @@ import VideoComponent from '@/components/VideoComponent.vue';
 import AudioComponent from '@/components/AudioComponent.vue';
 import LiveCaption from '@/components/LiveCaption.vue';
 import SharedLiveCaption from '@/components/SharedLiveCaption.vue';
+import AudioRecorder from '@/components/AudioRecorder.vue';
 import '@/styles/ClassRelated.css';
 
 const route = useRoute();
@@ -366,6 +367,22 @@ function getFirstRemoteParticipantIdentity() {
   }
   return '';
 }
+
+// 음성 녹음 관련 이벤트 핸들러
+function handleRecordingStarted() {
+  console.log('🎤 음성 녹음이 시작되었습니다.')
+  // 여기에 녹음 시작 시 필요한 로직 추가
+}
+
+function handleRecordingStopped() {
+  console.log('⏹️ 음성 녹음이 종료되었습니다.')
+  // 여기에 녹음 종료 시 필요한 로직 추가
+}
+
+function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number }) {
+  console.log('📤 청크 업로드 완료:', chunkData)
+  // 여기에 청크 업로드 완료 시 필요한 로직 추가
+}
 </script>
 
 <!-- 나머지 template 부분은 동일하므로 생략 가능. 필요시 다시 제공 가능. -->
@@ -517,5 +534,27 @@ function getFirstRemoteParticipantIdentity() {
       @error="handleCaptionError"
       @status="handleCaptionStatus"
     />
+    
+    <!-- 음성 녹음 컴포넌트 (생성자에게만 표시) -->
+    <div v-if="isUserCreator" class="audio-recorder-container">
+      <AudioRecorder
+        :classId="classId"
+        :className="className"
+        :creatorName="participantName"
+        @recording-started="handleRecordingStarted"
+        @recording-stopped="handleRecordingStopped"
+        @chunk-uploaded="handleChunkUploaded"
+      />
+    </div>
   </div>
 </template>
+
+<style scoped>
+.audio-recorder-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: 400px;
+}
+</style>

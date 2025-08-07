@@ -36,6 +36,13 @@
           >
             🗑️
           </button>
+          <button 
+            class="members-btn" 
+            @click="handleViewMembers"
+            title="학생 목록 보기"
+          >
+            👥
+          </button>
         </div>
       </div>
     </div>
@@ -61,7 +68,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['enroll', 'createClass', 'deleteClass', 'joinClass', 'viewDetail'])
+const emit = defineEmits(['enroll', 'createClass', 'deleteClass', 'joinClass', 'viewDetail', 'viewMembers'])
 
 const cardImage = computed(() => {
   // card.image가 없거나 빈 문자열이거나 유효하지 않은 경우 기본 이미지 사용
@@ -115,9 +122,39 @@ const handleDeleteClick = () => {
     emit('deleteClass', classId)
   }
 }
+
+const handleViewMembers = () => {
+  console.log('🔍 ClassCard - 학생 목록 보기 클릭:', props.card)
+  const classId = props.card.id || props.card.classId || props.card.classroomId || props.card._id
+  emit('viewMembers', {
+    classId: classId,
+    className: props.card.title
+  })
+}
 </script>
 
 <style scoped>
 /* HomeView.css의 카드 관련 스타일을 그대로 사용하기 위해 scoped를 제거하고 
    부모 컴포넌트에서 CSS를 import하도록 설정 */
+/* 학생 목록 버튼 스타일 */
+.members-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.members-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.members-btn:active {
+  transform: translateY(0);
+}
 </style> 
