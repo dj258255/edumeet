@@ -441,11 +441,7 @@
   }
 }
 
-/* LiveCaption 섹션 스타일 */
-.live-caption-section {
-  margin-bottom: 1rem;
-  margin-top: 0.5rem;
-}
+
 
 /* 채팅창 내부 스타일 */
 .chat-section h3 {
