@@ -5,12 +5,14 @@ import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
 import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
 import com.edu.edumeet.classroom.dto.request.EvictionRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
+import com.edu.edumeet.classroom.dto.response.ThumbnailUploadResultDto;
 import com.edu.edumeet.classroom.repository.*;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.dto.response.SignupResponseDto;
 import com.edu.edumeet.member.repository.MemberRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -19,42 +21,81 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Log4j2
 public class ClassService {
     private final ClassRepository classRepository;
-    private final ThumbnailRepository thumbnailRepository;
     private final TagRepository tagRepository;
     private final ClassMemberRepository classMemberRepository;
     private final ClassInviteRepository classInviteRepository;
     private final MemberRepository memberRepository;
+    private final ClassThumbnailService classThumbnailService;
 
+    /**
+     * 클래스 생성 (썸네일 정보 포함)
+     */
+    @Transactional
     public void create(Long memberId, ClassCreateRequestDto classCreateRequestDto) {
         Member member = getMemberOrThrow(memberId);
 
-        ClassRoom classRoom = saveClassRoom(classCreateRequestDto, member);
-        saveThumbnail(classCreateRequestDto.getThumbnailUrl(), classRoom);
-        saveTags(classCreateRequestDto.getTags(), classRoom);
-    }
+        // 1. 썸네일 정보 조회 (UUID가 있는 경우)
+        String thumbnailUuid = classCreateRequestDto.getThumbnailUuid();
+        String thumbnailUrl = null;
+        String originalUrl = null;
+        
+        if (thumbnailUuid != null && !thumbnailUuid.trim().isEmpty()) {
+            Optional<ThumbnailUploadResultDto> thumbnailInfo = 
+                    classThumbnailService.getThumbnailInfo(thumbnailUuid);
+            
+            if (thumbnailInfo.isPresent()) {
+                ThumbnailUploadResultDto thumbnail = thumbnailInfo.get();
+                thumbnailUrl = thumbnail.getThumbnailUrl();
+                originalUrl = thumbnail.getOriginalUrl();
+                
+                // 임시 저장소에서 제거 (사용 완료)
+                classThumbnailService.markThumbnailAsUsed(thumbnailUuid);
+                
+                log.info("썸네일 정보 연결 - UUID: {}, 썸네일 URL: {}", thumbnailUuid, thumbnailUrl);
+            } else {
+                log.warn("썸네일을 찾을 수 없습니다 - UUID: {} (만료되었거나 존재하지 않음)", thumbnailUuid);
+                // 썸네일이 없어도 클래스 생성은 계속 진행
+                thumbnailUuid = null;
+            }
+        }
 
-    private ClassRoom saveClassRoom(ClassCreateRequestDto classCreateRequestDto, Member member) {
+        // 2. 클래스룸 생성 (썸네일 정보 포함)
         ClassRoom classRoom = ClassRoom.builder()
                 .member(member)
                 .title(classCreateRequestDto.getTitle())
                 .description(classCreateRequestDto.getDescription())
                 .participantLimit(classCreateRequestDto.getLimit())
+                .thumbnailUuid(thumbnailUuid)
+                .thumbnailUrl(thumbnailUrl)
+                .originalUrl(originalUrl)
                 .build();
-        return classRepository.save(classRoom);
+        
+        ClassRoom savedClassRoom = classRepository.save(classRoom);
+
+        // 3. 태그 저장
+        if (classCreateRequestDto.getTags() != null && !classCreateRequestDto.getTags().isEmpty()) {
+            saveTags(classCreateRequestDto.getTags(), savedClassRoom);
+        }
+
+        log.info("클래스 생성 완료 - ID: {}, 제목: {}, 썸네일 포함: {}", 
+                savedClassRoom.getId(), savedClassRoom.getTitle(), savedClassRoom.hasThumbnail());
+    }
+
+    private ClassRoom saveClassRoom(ClassCreateRequestDto classCreateRequestDto, Member member) {
+        return ClassRoom.builder()
+                .member(member)
+                .title(classCreateRequestDto.getTitle())
+                .description(classCreateRequestDto.getDescription())
+                .participantLimit(classCreateRequestDto.getLimit())
+                .build();
     }
 
     private Member getMemberOrThrow(Long memberId) {
         return memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
-    }
-
-    private void saveThumbnail(String imageUrl, ClassRoom classRoom) {
-        thumbnailRepository.save(Thumbnail.builder()
-                        .classRoom(classRoom)
-                        .imageUrl(imageUrl)
-                        .build());
     }
 
     private void saveTags(List<String> tags, ClassRoom classRoom) {
@@ -67,6 +108,9 @@ public class ClassService {
         tagRepository.saveAll(tagEntities);
     }
 
+    /**
+     * 내가 생성한 클래스 목록 조회 (간소화됨!)
+     */
     public List<ClassInfoResponseDto> getMyClasses(Long memberId) {
         List<ClassRoom> classRooms = classRepository.findAllByMemberIdAndIsDeletedFalse(memberId);
 
@@ -76,20 +120,17 @@ public class ClassService {
                 .title(classRoom.getTitle())
                 .description(classRoom.getDescription())
                 .participantLimit(classRoom.getParticipantLimit())
-                .thumbnailUrl(
-                    classRoom.getThumbnail() != null ? classRoom.getThumbnail().getImageUrl() : null
-                )
-                .tags(
-                    classRoom.getTags() != null
-                        ? classRoom.getTags().stream()
-                        .map(Tag::getName)
-                        .toList()
-                        : List.of()
-                )
+                .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근! JOIN 불필요
+                .tags(classRoom.getTags() != null 
+                      ? classRoom.getTags().stream().map(Tag::getName).toList() 
+                      : List.of())
                 .build())
             .toList();
     }
 
+    /**
+     * 참여한 클래스 목록 조회
+     */
     public List<ClassInfoResponseDto> getJoinedClasses(Long memberId) {
         List<ClassMember> classMembers = classMemberRepository.findAllByMemberId(memberId);
 
@@ -100,22 +141,19 @@ public class ClassService {
                         .title(classRoom.getTitle())
                         .description(classRoom.getDescription())
                         .participantLimit(classRoom.getParticipantLimit())
-                        .thumbnailUrl(
-                                Optional.ofNullable(classRoom.getThumbnail())
-                                        .map(Thumbnail::getImageUrl)
-                                        .orElse(null)
-                        )
-                        .tags(
-                                Optional.ofNullable(classRoom.getTags())
-                                        .orElse(List.of())
-                                        .stream()
-                                        .map(Tag::getName)
-                                        .toList()
-                        )
+                        .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근!
+                        .tags(Optional.ofNullable(classRoom.getTags())
+                                .orElse(List.of())
+                                .stream()
+                                .map(Tag::getName)
+                                .toList())
                         .build())
                 .toList();
     }
 
+    /**
+     * 클래스 상세 조회
+     */
     public ClassInfoResponseDto getClassDetail(Long classRoomId) {
         ClassRoom classRoom = classRepository.findById(classRoomId)
                 .filter(c -> Boolean.FALSE.equals(c.getIsDeleted()))
@@ -126,18 +164,12 @@ public class ClassService {
                 .title(classRoom.getTitle())
                 .description(classRoom.getDescription())
                 .participantLimit(classRoom.getParticipantLimit())
-                .thumbnailUrl(
-                        Optional.ofNullable(classRoom.getThumbnail())
-                                .map(Thumbnail::getImageUrl)
-                                .orElse(null)
-                )
-                .tags(
-                        Optional.ofNullable(classRoom.getTags())
-                                .orElse(List.of())
-                                .stream()
-                                .map(Tag::getName)
-                                .toList()
-                )
+                .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근!
+                .tags(Optional.ofNullable(classRoom.getTags())
+                        .orElse(List.of())
+                        .stream()
+                        .map(Tag::getName)
+                        .toList())
                 .build();
     }
 
@@ -151,8 +183,14 @@ public class ClassService {
         }
 
         classRoom.markAsDeleted();
+        
+        // 썸네일이 있다면 S3에서도 삭제 (선택사항)
+        if (classRoom.hasThumbnail()) {
+            classThumbnailService.deleteThumbnail(classRoom.getThumbnailUuid());
+        }
     }
 
+    // 나머지 메서드들은 기존과 동일...
     public void inviteStudents(Long classId, Long memberId, List<String> emails) {
         ClassRoom classRoom = classRepository.findById(classId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 클래스는 존재하지 않습니다."));
@@ -188,11 +226,7 @@ public class ClassService {
                         .classId(classRoom.getId())
                         .title(classRoom.getTitle())
                         .description(classRoom.getDescription())
-                        .thumbnailUrl(
-                                classRoom.getThumbnail() != null
-                                        ? classRoom.getThumbnail().getImageUrl()
-                                        : null
-                        )
+                        .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근!
                         .tags(classRoom.getTags().stream()
                                 .map(Tag::getName)
                                 .toList())
@@ -216,7 +250,6 @@ public class ClassService {
             throw new IllegalArgumentException("이미 응답한 초대는 상태를 변경할 수 없습니다.");
         }
 
-
         if (newStatus == InviteStatus.ACCEPTED) {
             ClassMember classMember = ClassMember.builder()
                     .classRoom(invite.getClassRoom())
@@ -225,8 +258,7 @@ public class ClassService {
             classMemberRepository.save(classMember);
 
             classInviteRepository.delete(invite);
-        }
-        else {
+        } else {
             invite.changeStatus(InviteStatus.DENIED);
         }
     }
@@ -242,9 +274,7 @@ public class ClassService {
         }
 
         List<ClassMember> classMembers = classMemberRepository.findAllByClassRoomId(classId);
-
         Member owner = classRoom.getMember();
-
         List<SignupResponseDto> result = new ArrayList<>();
 
         result.add(SignupResponseDto.builder()
@@ -254,7 +284,7 @@ public class ClassService {
 
         result.addAll(classMembers.stream()
                 .map(ClassMember::getMember)
-                .filter(member -> !member.getId().equals(owner.getId())) // 방장 중복 방지
+                .filter(member -> !member.getId().equals(owner.getId()))
                 .map(member -> SignupResponseDto.builder()
                         .email(member.getEmail())
                         .nickname(member.getNickname())
@@ -290,6 +320,4 @@ public class ClassService {
 
         classMemberRepository.delete(classMember);
     }
-
-
 }
