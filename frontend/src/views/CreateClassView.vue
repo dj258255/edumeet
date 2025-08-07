@@ -134,6 +134,15 @@
       @close="closeJoinModal"
       @join="handleJoinClassConfirm"
     />
+
+    <!-- 수업 생성 모달 -->
+    <CreateClassModal
+      :isOpen="showCreateClassModal"
+      :defaultClassName="pendingClassData?.className || ''"
+      :classId="pendingClassData?.classId || ''"
+      @close="handleCreateClassModalClose"
+      @create="handleCreateClassConfirm"
+    />
   </div>
 </template>
 
