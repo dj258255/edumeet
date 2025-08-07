@@ -1,7 +1,7 @@
 package com.edu.edumeet.config.jwt;
 
-import com.edu.edumeet.member.application.repository.MemberRepository;
 import com.edu.edumeet.member.domain.Member;
+import com.edu.edumeet.member.repository.MemberRepository;
 import com.edu.edumeet.member.domain.SecurityMember;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

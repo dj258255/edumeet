@@ -1,8 +1,7 @@
-package com.edu.edumeet.member.application;
+package com.edu.edumeet.member.service;
 
-import com.edu.edumeet.member.application.repository.RefreshTokenRepository;
 import com.edu.edumeet.member.domain.RefreshToken;
-import com.edu.edumeet.member.infrastructure.RefreshTokenJpaRepository;
+import com.edu.edumeet.member.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,12 +14,11 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class RefreshTokenServiceImpl implements RefreshTokenService {
+public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
 
-    @Override
-    public void save(Long memberId, RefreshToken refreshToken) {
+    public RefreshToken save(Long memberId, RefreshToken refreshToken) {
         log.info("RefreshToken 저장 요청 - memberId: {}", memberId);
 
         if (memberId == null) {
@@ -35,48 +33,54 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         Optional<RefreshToken> existingToken = refreshTokenRepository.findByMemberId(memberId);
 
+        RefreshToken savedToken;
         if (existingToken.isPresent()) {
             log.info("기존 RefreshToken 발견, 업데이트 진행 - memberId: {}", memberId);
-            update(memberId, refreshToken);
+            RefreshToken existing = existingToken.get();
+            existing.updateToken(refreshToken.getToken(), refreshToken.getExpiration());
+            savedToken = refreshTokenRepository.save(existing); // ✅ JpaRepository의 save(Entity) 사용
         } else {
             log.info("새로운 RefreshToken 저장 진행 - memberId: {}", memberId);
-            refreshTokenRepository.save(memberId, refreshToken);
+            savedToken = refreshTokenRepository.save(refreshToken); // ✅ JpaRepository의 save(Entity) 사용
         }
 
-        Optional<RefreshToken> savedToken = refreshTokenRepository.findByMemberId(memberId);
-        if (savedToken.isPresent()) {
+        if (savedToken != null) {
             log.info("RefreshToken 저장 성공 확인 - memberId: {}", memberId);
+            return savedToken;
         } else {
             log.error("RefreshToken 저장 실패 - memberId: {}", memberId);
             throw new RuntimeException("RefreshToken 저장에 실패했습니다.");
         }
     }
 
-    @Override
-    public void update(Long memberId, RefreshToken refreshToken) {
+    public RefreshToken update(Long memberId, RefreshToken refreshToken) {
         log.info("RefreshToken 업데이트 요청 - memberId: {}", memberId);
-        refreshTokenRepository.update(memberId, refreshToken);
+
+        RefreshToken existingToken = refreshTokenRepository.findByMemberId(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 회원의 RefreshToken을 찾을 수 없습니다."));
+
+        existingToken.updateToken(refreshToken.getToken(), refreshToken.getExpiration());
+        RefreshToken updatedToken = refreshTokenRepository.save(existingToken); // ✅ JpaRepository의 save(Entity) 사용
+
+        log.info("RefreshToken 업데이트 완료 - memberId: {}", memberId);
+        return updatedToken;
     }
 
-    @Override
     public void deleteByMemberId(Long memberId) {
         log.info("RefreshToken 삭제 요청 - memberId: {}", memberId);
         refreshTokenRepository.deleteByMemberId(memberId);
     }
 
-    @Override
     @Transactional(readOnly = true)
     public Optional<RefreshToken> findByToken(String token) {
         return refreshTokenRepository.findByToken(token);
     }
 
-    @Override
     @Transactional(readOnly = true)
     public Optional<RefreshToken> findByMemberId(Long memberId) {
         return refreshTokenRepository.findByMemberId(memberId);
     }
 
-    @Override
     @Transactional(readOnly = true)
     public boolean isValid(String token, LocalDateTime now) {
         return findByToken(token)

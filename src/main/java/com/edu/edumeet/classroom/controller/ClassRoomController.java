@@ -7,7 +7,7 @@ import com.edu.edumeet.classroom.dto.request.InviteStudentsRequestDto;
 import com.edu.edumeet.classroom.dto.response.ClassInfoResponseDto;
 import com.edu.edumeet.classroom.service.ClassService;
 import com.edu.edumeet.member.domain.SecurityMember;
-import com.edu.edumeet.member.presentation.dto.response.SignupResponseDto;
+import com.edu.edumeet.member.dto.response.SignupResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
