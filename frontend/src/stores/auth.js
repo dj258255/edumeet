@@ -1,7 +1,6 @@
 import axios from "axios"
 import { defineStore } from 'pinia'
 import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
-
 // API 기본 설정
 const API_BASE_URL = "http://localhost:8080/api/v1"
 
@@ -347,6 +346,7 @@ async verifyCode(verifyInfo) {
       
       try {
         await authAPI.logout()
+
       } catch (error) {
         console.error('로그아웃 API 호출 실패:', error)
       } finally {
@@ -358,6 +358,7 @@ async verifyCode(verifyInfo) {
         this.isAuthenticated = false
         this.loading = false
         this.error = null
+
       }
     },
 

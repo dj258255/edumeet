@@ -8,6 +8,7 @@
     </div>
 
     <div class="info-content">
+      <button @click="classww">정보보기</button>
       <div class="info-section">
         <h4 class="section-title">과제 제출률</h4>
         <div class="assignment-info">
@@ -78,10 +79,18 @@
               :key="notice.id"
               class="notice-item"
               :class="{ required: notice.required }"
-              @click="openNoticeDetailModal(notice)"
             >
-              <span class="badge">{{ notice.required ? '필수' : '일반' }}</span>
-              <span class="text">{{ notice.title }}</span>
+              <div @click="openNoticeDetailModal(notice)" class="notice-item-content">
+                <span class="badge">{{ notice.required ? '필수' : '일반' }}</span>
+                <span class="text">{{ notice.title }}</span>
+              </div>
+              <button
+                v-if="isMyCreatedClass"
+                @click.stop="deleteNotice(notice.id)"
+                class="delete-btn small-btn"
+              >
+                삭제
+              </button>
             </div>
           </div>
         </div>
@@ -105,16 +114,22 @@
               :key="task.id"
               class="task-item"
               :class="{ done: task.done }"
-              @click="openAssignmentDetailModal(task)"
             >
-              <div class="task-info-left">
+              <div @click="openAssignmentDetailModal(task)" class="task-info-left">
                 <span class="status">{{ task.done ? '완료' : '미완료' }}</span>
                 <span class="text">{{ task.title }}</span>
               </div>
               <button
-                v-if="!isMyCreatedClass && !task.done"
+                v-if="isMyCreatedClass"
+                @click.stop="deleteAssignment(task.id)"
+                class="delete-btn small-btn"
+              >
+                삭제
+              </button>
+              <button
+                v-else-if="!task.done"
                 @click.stop="submitAssignment(task.id)"
-                class="submit-btn"
+                class="submit-btn small-btn"
               >
                 제출
               </button>
@@ -142,7 +157,9 @@
     <NoticeDetailModal
       :isVisible="showNoticeModal"
       :noticeData="selectedNotice"
+      :isMyCreatedClass="isMyCreatedClass"
       @close="closeNoticeModal"
+      @delete="deleteNotice"
     />
     <AssignmentDetailModal
       :isVisible="showAssignmentModal"
@@ -171,6 +188,10 @@ import NoticeDetailModal from './NoticeDetailModal.vue'
 import AssignmentDetailModal from './AssignmentDetailModal.vue'
 import NoticeRegisterModal from './NoticeRegisterModal.vue'
 import AssignmentRegisterModal from './AssignmentRegisterModal.vue'
+import { useAuthStore } from '@/stores/auth.js'
+import apiClient from '@/stores/auth.js';
+import { watch } from 'vue' // watch를 import
+const authStore = useAuthStore()
 
 const props = defineProps({
   classData: Object,
@@ -179,13 +200,18 @@ const props = defineProps({
     default: false
   }
 });
-const openprops=()=>{
-  console.log(props.classData,props.isMyCreatedClass)
+
+// props.classData가 변경될 때마다 로그를 출력
+watch(() => props.classData, (newVal) => {
+  console.log("Class data updated:", newVal);
+}, { deep: true });
+
+const classww = () => {
+  console.log(props.classData)
 }
 
 const emit = defineEmits(['enter-class', 'invite'])
 
-// 초대 모달 상태
 const inviteModalOpen = ref(false)
 
 const openInviteModal = () => {
@@ -201,24 +227,25 @@ const handleInvite = (data) => {
   emit('invite', data)
 }
 
-// 과제 제출률
 const assignmentRate = computed(() => {
-  return props.classData.assignmentRate || 78
+  // classData가 없으면 기본값 0 반환
+  if (!props.classData || props.classData.totalAssignments === 0) {
+    return 0
+  }
+  return Math.round((props.classData.submittedAssignments / props.classData.totalAssignments) * 100)
 })
 const submittedAssignments = computed(() => {
-  return props.classData.submittedAssignments || 14
+  return props.classData?.submittedAssignments || 0
 })
 const totalAssignments = computed(() => {
-  return props.classData.totalAssignments || 18
+  return props.classData?.totalAssignments || 0
 })
 
-// 공지사항 (모달에 표시할 상세 내용 추가)
 const notices = ref([
   { id: 1, title: '중간고사 일정 안내', required: true, content: '안녕하세요, 중간고사 일정을 안내드립니다. 시험 범위는 1단원부터 5단원까지이며, 자세한 내용은 첨부파일을 확인해주세요.', date: '2025.08.01' },
   { id: 2, title: 'Zoom 접속 링크 변경', required: false, content: '다음 수업부터 사용될 Zoom 접속 링크가 변경되었습니다. 기존 링크는 사용 불가하니, 변경된 링크를 통해 접속해 주시기 바랍니다.', date: '2025.07.28' }
 ])
 
-// 과제 게시판 (모달에 표시할 상세 내용 추가)
 const assignments = ref([
   { id: 1, title: '1주차 과제', description: '1주차 수업 내용을 바탕으로 주어진 문제를 해결하세요. 마감일은 다음주 금요일입니다.', done: true, dueDate: '2025.08.08' },
   { id: 2, title: '2주차 과제', description: '2주차 과제는 실습 위주의 프로젝트입니다. 자세한 요구사항은 공지사항을 확인하세요.', done: false, dueDate: '2025.08.15' },
@@ -229,7 +256,6 @@ const activeTab = ref('notice')
 const noticeFilter = ref('all')
 const assignmentFilter = ref('all')
 
-// 필터링된 공지사항
 const filteredNotices = computed(() => {
   if (noticeFilter.value === 'all') {
     return notices.value
@@ -240,7 +266,6 @@ const filteredNotices = computed(() => {
   }
 })
 
-// 필터링된 과제
 const filteredAssignments = computed(() => {
   if (assignmentFilter.value === 'all') {
     return assignments.value
@@ -251,7 +276,6 @@ const filteredAssignments = computed(() => {
   }
 })
 
-// 과제 제출 로직 (학생 전용)
 const submitAssignment = (assignmentId) => {
   const task = assignments.value.find(t => t.id === assignmentId);
   if (task) {
@@ -269,7 +293,6 @@ const getStatusText = (status) => {
   return map[status] || '진행중'
 }
 
-// 공지사항 상세 모달 상태 및 함수
 const showNoticeModal = ref(false);
 const selectedNotice = ref(null);
 const openNoticeDetailModal = (notice) => {
@@ -281,7 +304,6 @@ const closeNoticeModal = () => {
   selectedNotice.value = null;
 };
 
-// 과제 상세 모달 상태 및 함수
 const showAssignmentModal = ref(false);
 const selectedAssignment = ref(null);
 const openAssignmentDetailModal = (assignment) => {
@@ -293,7 +315,6 @@ const closeAssignmentModal = () => {
   selectedAssignment.value = null;
 };
 
-// 공지사항 등록 모달 상태 및 함수
 const showNoticeRegisterModal = ref(false);
 const openNoticeRegisterModal = () => {
   showNoticeRegisterModal.value = true;
@@ -301,13 +322,52 @@ const openNoticeRegisterModal = () => {
 const closeNoticeRegisterModal = () => {
   showNoticeRegisterModal.value = false;
 };
-const registerNotice = (newNotice) => {
-  notices.value.push(newNotice);
-  showNoticeRegisterModal.value = false;
-  alert('공지사항이 성공적으로 등록되었습니다!');
+
+const registerNotice = async (newNoticeData) => {
+  try {
+    let uploadedFileNames = [];
+
+    if (newNoticeData.files && newNoticeData.files.length > 0) {
+      const formData = new FormData();
+      newNoticeData.files.forEach(file => {
+        formData.append('files', file);
+      });
+
+      const fileUploadResponse = await apiClient.post('/boards/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      const uploadResult = fileUploadResponse.data;
+      console.log('📢 파일 업로드 성공:', uploadResult);
+
+      // 문자열 배열로 변환
+      uploadedFileNames = uploadResult.map(file => `${file.uuid}_${file.fileName}`);
+    }
+
+    const classId = BigInt(props.classData.classId);
+    const noticePayload = {
+      title: newNoticeData.title,
+      content: newNoticeData.content,
+      categoryId: null,
+      boardType: 'NORMAL',
+      fileNames: uploadedFileNames  // ✅ 문자열만 담긴 배열
+    };
+
+    console.log(`📢 공지사항 등록 API 요청: /class/${classId}/boards`, noticePayload);
+
+    await apiClient.post(`/class/${classId}/boards`, noticePayload);
+
+    showNoticeRegisterModal.value = false;
+    alert('공지사항이 성공적으로 등록되었습니다!');
+  } catch (error) {
+    console.error('📢 공지사항 등록 실패:', error);
+    alert('공지사항 등록에 실패했습니다. 다시 시도해주세요.');
+  }
 };
 
-// 과제 등록 모달 상태 및 함수
+
 const showAssignmentRegisterModal = ref(false);
 const openAssignmentRegisterModal = () => {
   showAssignmentRegisterModal.value = true;
@@ -318,14 +378,30 @@ const closeAssignmentRegisterModal = () => {
 const registerAssignment = (newAssignment) => {
   assignments.value.push({
     ...newAssignment,
-    id: assignments.value.length + 1, // 새로운 ID를 임시로 부여
+    id: assignments.value.length + 1,
     done: false
   });
   showAssignmentRegisterModal.value = false;
   alert('과제가 성공적으로 등록되었습니다!');
 };
+
+const deleteNotice = (noticeId) => {
+  if (confirm('정말 이 공지사항을 삭제하시겠습니까?')) {
+    notices.value = notices.value.filter(notice => notice.id !== noticeId);
+    closeNoticeModal();
+    alert('공지사항이 삭제되었습니다.');
+  }
+};
+
+const deleteAssignment = (assignmentId) => {
+  if (confirm('정말 이 과제를 삭제하시겠습니까?')) {
+    assignments.value = assignments.value.filter(task => task.id !== assignmentId);
+    closeAssignmentModal();
+    alert('과제가 삭제되었습니다.');
+  }
+};
 </script>
 
 <style>
-  @import '@/styles//classinfo.css';
+@import '@/styles/classinfo.css';
 </style>

@@ -19,6 +19,10 @@
           <label for="notice-content">내용</label>
           <textarea id="notice-content" v-model="form.content" placeholder="공지사항 내용을 입력하세요" class="form-textarea"></textarea>
         </div>
+        <div class="form-group">
+          <label for="notice-files">파일 첨부</label>
+          <input type="file" id="notice-files" multiple @change="handleFileChange" class="form-file-input" />
+        </div>
         <div class="form-group form-check">
           <input type="checkbox" id="notice-required" v-model="form.required" class="form-checkbox" />
           <label for="notice-required">필수 공지사항으로 등록</label>
@@ -46,12 +50,22 @@ const form = ref({
   required: false
 });
 
+const files = ref([]);
+
+const handleFileChange = (event) => {
+  files.value = [...event.target.files];
+};
+
 const submitForm = () => {
   if (!form.value.title || !form.value.content) {
     alert('제목과 내용을 모두 입력해주세요.');
     return;
   }
-  emit('register', { ...form.value, date: new Date().toISOString().split('T')[0] });
+  emit('register', {
+    ...form.value,
+    files: files.value,
+    date: new Date().toISOString().split('T')[0]
+  });
   resetForm();
 };
 
@@ -66,9 +80,15 @@ const resetForm = () => {
     content: '',
     required: false
   };
+  files.value = [];
+  const fileInput = document.getElementById('notice-files');
+  if (fileInput) {
+    fileInput.value = '';
+  }
 };
 </script>
 
-<style >
+<style>
   @import '@/styles/classinfo.css';
+
 </style>

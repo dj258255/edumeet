@@ -19,7 +19,11 @@
           <p>{{ noticeData.content }}</p>
         </div>
       </div>
-    </div>
+      
+      <div class="modal-footer" v-if="isMyCreatedClass">
+        <button class="delete-btn" @click="deleteItem">삭제</button>
+      </div>
+      </div>
   </div>
 </template>
 
@@ -36,15 +40,27 @@ const props = defineProps({
     required: true,
     default: () => ({ title: '', content: '', required: false, date: '' }),
   },
+  isMyCreatedClass: {
+    type: Boolean,
+    default: false
+  }
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'delete']);
 
 const closeModal = () => {
   emit('close');
 };
+
+const deleteItem = () => {
+  emit('delete', props.noticeData.id);
+};
 </script>
 
-<style scoped>
+<style>
+  /*
+    classinfo.css 파일을 불러옵니다.
+    NoticeDetailModal의 스타일은 모두 classinfo.css에 포함되어야 합니다.
+  */
   @import '@/styles/classinfo.css';
 </style>
