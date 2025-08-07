@@ -220,8 +220,8 @@ const assignmentRate = computed(() => {
 const submittedAssignments = computed(() => props.classData?.submittedAssignments || 0)
 const totalAssignments = computed(() => props.classData?.totalAssignments || 0)
 
-const notices = ref([]) // ✅ 목업 제거됨
-const assignments = ref([]) // ✅ 목업 제거됨
+const notices = ref([]) 
+const assignments = ref([]) 
 
 const activeTab = ref('notice')
 const noticeFilter = ref('all')
@@ -229,8 +229,9 @@ const assignmentFilter = ref('all')
 
 const filteredNotices = computed(() => {
   if (noticeFilter.value === 'all') return notices.value
-  if (noticeFilter.value === 'required') return notices.value.filter(n => n.required)
-  return notices.value.filter(n => !n.required)
+  // notice 객체에 required 속성이 없으므로 boardType으로 필터링
+  if (noticeFilter.value === 'required') return notices.value.filter(n => n.boardType === 'NOTICE')
+  return notices.value.filter(n => n.boardType === 'NORMAL')
 })
 
 const filteredAssignments = computed(() => {
@@ -239,11 +240,18 @@ const filteredAssignments = computed(() => {
   return assignments.value.filter(t => !t.done)
 })
 
-const submitAssignment = (assignmentId) => {
-  const task = assignments.value.find(t => t.id === assignmentId)
-  if (task) {
-    task.done = true
-    alert(`${task.title}이(가) 성공적으로 제출되었습니다!`)
+const submitAssignment = async (assignmentId) => {
+  try {
+    // 과제 제출 API 호출 (가정)
+    // await apiClient.post(`/class/${props.classData.classId}/assignments/${assignmentId}/submit`);
+    const task = assignments.value.find(t => t.id === assignmentId)
+    if (task) {
+      task.done = true
+      alert(`${task.title}이(가) 성공적으로 제출되었습니다!`)
+    }
+  } catch (err) {
+    console.error('과제 제출 실패:', err);
+    alert('과제 제출에 실패했습니다.');
   }
 }
 
@@ -259,9 +267,16 @@ const getStatusText = (status) => {
 // 공지사항 모달
 const showNoticeModal = ref(false)
 const selectedNotice = ref(null)
-const openNoticeDetailModal = (notice) => {
-  selectedNotice.value = notice
-  showNoticeModal.value = true
+const openNoticeDetailModal = async (noticeId) => {
+  try {
+    const classId = props.classData.classId;
+    const res = await apiClient.get(`/class/${classId}/boards/${noticeId}`);
+    selectedNotice.value = res.data;
+    showNoticeModal.value = true;
+  } catch (err) {
+    console.error('공지사항 상세 불러오기 실패:', err);
+    alert('공지사항 상세 정보를 불러오는데 실패했습니다.');
+  }
 }
 const closeNoticeModal = () => {
   showNoticeModal.value = false
@@ -284,9 +299,15 @@ const fetchNoticesAndAssignments = async () => {
   try {
     const classId = props.classData.classId;
 
+    // 게시글 목록 조회 API 호출 (게시판 타입별 필터링은 백엔드에서 처리)
     const noticeRes = await apiClient.get(`/class/${classId}/boards`);
-    console.log('notice',notices.value);
-    notices.value = noticeRes.data;
+    // API 응답 구조에 따라 dtoList를 사용
+    notices.value = noticeRes.data.dtoList;
+    console.log('notices:', notices.value);
+    
+    // 과제 목록은 별도 API가 필요할 수 있음 (현재 코드에는 없음, 가정)
+    // const assignmentRes = await apiClient.get(`/class/${classId}/assignments`);
+    // assignments.value = assignmentRes.data.dtoList;
 
   } catch (err) {
     console.error('목록 불러오기 실패:', err);
@@ -307,16 +328,15 @@ const registerNotice = async (newNoticeData) => {
       const res = await apiClient.post('/boards/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      uploadedFileNames = res.data.map(file => `${file.uuid}_${file.fileName}`)
+      uploadedFileNames = res.data.map(file => `${file.fileName}`)
     }
 
-    const classId = BigInt(props.classData.classId)
+    const classId = props.classData.classId;
     const payload = {
       title: newNoticeData.title,
       content: newNoticeData.content,
       writer: authStore.currentUser.nickname,
-      categoryId: null,
-      boardType: 'NORMAL',
+      boardType: newNoticeData.required ? 'NOTICE' : 'NORMAL',
       fileNames: uploadedFileNames
     }
 
@@ -365,7 +385,8 @@ const deleteAssignment = async (assignmentId) => {
 
   try {
     const classId = props.classData.classId;
-    await apiClient.delete(`/class/${classId}/assignments/${assignmentId}`);
+    // 과제 삭제 API 호출 (가정)
+    // await apiClient.delete(`/class/${classId}/assignments/${assignmentId}`);
     // 삭제 성공 시 로컬 상태 반영
     assignments.value = assignments.value.filter(t => t.id !== assignmentId);
     closeAssignmentModal();
@@ -383,6 +404,9 @@ onMounted(() => {
 });
 </script>
 
+<style>
+@import '@/styles/classinfo.css';
+</style>
 <style>
 @import '@/styles/classinfo.css';
 </style>
