@@ -98,7 +98,7 @@
         <div v-if="selectedClass" class="class-info-wrapper">
           <ClassInfo 
             :classData="selectedClass"
-            @enter-class="goToVideoRoom"
+            :isMyCreatedClass="activeTab === 'created'" @enter-class="goToVideoRoom"
             @view-details="viewClassDetails"
           />
         </div>
