@@ -11,6 +11,9 @@ import java.util.Objects;
 @Entity
 @Table(name = "class_room")
 @Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ClassRoom extends BaseEntity {
     @Id
     @GeneratedValue
@@ -24,11 +27,18 @@ public class ClassRoom extends BaseEntity {
     @OneToMany(mappedBy = "classRoom", fetch = FetchType.LAZY)
     private List<ClassMember> classMember;
 
-    @OneToOne(mappedBy = "classRoom", fetch = FetchType.LAZY)
-    private Thumbnail thumbnail;
-
     @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Tag> tags;
+
+    // 썸네일 관련 필드들 (별도 엔티티 대신 직접 포함)
+    @Column(name = "thumbnail_uuid")
+    private String thumbnailUuid;
+    
+    @Column(name = "thumbnail_url")
+    private String thumbnailUrl;
+    
+    @Column(name = "original_url")
+    private String originalUrl;
 
     private String title;
 
@@ -38,20 +48,27 @@ public class ClassRoom extends BaseEntity {
     private int participantLimit;
 
     @Column(name = "is_deleted", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    @Builder.Default
     private Boolean isDeleted = false;
-
-    protected ClassRoom() {}
 
     public void markAsDeleted() {
         this.isDeleted = true;
     }
-
-    @Builder
-    private ClassRoom(Member member, String title, String description, int participantLimit) {
-        this.member = member;
-        this.title = title;
-        this.description = description;
-        this.participantLimit = participantLimit;
+    
+    /**
+     * 썸네일 정보 업데이트
+     */
+    public void updateThumbnail(String thumbnailUuid, String thumbnailUrl, String originalUrl) {
+        this.thumbnailUuid = thumbnailUuid;
+        this.thumbnailUrl = thumbnailUrl;
+        this.originalUrl = originalUrl;
+    }
+    
+    /**
+     * 썸네일 존재 여부 확인
+     */
+    public boolean hasThumbnail() {
+        return thumbnailUuid != null && !thumbnailUuid.trim().isEmpty();
     }
 
     @Override
