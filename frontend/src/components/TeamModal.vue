@@ -1,8 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import { ref } from 'vue'
 
-// 팀 멤버 이미지 import
+// 팀 멤버 이미지 import (이 부분은 그대로 둬도 무방)
 import member1 from '@/assets/member/1.png'
 import member2 from '@/assets/member/2.png'
 import member3 from '@/assets/member/3.png'
@@ -29,29 +28,10 @@ const teamMembers = ref([
   { name: '권민환', photo: member6 },
 ])
 
-// 신고수 정보
-const reportCounts = ref({})
-
 // 신고 입력 모달 상태
 const showReportModal = ref(false)
 const reportTarget = ref('')
 const reportReason = ref('')
-
-const fetchReports = async () => {
-  try {
-    const { data } = await axios.get('https://example.com/api/reports')
-    reportCounts.value = data.reduce((acc, item) => {
-      acc[item.name] = item.reports
-      return acc
-    }, {})
-  } catch (err) {
-    console.error('신고수 로딩 에러:', err)
-  }
-}
-
-onMounted(() => {
-  fetchReports()
-})
 
 // 신고 버튼 클릭 시 입력 모달 열기
 const openReportModal = (memberName) => {
@@ -60,26 +40,8 @@ const openReportModal = (memberName) => {
   showReportModal.value = true
 }
 
-// 신고 제출
-const submitReport = async () => {
-  if (!reportReason.value.trim()) {
-    alert('신고 내용을 입력하세요.')
-    return
-  }
-  try {
-    await axios.post('https://example.com/api/report', {
-      name: reportTarget.value,
-      reason: reportReason.value
-    })
-    await fetchReports()
-    alert(`${reportTarget.value}님을 신고했습니다.`)
-    showReportModal.value = false
-  } catch (err) {
-    console.error('신고 에러:', err)
-    alert('신고에 실패했습니다. 다시 시도해주세요.')
-  }
-}
 </script>
+
 
 <template>
   <div v-if="open" class="modal-overlay" @click="$emit('close')">
@@ -95,11 +57,8 @@ const submitReport = async () => {
         >
           <img :src="member.photo" alt="사진" />
           <p class="name">{{ member.name }}</p>
-          <div class="heart">
-            ❤️ <span>{{ reportCounts[member.name] || 0 }}</span>
-          </div>
           <button class="report-btn" @click="openReportModal(member.name)">
-            신고하기
+            응원받기
           </button>
         </div>
       </div>
@@ -108,15 +67,10 @@ const submitReport = async () => {
     <!-- 신고 입력 모달 -->
     <div v-if="showReportModal" class="report-overlay" @click="showReportModal = false">
       <div class="report-content" @click.stop>
-        <h3>신고 사유 입력</h3>
+        <h3>응원</h3>
         <!-- 신고 대상 이름 표시 -->
-        <div class="report-target">{{ reportTarget }}님을 신고합니다</div>
-        <textarea
-          v-model="reportReason"
-          placeholder="신고 사유를 입력하세요"
-        ></textarea>
+        <div class="report-target">{{ reportTarget }}님을 열심히 합시다</div>
         <div class="btns">
-          <button @click="submitReport">제출</button>
           <button class="cancel" @click="showReportModal = false">취소</button>
         </div>
       </div>

@@ -44,18 +44,10 @@
         <h4 class="section-title">게시판</h4>
 
         <div class="tab-buttons">
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'notice' }"
-            @click="activeTab = 'notice'"
-          >
+          <button class="tab-btn" :class="{ active: activeTab === 'notice' }" @click="activeTab = 'notice'">
             📢 공지사항
           </button>
-          <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'assignment' }"
-            @click="activeTab = 'assignment'"
-          >
+          <button class="tab-btn" :class="{ active: activeTab === 'assignment' }" @click="activeTab = 'assignment'">
             📝 과제
           </button>
         </div>
@@ -80,7 +72,7 @@
               class="notice-item"
               :class="{ required: notice.required }"
             >
-              <div @click="openNoticeDetailModal(notice)" class="notice-item-content">
+              <div @click="openNoticeDetailModal(notice.id)" class="notice-item-content">
                 <span class="badge">{{ notice.required ? '필수' : '일반' }}</span>
                 <span class="text">{{ notice.title }}</span>
               </div>
@@ -182,15 +174,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import InviteModal from './InviteModal.vue'
 import NoticeDetailModal from './NoticeDetailModal.vue'
 import AssignmentDetailModal from './AssignmentDetailModal.vue'
 import NoticeRegisterModal from './NoticeRegisterModal.vue'
 import AssignmentRegisterModal from './AssignmentRegisterModal.vue'
 import { useAuthStore } from '@/stores/auth.js'
-import apiClient from '@/stores/auth.js';
-import { watch } from 'vue' // watch를 import
+import apiClient from '@/stores/auth.js'
+
 const authStore = useAuthStore()
 
 const props = defineProps({
@@ -199,12 +191,11 @@ const props = defineProps({
     type: Boolean,
     default: false
   }
-});
+})
 
-// props.classData가 변경될 때마다 로그를 출력
 watch(() => props.classData, (newVal) => {
-  console.log("Class data updated:", newVal);
-}, { deep: true });
+  console.log("Class data updated:", newVal)
+}, { deep: true })
 
 const classww = () => {
   console.log(props.classData)
@@ -213,76 +204,48 @@ const classww = () => {
 const emit = defineEmits(['enter-class', 'invite'])
 
 const inviteModalOpen = ref(false)
-
-const openInviteModal = () => {
-  inviteModalOpen.value = true
-}
-
-const closeInviteModal = () => {
-  inviteModalOpen.value = false
-}
-
+const openInviteModal = () => inviteModalOpen.value = true
+const closeInviteModal = () => inviteModalOpen.value = false
 const handleInvite = (data) => {
   alert('초대가 성공적으로 전송되었습니다!')
   emit('invite', data)
 }
 
 const assignmentRate = computed(() => {
-  // classData가 없으면 기본값 0 반환
   if (!props.classData || props.classData.totalAssignments === 0) {
     return 0
   }
   return Math.round((props.classData.submittedAssignments / props.classData.totalAssignments) * 100)
 })
-const submittedAssignments = computed(() => {
-  return props.classData?.submittedAssignments || 0
-})
-const totalAssignments = computed(() => {
-  return props.classData?.totalAssignments || 0
-})
+const submittedAssignments = computed(() => props.classData?.submittedAssignments || 0)
+const totalAssignments = computed(() => props.classData?.totalAssignments || 0)
 
-const notices = ref([
-  { id: 1, title: '중간고사 일정 안내', required: true, content: '안녕하세요, 중간고사 일정을 안내드립니다. 시험 범위는 1단원부터 5단원까지이며, 자세한 내용은 첨부파일을 확인해주세요.', date: '2025.08.01' },
-  { id: 2, title: 'Zoom 접속 링크 변경', required: false, content: '다음 수업부터 사용될 Zoom 접속 링크가 변경되었습니다. 기존 링크는 사용 불가하니, 변경된 링크를 통해 접속해 주시기 바랍니다.', date: '2025.07.28' }
-])
-
-const assignments = ref([
-  { id: 1, title: '1주차 과제', description: '1주차 수업 내용을 바탕으로 주어진 문제를 해결하세요. 마감일은 다음주 금요일입니다.', done: true, dueDate: '2025.08.08' },
-  { id: 2, title: '2주차 과제', description: '2주차 과제는 실습 위주의 프로젝트입니다. 자세한 요구사항은 공지사항을 확인하세요.', done: false, dueDate: '2025.08.15' },
-  { id: 3, title: '3주차 과제', description: '3주차 과제는 심화 학습 내용입니다. 궁금한 점은 게시판에 질문해주세요.', done: true, dueDate: '2025.08.22' }
-])
+const notices = ref([]) // ✅ 목업 제거됨
+const assignments = ref([]) // ✅ 목업 제거됨
 
 const activeTab = ref('notice')
 const noticeFilter = ref('all')
 const assignmentFilter = ref('all')
 
 const filteredNotices = computed(() => {
-  if (noticeFilter.value === 'all') {
-    return notices.value
-  } else if (noticeFilter.value === 'required') {
-    return notices.value.filter(notice => notice.required)
-  } else {
-    return notices.value.filter(notice => !notice.required)
-  }
+  if (noticeFilter.value === 'all') return notices.value
+  if (noticeFilter.value === 'required') return notices.value.filter(n => n.required)
+  return notices.value.filter(n => !n.required)
 })
 
 const filteredAssignments = computed(() => {
-  if (assignmentFilter.value === 'all') {
-    return assignments.value
-  } else if (assignmentFilter.value === 'complete') {
-    return assignments.value.filter(task => task.done)
-  } else {
-    return assignments.value.filter(task => !task.done)
-  }
+  if (assignmentFilter.value === 'all') return assignments.value
+  if (assignmentFilter.value === 'complete') return assignments.value.filter(t => t.done)
+  return assignments.value.filter(t => !t.done)
 })
 
 const submitAssignment = (assignmentId) => {
-  const task = assignments.value.find(t => t.id === assignmentId);
+  const task = assignments.value.find(t => t.id === assignmentId)
   if (task) {
-    task.done = true;
-    alert(`${task.title}이(가) 성공적으로 제출되었습니다!`);
+    task.done = true
+    alert(`${task.title}이(가) 성공적으로 제출되었습니다!`)
   }
-};
+}
 
 const getStatusText = (status) => {
   const map = {
@@ -293,113 +256,131 @@ const getStatusText = (status) => {
   return map[status] || '진행중'
 }
 
-const showNoticeModal = ref(false);
-const selectedNotice = ref(null);
+// 공지사항 모달
+const showNoticeModal = ref(false)
+const selectedNotice = ref(null)
 const openNoticeDetailModal = (notice) => {
-  selectedNotice.value = notice;
-  showNoticeModal.value = true;
-};
+  selectedNotice.value = notice
+  showNoticeModal.value = true
+}
 const closeNoticeModal = () => {
-  showNoticeModal.value = false;
-  selectedNotice.value = null;
-};
+  showNoticeModal.value = false
+  selectedNotice.value = null
+}
 
-const showAssignmentModal = ref(false);
-const selectedAssignment = ref(null);
+// 과제 모달
+const showAssignmentModal = ref(false)
+const selectedAssignment = ref(null)
 const openAssignmentDetailModal = (assignment) => {
-  selectedAssignment.value = assignment;
-  showAssignmentModal.value = true;
-};
+  selectedAssignment.value = assignment
+  showAssignmentModal.value = true
+}
 const closeAssignmentModal = () => {
-  showAssignmentModal.value = false;
-  selectedAssignment.value = null;
-};
+  showAssignmentModal.value = false
+  selectedAssignment.value = null
+}
 
-const showNoticeRegisterModal = ref(false);
-const openNoticeRegisterModal = () => {
-  showNoticeRegisterModal.value = true;
-};
-const closeNoticeRegisterModal = () => {
-  showNoticeRegisterModal.value = false;
-};
-
-const registerNotice = async (newNoticeData) => {
+const fetchNoticesAndAssignments = async () => {
   try {
-    let uploadedFileNames = [];
+    const classId = props.classData.classId;
 
-    if (newNoticeData.files && newNoticeData.files.length > 0) {
-      const formData = new FormData();
-      newNoticeData.files.forEach(file => {
-        formData.append('files', file);
-      });
+    const noticeRes = await apiClient.get(`/class/${classId}/boards`);
+    console.log('notice',notices.value);
+    notices.value = noticeRes.data;
 
-      const fileUploadResponse = await apiClient.post('/boards/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      const uploadResult = fileUploadResponse.data;
-      console.log('📢 파일 업로드 성공:', uploadResult);
-
-      // 문자열 배열로 변환
-      uploadedFileNames = uploadResult.map(file => `${file.uuid}_${file.fileName}`);
-    }
-
-    const classId = BigInt(props.classData.classId);
-    const noticePayload = {
-      title: newNoticeData.title,
-      content: newNoticeData.content,
-      categoryId: null,
-      boardType: 'NORMAL',
-      fileNames: uploadedFileNames  // ✅ 문자열만 담긴 배열
-    };
-
-    console.log(`📢 공지사항 등록 API 요청: /class/${classId}/boards`, noticePayload);
-
-    await apiClient.post(`/class/${classId}/boards`, noticePayload);
-
-    showNoticeRegisterModal.value = false;
-    alert('공지사항이 성공적으로 등록되었습니다!');
-  } catch (error) {
-    console.error('📢 공지사항 등록 실패:', error);
-    alert('공지사항 등록에 실패했습니다. 다시 시도해주세요.');
+  } catch (err) {
+    console.error('목록 불러오기 실패:', err);
   }
 };
 
+// 공지 등록
+const showNoticeRegisterModal = ref(false)
+const openNoticeRegisterModal = () => showNoticeRegisterModal.value = true
+const closeNoticeRegisterModal = () => showNoticeRegisterModal.value = false
 
-const showAssignmentRegisterModal = ref(false);
-const openAssignmentRegisterModal = () => {
-  showAssignmentRegisterModal.value = true;
-};
-const closeAssignmentRegisterModal = () => {
-  showAssignmentRegisterModal.value = false;
-};
+const registerNotice = async (newNoticeData) => {
+  try {
+    let uploadedFileNames = []
+    if (newNoticeData.files?.length > 0) {
+      const formData = new FormData()
+      newNoticeData.files.forEach(file => formData.append('files', file))
+      const res = await apiClient.post('/boards/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      uploadedFileNames = res.data.map(file => `${file.uuid}_${file.fileName}`)
+    }
+
+    const classId = BigInt(props.classData.classId)
+    const payload = {
+      title: newNoticeData.title,
+      content: newNoticeData.content,
+      writer: authStore.currentUser.nickname,
+      categoryId: null,
+      boardType: 'NORMAL',
+      fileNames: uploadedFileNames
+    }
+
+    await apiClient.post(`/class/${classId}/boards`, payload)
+    fetchNoticesAndAssignments()
+    showNoticeRegisterModal.value = false
+    alert('공지사항이 성공적으로 등록되었습니다!')
+  } catch (err) {
+    console.error(err)
+    alert('공지사항 등록에 실패했습니다.')
+  }
+}
+
+// 과제 등록
+const showAssignmentRegisterModal = ref(false)
+const openAssignmentRegisterModal = () => showAssignmentRegisterModal.value = true
+const closeAssignmentRegisterModal = () => showAssignmentRegisterModal.value = false
 const registerAssignment = (newAssignment) => {
   assignments.value.push({
     ...newAssignment,
     id: assignments.value.length + 1,
     done: false
-  });
-  showAssignmentRegisterModal.value = false;
-  alert('과제가 성공적으로 등록되었습니다!');
-};
+  })
+  showAssignmentRegisterModal.value = false
+  alert('과제가 성공적으로 등록되었습니다!')
+}
 
-const deleteNotice = (noticeId) => {
-  if (confirm('정말 이 공지사항을 삭제하시겠습니까?')) {
-    notices.value = notices.value.filter(notice => notice.id !== noticeId);
+const deleteNotice = async (noticeId) => {
+  if (!confirm('정말 이 공지사항을 삭제하시겠습니까?')) return;
+
+  try {
+    const classId = props.classData.classId;
+    await apiClient.delete(`/class/${classId}/boards/${noticeId}`);
+    // 삭제 성공 시 로컬 상태 반영
+    notices.value = notices.value.filter(n => n.id !== noticeId);
     closeNoticeModal();
     alert('공지사항이 삭제되었습니다.');
+  } catch (err) {
+    console.error('공지사항 삭제 실패:', err);
+    alert('공지사항 삭제에 실패했습니다.');
   }
-};
+}
 
-const deleteAssignment = (assignmentId) => {
-  if (confirm('정말 이 과제를 삭제하시겠습니까?')) {
-    assignments.value = assignments.value.filter(task => task.id !== assignmentId);
+const deleteAssignment = async (assignmentId) => {
+  if (!confirm('정말 이 과제를 삭제하시겠습니까?')) return;
+
+  try {
+    const classId = props.classData.classId;
+    await apiClient.delete(`/class/${classId}/assignments/${assignmentId}`);
+    // 삭제 성공 시 로컬 상태 반영
+    assignments.value = assignments.value.filter(t => t.id !== assignmentId);
     closeAssignmentModal();
     alert('과제가 삭제되었습니다.');
+  } catch (err) {
+    console.error('과제 삭제 실패:', err);
+    alert('과제 삭제에 실패했습니다.');
   }
-};
+}
+
+
+
+onMounted(() => {
+  fetchNoticesAndAssignments();
+});
 </script>
 
 <style>
