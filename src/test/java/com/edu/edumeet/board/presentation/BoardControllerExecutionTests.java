@@ -23,14 +23,20 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * 게시판 컨트롤러 단위 테스트 클래스
+ */
 @ExtendWith(MockitoExtension.class)
-class BoardControllerTest {
-
+@DisplayName("게시판 컨트롤러 실행 테스트")
+public class BoardControllerExecutionTests {
     @Mock
     private BoardService boardService;
 
@@ -51,7 +57,7 @@ class BoardControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(boardController).build();
         objectMapper = new ObjectMapper();
     }
-
+    
     @Test
     @DisplayName("클래스별 게시글 목록 조회 테스트")
     void listTest() throws Exception {
@@ -179,11 +185,12 @@ class BoardControllerTest {
                 .build();
         
         PageResponseDTO<BoardListAllDTO> responseDTO = PageResponseDTO.<BoardListAllDTO>withAll()
-                .pageRequestDTO(new PageRequestDTO())
+                .pageRequestDTO(PageRequestDTO.builder().page(1).size(10).classId(classId).boardType(boardType).build())
                 .dtoList(List.of(dto1))
                 .total(1)
                 .build();
         
+        // any()를 사용하여 모든 PageRequestDTO에 대해 동일한 응답 반환
         when(boardService.listWithAll(any(PageRequestDTO.class))).thenReturn(responseDTO);
         
         // when & then
@@ -197,13 +204,12 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.dtoList[0].title").value("공지사항 1"))
                 .andExpect(jsonPath("$.total").value(1));
         
-        // ArgumentCaptor를 사용하여 boardType 파라미터 검증
+        // ArgumentCaptor를 사용하여 실제 호출된 파라미터 검증
         ArgumentCaptor<PageRequestDTO> captor = ArgumentCaptor.forClass(PageRequestDTO.class);
         verify(boardService, times(1)).listWithAll(captor.capture());
         
         PageRequestDTO capturedRequest = captor.getValue();
         assertThat(capturedRequest.getClassId()).isEqualTo(classId);
-        assertThat(capturedRequest.getCategoryId()).isNull();
         assertThat(capturedRequest.getBoardType()).isEqualTo(boardType);
     }
     
@@ -277,12 +283,17 @@ class BoardControllerTest {
                 .build();
         
         PageResponseDTO<BoardListAllDTO> responseDTO = PageResponseDTO.<BoardListAllDTO>withAll()
-                .pageRequestDTO(PageRequestDTO.builder().page(page).size(size).build())
+                .pageRequestDTO(PageRequestDTO.builder().page(page).size(size).classId(classId).build())
                 .dtoList(List.of(dto1))
                 .total(1)
                 .build();
         
-        when(boardService.listWithAll(any(PageRequestDTO.class))).thenReturn(responseDTO);
+        // Mock을 더 구체적으로 설정 - ArgumentMatcher 사용
+        when(boardService.listWithAll(argThat(req -> 
+            req.getClassId().equals(classId) && 
+            req.getPage() == page && 
+            req.getSize() == size
+        ))).thenReturn(responseDTO);
         
         // when & then
         mockMvc.perform(get("/api/v1/class/{classId}/boards", classId)

@@ -27,7 +27,7 @@ public class BoardDTO {
 
     @Schema(description = "게시글 제목", example = "안녕하세요", required = true)
     @NotEmpty(message = "제목은 필수 입력값입니다")
-    @Size(min = 3, max = 100, message = "제목은 3자 이상 100자 이하여야 합니다")
+    @Size(min = 1, max = 50, message = "제목은 1자 이상 50자 이하여야 합니다")
     private String title;
 
     @Schema(description = "게시글 내용", example = "게시글 내용입니다", required = true)

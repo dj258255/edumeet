@@ -5,6 +5,7 @@ import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardType;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.presentation.dto.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 import java.util.stream.Collectors;

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,7 +26,8 @@ public class ReplyDTO {
     @NotNull
     private Long boardId;
 
-    @NotEmpty
+    @NotEmpty(message = "비어있으면 안된다.")
+    @Size(min=1, max=255,message = "댓글내용은 1~255이하")
     private String replyText;
 
     @NotEmpty

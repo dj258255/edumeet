@@ -23,8 +23,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 게시판 프레젠테이션 계층에 대한 실행 테스트
- * 정상적인 사용 시나리오를 테스트
+ * 게시판 프레젠테이션 레이어의 정상적인 사용 시나리오를 테스트하는 클래스
  */
 @SpringBootTest
 @Log4j2
@@ -44,6 +43,10 @@ public class BoardPresentationExecutionTests {
     private Long testCategoryId;
     private Long testBoardId;
 
+    /**
+     * 각 테스트 전에 실행되는 설정 메소드
+     * 테스트용 카테고리와 게시글을 생성합니다.
+     */
     @BeforeEach
     void setUp() {
         // 기존 데이터 정리
@@ -74,7 +77,10 @@ public class BoardPresentationExecutionTests {
         
         log.info("테스트 준비 완료: 카테고리 ID={}, 게시글 ID={}", testCategoryId, testBoardId);
     }
-    
+
+    /**
+     * 게시글 등록 기능을 테스트합니다.
+     */
     @Test
     @DisplayName("게시글 등록 실행 테스트")
     void registerBoardTest() {
@@ -100,6 +106,9 @@ public class BoardPresentationExecutionTests {
         log.info("게시글 등록 성공: ID={}", newBoardId);
     }
     
+    /**
+     * 게시글 수정 기능을 테스트합니다.
+     */
     @Test
     @DisplayName("게시글 수정 실행 테스트")
     void modifyBoardTest() {
@@ -119,6 +128,9 @@ public class BoardPresentationExecutionTests {
         log.info("게시글 수정 성공: ID={}", testBoardId);
     }
     
+    /**
+     * 게시글 목록 조회 기능을 테스트합니다.
+     */
     @Test
     @DisplayName("게시글 목록 조회 실행 테스트")
     void listBoardTest() {
@@ -150,6 +162,9 @@ public class BoardPresentationExecutionTests {
         log.info("게시글 목록 조회 성공: 총 {}개", responseDTO.getDtoList().size());
     }
     
+    /**
+     * 카테고리별 게시글 조회 기능을 테스트합니다.
+     */
     @Test
     @DisplayName("카테고리별 게시글 조회 실행 테스트")
     void listByCategoryTest() {
@@ -158,7 +173,7 @@ public class BoardPresentationExecutionTests {
         BoardCategory otherCategory = BoardCategory.builder()
                 .categoryName("다른 카테고리")
                 .classId(1L)
-                .createdBy("tester")
+                .createdBy("categoryTester")
                 .build();
         
         BoardCategoryJpaEntity savedOtherCategory = boardCategoryJpaRepository.save(BoardCategoryJpaEntity.fromDomain(otherCategory));
@@ -192,6 +207,9 @@ public class BoardPresentationExecutionTests {
                 testCategoryId, responseDTO.getDtoList().size());
     }
     
+    /**
+     * 게시글 이미지 추가 기능을 테스트합니다.
+     */
     @Test
     @DisplayName("게시글 이미지 추가 실행 테스트")
     void addImageTest() {

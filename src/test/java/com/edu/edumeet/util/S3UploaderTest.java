@@ -36,7 +36,7 @@ import static org.mockito.Mockito.*;
 @DisplayName("S3Uploader 테스트")
 class S3UploaderTest {
 
-    @MockitoBean  // 이게 맞습니다!
+    @MockitoBean
     private S3Client s3Client;
 
     @Autowired

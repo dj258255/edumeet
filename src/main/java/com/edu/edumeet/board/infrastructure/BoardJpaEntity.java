@@ -29,7 +29,7 @@ public class BoardJpaEntity extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "title" , nullable = false , length = 200)
+    @Column(name = "title" , nullable = false , length = 50)
     private String title;
 
     @Column(name = "content" , columnDefinition = "TEXT")

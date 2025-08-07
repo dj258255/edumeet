@@ -108,16 +108,15 @@ public class BoardController {
 
         // pageRequestDTO에 필터링 조건 설정
         pageRequestDTO.setClassId(classId);
-        
-        if (categoryId != null) {
-            pageRequestDTO.setCategoryId(categoryId);
-        }
-        
-        if (boardType != null && !boardType.isEmpty()) {
-            pageRequestDTO.setBoardType(boardType);
-        }
 
         PageResponseDTO<BoardListAllDTO> responseDTO = boardService.listWithAll(pageRequestDTO);
+        
+        // null 체크 추가
+        if (responseDTO == null) {
+            log.error("boardService.listWithAll()이 null을 반환했습니다. pageRequestDTO: {}", pageRequestDTO);
+            throw new RuntimeException("게시글 목록 조회에 실패했습니다.");
+        }
+        
         log.info("조회 결과 -> 총 {} 건, 현재 페이지: {}", responseDTO.getTotal(), responseDTO.getPage());
 
         return ResponseEntity.ok(responseDTO);

@@ -5,6 +5,7 @@ import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.*;
 import com.edu.edumeet.reply.application.ReplyRepository;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -69,11 +70,13 @@ public class BoardServiceImpl implements BoardService {
      */
     @Override
     public Long register(BoardDTO boardDTO) {
+        validateBoardData(boardDTO);
+
+        //카테고리 존재여부 검증
+        validateCategoryExists(boardDTO.getCategoryId());
+
         Board board = dtoToDomain(boardDTO);
-
-        Long id = boardRepository.save(board);
-
-        return id;
+        return boardRepository.save(board);
     }
 
     @Override
@@ -103,23 +106,34 @@ public class BoardServiceImpl implements BoardService {
         return domainToDto(updatedBoard);
     }
 
-    /**
-     * 게시글 수정
-     * @param boardDTO 수정할 게시글 정보
-     */
     @Override
     public void modify(BoardDTO boardDTO) {
         Optional<Board> result = boardRepository.findById(boardDTO.getId());
         Board board = result.orElseThrow();
 
-        // 도메인 로직을 통한 변경사항 적용
-        Board changeBoard = board.change(boardDTO.getTitle(), boardDTO.getContent());
-        
-        // 이미지 변경 적용
-        Board finalBoard = changeBoard.changeImages(boardDTO.getFileNames());
+        // 유효성 검증
+        if (boardDTO.getTitle() == null || boardDTO.getTitle().isEmpty()) {
+            throw new IllegalArgumentException("제목은 필수");
+        }
+
+        if (boardDTO.getTitle().length() > 50) {
+            throw new IllegalArgumentException("제목이 50자를 초과합니다");
+        }
+
+        // 카테고리 변경 시 존재 여부 검증
+        if (boardDTO.getCategoryId() != null &&
+                !boardDTO.getCategoryId().equals(board.getCategoryId())) {
+            validateCategoryExists(boardDTO.getCategoryId());
+        }
+
+        // 체이닝을 통한 일관된 변경 처리
+        Board modifiedBoard = board
+            .changeBoardTypeFromString(boardDTO.getBoardType())
+            .change(boardDTO.getTitle(), boardDTO.getContent())
+            .changeImages(boardDTO.getFileNames());
 
         // 수정된 게시글 저장
-        boardRepository.save(finalBoard);
+        boardRepository.save(modifiedBoard);
     }
 
     /**
@@ -246,12 +260,8 @@ public class BoardServiceImpl implements BoardService {
     public long toggleFavorite(Long id) {
         Optional<Board> result = boardRepository.findById(id);
         Board board = result.orElseThrow();
-
-        log.info(" 좋아요 토글 전 - ID: {}, 현재 좋아요: {}", id, board.getFavorite());
-
         // 카테고리 정보 조회하여 추천 기준값 가져오기
         int recommendThreshold = 10; // 기본값
-
         // 게시글에 카테고리 ID가 있는 경우 해당 카테고리의 추천 기준값 사용
         if (board.getCategoryId() != null) {
             Optional<BoardCategory> categoryResult = boardCategoryRepository.findById(board.getCategoryId());
@@ -259,17 +269,10 @@ public class BoardServiceImpl implements BoardService {
                 recommendThreshold = categoryResult.get().getRecommendThreshold();
             }
         }
-
         Board updatedBoard;
-
         // 좋아요 추가 (좋아요 취소 기능 제거)
         updatedBoard = board.increaseFavorite(recommendThreshold);
-
-        log.info("🔍 좋아요 토글 후 - 새로운 좋아요: {}", updatedBoard.getFavorite());
-
         Long savedId = boardRepository.save(updatedBoard);
-        log.info("🔍 저장 완료 - 저장된 ID: {}", savedId);
-
         return updatedBoard.getFavorite();
     }
 
@@ -281,17 +284,8 @@ public class BoardServiceImpl implements BoardService {
 
         log.info(" 싫어요 토글 전 - ID: {}, 현재 싫어요: {}", id, board.getDislike());
 
-        // 카테고리 정보 조회하여 추천 기준값 가져오기
-        int recommendThreshold = 10; // 기본값
-
-        if (board.getCategoryId() != null) {
-            Optional<BoardCategory> categoryResult = boardCategoryRepository.findById(board.getCategoryId());
-            if (categoryResult.isPresent()) {
-                recommendThreshold = categoryResult.get().getRecommendThreshold();
-            }
-        }
-
-        Board updatedBoard = board.increaseDislike(recommendThreshold);
+        // 싫어요 수만 증가시키고 타입 변경은 하지 않음
+        Board updatedBoard = board.increaseDislike();
 
         log.info("🔍 싫어요 토글 후 - 새로운 싫어요: {}", updatedBoard.getDislike());
 
@@ -302,5 +296,28 @@ public class BoardServiceImpl implements BoardService {
         Optional<Board> refreshedResult = boardRepository.findById(id);
         Board refreshedBoard = refreshedResult.orElseThrow();
         return refreshedBoard.getDislike();
+    }
+
+
+
+
+    //
+    private void validateCategoryExists(Long categoryId){
+        if(categoryId != null){
+            Optional<BoardCategory> categoryResult = boardCategoryRepository.findById(categoryId);
+            if(categoryResult.isEmpty()){
+                throw new IllegalArgumentException("존재하지 않는 카테고리 입니다. : " + categoryId);
+            }
+        }
+    }
+
+    private void validateBoardData(BoardDTO boardDTO) {
+        if (boardDTO.getTitle() == null || boardDTO.getTitle().isEmpty()) {
+            throw new IllegalArgumentException("제목은 필수");
+        }
+
+        if (boardDTO.getTitle().length() > 50){
+            throw new IllegalArgumentException("제목이 50자를 초과합니다");
+        }
     }
 }

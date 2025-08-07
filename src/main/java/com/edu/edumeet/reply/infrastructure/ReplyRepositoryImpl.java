@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -29,32 +30,47 @@ public class ReplyRepositoryImpl implements ReplyRepository {
      */
     @Override
     public Long register(ReplyDTO replyDTO) {
-        // 부모 댓글 ID가 있는 경우 (대댓글)
+        // 모든 댓글에 공통으로 적용되는 유효성 검사
+        if(replyDTO.getReplyText() == null || replyDTO.getReplyText().trim().isEmpty()) {
+            throw new IllegalArgumentException("댓글 내용은 비어있을 수 없습니다.");
+        }
+
+        if(replyDTO.getReplyText().trim().length() > 255) {
+            throw new IllegalArgumentException("댓글 내용은 255자를 초과할 수 없습니다.");
+        }
+
+        // 부모 댓글 ID가 있는 경우 (대댓글) - 추가 검증
         if (replyDTO.getParentReplyId() != null) {
-            // 부모 댓글 조회
+            //부모 댓글 조회
             Optional<ReplyJpaEntity> parentEntity = replyJpaRepository.findByIdNotDeleted(replyDTO.getParentReplyId());
             if (parentEntity.isEmpty()) {
                 throw new IllegalArgumentException("부모 댓글이 존재하지 않습니다: " + replyDTO.getParentReplyId());
             }
-            
+
             // 부모 댓글이 이미 대댓글인 경우 (최대 1계층까지만 허용)
             ReplyJpaEntity parent = parentEntity.get();
             if (parent.getParentReply() != null) {
                 throw new IllegalArgumentException("대댓글에는 댓글을 달 수 없습니다. 최대 1계층까지만 허용됩니다.");
             }
-            
+
+            // 다른 게시글의 댓글에 대한 대댓글 못달게
+            if(!parent.getBoard().getId().equals(replyDTO.getBoardId())) {
+                throw new IllegalArgumentException("다른 게시글에 달려있는 댓글에 대댓글은 못답니다.");
+            }
+
             // 대댓글 깊이 설정
             replyDTO.setDepth(1);
         } else {
             // 최상위 댓글
             replyDTO.setDepth(0);
         }
-        
+
         Reply reply = dtoToDomain(replyDTO);
         ReplyJpaEntity entity = ReplyJpaEntity.fromDomain(reply);
         ReplyJpaEntity savedEntity = replyJpaRepository.save(entity);
         return savedEntity.getId();
     }
+
 
     /**
      * 댓글 조회 (삭제된 댓글 제외)
@@ -158,7 +174,17 @@ public class ReplyRepositoryImpl implements ReplyRepository {
                 Sort.by("id").ascending());
         
         Page<ReplyJpaEntity> result = replyJpaRepository.listOfBoardRootReplies(board_id, pageable);
-        
+
+        //댓글이 없는 경우에도 빈 PageResponseDTO를 반환
+        if(result.getTotalElements() == 0){
+            return PageResponseDTO.<ReplyDTO>of()
+                    .page(pageRequestDTO.getPage())
+                    .size(pageRequestDTO.getSize())
+                    .dtoList(Collections.emptyList()) //빈 리스트 반환
+                    .total(0)
+                    .build();
+        }
+
         // 최상위 댓글을 DTO로 변환
         List<ReplyDTO> rootReplies = result.getContent().stream()
                 .map(this::entityToDto)
@@ -169,6 +195,7 @@ public class ReplyRepositoryImpl implements ReplyRepository {
             List<ReplyDTO> childReplies = getChildReplies(rootReply.getId());
             rootReply.setChildren(childReplies);
         });
+
         
         return new PageResponseDTO<>(pageRequestDTO, rootReplies, (int)result.getTotalElements());
     }

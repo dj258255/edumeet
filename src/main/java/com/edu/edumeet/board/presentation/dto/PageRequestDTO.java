@@ -54,6 +54,7 @@ public class PageRequestDTO {
      * @return 검색 유형 배열 (null이면 검색하지 않음)
      */
 
+
     @Schema(hidden = true)
     public String[] getTypes(){
         if(type == null || type.isEmpty()){
@@ -70,7 +71,23 @@ public class PageRequestDTO {
 
     @Schema(hidden = true)
     public Pageable getPageable(String...props) {
-        return PageRequest.of(this.page -1, this.size, Sort.by(props).descending());
+        int validPage = Math.max(1, this.page);
+
+        int validSize = Math.max(1 , Math.min(100, this.size));
+
+        return PageRequest.of(validPage-1, validSize, Sort.by(props).descending());
     }
+
+
+    // Setter에서도 유효성 검증
+    public void setPage(int page) {
+        this.page = Math.max(1, page);
+    }
+
+    public void setSize(int size) {
+        this.size = Math.max(1, Math.min(100, size));
+    }
+
+
 
 }

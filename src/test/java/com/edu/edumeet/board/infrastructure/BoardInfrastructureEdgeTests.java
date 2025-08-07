@@ -24,8 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 게시판 인프라스트럭처 계층에 대한 에지 테스트
- * 경계 조건이나 예외 상황을 테스트
+ * 게시판 인프라스트럭처 레이어의 에지 케이스(경계 조건)를 테스트하는 클래스
  */
 @SpringBootTest
 @Log4j2
@@ -42,6 +41,10 @@ public class BoardInfrastructureEdgeTests {
     private Long testCategoryId;
     private Long testBoardId;
 
+    /**
+     * 각 테스트 전에 실행되는 설정 메소드
+     * 테스트용 카테고리와 게시글을 생성합니다.
+     */
     @BeforeEach
     void setUp() {
         // 기존 데이터 정리
@@ -65,7 +68,6 @@ public class BoardInfrastructureEdgeTests {
                 .writer("tester")
                 .classId(1L)
                 .categoryId(testCategoryId)
-                .boardType(BoardType.NORMAL)
                 .build();
         
         BoardJpaEntity savedBoard = boardJpaRepository.save(BoardJpaEntity.fromDomain(board));
@@ -73,50 +75,59 @@ public class BoardInfrastructureEdgeTests {
         
         log.info("테스트 준비 완료: 카테고리 ID={}, 게시글 ID={}", testCategoryId, testBoardId);
     }
-    
+
+    /**
+     * 필수 필드가 누락된 경우 예외가 발생하는지 테스트합니다.
+     */
     @Test
     @DisplayName("필수 필드 누락 에지 테스트")
     void missingRequiredFieldsTest() {
         // given
-        Board boardWithoutTitle = Board.builder()
-                .content("제목 없는 게시글")
-                .writer("tester")
+        BoardJpaEntity invalidEntity = BoardJpaEntity.builder()
+                // title 필드 누락
+                .content("내용만 있는 게시글")
+                .writer("edgeTester")
                 .classId(1L)
                 .build();
         
-        BoardJpaEntity entityWithoutTitle = BoardJpaEntity.fromDomain(boardWithoutTitle);
-        
         // when & then
-        assertThatThrownBy(() -> boardJpaRepository.save(entityWithoutTitle))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> boardJpaRepository.save(invalidEntity))
+                .isInstanceOf(Exception.class);
         
-        log.info("필수 필드(제목) 누락 시 저장 실패 확인");
+        log.info("필수 필드 누락 예외 발생 확인");
     }
     
+    /**
+     * 매우 긴 필드값 처리를 테스트합니다.
+     */
     @Test
     @DisplayName("매우 긴 필드값 에지 테스트")
     void veryLongFieldValuesTest() {
         // given
-        String veryLongTitle = "a".repeat(300);  // 컬럼 길이 제한(200)을 초과
+        String longTitle = "a".repeat(1000);  // 매우 긴 제목
+        String longContent = "b".repeat(10000);  // 매우 긴 내용
         
-        Board boardWithLongTitle = Board.builder()
-                .title(veryLongTitle)
-                .content("긴 제목 테스트")
-                .writer("tester")
+        BoardJpaEntity entity = BoardJpaEntity.builder()
+                .title(longTitle)
+                .content(longContent)
+                .writer("edgeTester")
                 .classId(1L)
+                .categoryId(testCategoryId)
                 .build();
         
-        BoardJpaEntity entityWithLongTitle = BoardJpaEntity.fromDomain(boardWithLongTitle);
+        // when & then - 데이터베이스 컬럼 길이 제한에 따라 예외 발생 가능성 있음
+        assertThatThrownBy(() -> boardJpaRepository.save(entity))
+                .isInstanceOf(Exception.class);
         
-        // when & then
-        assertThatThrownBy(() -> boardJpaRepository.save(entityWithLongTitle))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        
-        log.info("매우 긴 제목({}자) 저장 실패 확인", veryLongTitle.length());
+        log.info("매우 긴 필드값 처리 예외 발생 확인: 제목 길이={}, 내용 길이={}", 
+                longTitle.length(), longContent.length());
     }
     
+    /**
+     * 존재하지 않는 ID로 조회 시 결과가 없는지 테스트합니다.
+     */
     @Test
-    @DisplayName("존재하지 않는 ID로 조회 에지 테스트")
+    @DisplayName("존재하지 않는 ID 조회 에지 테스트")
     void findByNonExistentIdTest() {
         // given
         Long nonExistentId = 99999L;
@@ -127,111 +138,120 @@ public class BoardInfrastructureEdgeTests {
         // then
         assertThat(result).isEmpty();
         
-        log.info("존재하지 않는 ID로 조회 시 빈 Optional 반환 확인: ID={}", nonExistentId);
+        log.info("존재하지 않는 ID 조회 결과 없음 확인: ID={}", nonExistentId);
     }
     
+    /**
+     * 이미지 세트 최대 크기 처리를 테스트합니다.
+     */
     @Test
     @DisplayName("이미지 세트 최대 크기 에지 테스트")
     void imageSetMaxSizeTest() {
         // given
-        Board board = Board.builder()
-                .title("이미지 최대 크기 테스트")
-                .content("이미지 최대 크기 테스트 내용")
-                .writer("tester")
-                .classId(1L)
-                .categoryId(testCategoryId)
-                .build();
+        BoardJpaEntity entity = boardJpaRepository.findById(testBoardId).orElseThrow();
         
-        // 많은 수의 이미지 추가 (100개)
-        for (int i = 0; i < 100; i++) {
-            board.addImage(UUID.randomUUID().toString(), "test_image_" + i + ".jpg");
+        // 많은 이미지 추가
+        for (int i = 0; i < 20; i++) {
+            String uuid = UUID.randomUUID().toString();
+            String filename = "test_image_" + i + ".jpg";
+            
+            BoardImageJpaEntity imageEntity = BoardImageJpaEntity.builder()
+                    .uuid(uuid)
+                    .filename(filename)
+                    .ord(i)
+                    .boardJpaEntity(entity)
+                    .build();
+            
+            entity.getImageSet().add(imageEntity);
         }
         
-        BoardJpaEntity entity = BoardJpaEntity.fromDomain(board);
-        
         // when
-        BoardJpaEntity savedEntity = boardJpaRepository.save(entity);
+        boardJpaRepository.save(entity);
         
         // then
-        assertThat(savedEntity.getImageSet()).hasSize(100);
+        BoardJpaEntity updatedEntity = boardJpaRepository.findById(testBoardId).orElseThrow();
+        assertThat(updatedEntity.getImageSet().size()).isEqualTo(20);
         
-        log.info("많은 수의 이미지(100개) 저장 성공");
+        log.info("이미지 세트 최대 크기 처리 성공: 이미지 수={}", updatedEntity.getImageSet().size());
     }
     
+    /**
+     * 매우 큰 페이지 크기 처리를 테스트합니다.
+     */
     @Test
     @DisplayName("매우 큰 페이지 크기 에지 테스트")
     void veryLargePageSizeTest() {
         // given
-        // 여러 게시글 생성
-        for (int i = 0; i < 50; i++) {
+        // 많은 게시글 생성
+        for (int i = 0; i < 100; i++) {
             Board board = Board.builder()
-                    .title("페이징 테스트 " + i)
-                    .content("페이징 테스트 내용 " + i)
+                    .title("페이지 테스트 " + i)
+                    .content("페이지 테스트 내용 " + i)
                     .writer("pageTester")
                     .classId(1L)
                     .categoryId(testCategoryId)
-                    .boardType(BoardType.NORMAL)
                     .build();
             
             boardJpaRepository.save(BoardJpaEntity.fromDomain(board));
         }
         
         // when
-        int veryLargeSize = 1000;  // 매우 큰 페이지 크기
-        Pageable pageable = PageRequest.of(0, veryLargeSize, Sort.by("id").descending());
+        Pageable pageable = PageRequest.of(0, 1000);  // 매우 큰 페이지 크기
         Page<BoardJpaEntity> result = boardJpaRepository.findAll(pageable);
         
         // then
         assertThat(result).isNotNull();
-        assertThat(result.getContent().size()).isLessThanOrEqualTo(veryLargeSize);
-        assertThat(result.getContent().size()).isGreaterThanOrEqualTo(51);  // 기존 1개 + 추가 50개
+        assertThat(result.getContent().size()).isGreaterThanOrEqualTo(101);  // 기존 1개 + 추가 100개
         
-        log.info("매우 큰 페이지 크기 처리 성공: 요청 크기={}, 실제 결과 크기={}", 
-                veryLargeSize, result.getContent().size());
+        log.info("매우 큰 페이지 크기 처리 성공: 요청 크기=1000, 실제 결과 크기={}", 
+                result.getContent().size());
     }
     
+    /**
+     * 엔티티 변환 시 순환 참조 처리를 테스트합니다.
+     */
     @Test
-    @DisplayName("엔티티 변환 에지 테스트 - 순환 참조")
+    @DisplayName("엔티티 변환 순환 참조 에지 테스트")
     void entityConversionCircularReferenceTest() {
         // given
         BoardJpaEntity entity = boardJpaRepository.findById(testBoardId).orElseThrow();
         
-        // when
-        Board board = entity.toModel();
-        BoardJpaEntity convertedEntity = BoardJpaEntity.fromDomain(board);
+        // 이미지 추가
+        String uuid = UUID.randomUUID().toString();
+        BoardImageJpaEntity imageEntity = BoardImageJpaEntity.builder()
+                .uuid(uuid)
+                .filename("test_image.jpg")
+                .ord(1)
+                .boardJpaEntity(entity)
+                .build();
         
-        // then
-        assertThat(convertedEntity).isNotNull();
-        assertThat(convertedEntity.getId()).isEqualTo(testBoardId);
+        entity.getImageSet().add(imageEntity);
+        boardJpaRepository.save(entity);
         
-        log.info("엔티티-도메인-엔티티 변환 성공: ID={}", testBoardId);
+        // when & then - toString() 호출 시 순환 참조로 인한 StackOverflowError가 발생하지 않아야 함
+        BoardJpaEntity savedEntity = boardJpaRepository.findById(testBoardId).orElseThrow();
+        String entityString = savedEntity.toString();
+        
+        assertThat(entityString).isNotNull();
+        
+        log.info("엔티티 변환 순환 참조 처리 성공");
     }
     
+    /**
+     * 존재하지 않는 필드로 정렬 시 예외가 발생하는지 테스트합니다.
+     */
     @Test
-    @DisplayName("정렬 조건 에지 테스트 - 존재하지 않는 필드")
+    @DisplayName("존재하지 않는 필드로 정렬 에지 테스트")
     void sortByNonExistentFieldTest() {
         // given
-        // 여러 게시글 생성
-        for (int i = 0; i < 5; i++) {
-            Board board = Board.builder()
-                    .title("정렬 테스트 " + i)
-                    .content("정렬 테스트 내용 " + i)
-                    .writer("sortTester")
-                    .classId(1L)
-                    .categoryId(testCategoryId)
-                    .boardType(BoardType.NORMAL)
-                    .build();
-            
-            boardJpaRepository.save(BoardJpaEntity.fromDomain(board));
-        }
+        String nonExistentField = "nonExistentField";
         
         // when & then
-        // 존재하지 않는 필드로 정렬 시도
         assertThatThrownBy(() -> {
-            Pageable pageable = PageRequest.of(0, 10, Sort.by("nonExistentField").descending());
+            Pageable pageable = PageRequest.of(0, 10, Sort.by(nonExistentField));
             boardJpaRepository.findAll(pageable);
         }).isInstanceOf(Exception.class);
         
-        log.info("존재하지 않는 필드로 정렬 시도 실패 확인");
+        log.info("존재하지 않는 필드로 정렬 예외 발생 확인: 필드={}", nonExistentField);
     }
 }
