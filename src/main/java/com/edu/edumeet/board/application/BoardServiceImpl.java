@@ -5,6 +5,7 @@ import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.*;
 import com.edu.edumeet.reply.application.ReplyRepository;
+import com.edu.edumeet.util.S3Uploader;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -32,6 +33,7 @@ public class BoardServiceImpl implements BoardService {
     private final BoardRepository boardRepository;
     private final BoardCategoryRepository boardCategoryRepository;
     private final ReplyRepository replyRepository;
+    private final S3Uploader s3Uploader;
     
     private BoardDTO convertToBoardDTO(BoardListAllDTO dto) {
         BoardDTO boardDTO = BoardDTO.builder()
@@ -45,14 +47,8 @@ public class BoardServiceImpl implements BoardService {
                 .view(dto.getView())
                 .favorite(dto.getFavorite())
                 .dislike(dto.getDislike())
+                .boardImages(dto.getBoardImages())
                 .build();
-                
-        if (dto.getBoardImages() != null && !dto.getBoardImages().isEmpty()) {
-            List<String> fileNames = dto.getBoardImages().stream()
-                    .map(image -> image.getUuid() + "_" + image.getFileName())
-                    .collect(Collectors.toList());
-            boardDTO.setFileNames(fileNames);
-        }
         
         return boardDTO;
     }
@@ -107,7 +103,7 @@ public class BoardServiceImpl implements BoardService {
             throw new IllegalArgumentException("게시글 조회수 업데이트에 실패했습니다: " + id);
         }
 
-        return domainToDto(updatedBoard);
+        return domainToDto(updatedBoard, s3Uploader);
     }
 
     @Override
@@ -132,7 +128,7 @@ public class BoardServiceImpl implements BoardService {
         Board modifiedBoard = board
             .changeBoardTypeFromString(boardDTO.getBoardType())
             .change(boardDTO.getTitle(), boardDTO.getContent())
-            .changeImages(boardDTO.getFileNames());
+            .changeBoardImages(boardDTO.getBoardImages());
 
         // 수정된 게시글 저장
         Long savedId = boardRepository.save(modifiedBoard);

@@ -17,4 +17,8 @@ public class BoardImageDTO {
     private String fileName;
 
     private int ord;
+
+    private String s3Url;
+
+    private String s3ThumbnailUrl;
 }

@@ -67,4 +67,24 @@ public class S3Uploader {
             throw new RuntimeException(e.getMessage());
         }
     }
+    
+    /**
+     * UUID와 파일명으로 S3 URL을 생성합니다.
+     * @param uuid 파일의 UUID
+     * @param fileName 파일명
+     * @return 생성된 S3 URL
+     */
+    public String getS3Url(String uuid, String fileName) {
+        return String.format("https://%s.s3.amazonaws.com/%s_%s", bucket, uuid, fileName);
+    }
+    
+    /**
+     * UUID와 파일명으로 S3 썸네일 URL을 생성합니다.
+     * @param uuid 파일의 UUID
+     * @param fileName 파일명
+     * @return 생성된 S3 썸네일 URL
+     */
+    public String getS3ThumbnailUrl(String uuid, String fileName) {
+        return String.format("https://%s.s3.amazonaws.com/s_%s_%s", bucket, uuid, fileName);
+    }
 }
