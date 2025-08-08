@@ -184,10 +184,6 @@ const selectedClassForMembers = ref(null)
 const router = useRouter()
 const classStore = useClassStore()
 
-// 페이지 진입 시 목록 로드
-onMounted(async () => {
-  await loadClasses()
-})
 
 // 현재 활성화된 탭에 따른 반 목록 계산
 const activeTab = ref('created'); // 'created' 또는 'joined'
@@ -351,6 +347,13 @@ function closeMembersModal() {
   isMembersModalOpen.value = false
   selectedClassForMembers.value = null
 }
+
+
+// 페이지 진입 시 목록 로드
+onMounted(async () => {
+  await loadClasses()
+})
+
 </script>
 
 <style scoped>

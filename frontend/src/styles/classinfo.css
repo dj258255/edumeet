@@ -529,3 +529,34 @@
   from { transform: translateY(-50px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+/* ---- 모달 푸터 스타일 ---- */
+.modal-footer {
+  display: flex; /* Flexbox 레이아웃 활성화 */
+  align-items: center; /* 세로 중앙 정렬 */
+  justify-content: space-between; /* 요소들을 양 끝으로 정렬 */
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+/* ---- 조회수 섹션 스타일 ---- */
+.notice-views {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* 뱃지와 숫자 사이 간격 */
+  color: #555;
+  font-size: 14px;
+}
+
+.notice-views .badge.view-label {
+  background-color: #f0f0f0;
+  color: #888;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.notice-views .view-count {
+  font-weight: bold;
+  color: #3e7c43;
+  font-size: 16px;
+}

@@ -72,7 +72,7 @@
               class="notice-item"
               :class="{ required: notice.required }"
             >
-              <div @click="openNoticeDetailModal(notice.id)" class="notice-item-content">
+              <div @click="openNoticeDetailModal(notice)" class="notice-item-content">
                 <span class="badge">{{ notice.required ? '필수' : '일반' }}</span>
                 <span class="text">{{ notice.title }}</span>
               </div>
@@ -267,11 +267,21 @@ const getStatusText = (status) => {
 // 공지사항 모달
 const showNoticeModal = ref(false)
 const selectedNotice = ref(null)
-const openNoticeDetailModal = async (noticeId) => {
+
+// 현재 클래스 ID 계산 (다양한 키 지원)
+const currentClassId = computed(() => {
+  const data = props.classData || {}
+  return data.classId || data.id || data.classroomId || data._id || ''
+})
+
+const openNoticeDetailModal = async (notice) => {
   try {
-    const classId = props.classData.classId;
-    const res = await apiClient.get(`/class/${classId}/boards/${noticeId}`);
+    const classId = currentClassId.value
+    console.log('noticeId:', notice)
+    if (!classId) throw new Error('유효한 클래스 ID가 없습니다.')
+    const res = await apiClient.get(`/class/${classId}/boards/${notice.id}`);
     selectedNotice.value = res.data;
+    console.log(selectedNotice.value)
     showNoticeModal.value = true;
   } catch (err) {
     console.error('공지사항 상세 불러오기 실패:', err);
@@ -297,7 +307,13 @@ const closeAssignmentModal = () => {
 
 const fetchNoticesAndAssignments = async () => {
   try {
-    const classId = props.classData.classId;
+    const classId = currentClassId.value
+    notices.value = []
+
+    if (!classId) {
+      console.warn('클래스 ID가 없어 공지/과제를 불러올 수 없습니다.')
+      return
+    }
 
     // 게시글 목록 조회 API 호출 (게시판 타입별 필터링은 백엔드에서 처리)
     const noticeRes = await apiClient.get(`/class/${classId}/boards`);
@@ -331,7 +347,7 @@ const registerNotice = async (newNoticeData) => {
       uploadedFileNames = res.data.map(file => `${file.fileName}`)
     }
 
-    const classId = props.classData.classId;
+    const classId = currentClassId.value
     const payload = {
       title: newNoticeData.title,
       content: newNoticeData.content,
@@ -368,7 +384,7 @@ const deleteNotice = async (noticeId) => {
   if (!confirm('정말 이 공지사항을 삭제하시겠습니까?')) return;
 
   try {
-    const classId = props.classData.classId;
+    const classId = currentClassId.value
     await apiClient.delete(`/class/${classId}/boards/${noticeId}`);
     // 삭제 성공 시 로컬 상태 반영
     notices.value = notices.value.filter(n => n.id !== noticeId);
@@ -384,7 +400,7 @@ const deleteAssignment = async (assignmentId) => {
   if (!confirm('정말 이 과제를 삭제하시겠습니까?')) return;
 
   try {
-    const classId = props.classData.classId;
+    const classId = currentClassId.value
     // 과제 삭제 API 호출 (가정)
     // await apiClient.delete(`/class/${classId}/assignments/${assignmentId}`);
     // 삭제 성공 시 로컬 상태 반영
@@ -397,11 +413,13 @@ const deleteAssignment = async (assignmentId) => {
   }
 }
 
+// 클래스가 바뀔 때마다 공지/과제 재조회
+watch(() => currentClassId.value, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    fetchNoticesAndAssignments()
+  }
+}, { immediate: true })
 
-
-onMounted(() => {
-  fetchNoticesAndAssignments();
-});
 </script>
 
 <style>

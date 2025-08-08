@@ -2,6 +2,7 @@
   <div v-if="isVisible" class="modal-overlay" @click="closeModal">
     <div class="modal-container" @click.stop>
       <div class="modal-header">
+        <span class="badge" :class="{ required: noticeData.required }">{{ noticeData.required ? '필수' : '일반' }}</span>
         <h3 class="modal-title">{{ noticeData.title }}</h3>
         <button class="close-btn" @click="closeModal">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -12,15 +13,20 @@
       </div>
       <div class="modal-body">
         <div class="notice-meta">
-          <span class="badge" :class="{ required: noticeData.required }">{{ noticeData.required ? '필수' : '일반' }}</span>
-          <span class="date">{{ noticeData.date }}</span>
+          <span class="date">작성자 : {{ props.noticeData.writer }}</span>
         </div>
         <div class="notice-content">
           <p>{{ noticeData.content }}</p>
         </div>
+        <!--noticeData.fileNames의 확장자가 사진일경우-->
       </div>
       
       <div class="modal-footer" v-if="isMyCreatedClass">
+        <div class="notice-views">
+          <span class="badge view-label">조회수</span>
+          <span class="view-count">{{ noticeData.view }}</span>
+        </div>
+        
         <button class="delete-btn" @click="deleteItem">삭제</button>
       </div>
       </div>
@@ -29,6 +35,7 @@
 
 <script setup>
 import { defineProps, defineEmits } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = defineProps({
   isVisible: {
@@ -45,6 +52,13 @@ const props = defineProps({
     default: false
   }
 });
+const localNoticeData = ref(props.noticeData);
+// noticeData prop의 변화를 감시하고, 변화가 있을 때마다 localNoticeData를 업데이트합니다.
+watch(() => props.noticeData, (newVal) => {
+  if (newVal) {
+    localNoticeData.value = newVal;
+  }
+}, { immediate: true });
 
 const emit = defineEmits(['close', 'delete']);
 

@@ -91,12 +91,12 @@ const cancelPress = () => {
     </div>
     <nav class="navbar-center desktop-only">
       <RouterLink to="/class/create">Class</RouterLink>
-      <RouterLink to="/solutions">Solutions</RouterLink>
+      <!-- <RouterLink to="/solutions">Solutions</RouterLink>
       <RouterLink to="/community">Community</RouterLink>
       <RouterLink to="/articles">Articles</RouterLink>
       <RouterLink to="/pricing">Pricing</RouterLink>
       <RouterLink to="/contact">Contact</RouterLink>
-      <RouterLink to="/link">Link</RouterLink>
+      <RouterLink to="/link">Link</RouterLink> -->
     </nav>
     <div class="navbar-right desktop-only">
       <button class="search-button" @click="toggleSearch" aria-label="검색">
