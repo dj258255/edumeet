@@ -240,15 +240,16 @@ public class BoardApplicationExecutionTests {
         BoardDTO boardDTO = boardService.readOne(testBoardId);
         String uuid = UUID.randomUUID().toString();
         String fileName = "test_image.jpg";
-        String fullFileName = uuid + "_" + fileName;
         
         // when - BoardService의 addImageToBoard 메서드 사용
         boardService.addImageToBoard(testBoardId, uuid, fileName);
         
         // then
         BoardDTO updatedBoard = boardService.readOne(testBoardId);
-        assertThat(updatedBoard.getFileNames()).isNotEmpty();
-        assertThat(updatedBoard.getFileNames()).contains(fullFileName);
+        assertThat(updatedBoard.getBoardImages()).isNotEmpty();
+        assertThat(updatedBoard.getBoardImages().stream()
+                .anyMatch(img -> img.getUuid().equals(uuid) && img.getFileName().equals(fileName)))
+                .isTrue();
         
         log.info("게시글 이미지 추가 성공: 게시글 ID={}, 이미지={}", testBoardId, fileName);
     }
