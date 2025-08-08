@@ -48,8 +48,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { ref, onMounted, watch } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+import apiClient from '@/stores/auth'; // apiClient 경로를 맞게 수정하세요.
 
 const props = defineProps({
   isVisible: {
@@ -64,160 +65,118 @@ const props = defineProps({
     type: String,
     default: ''
   }
-})
+});
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close']);
 
-const authStore = useAuthStore()
-const members = ref([])
-const loading = ref(false)
-const error = ref(null)
-const teacherEmail = ref('')
+const authStore = useAuthStore();
+const members = ref([]);
+const loading = ref(false);
+const error = ref(null);
+const teacherEmail = ref('');
 
 // 모달 닫기
 const closeModal = () => {
-  emit('close')
-}
+  emit('close');
+};
 
 // 학생 목록 조회
 const fetchMembers = async () => {
-  loading.value = true
-  error.value = null
-  
+  loading.value = true;
+  error.value = null;
+
   try {
-    const accessToken = localStorage.getItem('token')
+    const accessToken = localStorage.getItem('token');
     if (!accessToken) {
-      throw new Error('로그인이 필요합니다.')
+      throw new Error('로그인이 필요합니다.');
     }
     
-    const apiUrl = `/api/v1/classroom/${props.classId}/members`
-    console.log('📋 API 호출 시작:', apiUrl)
-    console.log('📋 classId:', props.classId)
-    console.log('📋 accessToken 존재:', !!accessToken)
+    // apiClient의 baseURL이 이미 설정되어 있으므로 경로만 사용
+    const apiUrl = `/classroom/${props.classId}/members`;
+    console.log('📋 API 호출 시작:', apiUrl);
+    console.log('📋 classId:', props.classId);
+    console.log('📋 accessToken 존재:', !!accessToken);
+
+    // fetch 대신 apiClient.get 사용
+    const response = await apiClient.get(apiUrl);
+
+    // axios는 2xx 응답인 경우에만 이 블록을 실행하며, 데이터는 response.data에 있음
+    console.log('📋 API 응답 상태:', response.status);
+    console.log('📋 API 응답 헤더:', response.headers); // axios의 헤더 객체
     
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    })
+    const membersData = response.data;
+    console.log('📋 학생 목록 조회 성공:', membersData);
     
-    console.log('📋 API 응답 상태:', response.status)
-    console.log('📋 API 응답 헤더:', Object.fromEntries(response.headers.entries()))
+    members.value = membersData;
     
-    if (response.ok) {
-      // content-type 확인
-      const contentType = response.headers.get('content-type')
-      console.log('📋 Content-Type:', contentType)
-      
-      if (contentType && contentType.includes('text/html')) {
-        // HTML 응답인 경우 (서버 미준비)
-        const errorText = await response.text()
-        console.error('📋 HTML 응답 받음:', errorText.substring(0, 200))
-        throw new Error('서버에서 HTML 응답을 받았습니다. API가 준비되지 않았습니다.')
-      }
-      
-             const membersData = await response.json()
-       console.log('📋 학생 목록 조회 성공:', membersData)
-       console.log('📋 membersData 타입:', typeof membersData)
-       console.log('📋 membersData 길이:', membersData.length)
-       console.log('📋 membersData[0]:', membersData[0])
-       
-       members.value = membersData
-       console.log('📋 members.value 설정 후:', members.value)
-       
-       // 선생님 이메일 찾기 (첫 번째 사용자를 선생님으로 가정)
-       if (membersData.length > 0) {
-         teacherEmail.value = membersData[0].email
-         console.log('📋 teacherEmail 설정:', teacherEmail.value)
-       }
-    } else {
-      const errorText = await response.text()
-      console.error('📋 API 에러 응답 전체:', errorText)
-      
-      // 백엔드 명세에 따른 구체적인 에러 처리
-      if (response.status === 400) {
-        if (errorText.includes('찾을 수 없음')) {
-          throw new Error('해당 클래스를 찾을 수 없습니다.')
-        } else if (errorText.includes('권한이 없음')) {
-          throw new Error('클래스 멤버 조회 권한이 없습니다.')
-        } else {
-          throw new Error('잘못된 요청입니다.')
-        }
-      } else if (response.status === 401) {
-        throw new Error('인증이 필요합니다.')
-      } else if (response.status === 403) {
-        throw new Error('접근 권한이 없습니다.')
-      } else if (response.status === 404) {
-        throw new Error('클래스를 찾을 수 없습니다.')
-      } else if (response.status === 500) {
-        throw new Error('서버 오류가 발생했습니다.')
-      } else {
-        throw new Error(`멤버 목록 조회 실패 (${response.status})`)
-      }
+    // 선생님 이메일 찾기 (첫 번째 사용자를 선생님으로 가정)
+    if (membersData && membersData.length > 0) {
+      teacherEmail.value = membersData[0].email;
+      console.log('📋 teacherEmail 설정:', teacherEmail.value);
     }
-    
+
   } catch (err) {
-    console.error('📋 학생 목록 조회 실패:', err)
+    console.error('📋 학생 목록 조회 실패:', err);
     
-    // 백엔드가 준비되지 않은 경우 임시 Mock 데이터 사용
-    if (err.message.includes('JSON') || 
-        err.message.includes('404') || 
-        err.message.includes('500') || 
-        err.message.includes('멤버 목록 조회 실패') ||
-        err.message.includes('찾을 수 없습니다') ||
-        err.message.includes('권한이 없습니다') ||
-        err.message.includes('HTML 응답을 받았습니다')) {
-      console.log('📋 백엔드 미준비 또는 권한 없음 - Mock 데이터 사용')
-      const mockMembers = [
-        {
-          email: "teacher@example.com",
-          nickname: "김선생님"
-        },
-        {
-          email: "student1@example.com", 
-          nickname: "김철수"
-        },
-        {
-          email: "student2@example.com",
-          nickname: "이영희"
-        },
-        {
-          email: "student3@example.com",
-          nickname: "박민수"
-        },
-        {
-          email: "student4@example.com",
-          nickname: "정수진"
-        }
-      ]
+    // axios 에러 처리
+    if (err.response) {
+      const status = err.response.status;
+      const errorText = err.response.data?.message || err.message; // 서버의 에러 메시지
       
-      members.value = mockMembers
-      teacherEmail.value = mockMembers[0].email
-      error.value = null
-      return
+      console.error('📋 API 에러 응답 전체:', errorText);
+
+      // 백엔드 명세에 따른 구체적인 에러 처리
+      if (status === 400) {
+        error.value = '잘못된 요청입니다.';
+      } else if (status === 401) {
+        error.value = '인증이 필요합니다.';
+      } else if (status === 403) {
+        error.value = '접근 권한이 없습니다.';
+      } else if (status === 404) {
+        error.value = '클래스를 찾을 수 없습니다.';
+      } else if (status === 500) {
+        error.value = '서버 오류가 발생했습니다.';
+      } else {
+        error.value = `멤버 목록 조회 실패 (${status})`;
+      }
+    } else {
+      // 네트워크 오류 또는 기타 예상치 못한 에러
+      error.value = err.message || '네트워크 오류가 발생했습니다.';
     }
     
-    error.value = err.message || '학생 목록을 불러오는데 실패했습니다.'
+    // 백엔드가 준비되지 않았거나 권한이 없는 경우 Mock 데이터 사용
+    if (error.value && ['클래스를 찾을 수 없습니다.', '접근 권한이 없습니다.', '서버 오류가 발생했습니다.'].includes(error.value)) {
+      console.log('📋 백엔드 미준비 또는 권한 없음 - Mock 데이터 사용');
+      const mockMembers = [
+        { email: "teacher@example.com", nickname: "김선생님" },
+        { email: "student1@example.com", nickname: "김철수" },
+        { email: "student2@example.com", nickname: "이영희" },
+        { email: "student3@example.com", nickname: "박민수" },
+        { email: "student4@example.com", nickname: "정수진" }
+      ];
+      
+      members.value = mockMembers;
+      teacherEmail.value = mockMembers[0].email;
+      error.value = null; // Mock 데이터를 사용하면 오류 메시지 초기화
+    }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // 모달이 열릴 때 학생 목록 조회
 onMounted(() => {
   if (props.isVisible) {
-    fetchMembers()
+    fetchMembers();
   }
-})
+});
 
 // props.isVisible이 변경될 때마다 학생 목록 조회
-import { watch } from 'vue'
 watch(() => props.isVisible, (newValue) => {
   if (newValue) {
-    fetchMembers()
+    fetchMembers();
   }
-})
+}, { immediate: true }); // 컴포넌트가 마운트될 때 즉시 실행되도록 immediate 옵션 추가
 </script>
 
 <style scoped>

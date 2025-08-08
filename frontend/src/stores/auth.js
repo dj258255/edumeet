@@ -2,7 +2,7 @@ import axios from "axios"
 import { defineStore } from 'pinia'
 import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
 // API 기본 설정
-const API_BASE_URL = "http://localhost:8080/api/v1"
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 // axios 인스턴스 생성
 const apiClient = axios.create({
