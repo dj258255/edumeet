@@ -43,10 +43,14 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/**",
                                 "/swagger-ui/**",
-                                "swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/api-docs/**",
+                                "/swagger-resources/**",
+                                "/webjars/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
+
 
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(e -> e.authenticationEntryPoint(jwtAuthenticationEntryPoint))
