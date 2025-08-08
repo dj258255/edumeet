@@ -2,6 +2,7 @@ package com.edu.edumeet.member.controller;
 
 import com.edu.edumeet.config.jwt.JwtService;
 import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
+import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.dto.request.RefreshTokenRequest;
 import com.edu.edumeet.member.dto.request.SignupRequestDto;
@@ -39,6 +40,34 @@ public class MemberController {
     public ResponseEntity<TokenResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
         return ResponseEntity.ok(memberService.login(loginRequestDto));
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, String>> getCurrentUser(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "message", "Authorization 헤더가 필요합니다."
+            ));
+        }
+
+        try {
+            String token = authHeader.substring(7); // "Bearer " 제거
+            Long memberId = jwtService.getMemberIdFromToken(token);
+            Member member = memberService.getMemberById(memberId);  // 이 메서드도 아래에 추가
+
+            return ResponseEntity.ok(Map.of(
+                    "email", member.getEmail(),
+                    "nickname", member.getNickname()
+            ));
+        } catch (Exception e) {
+            log.error("JWT 사용자 정보 조회 실패", e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "message", "유효하지 않은 토큰입니다."
+            ));
+        }
+    }
+
 
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponseDto> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
