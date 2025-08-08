@@ -21,7 +21,7 @@ public class Member extends BaseEntity {
     private Long id;
 
     @Column(nullable = false, unique = true, length = 100)
-    private String email;
+    private String email; // 실제 이메일 주소 (OAuth2와 일반 로그인 모두)
 
     @Column(nullable = false)
     private String password;
@@ -34,6 +34,10 @@ public class Member extends BaseEntity {
 
     @OneToMany(mappedBy = "member")
     private List<ClassMember> classMembers;
+
+    private String provider;
+
+    private String providerId;
 
     // 정적 팩토리 메서드
     public static Member create(String email, String rawPassword, String nickname, PasswordEncoder passwordEncoder) {
@@ -64,5 +68,31 @@ public class Member extends BaseEntity {
 
     public String getEncodedPassword() {
         return this.password;
+    }
+
+    // 🔥 OAuth2 정보 업데이트 메서드 추가
+    public void updateOAuth2Info(String provider, String providerId) {
+        this.provider = provider;
+        this.providerId = providerId;
+    }
+
+    // 🔥 닉네임 업데이트 메서드 추가
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    // 🔥 이메일 업데이트 메서드 추가 (OAuth2에서 이메일이 변경된 경우)
+    public void updateEmail(String email) {
+        this.email = email;
+    }
+
+    // 🔥 OAuth2 사용자 여부 확인 메서드
+    public boolean isOAuth2User() {
+        return provider != null && providerId != null;
+    }
+
+    // 🔥 일반 로그인 사용자 여부 확인 메서드
+    public boolean isRegularUser() {
+        return provider == null && providerId == null;
     }
 }

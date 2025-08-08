@@ -139,6 +139,16 @@ public class MemberService {
                 .build();
     }
 
+    public Member getMemberByEmail(String email) {
+        return memberRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("해당 이메일의 사용자를 찾을 수 없습니다: " + email));
+    }
+
+    public Member getMemberById(Long memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 ID의 사용자를 찾을 수 없습니다: " + memberId));
+    }
+
     public void logout(Long memberId) {
         log.info("로그아웃 요청: memberId={}", memberId);
         refreshTokenRepository.deleteByMemberId(memberId);
@@ -205,5 +215,10 @@ public class MemberService {
         } else {
             refreshTokenRepository.save(refreshToken);
         }
+    }
+
+    // OAuth2CallbackController에서 사용할 Repository 접근 메서드
+    public MemberRepository getMemberRepository() {
+        return memberRepository;
     }
 }
