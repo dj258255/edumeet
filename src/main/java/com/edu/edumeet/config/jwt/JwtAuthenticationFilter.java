@@ -27,6 +27,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        String path = request.getRequestURI();
+
+        //스웨거 경로도 추가
+        if(path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/api-docs")        // springdoc.api-docs.path=/api-docs 설정 대응
+                || path.startsWith("/swagger-resources")
+                || path.startsWith("/webjars")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        //-------------------------------
         final String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
