@@ -8,12 +8,20 @@ import router from './router'
 import './styles/global.css'
 import './styles/App.css'
 
+// Auth Store import
+import { useAuthStore } from '@/stores/auth'
+
 const app = createApp(App)
 
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 
 app.mount('#app')
 
 // kakao로그인 javascript key
 window.Kakao.init(import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY)
+
+// ✅ 앱 시작 시 로그인 상태 복원
+const authStore = useAuthStore()
+authStore.initialize()
