@@ -6,10 +6,12 @@ import com.edu.edumeet.board.presentation.dto.BoardImageDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.infrastructure.QReplyJpaEntity;
+import com.edu.edumeet.util.S3Uploader;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.JPQLQuery;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -28,8 +30,11 @@ import java.util.stream.Collectors;
 @Repository
 public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport implements BoardSearchRepository {
 
-    public BoardSearchRepositoryImpl() {
+    private final S3Uploader s3Uploader;
+
+    public BoardSearchRepositoryImpl(S3Uploader s3Uploader) {
         super(BoardJpaEntity.class);
+        this.s3Uploader = s3Uploader;
     }
 
     /**
@@ -320,7 +325,7 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
     // NOTICE(공지사항) > RECOMMENDED(추천) > NORMAL(일반) 순서로 정렬됨
     query.orderBy(boardJpaEntity.boardType.desc(), boardJpaEntity.id.desc());
 
-    // ✨ 튜플로 select - 게시글과 댓글 수를 한 번에 조회
+    // 튜플로 select - 게시글과 댓글 수를 한 번에 조회
     JPQLQuery<Tuple> tupleQuery = query.select(
         boardJpaEntity, 
         replyJpaEntity.countDistinct()
@@ -356,11 +361,22 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
         if (board.getImageSet() != null && !board.getImageSet().isEmpty()) {
             List<BoardImageDTO> imageDTOs = board.getImageSet().stream()
                     .sorted(Comparator.comparingInt(BoardImageJpaEntity::getOrd))
-                    .map(boardImage -> BoardImageDTO.builder()
-                            .uuid(boardImage.getUuid())
-                            .fileName(boardImage.getFilename())
-                            .ord(boardImage.getOrd())
-                            .build())
+                    .map(boardImage -> {
+                        String uuid = boardImage.getUuid();
+                        String fileName = boardImage.getFilename();
+                        
+                        // S3Uploader의 메서드를 사용하여 URL 생성
+                        String s3Url = s3Uploader.getS3Url(uuid, fileName);
+                        String s3ThumbnailUrl = s3Uploader.getS3ThumbnailUrl(uuid, fileName);
+                        
+                        return BoardImageDTO.builder()
+                                .uuid(uuid)
+                                .fileName(fileName)
+                                .ord(boardImage.getOrd())
+                                .s3Url(s3Url)
+                                .s3ThumbnailUrl(s3ThumbnailUrl)
+                                .build();
+                    })
                     .collect(Collectors.toList());
             
             dto.setBoardImages(imageDTOs);
@@ -437,7 +453,7 @@ public Page<BoardListAllDTO> searchDeletedWithAll(String[] types, String keyword
     // NOTICE(공지사항) > RECOMMENDED(추천) > NORMAL(일반) 순서로 정렬됨
     query.orderBy(boardJpaEntity.boardType.desc(), boardJpaEntity.id.desc());
 
-    // ✨ 튜플로 select - 게시글과 댓글 수를 한 번에 조회
+    // 튜플로 select - 게시글과 댓글 수를 한 번에 조회
     JPQLQuery<Tuple> tupleQuery = query.select(
         boardJpaEntity, 
         replyJpaEntity.countDistinct()
@@ -473,11 +489,22 @@ public Page<BoardListAllDTO> searchDeletedWithAll(String[] types, String keyword
         if (board.getImageSet() != null && !board.getImageSet().isEmpty()) {
             List<BoardImageDTO> imageDTOs = board.getImageSet().stream()
                     .sorted(Comparator.comparingInt(BoardImageJpaEntity::getOrd))
-                    .map(boardImage -> BoardImageDTO.builder()
-                            .uuid(boardImage.getUuid())
-                            .fileName(boardImage.getFilename())
-                            .ord(boardImage.getOrd())
-                            .build())
+                    .map(boardImage -> {
+                        String uuid = boardImage.getUuid();
+                        String fileName = boardImage.getFilename();
+                        
+                        // S3Uploader의 메서드를 사용하여 URL 생성
+                        String s3Url = s3Uploader.getS3Url(uuid, fileName);
+                        String s3ThumbnailUrl = s3Uploader.getS3ThumbnailUrl(uuid, fileName);
+                        
+                        return BoardImageDTO.builder()
+                                .uuid(uuid)
+                                .fileName(fileName)
+                                .ord(boardImage.getOrd())
+                                .s3Url(s3Url)
+                                .s3ThumbnailUrl(s3ThumbnailUrl)
+                                .build();
+                    })
                     .collect(Collectors.toList());
             
             dto.setBoardImages(imageDTOs);

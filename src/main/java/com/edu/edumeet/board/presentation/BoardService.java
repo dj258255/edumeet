@@ -5,6 +5,7 @@ import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardType;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.presentation.dto.*;
+import com.edu.edumeet.util.S3Uploader;
 import jakarta.validation.Valid;
 
 import java.util.List;
@@ -44,11 +45,10 @@ public interface BoardService {
                 .dislike(boardDTO.getDislike())
                 .build();
 
-        // 파일 정보를 도메인 이미지로 변환
-        if(boardDTO.getFileNames() != null){
-            for (String fileName : boardDTO.getFileNames()) {
-                String[] arr = fileName.split("_");
-                board.addImage(arr[0], arr[1]);
+        // BoardImageDTO 정보를 도메인 이미지로 변환
+        if(boardDTO.getBoardImages() != null){
+            for (BoardImageDTO imageDTO : boardDTO.getBoardImages()) {
+                board.addImage(imageDTO.getUuid(), imageDTO.getFileName());
             }
         }
         
@@ -57,8 +57,11 @@ public interface BoardService {
 
     /**
      * Board 도메인 객체를 BoardDTO로 변환
+     * @param board 변환할 Board 도메인 객체
+     * @param s3Uploader S3 URL 생성을 위한 S3Uploader
+     * @return 변환된 BoardDTO 객체
      */
-    default BoardDTO domainToDto(Board board){
+    default BoardDTO domainToDto(Board board, S3Uploader s3Uploader){
         BoardDTO boardDTO = BoardDTO.builder()
                 .id(board.getId())
                 .title(board.getTitle())
@@ -74,16 +77,42 @@ public interface BoardService {
                 .dislike(board.getDislike())
                 .build();
 
-        // 도메인 이미지를 파일명으로 변환
+        // 도메인 이미지를 BoardImageDTO로 변환
         if (board.getImages() != null && !board.getImages().isEmpty()) {
-            List<String> fileNames = board.getImages().stream()
+            List<BoardImageDTO> boardImages = board.getImages().stream()
                     .sorted()
-                    .map(img -> img.getUuid() + "_" + img.getFileName())
+                    .map(img -> {
+                        String uuid = img.getUuid();
+                        String fileName = img.getFileName();
+                        
+                        // S3Uploader를 사용하여 URL 생성
+                        String s3Url = s3Uploader.getS3Url(uuid, fileName);
+                        String s3ThumbnailUrl = s3Uploader.getS3ThumbnailUrl(uuid, fileName);
+                        
+                        return BoardImageDTO.builder()
+                                .uuid(uuid)
+                                .fileName(fileName)
+                                .ord(img.getOrd())
+                                .s3Url(s3Url)
+                                .s3ThumbnailUrl(s3ThumbnailUrl)
+                                .build();
+                    })
                     .collect(Collectors.toList());
-            boardDTO.setFileNames(fileNames);
+            boardDTO.setBoardImages(boardImages);
         }
 
         return boardDTO;
+    }
+    
+    /**
+     * Board 도메인 객체를 BoardDTO로 변환 (기존 메서드 호환성 유지)
+     * @param board 변환할 Board 도메인 객체
+     * @return 변환된 BoardDTO 객체
+     * @deprecated S3Uploader를 파라미터로 받는 메서드를 사용하세요
+     */
+    @Deprecated
+    default BoardDTO domainToDto(Board board){
+        throw new UnsupportedOperationException("S3Uploader를 파라미터로 받는 메서드를 사용하세요");
     }
 
 
