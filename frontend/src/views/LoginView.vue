@@ -62,7 +62,7 @@
             <div v-if="errors.password" class="error-message">{{ errors.password }}</div>
           </div>
           
-          <button type="submit" class="login-btn" :disabled="!email || !password || !selectedRole">
+          <button type="submit" class="login-btn" :disabled="!email || !password">
             Login
           </button>
         </form>
@@ -78,9 +78,6 @@
         <div class="signup-link">
           Don't have an account? <RouterLink to="/signup">Sign Up</RouterLink>
         </div>
-        <div class="role-selection">
-          <p class="role-label">또는 다음으로 로그인</p>
-        </div>
         
         <!-- 카카오 로그인 섹션 -->
         <div class="social-login-section">
@@ -91,14 +88,9 @@
               @click="handleKakaoLogin"
               :disabled="isKakaoLoading"
             >
-              <img
-                src="//k.kakaocdn.net/14/dn/btqCn0WEmI3/nijroPfbpCa4at5EIsjyf0/o.jpg"
-                alt="카카오 로그인"
-                class="kakao-icon"
-              />
-              <span class="kakao-text">
-                {{ isKakaoLoading ? '로그인 중...' : '카카오로 로그인' }}
-              </span>
+              <div class="kakao-btn-content">
+                👥 {{ isKakaoLoading ? '로그인 중...' : '카카오로 로그인' }}
+              </div>
             </button>
           </div>
         </div>
@@ -108,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import '../styles/LoginView.css'
@@ -118,11 +110,9 @@ const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
-const selectedRole = ref('tutor')
 const errors = ref({})
 const message = ref('')
 const isKakaoLoading = ref(false)
-const kakaoUser = ref({})
 
 const validateForm = () => {
   errors.value = {}
@@ -132,6 +122,7 @@ const validateForm = () => {
   else if (password.value.length < 6) errors.value.password = '비밀번호는 최소 6자 이상이어야 합니다.'
   return Object.keys(errors.value).length === 0
 }
+
 const handleLogin = async () => {
   if (!validateForm()) return
   try {
@@ -153,223 +144,72 @@ const handleLogin = async () => {
   }
 }
 
-// 카카오 로그인 관련 함수들
-const getKakaoToken = async (code) => {
-  try {
-    const data = {
-      grant_type: "authorization_code",
-      client_id: import.meta.env.VITE_KAKAO_REST_API_KEY,
-      redirect_uri: "http://localhost:5173/login",
-      code: code,
-    };
-
-    const queryString = Object.keys(data)
-      .map((k) => encodeURIComponent(k) + "=" + encodeURIComponent(data[k]))
-      .join("&");
-
-    const result = await fetch("https://kauth.kakao.com/oauth/token", {
-      method: "POST",
-      headers: {
-        "Content-type": "application/x-www-form-urlencoded;charset=utf-8",
-      },
-      body: queryString,
-    });
-    
-    return await result.json();
-  } catch (e) {
-    console.log('토큰 요청 에러:', e);
-    return { error: e };
-  }
-};
-
-const getKakaoUserInfo = async () => {
-  let data = "";
-  await window.Kakao.API.request({
-    url: "/v2/user/me",
-  })
-    .then(function (response) {
-      console.log(response);
-      data = response;
-    })
-    .catch(function (error) {
-      console.log(error);
-    });
-  console.log("카카오 계정 정보", data);
-  return data;
-};
-
-const waitForKakaoSDK = () => {
-  return new Promise((resolve) => {
-    let attempts = 0;
-    const maxAttempts = 50; // 최대 시도 횟수 줄임
-    
-    const checkSDK = () => {
-      attempts++;
-      console.log(`카카오 SDK 체크 시도 ${attempts}/${maxAttempts}`);
-      
-      if (window.Kakao && window.Kakao.Auth) {
-        console.log('카카오 SDK 및 Auth 모듈 준비 완료');
-        resolve();
-      } else if (attempts >= maxAttempts) {
-        console.error('카카오 SDK 로드 타임아웃');
-        resolve();
-      } else {
-        console.log('카카오 SDK 대기 중...');
-        setTimeout(checkSDK, 50); // 대기 시간을 50ms로 줄임
-      }
-    };
-    checkSDK();
-  });
-};
-
-const setKakaoToken = async (code) => {
-  const result = await getKakaoToken(code);
-  
-  if (result.error) {
-    console.error('토큰 요청 실패:', result.error);
-    const status = result.error.response?.status;
-    
-    if (status === 429) {
-      alert('요청이 너무 많습니다. 5-10분 후 다시 시도해주세요.');
-      return;
-    } else if (status === 400) {
-      alert('인증 코드가 만료되었습니다. 다시 로그인해주세요.');
-      return;
-    } else {
-      alert('카카오 로그인 중 오류가 발생했습니다.');
-      return;
-    }
-  }
-  
-  if (result.error) {
-    console.log('카카오 API 에러:', result.error);
-    return;
-  }
-  
-  console.log(result);
-  
-  await waitForKakaoSDK();
-  
-  window.Kakao.Auth.setAccessToken(result.access_token);
-  
-  try {
-    await setUserInfo();
-  } catch (error) {
-    console.log('사용자 정보 조회 실패, 하지만 토큰은 저장됨:', error);
-  }
-  
-  isKakaoLoading.value = false;
-  message.value = '카카오 로그인 성공!';
-  router.push('/');
-};
-
-const setUserInfo = async () => {
-  try {
-    const res = await getKakaoUserInfo();
-    
-    if (!res || !res.kakao_account) {
-      console.error('사용자 정보를 가져올 수 없습니다:', res);
-      return;
-    }
-    
-    const userInfo = {
-      name: res.kakao_account.profile?.nickname || '사용자',
-      email: res.kakao_account.email || '',
-      role: selectedRole.value,
-    };
-    console.log('카카오 사용자 정보:', userInfo);
-    
-    // 이메일이 있으면 DB에 회원가입 시도
-    if (userInfo.email) {
-      try {
-        // 기존 회원가입과 동일한 형식으로 DB에 전송
-        const signupData = {
-          name: userInfo.name,
-          email: userInfo.email,
-          password: 'kakao_' + Date.now(), // 임시 비밀번호 (카카오 로그인용)
-          role: userInfo.role
-        };
-        
-        console.log('DB에 전송할 데이터:', signupData);
-        
-        // auth store를 사용해서 회원가입 API 호출
-        const authStore = useAuthStore();
-        await authStore.signup(signupData);
-        
-        console.log('카카오 회원가입 성공!');
-        message.value = '카카오 로그인 성공!';
-        router.push('/');
-        
-      } catch (error) {
-        console.error('카카오 회원가입 실패:', error);
-        // 이미 가입된 사용자일 수 있으므로 로그인 시도
-        try {
-          await authStore.login(userInfo.email, 'kakao_' + Date.now());
-          message.value = '카카오 로그인 성공!';
-          router.push('/');
-        } catch (loginError) {
-          console.error('카카오 로그인 실패:', loginError);
-          message.value = '로그인에 실패했습니다.';
-        }
-      }
-    } else {
-      // 이메일이 없으면 추가 정보 입력 필요
-      console.log('이메일이 없어서 추가 정보 입력이 필요합니다.');
-      message.value = '이메일 정보가 필요합니다.';
-    }
-    
-    // localStorage에 저장
-    localStorage.setItem('kakaoUser', JSON.stringify(userInfo));
-    kakaoUser.value = userInfo;
-    
-  } catch (error) {
-    console.error('사용자 정보 조회 실패:', error);
-    if (error.response?.status !== 429) {
-      alert('사용자 정보를 가져오는데 실패했습니다.');
-    }
-  }
-};
-
+// 카카오 로그인 - Spring Security OAuth2 방식
 const handleKakaoLogin = () => {
-  console.log('카카오 로그인 버튼 클릭됨');
+  console.log('카카오 로그인 버튼 클릭됨')
   
-  if (!window.Kakao || !window.Kakao.Auth) {
-    console.error('카카오 SDK가 로드되지 않았습니다.');
-    alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.');
-    return;
-  }
-  
-  console.log('카카오 로그인 시작...');
-  isKakaoLoading.value = true;
+  // Spring Security OAuth2 방식으로 리다이렉트
+  console.log('Spring Security OAuth2로 카카오 로그인 시작...')
+  isKakaoLoading.value = true
   
   try {
-    window.Kakao.Auth.authorize({
-      redirectUri: "http://localhost:5173/kakao",
-      prompt: 'login'
-    });
+    // 백엔드 OAuth2 엔드포인트로 이동
+    window.location.href = "http://localhost:8080/oauth2/authorization/kakao"
   } catch (error) {
-    console.error('카카오 로그인 에러:', error);
-    alert('카카오 로그인 중 오류가 발생했습니다.');
-    isKakaoLoading.value = false;
+    console.error('카카오 로그인 에러:', error)
+    alert('카카오 로그인 중 오류가 발생했습니다.')
+    isKakaoLoading.value = false
   }
-};
+}
 
-// 컴포넌트 마운트 시 카카오 인증 코드 처리
+// 컴포넌트 마운트 - OAuth2 토큰 처리는 App.vue에서 수행
 onMounted(() => {
-  const savedUser = localStorage.getItem('kakaoUser');
-  if (savedUser) {
-    kakaoUser.value = JSON.parse(savedUser);
-  }
-  
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has("code")) {
-    const code = urlParams.get("code");
-    console.log("카카오 인증 코드 발견:", code);
-    isKakaoLoading.value = true;
-    setKakaoToken(code);
-    
-    const newUrl = window.location.pathname;
-    window.history.replaceState({}, document.title, newUrl);
-  }
-});
-</script> 
+  // Spring Security OAuth2가 전체적으로 처리함
+  console.log('LoginView 마운트 완료')
+})
+</script>
+
+<style scoped>
+/* 기존 CSS는 유지하고 카카오 버튼만 업데이트 */
+.kakao-login-btn {
+  width: 100%;
+  background: #fee500;
+  color: #3c1e1e;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.kakao-login-btn:hover {
+  background: #ffd900;
+  transform: translateY(-1px);
+}
+
+.kakao-login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.kakao-btn-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.social-login-section {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.social-login-label {
+  margin-bottom: 10px;
+  color: #666;
+  font-size: 14px;
+}
+</style>

@@ -19,12 +19,88 @@ const currentUser = computed(() => authStore.currentUser)
 
 // 다크모드 로컬 스토리지
 onMounted(() => {
+  // 카카오 SDK 정리 (최우선)
+  if (window.Kakao) {
+    console.log('팩시 - 카카오 SDK 감지됨, 제거 시도');
+    try {
+      if (window.Kakao.isInitialized && window.Kakao.isInitialized()) {
+        window.Kakao.cleanup();
+      }
+      delete window.Kakao;
+      // 카카오 관련 로컬스토리지도 제거
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes('kakao') || key.includes('Kakao')) {
+          localStorage.removeItem(key);
+        }
+      });
+      console.log('팩시 - 카카오 SDK 제거 완료');
+    } catch (e) {
+      console.warn('팩시 - 카카오 SDK 제거 실패:', e);
+    }
+  }
+  
   const savedTheme = localStorage.getItem('theme')
   if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     isDarkMode.value = true
     document.documentElement.classList.add('dark-mode')
   }
-  authStore.initialize()
+  
+  // OAuth2 토큰 처리
+  const urlParams = new URLSearchParams(window.location.search);
+  const accessToken = urlParams.get('accessToken');
+  const refreshToken = urlParams.get('refreshToken');
+  
+  if (accessToken && refreshToken) {
+    console.log('✅ OAuth2 로그인 성공 - 토큰 수신');
+    
+    // 토큰 저장
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+    
+    // URL 정리
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    // AuthStore 업데이트를 비동기로 처리
+    setTimeout(async () => {
+      try {
+        // 사용자 정보 조회
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/members/me`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          
+          // 사용자 정보 저장
+          const user = {
+            email: userData.email,
+            nickname: userData.nickname,
+            provider: 'kakao'
+          };
+          
+          localStorage.setItem('user', JSON.stringify(user));
+          authStore.user = user;
+          authStore.isAuthenticated = true;
+          
+          console.log('✅ OAuth2 로그인 완료:', user.nickname);
+          alert(`안녕하세요, ${user.nickname}님! 카카오 로그인에 성공했습니다.`);
+        } else {
+          console.error('사용자 정보 조회 실패');
+          localStorage.removeItem('token');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+        }
+      } catch (error) {
+        console.error('OAuth2 로그인 처리 중 오류:', error);
+      }
+    }, 100);
+  } else {
+    // 기존 인증 상태 초기화
+    authStore.initialize();
+  }
 })
 
 // 다크모드 변경 감지
