@@ -71,14 +71,14 @@ public class PageResponseDTO<E> {
 
         // 마지막 페이지 계산
         int last = (int)(Math.ceil((total/(double)size)));
-        this.end = end > last ? last : end;
+        this.end = this.end > last ? last : this.end;
 
         // 이전/다음 페이지 존재 여부 계산
         this.prev = this.start > 1;
         this.next = total > this.end * this.size;
     }
     
-    /**
+        /**
      * 빌더 패턴을 위한 정적 메서드
      * @param <E> 페이징 대상 DTO 타입
      * @return 빌더 객체

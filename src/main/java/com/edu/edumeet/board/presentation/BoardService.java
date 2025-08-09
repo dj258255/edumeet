@@ -3,10 +3,9 @@ package com.edu.edumeet.board.presentation;
 
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardType;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.presentation.dto.*;
-import com.edu.edumeet.util.S3Uploader;
-import jakarta.validation.Valid;
+import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.upload.presentation.dto.FileUploadDTO;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -45,9 +44,9 @@ public interface BoardService {
                 .dislike(boardDTO.getDislike())
                 .build();
 
-        // BoardImageDTO 정보를 도메인 이미지로 변환
+        // FileUploadDTO 정보를 도메인 이미지로 변환
         if(boardDTO.getBoardImages() != null){
-            for (BoardImageDTO imageDTO : boardDTO.getBoardImages()) {
+            for (FileUploadDTO imageDTO : boardDTO.getBoardImages()) {
                 board.addImage(imageDTO.getUuid(), imageDTO.getFileName());
             }
         }
@@ -77,24 +76,27 @@ public interface BoardService {
                 .dislike(board.getDislike())
                 .build();
 
-        // 도메인 이미지를 BoardImageDTO로 변환
+        // 도메인 이미지를 FileUploadDTO로 변환
         if (board.getImages() != null && !board.getImages().isEmpty()) {
-            List<BoardImageDTO> boardImages = board.getImages().stream()
+            List<FileUploadDTO> boardImages = board.getImages().stream()
                     .sorted()
                     .map(img -> {
                         String uuid = img.getUuid();
                         String fileName = img.getFileName();
                         
                         // S3Uploader를 사용하여 URL 생성
-                        String s3Url = s3Uploader.getS3Url(uuid, fileName);
-                        String s3ThumbnailUrl = s3Uploader.getS3ThumbnailUrl(uuid, fileName);
+                        String s3Url = s3Uploader.getOriginalUrl(uuid, fileName);
+                        String s3ThumbnailUrl = s3Uploader.getThumbnailUrl(uuid, fileName);
                         
-                        return BoardImageDTO.builder()
+                        return FileUploadDTO.builder()
                                 .uuid(uuid)
                                 .fileName(fileName)
                                 .ord(img.getOrd())
                                 .s3Url(s3Url)
                                 .s3ThumbnailUrl(s3ThumbnailUrl)
+                                .img(true)
+                                .domain("board")
+                                .referenceId(img.getReferenceId())
                                 .build();
                     })
                     .collect(Collectors.toList());
@@ -103,56 +105,8 @@ public interface BoardService {
 
         return boardDTO;
     }
-    
-    /**
-     * Board 도메인 객체를 BoardDTO로 변환 (기존 메서드 호환성 유지)
-     * @param board 변환할 Board 도메인 객체
-     * @return 변환된 BoardDTO 객체
-     * @deprecated S3Uploader를 파라미터로 받는 메서드를 사용하세요
-     */
-    @Deprecated
-    default BoardDTO domainToDto(Board board){
-        throw new UnsupportedOperationException("S3Uploader를 파라미터로 받는 메서드를 사용하세요");
-    }
 
 
-//
-//    //default 메소드
-//    default BoardJpaEntity dtoToEntity(BoardDTO boardDTO){
-//        BoardJpaEntity boardJpaEntity = BoardJpaEntity.builder()
-//                .id(boardDTO.getId())
-//                .title(boardDTO.getTitle())
-//                .content(boardDTO.getContent())
-//                .writer(boardDTO.getWriter())
-//                .build();
-//
-//        if(boardDTO.getFileNames() != null){
-//            boardDTO.getFileNames().forEach(fileName -> {
-//                String[] arr = fileName.split("_");
-//                boardJpaEntity.addImage(arr[0], arr[1]);
-//            });
-//        }
-//        return boardJpaEntity;
-//    }
-//
-//    default BoardDTO entityToDto(BoardJpaEntity boardJpaEntity){
-//        BoardDTO boardDTO = BoardDTO.builder()
-//                .id(boardJpaEntity.getId())
-//                .title(boardJpaEntity.getTitle())
-//                .content(boardJpaEntity.getContent())
-//                .writer(boardJpaEntity.getWriter())
-//                .regDate(boardJpaEntity.getRegDate())
-//                .modDate(boardJpaEntity.getModDate())
-//                .build();
-//
-//        List<String> fileNames =
-//                boardJpaEntity.getImageSet().stream().sorted().map(boardImageJpaEntity ->
-//                        boardImageJpaEntity.getUuid()+"_"+boardImageJpaEntity.getFilename()).collect(Collectors.toList());
-//
-//        boardDTO.setFileNames(fileNames);
-//
-//        return boardDTO;
-//    }
 
 
 
