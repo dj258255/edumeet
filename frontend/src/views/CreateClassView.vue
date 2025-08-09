@@ -156,9 +156,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClassStore } from '@/stores/class'
+import { useAuthStore } from '@/stores/auth'
 import ClassCard from '../components/ClassCard.vue'
 import CreateClassForm from '../components/CreateClassForm.vue'
 import CreateClassModal from '../components/CreateClassModal.vue'
@@ -183,6 +184,8 @@ const selectedClassForMembers = ref(null)
 
 const router = useRouter()
 const classStore = useClassStore()
+const authStore = useAuthStore()
+const isLoggedIn = computed(() => authStore.isLoggedIn)
 
 
 // 현재 활성화된 탭에 따른 반 목록 계산
@@ -349,9 +352,18 @@ function closeMembersModal() {
 }
 
 
-// 페이지 진입 시 목록 로드
+// 페이지 진입 시 목록 로드 (로그인 보장 후 실행)
 onMounted(async () => {
-  await loadClasses()
+  if (isLoggedIn.value) {
+    await loadClasses()
+  } else {
+    const stop = watch(isLoggedIn, async (v) => {
+      if (v) {
+        stop()
+        await loadClasses()
+      }
+    })
+  }
 })
 
 </script>

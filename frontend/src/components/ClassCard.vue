@@ -51,6 +51,7 @@
 
 <script setup>
 import { defineProps, defineEmits, computed, ref, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth.js'
 import defaultImage from '@/assets/class_default_image.png'
 import apiClient from '@/stores/auth.js'
 
@@ -133,6 +134,10 @@ const memberCountDisplay = computed(() => {
 
 // 부족한 정보는 서버에서 보완 조회
 onMounted(async () => {
+  const authStore = useAuthStore()
+  // 비로그인 상태이거나 토큰이 없으면 API 조회 스킵
+  const hasToken = !!localStorage.getItem('token')
+  if (!hasToken || !authStore.isLoggedIn) return
   try {
     if (creatorDisplayName.value !== '알 수 없음' && memberCount.value > 0) return
     const classId = resolvedClassId.value

@@ -14,7 +14,7 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token")
+    const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -30,48 +30,77 @@ apiClient.interceptors.request.use(
   }
 )
 
+// ===== 단일 토큰 갱신 처리 (동시 401 방지) =====
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+function subscribeTokenRefresh(callback) {
+  refreshSubscribers.push(callback);
+}
+
+function onRefreshed(newAccessToken) {
+  refreshSubscribers.forEach((cb) => cb(newAccessToken));
+  refreshSubscribers = [];
+}
+
 // 응답 인터셉터 - 에러 처리 및 토큰 갱신
 apiClient.interceptors.response.use(
   (response) => {
-    return response
+    return response;
   },
   async (error) => {
     const originalRequest = error.config;
-    // 401 에러이고, 토큰 갱신을 시도한 요청이 아니라면
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true; // 재시도 플래그 설정
-      
-      try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        if (!refreshToken) {
-          throw new Error('리프레시 토큰이 없습니다.');
-        }
+      originalRequest._retry = true;
 
-        // 토큰 갱신 API 호출
-        const refreshResponse = await axios.post(`${API_BASE_URL}/members/refresh`, { refreshToken });
-        // console.log(refreshResponse)
-        const newAccessToken=refreshResponse.data.accessToken
-        const newRefreshToken=refreshResponse.data.refreshToken
-        // console.log(newAccessToken,newRefreshToken)
-        
+      const existingRefreshToken = localStorage.getItem("refreshToken");
+      if (!existingRefreshToken) {
+        // 갱신 불가 → 즉시 로그아웃 처리
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return Promise.reject(error);
+      }
+
+      // 이미 다른 요청이 갱신 중인 경우 → 갱신 완료를 기다렸다가 재시도
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((newToken) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            resolve(apiClient(originalRequest));
+          });
+        });
+      }
+
+      // 갱신 시작
+      isRefreshing = true;
+      try {
+        const refreshResponse = await axios.post(`${API_BASE_URL}/members/refresh`, {
+          refreshToken: existingRefreshToken,
+        });
+        const newAccessToken = refreshResponse.data.accessToken;
+        const newRefreshToken = refreshResponse.data.refreshToken;
+
         // 새로운 토큰 저장
         localStorage.setItem("token", newAccessToken);
         localStorage.setItem("refreshToken", newRefreshToken);
-        
-        // 실패했던 요청의 헤더에 새로운 토큰 설정
+
+        // 대기 중인 모든 요청 재시도
+        onRefreshed(newAccessToken);
+
+        // 현재 요청 재시도
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        
-        // 원래 요청을 다시 보냄
         return apiClient(originalRequest);
-        
       } catch (refreshError) {
-        // 리프레시 토큰이 없거나, 갱신 실패 시
-        console.error('토큰 갱신 실패:', refreshError);
+        console.error("토큰 갱신 실패:", refreshError);
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("user");
         window.location.href = "/login";
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
     return Promise.reject(error);
@@ -140,25 +169,10 @@ const tokenManager = {
     localStorage.removeItem("token")
   },
 
-  // 토큰 유효성 확인
+  // 토큰 유효성 확인 (존재 여부 위주)
   isTokenValid: () => {
-    const token = localStorage.getItem("token")
-    if (!token || token === "undefined" || token === "null") return false
-    
-    // mock 토큰인 경우 (개발용)
-    if (token.startsWith('mock_token_')) {
-      return true
-    }
-    
-    try {
-      // JWT 토큰의 만료 시간 확인
-      const payload = JSON.parse(atob(token.split(".")[1]))
-      return payload.exp * 1000 > Date.now()
-    } catch (error) {
-      console.error('토큰 파싱 에러:', error)
-      localStorage.removeItem("token") // 잘못된 토큰 삭제
-      return false
-    }
+    const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
+    return !!(token && token !== "undefined" && token !== "null")
   }
 }
 
@@ -226,30 +240,47 @@ const useAuthStore = defineStore('auth', {
       
       try {
         const response = await authAPI.login({ email, password })
-        console.log('로그인 응답:', response.data)
-        
-        // 응답 데이터 구조 확인 및 안전한 처리
-        const responseData = response.data || {}
+        console.log('로그인 응답:', response)
+
+        // 1) 토큰 추출 (바디 우선, 없으면 헤더 검사)
+        const responseData = response?.data || {}
+        const headerAuth = response?.headers?.authorization || response?.headers?.Authorization
+        let accessToken = responseData.accessToken || responseData.token || null
+        if (!accessToken && typeof headerAuth === 'string' && headerAuth.toLowerCase().startsWith('bearer ')) {
+          accessToken = headerAuth.split(' ')[1]
+        }
+        const refreshToken = responseData.refreshToken || response?.headers?.['x-refresh-token'] || null
+
+        // 2) 토큰 저장 (문자열이면 저장)
+        if (typeof accessToken === 'string' && accessToken !== 'undefined' && accessToken !== 'null' && accessToken.length > 0) {
+          tokenManager.setToken(accessToken)
+          localStorage.setItem('accessToken', accessToken)
+        } else {
+          tokenManager.removeToken()
+          localStorage.removeItem('accessToken')
+        }
+        if (refreshToken && typeof refreshToken === 'string' && refreshToken !== 'undefined' && refreshToken !== 'null') {
+          localStorage.setItem('refreshToken', refreshToken)
+        } else {
+          localStorage.removeItem('refreshToken')
+        }
+
+        // 3) 사용자 정보 저장 (응답 또는 이메일 기반)
         const userEmail = responseData.email || email
-        const accessToken = responseData.accessToken || responseData.token || 'mock_token_' + Date.now()
-        const refreshToken = responseData.refreshToken
-        
-        // 토큰 저장 (리프레시 토큰도 함께 저장)
-        tokenManager.setToken(accessToken)
-        localStorage.setItem("refreshToken", refreshToken)
-        
-        // 임시 사용자 정보 (이메일 기반)
         const tempUser = {
           email: userEmail,
-          nickname: userEmail ? userEmail.split('@')[0] : '사용자'
+          nickname: responseData.nickname || (userEmail ? userEmail.split('@')[0] : '사용자')
         }
-        
-        // 사용자 정보 저장
         userManager.setUser(tempUser)
         this.user = tempUser
-        this.isAuthenticated = true
-        
-        return response.data
+        this.isAuthenticated = !!tokenManager.getToken()
+
+        // 4) 프로필 동기화는 선택 (실패해도 흐름 계속)
+        try {
+          await this.getProfile()
+        } catch (_) {}
+
+        return responseData
       } catch (error) {
         this.error = error.response?.data?.message || '로그인에 실패했습니다.'
         throw error
