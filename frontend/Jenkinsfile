@@ -77,14 +77,23 @@ pipeline {
                 }
             }
         }
-        
+
+        stage('Prepare Entrypoint') {
+            steps {
+                // dos2unix 설치 (Debian/Ubuntu 기반 jenkins 이미지 기준)
+                sh '''
+                apt-get update
+                apt-get install -y dos2unix
+                dos2unix entrypoint.sh
+                chmod +x entrypoint.sh
+                '''
+            }   
+        }
         stage('Build Docker Image') {
             steps {
                 dir('EduMeet') {
                     echo '===== Build Docker Image ====='
                     sh '''
-                        chmod +x entrypoint.sh
-                        ls -la entrypoint.sh || echo "entrypoint.sh not found"
                         docker build \
                             --build-arg VITE_API_URL=${VITE_API_URL} \
                             --build-arg VITE_WS_URL=${VITE_WS_URL} \
