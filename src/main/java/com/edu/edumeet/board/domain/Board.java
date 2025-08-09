@@ -1,5 +1,6 @@
 package com.edu.edumeet.board.domain;
 
+import com.edu.edumeet.upload.domain.FileUpload;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -36,7 +37,7 @@ public class Board {
      */
     @Setter
     @Builder.Default
-    private Set<BoardImage> images = new HashSet<>();
+    private Set<FileUpload> images = new HashSet<>();
 
     private LocalDateTime regDate;  // 등록일시
     private LocalDateTime modDate;  // 수정일시
@@ -131,17 +132,6 @@ public class Board {
         return changeBoardType(newBoardType, null, null);
     }
 
-    /**
-     * 공지사항 설정 (기존 메서드를 새로운 방식으로 구현)
-     * @param requestUser 요청 사용자
-     * @param classCreator 클래스 생성자
-     * @return 변경된 게시글
-     * @deprecated changeBoardType(BoardType.NOTICE, requestUser, classCreator) 사용 권장
-     */
-    @Deprecated
-    public Board setAsNotice(String requestUser, String classCreator) {
-        return changeBoardType(BoardType.NOTICE, requestUser, classCreator);
-    }
 
 
     //공지사항 권한 검증
@@ -231,41 +221,6 @@ public class Board {
                 .build();
     }
 
-    /**
-     * 싫어요 수 증가 (카테고리별 기준값 사용, 게시글 타입 변경 없음)
-     * 
-     * @param threshold 카테고리별 기준값 (현재는 사용되지 않음)
-     * @return 싫어요 수가 증가된 새로운 Board 객체
-     * @deprecated 대신 {@link #increaseDislike()} 사용 권장
-     */
-    @Deprecated
-    public Board increaseDislike(int threshold) {
-        if (threshold < 0) {
-            throw new IllegalArgumentException("추천 기준값은 0 이상이어야 한다.");
-        }
-
-        long newDislike = this.dislike;
-        if (newDislike < Long.MAX_VALUE) {
-            newDislike = this.dislike + 1;
-        }
-        
-        return Board.builder()
-                .id(this.id)
-                .title(this.title)
-                .content(this.content)
-                .writer(this.writer)
-                .classId(this.classId)
-                .categoryId(this.categoryId)
-                .boardType(this.boardType)
-                .regDate(this.regDate)
-                .modDate(LocalDateTime.now())
-                .images(this.images)
-                .view(this.view)
-                .favorite(this.favorite)
-                .dislike(newDislike)
-                .deletedAt(this.deletedAt)
-                .build();
-    }
 
     //조회수 증가
     public Board increaseView() {
@@ -294,12 +249,14 @@ public class Board {
 
     //이미지 추가
     public void addImage(String uuid, String fileName) {
-        BoardImage boardImage = BoardImage.builder()
+        FileUpload fileUpload = FileUpload.builder()
                 .uuid(uuid)
                 .fileName(fileName)
                 .ord(images.size())
+                .img(true)
+                .domain("board")
                 .build();
-        images.add(boardImage);
+        images.add(fileUpload);
     }
     
     ///모든 이미지 제거
@@ -312,22 +269,26 @@ public class Board {
         return this.deletedAt != null;
     }
 
-    //기존 이미지 제거후 새 이미지 추가
-    public Board changeImages(List<String> fileNames) {
-        Set<BoardImage> newImages = new HashSet<>();
+    
+    /**
+     * 기존 이미지 제거 후 FileUploadDTO 목록으로 새 이미지 추가
+     * @param boardImages FileUploadDTO 목록
+     * @return 이미지가 변경된 새로운 Board 객체
+     */
+    public Board changeBoardImages(List<com.edu.edumeet.upload.presentation.dto.FileUploadDTO> boardImages) {
+        Set<FileUpload> newImages = new HashSet<>();
 
-        if (fileNames != null) {
-            for (int i = 0; i < fileNames.size(); i++) {
-                String fileName = fileNames.get(i);
-                String[] arr = fileName.split("_");
-                if (arr.length >= 2) {
-                    BoardImage boardImage = BoardImage.builder()
-                            .uuid(arr[0])
-                            .fileName(arr[1])
-                            .ord(i)
-                            .build();
-                    newImages.add(boardImage);
-                }
+        if (boardImages != null) {
+            for (int i = 0; i < boardImages.size(); i++) {
+                com.edu.edumeet.upload.presentation.dto.FileUploadDTO fileDTO = boardImages.get(i);
+                FileUpload fileUpload = FileUpload.builder()
+                        .uuid(fileDTO.getUuid())
+                        .fileName(fileDTO.getFileName())
+                        .ord(fileDTO.getOrd())
+                        .img(true)
+                        .domain("board")
+                        .build();
+                newImages.add(fileUpload);
             }
         }
 
