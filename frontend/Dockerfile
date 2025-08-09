@@ -20,7 +20,8 @@ FROM nginx:alpine
 # Copy nginx configs
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx-ssl.conf /etc/nginx/conf.d/ssl.conf.disabled
-COPY --chmod=755 entrypoint.sh /docker-entrypoint.sh
+COPY entrypoint.sh /docker-entrypoint.sh
+RUN chmod 755 /docker-entrypoint.sh
 
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
