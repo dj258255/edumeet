@@ -80,13 +80,15 @@ pipeline {
 
         stage('Prepare Entrypoint') {
             steps {
-                // dos2unix 설치 (Debian/Ubuntu 기반 jenkins 이미지 기준)
-                sh '''
-                apt-get update
-                apt-get install -y dos2unix
-                dos2unix entrypoint.sh
-                chmod +x entrypoint.sh
-                '''
+                dir('EduMeet') {
+                    // dos2unix 설치 (Debian/Ubuntu 기반 jenkins 이미지 기준)
+                    sh '''
+                    apt-get update
+                    apt-get install -y dos2unix
+                    dos2unix entrypoint.sh
+                    chmod +x entrypoint.sh
+                    '''
+                }
             }   
         }
         stage('Build Docker Image') {
