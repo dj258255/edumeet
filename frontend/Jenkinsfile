@@ -17,54 +17,79 @@ pipeline {
     }
     
     stages {
+        stage('Checkout and Setup') {
+            steps {
+                echo '===== Checkout and Setup Working Directory ====='
+                script {
+                    // GitLab에서 체크아웃 후 EduMeet 디렉토리로 이동
+                    dir('EduMeet') {
+                        sh '''
+                            echo "Working directory: $(pwd)"
+                            echo "Files in directory:"
+                            ls -la
+                        '''
+                    }
+                }
+            }
+        }
+        
         stage('Environment Check') {
             steps {
-                echo '===== Environment Check ====='
-                sh '''
-                    echo "Node: $(node --version)"
-                    echo "NPM: $(npm --version)"
-                    echo "Files: $(ls -la)"
-                '''
+                dir('EduMeet') {  // EduMeet 디렉토리에서 작업
+                    echo '===== Environment Check ====='
+                    sh '''
+                        echo "Node: $(node --version)"
+                        echo "NPM: $(npm --version)"
+                    '''
+                }
             }
         }
         
         stage('Setup Environment') {
             steps {
-                echo '===== Setup Environment ====='
-                sh '''
-                    echo "VITE_API_URL=${VITE_API_URL}" > .env.production
-                    echo "VITE_WS_URL=${VITE_WS_URL}" >> .env.production
-                '''
+                dir('EduMeet') {
+                    echo '===== Setup Environment ====='
+                    sh '''
+                        echo "VITE_API_URL=${VITE_API_URL}" > .env.production
+                        echo "VITE_WS_URL=${VITE_WS_URL}" >> .env.production
+                    '''
+                }
             }
         }
         
         stage('Install Dependencies') {
             steps {
-                echo '===== Install Dependencies ====='
-                sh '''
-                    npm cache clean --force
-                    npm ci
-                '''
+                dir('EduMeet') {
+                    echo '===== Install Dependencies ====='
+                    sh '''
+                        npm cache clean --force
+                        npm ci
+                    '''
+                }
             }
         }
         
         stage('Build') {
             steps {
-                echo '===== Build Application ====='
-                sh 'npm run build'
+                dir('EduMeet') {
+                    echo '===== Build Application ====='
+                    sh 'npm run build'
+                }
             }
         }
         
         stage('Build Docker Image') {
             steps {
-                echo '===== Build Docker Image ====='
-                sh '''
-                    docker build \
-                        --build-arg VITE_API_URL=${VITE_API_URL} \
-                        --build-arg VITE_WS_URL=${VITE_WS_URL} \
-                        -t ${FRONTEND_DOCKER_REPO}:${IMAGE_TAG} \
-                        -t ${FRONTEND_DOCKER_REPO}:latest .
-                '''
+                dir('EduMeet') {
+                    echo '===== Build Docker Image ====='
+                    sh '''
+                        docker build \
+                            --build-arg VITE_API_URL=${VITE_API_URL} \
+                            --build-arg VITE_WS_URL=${VITE_WS_URL} \
+                            -t ${FRONTEND_DOCKER_REPO}:${IMAGE_TAG} \
+                            -t ${FRONTEND_DOCKER_REPO}:latest .
+                    '''
+                }
             }
         }
         
@@ -95,7 +120,6 @@ pipeline {
                     docker stop edumeet-nginx || true
                     docker rm edumeet-nginx || true
                     
-                    # SSL 인증서 확인 후 적절한 모드로 시작
                     if [ -d "/home/ubuntu/common-project/EduMeet/certbot/conf/live" ]; then
                         echo "Starting with HTTPS support"
                         VOLUMES="-v /home/ubuntu/common-project/EduMeet/certbot/conf:/etc/letsencrypt:ro -v /home/ubuntu/common-project/EduMeet/certbot/www:/var/www/certbot:ro"
