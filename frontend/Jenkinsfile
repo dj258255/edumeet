@@ -83,6 +83,7 @@ pipeline {
                 dir('EduMeet') {
                     echo '===== Build Docker Image ====='
                     sh '''
+                        chmod +x entrypoint.sh
                         ls -la entrypoint.sh || echo "entrypoint.sh not found"
                         docker build \
                             --build-arg VITE_API_URL=${VITE_API_URL} \
