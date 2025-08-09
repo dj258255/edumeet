@@ -1,0 +1,138 @@
+pipeline {
+    agent any
+    
+    tools {
+        nodejs 'NodeJS-22'
+    }
+    
+    environment {
+        SERVICE_NAME = 'edumeet-frontend'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        
+        // Jenkins Credentials 사용
+        DOCKER_HUB_CREDENTIALS = credentials('Docker-Hub-Credential')
+        FRONTEND_DOCKER_REPO = credentials('frontend-dockerhub-repo')
+        VITE_API_URL = credentials('vite-api-url')
+        VITE_WS_URL = credentials('vite-ws-url')
+    }
+    
+    stages {
+        stage('Environment Check') {
+            steps {
+                echo '===== Environment Check ====='
+                sh '''
+                    echo "Node: $(node --version)"
+                    echo "NPM: $(npm --version)"
+                    echo "Files: $(ls -la)"
+                '''
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                echo '===== Setup Environment ====='
+                sh '''
+                    echo "VITE_API_URL=${VITE_API_URL}" > .env.production
+                    echo "VITE_WS_URL=${VITE_WS_URL}" >> .env.production
+                '''
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                echo '===== Install Dependencies ====='
+                sh '''
+                    npm cache clean --force
+                    npm ci
+                '''
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                echo '===== Build Application ====='
+                sh 'npm run build'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo '===== Build Docker Image ====='
+                sh '''
+                    docker build \
+                        --build-arg VITE_API_URL=${VITE_API_URL} \
+                        --build-arg VITE_WS_URL=${VITE_WS_URL} \
+                        -t ${FRONTEND_DOCKER_REPO}:${IMAGE_TAG} \
+                        -t ${FRONTEND_DOCKER_REPO}:latest .
+                '''
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            steps {
+                echo '===== Push to Docker Hub ====='
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'Docker-Hub-Credential',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker push ${FRONTEND_DOCKER_REPO}:${IMAGE_TAG}
+                            docker push ${FRONTEND_DOCKER_REPO}:latest
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo '===== Deploy Frontend ====='
+                sh '''
+                    docker pull ${FRONTEND_DOCKER_REPO}:latest
+                    docker stop edumeet-nginx || true
+                    docker rm edumeet-nginx || true
+                    
+                    # SSL 인증서 확인 후 적절한 모드로 시작
+                    if [ -d "/home/ubuntu/common-project/EduMeet/certbot/conf/live" ]; then
+                        echo "Starting with HTTPS support"
+                        VOLUMES="-v /home/ubuntu/common-project/EduMeet/certbot/conf:/etc/letsencrypt:ro -v /home/ubuntu/common-project/EduMeet/certbot/www:/var/www/certbot:ro"
+                    else
+                        echo "Starting with HTTP only"
+                        VOLUMES=""
+                    fi
+                    
+                    docker run -d \
+                        --name edumeet-nginx \
+                        --network edumeet-network \
+                        -p 80:80 \
+                        -p 443:443 \
+                        $VOLUMES \
+                        ${FRONTEND_DOCKER_REPO}:latest
+                '''
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '===== Health Check ====='
+                sh '''
+                    sleep 10
+                    curl -f http://localhost/health || exit 1
+                    echo "Frontend is healthy!"
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            sh 'docker logout || true'
+        }
+        failure {
+            sh 'docker logs edumeet-nginx --tail 50 || true'
+        }
+    }
+}
