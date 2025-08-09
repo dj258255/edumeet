@@ -7,11 +7,11 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
+node_modules/
 .DS_Store
-dist
-dist-ssr
-coverage
+dist/
+dist-ssr/
+coverage/
 *.local
 
 /cypress/videos/
@@ -31,3 +31,8 @@ coverage
 
 .env
 *.env
+.env.*
+
+coverage/
+*.lcov
+.nyc_output/
