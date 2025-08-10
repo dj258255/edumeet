@@ -68,59 +68,80 @@
     <!-- 설명 Section -->
     <MainSection />
     
-    <!-- 드래그 가능한 카드 Section -->
-    <section class="draggable-cards-section">
-      <div class="section-header">
-        <div class="header-badge">추천 콘텐츠</div>
-        <h2 class="section-title">인기 강의를 만나보세요</h2>
-        <p class="section-subtitle">마우스로 드래그하여 더 많은 콘텐츠를 확인하세요</p>
-      </div>
-      <div class="cards-container-wrapper">
-        <button class="nav-button prev-button" @click="goToPrev" :disabled="translateX >= 0">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15,18 9,12 15,6"></polyline>
-          </svg>
-        </button>
-        <div class="cards-container" 
-             ref="cardsContainer"
-             @mousedown="startDrag"
-             @mousemove="onDrag"
-             @mouseup="stopDrag"
-             @mouseleave="stopDrag">
-          <div class="cards-wrapper" 
-               :class="{ dragging: isDragging }"
-               :style="{ transform: `translateX(${translateX}px)` }"
-               ref="cardsWrapper">
-            <ClassCard 
-              v-for="(card, index) in draggableCards" 
-              :key="card.id"
-              :card="card"
-              :animation-delay="index * 0.1"
-              :isMyCreatedClass="card.isMyCreatedClass"
-              @enroll="handleEnroll"
-              @joinClass="handleJoinClass"
-              @createClass="handleCreateClass"
-            />
-          </div>
-        </div>
-        <button class="nav-button next-button" @click="goToNext" :disabled="translateX <= minTranslate">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9,18 15,12 9,6"></polyline>
-          </svg>
-        </button>
-      </div>
-      <div class="cards-indicator">
-        <div class="indicator-dots">
-          <div 
-            v-for="(_, index) in Math.ceil(draggableCards.length / visibleCards)" 
-            :key="index"
-            class="indicator-dot"
-            :class="{ active: Math.abs(Math.round(translateX / cardWidth)) === index }"
-            @click="() => animateToPosition(-index * cardWidth)"
-          ></div>
-        </div>
-      </div>
-    </section>
+         <!-- 드래그 가능한 카드 Section -->
+     <section class="draggable-cards-section">
+       <div class="section-header">
+         <div class="header-badge">추천 콘텐츠</div>
+         <h2 class="section-title">인기 강의를 만나보세요</h2>
+         <p class="section-subtitle">마우스로 드래그하여 더 많은 콘텐츠를 확인하세요</p>
+       </div>
+       
+       <!-- 로딩 상태 -->
+       <div v-if="isLoading" class="loading-state">
+         <div class="loading-spinner">
+           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <path d="M12 2V6M12 18V22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12H6M18 12H22M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"/>
+           </svg>
+         </div>
+         <p>클래스 목록을 불러오는 중...</p>
+       </div>
+       
+       <!-- 에러 상태 -->
+       <div v-else-if="error" class="error-state">
+         <div class="error-icon">⚠️</div>
+         <p>{{ error }}</p>
+         <button @click="loadClasses" class="retry-btn">다시 시도</button>
+       </div>
+       
+       <!-- 카드 목록 -->
+       <div v-else class="cards-container-wrapper">
+         <button class="nav-button prev-button" @click="goToPrev" :disabled="translateX >= 0">
+           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <polyline points="15,18 9,12 15,6"></polyline>
+           </svg>
+         </button>
+         <div class="cards-container" 
+              ref="cardsContainer"
+              @mousedown="startDrag"
+              @mousemove="onDrag"
+              @mouseup="stopDrag"
+              @mouseleave="stopDrag">
+           <div class="cards-wrapper" 
+                :class="{ dragging: isDragging }"
+                :style="{ transform: `translateX(${translateX}px)` }"
+                ref="cardsWrapper">
+             <ClassCard 
+               v-for="(card, index) in draggableCards" 
+               :key="card.id"
+               :card="card"
+               :animation-delay="index * 0.1"
+               :isMyCreatedClass="card.isMyCreatedClass"
+               @enroll="handleEnroll"
+               @joinClass="handleJoinClass"
+               @createClass="handleCreateClass"
+             />
+           </div>
+         </div>
+         <button class="nav-button next-button" @click="goToNext" :disabled="translateX <= minTranslate">
+           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+             <polyline points="9,18 15,12 9,6"></polyline>
+           </svg>
+         </button>
+       </div>
+       
+       <!-- 인디케이터 -->
+       <div v-if="!isLoading && !error" class="cards-indicator">
+         <div class="indicator-dots">
+           <div 
+             v-for="(_, index) in Math.ceil(draggableCards.length / visibleCards)" 
+             :key="index"
+             class="indicator-dot"
+             :class="{ active: Math.abs(Math.round(translateX / cardWidth)) === index }"
+             @click="() => animateToPosition(-index * cardWidth)"
+           ></div>
+         </div>
+       </div>
+     </section>
     
     <!-- 팀원 카드 Section -->
     <section class="team-section">
@@ -207,9 +228,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from "vue"
+import { ref, computed, onMounted, nextTick, watch } from "vue"
 import { useRouter } from "vue-router"
 import { useAuthStore } from "../stores/auth.js"
+import { useClassStore } from "../stores/class.js"
 import gsap from "gsap"
 import ScrollTrigger from "gsap/ScrollTrigger"
 import ClassCard from "../components/ClassCard.vue"
@@ -221,6 +243,7 @@ gsap.registerPlugin(ScrollTrigger)
 
 const router = useRouter()
 const authStore = useAuthStore()
+const classStore = useClassStore()
 
 // 사용자 상태
 const user = ref(null)
@@ -359,77 +382,58 @@ const loadClasses = async () => {
   isLoading.value = true
   error.value = null
   
-  // 백엔드가 없으므로 기본 데이터 사용
-  console.log('백엔드 없음: 기본 데이터 사용')
-  
-  // 내가 만든 반과 내가 속한 반을 구분하여 표시
-  // 실제로는 백엔드에서 사용자의 클래스 목록을 가져와야 함
-  const myCreatedClasses = [
-    {
-      id: 1,
-      title: "Vue.js 마스터 클래스",
-      description: "Vue.js의 핵심 개념부터 고급 기능까지 체계적으로 학습하세요. 실무에서 바로 활용할 수 있는 실습 중심의 강의입니다.",
-      image: "",
-      tags: ["프론트엔드", "Vue.js", "JavaScript"],
-      isMyCreatedClass: true
-    },
-    {
-      id: 3,
-      title: "Node.js 백엔드 개발",
-      description: "Express.js와 MongoDB를 활용한 실전 백엔드 개발. RESTful API 설계부터 배포까지 완벽 가이드.",
-      image: "",
-      tags: ["백엔드", "Node.js", "Express"],
-      isMyCreatedClass: true
-    }
-  ]
-  
-  const myJoinedClasses = [
-    {
-      id: 2,
-      title: "React 완전 정복",
-      description: "React의 기본부터 고급 패턴까지. Hooks, Context API, 상태 관리 등 현대적인 React 개발을 배워보세요.",
-      image: "",
-      tags: ["프론트엔드", "React", "JavaScript"],
-      isMyCreatedClass: false
-    },
-    {
-      id: 4,
-      title: "Python 데이터 분석",
-      description: "Pandas, NumPy, Matplotlib을 활용한 데이터 분석과 시각화. 실무 데이터로 배우는 데이터 사이언스.",
-      image: "",
-      tags: ["데이터분석", "Python", "Pandas"],
-      isMyCreatedClass: false
-    }
-  ]
-  
-  // 두 배열을 합쳐서 표시
-  draggableCards.value = [...myCreatedClasses, ...myJoinedClasses]
-  isLoading.value = false
-  
-  // 백엔드가 준비되면 아래 주석을 해제하고 사용
-  /*
   try {
-    // 백엔드에서 사용자의 클래스 목록 가져오기
-    const [createdClasses, joinedClasses] = await Promise.all([
-      classService.getMyCreatedClasses(),
-      classService.getMyJoinedClasses()
-    ])
-    
-    // isMyCreatedClass 플래그 추가
-    const processedCreatedClasses = createdClasses.map(cls => ({ ...cls, isMyCreatedClass: true }))
-    const processedJoinedClasses = joinedClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
-    
-    draggableCards.value = [...processedCreatedClasses, ...processedJoinedClasses]
+    if (isLoggedIn.value) {
+      console.log('🔍 HomeView - 로그인된 사용자, 실제 데이터 로드 시작')
+      
+      // CreateClassView와 동일한 방식으로 실제 데이터 가져오기
+      await Promise.all([
+        classStore.fetchMyCreatedClasses(),
+        classStore.fetchMyJoinedClasses()
+      ])
+      
+      console.log('🔍 HomeView - Store에서 가져온 데이터:')
+      console.log('🔍 Created Classes from Store:', classStore.getMyCreatedClasses)
+      console.log('🔍 Joined Classes from Store:', classStore.getMyJoinedClasses)
+      
+      // CreateClassView와 동일한 방식으로 데이터 처리
+      const processedCreatedClasses = classStore.getMyCreatedClasses.map(cls => ({ 
+        ...cls, 
+        isMyCreatedClass: true
+      }))
+      
+      const processedJoinedClasses = classStore.getMyJoinedClasses.map(cls => ({ 
+        ...cls, 
+        isMyCreatedClass: false
+      }))
+      
+      draggableCards.value = [...processedCreatedClasses, ...processedJoinedClasses]
+      
+      console.log('🔍 HomeView - 최종 처리된 클래스 데이터:')
+      console.log('🔍 Created Classes:', processedCreatedClasses)
+      console.log('🔍 Joined Classes:', processedJoinedClasses)
+      console.log('🔍 Total Cards:', draggableCards.value.length)
+      
+      // 실제 데이터가 없으면 기본 데이터 사용
+      if (draggableCards.value.length === 0) {
+        console.log('🔍 HomeView - 실제 데이터가 없어서 기본 데이터 사용')
+        draggableCards.value = defaultClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
+      }
+    } else {
+      // 로그인하지 않은 사용자: 기본 데이터 사용
+      console.log('🔍 HomeView - 로그인하지 않은 사용자, 기본 데이터 사용')
+      draggableCards.value = defaultClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
+    }
   } catch (err) {
     console.error('클래스 데이터 로드 실패:', err)
     error.value = '클래스 데이터를 불러오는데 실패했습니다.'
     
     // 에러 시 기본 데이터 사용
-    draggableCards.value = defaultClasses
+    console.log('🔍 HomeView - 에러 발생으로 기본 데이터 사용')
+    draggableCards.value = defaultClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
   } finally {
     isLoading.value = false
   }
-  */
 }
 
 // 드래그 관련 상태
@@ -543,20 +547,23 @@ const selectMember = (member) => {
 
 // 수강 신청 처리
 const handleEnroll = async (classId) => {
-  // 백엔드가 없으므로 시뮬레이션
-  console.log('수강 신청 시뮬레이션:', classId)
-  alert('수강 신청이 완료되었습니다! (시뮬레이션)')
+  if (!isLoggedIn.value) {
+    alert('로그인이 필요한 서비스입니다.')
+    router.push('/login')
+    return
+  }
   
-  // 백엔드가 준비되면 아래 주석을 해제하고 사용
-  /*
   try {
-    await classService.enrollClass(classId)
-    alert('수강 신청이 완료되었습니다!')
+    // CreateClassView와 동일한 방식으로 처리
+    console.log('수강 신청 시뮬레이션:', classId)
+    alert('수강 신청이 완료되었습니다! (시뮬레이션)')
+    
+    // 클래스 목록 새로고침
+    await loadClasses()
   } catch (error) {
     console.error('수강 신청 실패:', error)
     alert('수강 신청에 실패했습니다. 다시 시도해주세요.')
   }
-  */
 }
 
 // 수업 참여 모달 열기
@@ -640,13 +647,27 @@ const handleLogout = async () => {
 onMounted(async () => {
   if (isLoggedIn.value) {
     user.value = authStore.currentUser
+    // 로그인한 사용자는 실제 클래스 데이터 로드
+    await loadClasses()
+  } else {
+    // 로그인하지 않은 사용자는 기본 데이터 사용
+    draggableCards.value = defaultClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
   }
   
-  // 클래스 데이터 로드
-  await loadClasses()
-  
   await nextTick()
- 
+})
+
+// 로그인 상태 변경 감지 (CreateClassView와 동일한 방식)
+watch(isLoggedIn, async (newValue) => {
+  if (newValue) {
+    // 로그인 시 실제 데이터 로드
+    user.value = authStore.currentUser
+    await loadClasses()
+  } else {
+    // 로그아웃 시 기본 데이터 사용
+    user.value = null
+    draggableCards.value = defaultClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
+  }
 })
 </script>
 
