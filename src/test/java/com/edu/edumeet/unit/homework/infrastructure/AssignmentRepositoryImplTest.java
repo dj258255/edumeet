@@ -1,7 +1,7 @@
 package com.edu.edumeet.homework.infrastructure;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.homework.domain.Assignment;
-import com.edu.edumeet.upload.domain.FileUpload;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,7 +41,7 @@ class AssignmentRepositoryImplTest {
         System.out.println("[DEBUG_LOG] 테스트 데이터 초기화 시작");
         
         // 파일이 있는 과제
-        FileUpload testFile = FileUpload.builder()
+        Attachment testFile = Attachment.builder()
                 .uuid("test-uuid-123")
                 .fileName("guide.pdf")
                 .ord(1)

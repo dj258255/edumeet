@@ -1,15 +1,14 @@
 package com.edu.edumeet.board.infrastructure;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.base.BaseEntity;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardType;
-import com.edu.edumeet.upload.domain.FileUpload;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.BatchSize;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -88,8 +87,8 @@ public class BoardJpaEntity extends BaseEntity {
         
         // 이미지 정보 변환 - imageSet에서 직접 가져옴
         if (this.imageSet != null && !this.imageSet.isEmpty()) {
-            Set<FileUpload> domainImages = this.imageSet.stream()
-                    .map(fileEntity -> FileUpload.builder()
+            Set<Attachment> domainImages = this.imageSet.stream()
+                    .map(fileEntity -> Attachment.builder()
                             .id(fileEntity.getId())
                             .uuid(fileEntity.getUuid())
                             .fileName(fileEntity.getFileName())

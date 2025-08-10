@@ -6,8 +6,7 @@ import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentUpdateDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
+import com.edu.edumeet.attachment.domain.Attachment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -55,27 +54,6 @@ public class AssignmentServiceImpl implements AssignmentService {
         return domainToDto(assignment);
     }
 
-    @Override
-    @Transactional
-    public void updateAssignment(Long id, AssignmentUpdateDTO assignmentUpdateDTO) {
-        log.info("과제 수정 시작: ID={}", id);
-
-        Assignment assignment = assignmentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
-
-        // 권한 체크 (생성자만 수정 가능)
-        if (!assignment.isCreatedBy(assignmentUpdateDTO.getUpdaterId())) {
-            throw new IllegalArgumentException("과제를 수정할 권한이 없습니다.");
-        }
-
-        Assignment updatedAssignment = assignment.update(
-                assignmentUpdateDTO.getTitle(),
-                assignmentUpdateDTO.getDescription()
-        );
-
-        assignmentRepository.save(updatedAssignment);
-        log.info("과제 수정 완료: ID={}", id);
-    }
 
     @Override
     @Transactional
@@ -102,13 +80,13 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Override
     @Transactional
-    public void addAttachmentFile(Long assignmentId, FileUpload fileUpload) {
-        log.info("과제 첨부파일 추가: assignmentId={}, fileName={}", assignmentId, fileUpload.getFileName());
+    public void addAttachmentFile(Long assignmentId, Attachment attachment) {
+        log.info("과제 첨부파일 추가: assignmentId={}, fileName={}", assignmentId, attachment.getFileName());
 
         Assignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + assignmentId));
 
-        Assignment assignmentWithFile = assignment.addAttachmentFile(fileUpload);
+        Assignment assignmentWithFile = assignment.addAttachmentFile(attachment);
         assignmentRepository.save(assignmentWithFile);
 
         log.info("과제 첨부파일 추가 완료: assignmentId={}", assignmentId);
@@ -129,6 +107,17 @@ public class AssignmentServiceImpl implements AssignmentService {
         log.debug("제출 현황 포함 과제 조회: ID={}", id);
 
         Assignment assignment = assignmentRepository.findByIdWithSubmissionStatuses(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
+
+        return domainToDto(assignment);
+    }
+
+    @Override
+    public AssignmentDTO getAssignmentWithAllDetails(Long id) {
+        log.debug("모든 세부사항 포함 과제 조회: ID={}", id);
+
+        // N+1 문제 해결: 단일 쿼리로 모든 관계 데이터 로드
+        Assignment assignment = assignmentRepository.findByIdWithAllDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
         return domainToDto(assignment);

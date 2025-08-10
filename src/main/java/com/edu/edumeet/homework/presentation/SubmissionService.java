@@ -3,8 +3,7 @@ package com.edu.edumeet.homework.presentation;
 import com.edu.edumeet.homework.domain.Submission;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionUpdateDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
+import com.edu.edumeet.attachment.domain.Attachment;
 
 import java.util.List;
 
@@ -32,6 +31,24 @@ public interface SubmissionService {
     }
 
     /**
+     * Submission 도메인 객체를 SubmissionDTO로 변환 (과제 제목 포함)
+     */
+    default SubmissionDTO domainToDtoWithAssignmentTitle(Submission submission, String assignmentTitle) {
+        return SubmissionDTO.builder()
+                .id(submission.getId())
+                .assignmentId(submission.getAssignmentId())
+                .assignmentTitle(assignmentTitle)
+                .classMemberId(submission.getClassMemberId())
+                .classMemberName(submission.getClassMemberName())
+                .content(submission.getContent())
+                .status(submission.getStatus())
+                .submissionFiles(submission.getSubmissionFiles())
+                .regDate(submission.getRegDate())
+                .modDate(submission.getModDate())
+                .build();
+    }
+
+    /**
      * SubmissionCreateDTO를 Submission 도메인 객체로 변환
      */
     default Submission createDtoToDomain(SubmissionCreateDTO dto) {
@@ -40,6 +57,7 @@ public interface SubmissionService {
                 .classMemberId(dto.getClassMemberId())
                 .classMemberName(dto.getClassMemberName())
                 .content(dto.getContent())
+                .submissionFiles(dto.getAttachmentFiles() != null ? dto.getAttachmentFiles() : new java.util.ArrayList<>())
                 .build();
     }
 
@@ -89,9 +107,9 @@ public interface SubmissionService {
     /**
      * 제출물에 파일 추가
      * @param submissionId 제출물 ID
-     * @param fileUpload 추가할 파일
+     * @param attachment 추가할 파일
      */
-    void addSubmissionFile(Long submissionId, FileUpload fileUpload);
+    void addSubmissionFile(Long submissionId, Attachment attachment);
 
     /**
      * 첨부파일 포함 제출물 조회

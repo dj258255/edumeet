@@ -1,13 +1,11 @@
 package com.edu.edumeet.board.presentation;
 
-import com.edu.edumeet.board.domain.Board;
+import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.infrastructure.BoardCategoryJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardCategoryJpaRepository;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
 import com.edu.edumeet.board.presentation.dto.BoardDTO;
-import com.edu.edumeet.upload.presentation.dto.FileUploadDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,7 +82,7 @@ public class BoardReadOneTest {
         assertThat(boardDTO.getId()).isEqualTo(testBoardId);
         
         // 이미지 확인
-        List<FileUploadDTO> boardImages = boardDTO.getBoardImages();
+        List<AttchmentDTO> boardImages = boardDTO.getBoardImages();
         assertThat(boardImages).isNotNull();
         assertThat(boardImages).isNotEmpty();
         
@@ -92,7 +90,7 @@ public class BoardReadOneTest {
         log.info("Board Images: {}", boardImages);
         
         // 각 이미지 필드 확인
-        FileUploadDTO imageDTO = boardImages.get(0);
+        AttchmentDTO imageDTO = boardImages.get(0);
         assertThat(imageDTO.getUuid()).isNotNull();
         assertThat(imageDTO.getFileName()).isNotNull();
         assertThat(imageDTO.getS3Url()).isNotNull();

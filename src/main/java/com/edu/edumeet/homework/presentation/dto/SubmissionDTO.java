@@ -1,7 +1,7 @@
 package com.edu.edumeet.homework.presentation.dto;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
-import com.edu.edumeet.upload.domain.FileUpload;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +28,9 @@ public class SubmissionDTO {
     @Schema(description = "과제 ID", example = "1", required = true)
     private Long assignmentId;
 
+    @Schema(description = "과제 제목", example = "Spring Boot 과제")
+    private String assignmentTitle;
+
     @Schema(description = "클래스 멤버 ID", example = "1", required = true)
     private Long classMemberId;
 
@@ -41,7 +44,7 @@ public class SubmissionDTO {
     private SubmissionStatus status;
 
     @Schema(description = "제출 파일 목록")
-    private List<FileUpload> submissionFiles;
+    private List<Attachment> submissionFiles;
 
     @Schema(description = "등록일시", example = "2025-07-23T19:32:00")
     private LocalDateTime regDate;

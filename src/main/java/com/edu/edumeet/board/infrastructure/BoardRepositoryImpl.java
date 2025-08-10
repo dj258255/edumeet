@@ -5,7 +5,6 @@ import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;

@@ -2,11 +2,6 @@ package com.edu.edumeet.homework.presentation;
 
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentUpdateDTO;
-import com.edu.edumeet.s3.util.S3Uploader;
-import com.edu.edumeet.upload.domain.FileUpload;
-import com.edu.edumeet.upload.presentation.dto.FileUploadDTO;
-import com.edu.edumeet.upload.presentation.dto.FileUploadAdapter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,10 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 @Tag(name = "Assignment", description = "과제 관리 API")
 @RestController
@@ -30,8 +22,6 @@ import java.util.UUID;
 public class AssignmentController {
 
     private final AssignmentService assignmentService;
-    private final S3Uploader s3Uploader;
-    private final FileUploadAdapter fileUploadAdapter;
 
     @Operation(summary = "과제 생성", description = "새로운 과제를 생성합니다.")
     @PostMapping
@@ -44,28 +34,17 @@ public class AssignmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(assignmentId);
     }
 
-    @Operation(summary = "과제 조회", description = "과제 ID로 과제 정보를 조회합니다.")
+    @Operation(summary = "과제 조회", description = "과제 ID로 과제 정보를 조회합니다. 첨부파일과 제출현황을 포함합니다.")
     @GetMapping("/{id}")
     public ResponseEntity<AssignmentDTO> getAssignment(
             @Parameter(description = "클래스 ID") @PathVariable Long classId,
             @Parameter(description = "과제 ID") @PathVariable Long id) {
         log.debug("과제 조회 요청: classId={}, ID={}", classId, id);
         
-        AssignmentDTO assignment = assignmentService.getAssignment(id);
+        AssignmentDTO assignment = assignmentService.getAssignmentWithAllDetails(id);
         return ResponseEntity.ok(assignment);
     }
 
-    @Operation(summary = "과제 수정", description = "과제 정보를 수정합니다.")
-    @PutMapping("/{id}")
-    public ResponseEntity<Void> updateAssignment(
-            @Parameter(description = "클래스 ID") @PathVariable Long classId,
-            @Parameter(description = "과제 ID") @PathVariable Long id,
-            @Valid @RequestBody AssignmentUpdateDTO assignmentUpdateDTO) {
-        log.info("과제 수정 요청: classId={}, ID={}", classId, id);
-        
-        assignmentService.updateAssignment(id, assignmentUpdateDTO);
-        return ResponseEntity.ok().build();
-    }
 
     @Operation(summary = "과제 삭제", description = "과제를 삭제합니다.")
     @DeleteMapping("/{id}")
@@ -75,7 +54,7 @@ public class AssignmentController {
         log.info("과제 삭제 요청: classId={}, ID={}", classId, id);
         
         assignmentService.deleteAssignment(id);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "클래스별 과제 목록 조회", description = "특정 클래스의 모든 과제를 조회합니다.")
@@ -88,68 +67,16 @@ public class AssignmentController {
         return ResponseEntity.ok(assignments);
     }
 
-    @Operation(summary = "과제 첨부파일 Presigned URL 생성", description = "과제 첨부파일 업로드를 위한 presigned URL을 생성합니다.")
-    @PostMapping("/{id}/presigned-url")
-    public ResponseEntity<Map<String, String>> generatePresignedUrl(
-            @Parameter(description = "클래스 ID") @PathVariable Long classId,
-            @Parameter(description = "과제 ID") @PathVariable Long id,
-            @RequestParam String fileName) {
-        log.info("과제 첨부파일 presigned URL 생성 요청: classId={}, assignmentId={}, fileName={}", classId, id, fileName);
-        
-        String uuid = UUID.randomUUID().toString();
-        String presignedUrl = s3Uploader.generatePresignedUrl("assignments", uuid, fileName, Duration.ofMinutes(10));
-        
-        return ResponseEntity.ok(Map.of(
-            "presignedUrl", presignedUrl,
-            "uuid", uuid,
-            "fileName", fileName
-        ));
-    }
 
-    @Operation(summary = "과제 첨부파일 추가", description = "S3 업로드 완료 후 과제에 첨부파일 정보를 추가합니다.")
-    @PostMapping("/{id}/files")
-    public ResponseEntity<String> addAttachmentFile(
-            @Parameter(description = "클래스 ID") @PathVariable Long classId,
-            @Parameter(description = "과제 ID") @PathVariable Long id,
-            @RequestBody FileUploadDTO fileUploadDTO) {
-        log.info("과제 첨부파일 추가 요청: classId={}, assignmentId={}, fileName={}", classId, id, fileUploadDTO.getFileName());
-        
-        // FileUploadDTO를 FileUpload 도메인으로 변환
-        FileUpload fileUpload = fileUploadAdapter.fromFileUploadDTO(fileUploadDTO);
-        assignmentService.addAttachmentFile(id, fileUpload);
-        return ResponseEntity.ok("파일이 성공적으로 추가되었습니다.");
-    }
-
-    @Operation(summary = "첨부파일 포함 과제 조회", description = "첨부파일을 포함한 과제 정보를 조회합니다.")
-    @GetMapping("/{id}/with-files")
-    public ResponseEntity<AssignmentDTO> getAssignmentWithFiles(
-            @Parameter(description = "클래스 ID") @PathVariable Long classId,
-            @Parameter(description = "과제 ID") @PathVariable Long id) {
-        log.debug("첨부파일 포함 과제 조회 요청: classId={}, ID={}", classId, id);
-        
-        AssignmentDTO assignment = assignmentService.getAssignmentWithAttachmentFiles(id);
-        return ResponseEntity.ok(assignment);
-    }
-
-    @Operation(summary = "제출 현황 포함 과제 조회", description = "학생들의 제출 현황을 포함한 과제 정보를 조회합니다.")
-    @GetMapping("/{id}/with-submissions")
-    public ResponseEntity<AssignmentDTO> getAssignmentWithSubmissions(
-            @Parameter(description = "클래스 ID") @PathVariable Long classId,
-            @Parameter(description = "과제 ID") @PathVariable Long id) {
-        log.debug("제출 현황 포함 과제 조회 요청: classId={}, ID={}", classId, id);
-        
-        AssignmentDTO assignment = assignmentService.getAssignmentWithSubmissionStatuses(id);
-        return ResponseEntity.ok(assignment);
-    }
 
     @Operation(summary = "과제 복원", description = "삭제된 과제를 복원합니다.")
-    @PostMapping("/{id}/restore")
-    public ResponseEntity<Void> restoreAssignment(
+    @PatchMapping("/{id}/restore")
+    public ResponseEntity<String> restoreAssignment(
             @Parameter(description = "클래스 ID") @PathVariable Long classId,
             @Parameter(description = "과제 ID") @PathVariable Long id) {
         log.info("과제 복원 요청: classId={}, ID={}", classId, id);
         
         assignmentService.restoreAssignment(id);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok("과제가 성공적으로 복원되었습니다.");
     }
 }

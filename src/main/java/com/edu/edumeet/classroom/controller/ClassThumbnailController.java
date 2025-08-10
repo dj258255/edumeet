@@ -1,7 +1,7 @@
 package com.edu.edumeet.classroom.controller;
 
 import com.edu.edumeet.classroom.service.ClassThumbnailService;
-import com.edu.edumeet.upload.presentation.dto.UploadFileDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentUploadDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.ResponseEntity;
@@ -19,17 +19,17 @@ public class ClassThumbnailController {
 
     @PostMapping(consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<com.edu.edumeet.classroom.dto.response.ThumbnailUploadResultDto> uploadThumbnail(
-            UploadFileDTO uploadFileDTO) {
+            AttachmentUploadDTO attachmentUploadDTO) {
 
 
-        log.info("클래스 썸네일 업로드 요청: {}", uploadFileDTO);
+        log.info("클래스 썸네일 업로드 요청: {}", attachmentUploadDTO);
 
-        if (uploadFileDTO.getFiles() == null || uploadFileDTO.getFiles().isEmpty()) {
+        if (attachmentUploadDTO.getFiles() == null || attachmentUploadDTO.getFiles().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
         com.edu.edumeet.classroom.dto.response.ThumbnailUploadResultDto result = 
-            classThumbnailService.uploadThumbnail(uploadFileDTO.getFiles().get(0));
+            classThumbnailService.uploadThumbnail(attachmentUploadDTO.getFiles().get(0));
 
         return ResponseEntity.ok(result);
     }
