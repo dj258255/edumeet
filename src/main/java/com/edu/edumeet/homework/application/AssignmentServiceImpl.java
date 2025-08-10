@@ -7,6 +7,7 @@ import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
     private final ClassMemberRepository classMemberRepository;
+    private final AttachmentAdapter attachmentAdapter;
 
     @Override
     @Transactional
@@ -51,7 +53,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
-        return domainToDto(assignment);
+        return domainToDto(assignment, attachmentAdapter);
     }
 
 
@@ -74,7 +76,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         List<Assignment> assignments = assignmentRepository.findByClassIdOrderByRegDateDesc(classId);
 
         return assignments.stream()
-                .map(this::domainToDto)
+                .map(assignment -> domainToDto(assignment, attachmentAdapter))
                 .collect(Collectors.toList());
     }
 
@@ -99,7 +101,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = assignmentRepository.findByIdWithAttachmentFiles(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
-        return domainToDto(assignment);
+        return domainToDto(assignment, attachmentAdapter);
     }
 
     @Override
@@ -109,7 +111,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = assignmentRepository.findByIdWithSubmissionStatuses(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
-        return domainToDto(assignment);
+        return domainToDto(assignment, attachmentAdapter);
     }
 
     @Override
@@ -120,7 +122,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = assignmentRepository.findByIdWithAllDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
-        return domainToDto(assignment);
+        return domainToDto(assignment, attachmentAdapter);
     }
 
     @Override

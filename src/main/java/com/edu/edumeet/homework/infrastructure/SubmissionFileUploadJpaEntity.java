@@ -5,6 +5,8 @@ import com.edu.edumeet.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "submission_file_upload")
 @Getter
@@ -30,7 +32,6 @@ public class SubmissionFileUploadJpaEntity extends BaseEntity {
 
     private int ord;
 
-    @Column(nullable = false)
     private boolean img;
 
     private Long fileSize;
@@ -41,6 +42,8 @@ public class SubmissionFileUploadJpaEntity extends BaseEntity {
 
     @Column(name = "reference_id")
     private Long referenceId;
+
+    private String domain;
 
     // Attachment 도메인으로 변환
     public Attachment toFileUpload() {
@@ -53,6 +56,7 @@ public class SubmissionFileUploadJpaEntity extends BaseEntity {
                 .contentType(this.contentType)
                 .uploadedBy(this.uploadedBy)
                 .referenceId(this.referenceId)
+                .domain(this.domain)
                 .uploadedAt(this.getRegDate())
                 .build();
     }
@@ -69,6 +73,7 @@ public class SubmissionFileUploadJpaEntity extends BaseEntity {
                 .contentType(attachment.getContentType())
                 .uploadedBy(attachment.getUploadedBy())
                 .referenceId(attachment.getReferenceId())
+                .domain(attachment.getDomain())
                 .build();
     }
 }

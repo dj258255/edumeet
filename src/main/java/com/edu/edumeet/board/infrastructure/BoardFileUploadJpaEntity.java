@@ -42,8 +42,6 @@ public class BoardFileUploadJpaEntity extends BaseEntity {
 
     private String contentType;
 
-    private LocalDateTime uploadedAt;
-
     private String uploadedBy;
 
     @Column(name = "reference_id")

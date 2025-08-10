@@ -1,6 +1,6 @@
 package com.edu.edumeet.homework.presentation.dto;
 
-import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -44,7 +44,7 @@ public class SubmissionDTO {
     private SubmissionStatus status;
 
     @Schema(description = "제출 파일 목록")
-    private List<Attachment> submissionFiles;
+    private List<AttchmentDTO> submissionFiles;
 
     @Schema(description = "등록일시", example = "2025-07-23T19:32:00")
     private LocalDateTime regDate;

@@ -4,9 +4,12 @@ import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 과제 애플리케이션 서비스 인터페이스
@@ -17,7 +20,7 @@ public interface AssignmentService {
     /**
      * Assignment 도메인 객체를 AssignmentDTO로 변환
      */
-    default AssignmentDTO domainToDto(Assignment assignment) {
+    default AssignmentDTO domainToDto(Assignment assignment, AttachmentAdapter attachmentAdapter) {
         return AssignmentDTO.builder()
                 .id(assignment.getId())
                 .title(assignment.getTitle())
@@ -25,7 +28,7 @@ public interface AssignmentService {
                 .classId(assignment.getClassId())
                 .createdById(assignment.getCreatedById())
                 .createdByName(assignment.getCreatedByName())
-                .attachmentFiles(assignment.getAttachmentFiles())
+                .attachmentFiles(attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()))
                 .studentSubmissionStatuses(assignment.getStudentSubmissionStatuses())
                 .regDate(assignment.getRegDate())
                 .modDate(assignment.getModDate())

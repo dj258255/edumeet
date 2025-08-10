@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AssignmentRepositoryImpl 테스트")
@@ -53,8 +54,8 @@ class AssignmentRepositoryImplTest {
                 .uploadedAt(LocalDateTime.now())
                 .build();
 
+        // 파일이 있는 과제 (새로운 생성용 - ID 없음)
         assignmentWithFiles = Assignment.builder()
-                .id(1L)
                 .title("파일 포함 과제")
                 .description("참고자료가 첨부된 과제입니다")
                 .classId(1L)
@@ -65,9 +66,8 @@ class AssignmentRepositoryImplTest {
                 .modDate(LocalDateTime.now())
                 .build();
 
-        // 파일이 없는 과제
+        // 파일이 없는 과제 (새로운 생성용 - ID 없음)
         assignmentWithoutFiles = Assignment.builder()
-                .id(2L)
                 .title("파일 없는 과제")
                 .description("별도의 첨부파일 없이 진행하는 과제입니다")
                 .classId(1L)
@@ -78,9 +78,33 @@ class AssignmentRepositoryImplTest {
                 .modDate(LocalDateTime.now())
                 .build();
 
-        // JPA Entity
-        assignmentEntityWithFiles = AssignmentJpaEntity.fromDomain(assignmentWithFiles);
-        assignmentEntityWithoutFiles = AssignmentJpaEntity.fromDomain(assignmentWithoutFiles);
+        // JPA Entity (저장된 후 ID가 설정된 상태로 생성)
+        Assignment savedAssignmentWithFiles = Assignment.builder()
+                .id(1L)
+                .title(assignmentWithFiles.getTitle())
+                .description(assignmentWithFiles.getDescription())
+                .classId(assignmentWithFiles.getClassId())
+                .createdById(assignmentWithFiles.getCreatedById())
+                .createdByName(assignmentWithFiles.getCreatedByName())
+                .attachmentFiles(assignmentWithFiles.getAttachmentFiles())
+                .regDate(assignmentWithFiles.getRegDate())
+                .modDate(assignmentWithFiles.getModDate())
+                .build();
+        
+        Assignment savedAssignmentWithoutFiles = Assignment.builder()
+                .id(2L)
+                .title(assignmentWithoutFiles.getTitle())
+                .description(assignmentWithoutFiles.getDescription())
+                .classId(assignmentWithoutFiles.getClassId())
+                .createdById(assignmentWithoutFiles.getCreatedById())
+                .createdByName(assignmentWithoutFiles.getCreatedByName())
+                .attachmentFiles(assignmentWithoutFiles.getAttachmentFiles())
+                .regDate(assignmentWithoutFiles.getRegDate())
+                .modDate(assignmentWithoutFiles.getModDate())
+                .build();
+        
+        assignmentEntityWithFiles = AssignmentJpaEntity.fromDomain(savedAssignmentWithFiles);
+        assignmentEntityWithoutFiles = AssignmentJpaEntity.fromDomain(savedAssignmentWithoutFiles);
         
         System.out.println("[DEBUG_LOG] 테스트 데이터 초기화 완료");
     }
@@ -106,7 +130,7 @@ class AssignmentRepositoryImplTest {
         assertThat(savedAssignment.getAttachmentFiles()).hasSize(1);
         assertThat(savedAssignment.getAttachmentFiles().get(0).getFileName()).isEqualTo("guide.pdf");
 
-        verify(assignmentJpaRepository).save(any(AssignmentJpaEntity.class));
+        verify(assignmentJpaRepository, times(2)).save(any(AssignmentJpaEntity.class));
         
         System.out.println("[DEBUG_LOG] 파일 포함 과제 저장 성공, ID: " + savedAssignment.getId());
     }
