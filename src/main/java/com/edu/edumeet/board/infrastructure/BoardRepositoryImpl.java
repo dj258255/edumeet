@@ -75,7 +75,6 @@ public class BoardRepositoryImpl implements BoardRepository {
                         .img(fileUpload.isImage())
                         .fileSize(fileUpload.getFileSize())
                         .contentType(fileUpload.getContentType())
-                        .uploadedAt(fileUpload.getUploadedAt())
                         .uploadedBy(fileUpload.getUploadedBy())
                         .referenceId(savedEntity.getId())
                         .build();

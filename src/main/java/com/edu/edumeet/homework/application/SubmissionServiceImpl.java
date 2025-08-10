@@ -6,6 +6,7 @@ import com.edu.edumeet.homework.presentation.SubmissionService;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     private final SubmissionRepository submissionRepository;
     private final AssignmentRepository assignmentRepository;
+    private final AttachmentAdapter attachmentAdapter;
 
     @Override
     @Transactional
@@ -53,7 +55,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission submission = submissionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 제출물을 찾을 수 없습니다: " + id));
 
-        return domainToDto(submission);
+        return domainToDto(submission, attachmentAdapter);
     }
 
 
@@ -76,7 +78,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         List<Submission> submissions = submissionRepository.findByAssignmentId(assignmentId);
 
         return submissions.stream()
-                .map(this::domainToDto)
+                .map(submission -> domainToDto(submission, attachmentAdapter))
                 .collect(Collectors.toList());
     }
 
@@ -92,7 +94,7 @@ public class SubmissionServiceImpl implements SubmissionService {
                     Assignment assignment = assignmentRepository.findById(submission.getAssignmentId())
                             .orElse(null);
                     String assignmentTitle = assignment != null ? assignment.getTitle() : "알 수 없는 과제";
-                    return domainToDtoWithAssignmentTitle(submission, assignmentTitle);
+                    return domainToDtoWithAssignmentTitle(submission, assignmentTitle, attachmentAdapter);
                 })
                 .collect(Collectors.toList());
     }
@@ -104,7 +106,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission submission = submissionRepository.findByAssignmentIdAndClassMemberId(assignmentId, classMemberId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 제출물을 찾을 수 없습니다."));
 
-        return domainToDto(submission);
+        return domainToDto(submission, attachmentAdapter);
     }
 
     @Override
@@ -128,7 +130,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         Submission submission = submissionRepository.findByIdWithSubmissionFiles(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 제출물을 찾을 수 없습니다: " + id));
 
-        return domainToDto(submission);
+        return domainToDto(submission, attachmentAdapter);
     }
 
     @Override

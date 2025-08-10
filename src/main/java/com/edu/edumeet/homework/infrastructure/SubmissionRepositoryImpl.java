@@ -25,8 +25,57 @@ public class SubmissionRepositoryImpl implements SubmissionRepository {
         log.debug("제출물 저장 시작: assignmentId={}, classMemberId={}", 
                 submission.getAssignmentId(), submission.getClassMemberId());
         
-        SubmissionJpaEntity entity = SubmissionJpaEntity.fromDomain(submission);
-        SubmissionJpaEntity savedEntity = submissionJpaRepository.save(entity);
+        SubmissionJpaEntity submissionJpaEntity;
+        boolean isUpdate = submission.getId() != null;
+        
+        if (isUpdate) {
+            // 기존 제출물 업데이트 - 기존 엔티티가 있는지 확인
+            Optional<SubmissionJpaEntity> existingEntity = submissionJpaRepository.findById(submission.getId());
+            if (existingEntity.isPresent()) {
+                // 기존 제출파일 정보 삭제 (orphanRemoval=true로 자동 삭제됨)
+                existingEntity.get().getSubmissionFiles().clear();
+                
+                // 새로운 엔티티로 대체 (ID는 유지)
+                submissionJpaEntity = SubmissionJpaEntity.fromDomain(submission);
+            } else {
+                // 업데이트할 제출물이 존재하지 않음
+                log.warn("업데이트하려는 제출물을 찾을 수 없음: ID={}", submission.getId());
+                return null;
+            }
+        } else {
+            // 새로운 제출물 생성
+            submissionJpaEntity = SubmissionJpaEntity.fromDomain(submission);
+        }
+        
+        // 도메인 -> JPA 엔티티 변환 후 저장
+        SubmissionJpaEntity savedEntity = submissionJpaRepository.save(submissionJpaEntity);
+        
+        // 제출파일 정보 처리
+        if (submission.getSubmissionFiles() != null && !submission.getSubmissionFiles().isEmpty()) {
+            log.info("제출물 {}의 제출파일 정보 처리 - 파일 수: {}", savedEntity.getId(), submission.getSubmissionFiles().size());
+            
+            // 제출파일 정보는 SubmissionJpaEntity의 submissionFiles에 직접 추가
+            // SubmissionFileUploadJpaEntity는 cascade=ALL, orphanRemoval=true로 설정되어 있어
+            // SubmissionJpaEntity가 저장될 때 함께 저장됨
+            submission.getSubmissionFiles().forEach(fileUpload -> {
+                SubmissionFileUploadJpaEntity fileEntity = SubmissionFileUploadJpaEntity.builder()
+                        .submission(savedEntity)
+                        .uuid(fileUpload.getUuid())
+                        .fileName(fileUpload.getFileName())
+                        .ord(fileUpload.getOrd())
+                        .img(fileUpload.isImg())
+                        .fileSize(fileUpload.getFileSize())
+                        .contentType(fileUpload.getContentType())
+                        .uploadedBy(fileUpload.getUploadedBy())
+                        .referenceId(savedEntity.getId())
+                        .build();
+                
+                savedEntity.getSubmissionFiles().add(fileEntity);
+            });
+            
+            // 변경된 엔티티 저장
+            submissionJpaRepository.save(savedEntity);
+        }
         
         log.debug("제출물 저장 완료: ID={}", savedEntity.getId());
         return savedEntity.toDomain();

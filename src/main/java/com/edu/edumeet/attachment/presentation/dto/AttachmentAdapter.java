@@ -118,7 +118,6 @@ public class AttachmentAdapter {
                 .img(attchmentDTO.isImg())
                 .domain(attchmentDTO.getDomain())
                 .referenceId(attchmentDTO.getReferenceId())
-                .uploadedAt(LocalDateTime.now())
                 .build();
     }
     

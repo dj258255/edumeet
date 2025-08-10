@@ -66,7 +66,7 @@ public class AttachmentServiceImpl implements AttachmentService {
                         .uploadedAt(LocalDateTime.now())
                         .build();
 
-                // 🔥 S3 URL 정보 로그 추가
+                // S3 URL 정보 로그 추가
                 String originalUrl = s3Uploader.getDomainOriginalUrl(domain, uuid, originalName);
                 String thumbnailUrl = isImage ? s3Uploader.getDomainThumbnailUrl(domain, uuid, originalName) : null;
                 
@@ -80,7 +80,7 @@ public class AttachmentServiceImpl implements AttachmentService {
         return uploadedFiles;
     }
     
-    // 🔥 Attachment → AttachmentResultDTO 변환 메서드 추가
+    //  Attachment → AttachmentResultDTO 변환 메서드 추가
     public List<AttachmentResultDTO> convertToUploadResultDTOs(List<Attachment> attachments) {
         return attachments.stream()
                 .map(this::convertToUploadResultDTO)
@@ -111,8 +111,8 @@ public class AttachmentServiceImpl implements AttachmentService {
                 .referenceId(attachment.getReferenceId())
                 .uploadedAt(attachment.getUploadedAt())
                 .uploadedBy("system") // 또는 현재 사용자
-                .originalUrl(originalUrl)      // 🔥 S3 URL 설정!
-                .thumbnailUrl(thumbnailUrl)    // 🔥 S3 URL 설정!
+                .originalUrl(originalUrl)      //  S3 URL 설정!
+                .thumbnailUrl(thumbnailUrl)    //  S3 URL 설정!
                 .build();
     }
     

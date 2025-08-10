@@ -9,6 +9,8 @@ import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.application.AssignmentServiceImpl;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,9 @@ class AssignmentServiceImplTest {
 
     @Mock
     private ClassMemberRepository classMemberRepository;
+
+    @Mock
+    private AttachmentAdapter attachmentAdapter;
 
     private AssignmentCreateDTO createDTOWithFiles;
     private AssignmentCreateDTO createDTOWithoutFiles;
@@ -106,6 +111,7 @@ class AssignmentServiceImplTest {
                 ClassMember.builder().member(student1).build(),
                 ClassMember.builder().member(student2).build()
         );
+        
         
         System.out.println("[DEBUG_LOG] 테스트 데이터 초기화 완료");
     }
@@ -176,6 +182,20 @@ class AssignmentServiceImplTest {
         // Given
         System.out.println("[DEBUG_LOG] 테스트 시작: 첨부파일 포함 과제 조회");
         
+        // AttachmentAdapter mock 설정
+        AttchmentDTO testFileDTO = AttchmentDTO.builder()
+                .uuid("test-uuid-123")
+                .fileName("guide.pdf")
+                .ord(1)
+                .img(false)
+                .domain("assignment")
+                .referenceId(1234L)
+                .s3Url("https://s3.amazonaws.com/test-bucket/assignment/test-uuid-123_guide.pdf")
+                .build();
+        
+        when(attachmentAdapter.toFileUploadDTOList(any()))
+                .thenReturn(Arrays.asList(testFileDTO));
+        
         when(assignmentRepository.findById(eq(1234L)))
                 .thenReturn(Optional.of(savedAssignment));
 
@@ -238,6 +258,10 @@ class AssignmentServiceImplTest {
         // Given
         System.out.println("[DEBUG_LOG] 테스트 시작: 클래스별 과제 목록 조회");
         
+        // AttachmentAdapter mock 설정 (빈 리스트 처리)
+        when(attachmentAdapter.toFileUploadDTOList(any()))
+                .thenReturn(Arrays.asList());
+        
         Assignment assignment1 = Assignment.builder()
                 .id(1L)
                 .title("첫 번째 과제")
@@ -286,12 +310,26 @@ class AssignmentServiceImplTest {
         // Given
         System.out.println("[DEBUG_LOG] 테스트 시작: 도메인 변환 테스트");
         
+        // AttachmentAdapter mock 설정
+        AttchmentDTO testFileDTO = AttchmentDTO.builder()
+                .uuid("test-uuid-123")
+                .fileName("guide.pdf")
+                .ord(1)
+                .img(false)
+                .domain("assignment")
+                .referenceId(1234L)
+                .s3Url("https://s3.amazonaws.com/test-bucket/assignment/test-uuid-123_guide.pdf")
+                .build();
+        
+        when(attachmentAdapter.toFileUploadDTOList(any()))
+                .thenReturn(Arrays.asList(testFileDTO));
+        
         // When - DTO to Domain 변환
         Assignment domainFromDTO = assignmentService.createDtoToDomain(createDTOWithFiles);
         System.out.println("[DEBUG_LOG] DTO -> Domain 변환 완료");
         
         // Domain to DTO 변환
-        AssignmentDTO dtoFromDomain = assignmentService.domainToDto(savedAssignment);
+        AssignmentDTO dtoFromDomain = assignmentService.domainToDto(savedAssignment, attachmentAdapter);
         System.out.println("[DEBUG_LOG] Domain -> DTO 변환 완료");
 
         // Then - DTO to Domain 검증

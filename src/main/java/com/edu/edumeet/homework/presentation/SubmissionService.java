@@ -4,6 +4,7 @@ import com.edu.edumeet.homework.domain.Submission;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 
 import java.util.List;
 
@@ -16,7 +17,7 @@ public interface SubmissionService {
     /**
      * Submission 도메인 객체를 SubmissionDTO로 변환
      */
-    default SubmissionDTO domainToDto(Submission submission) {
+    default SubmissionDTO domainToDto(Submission submission, AttachmentAdapter attachmentAdapter) {
         return SubmissionDTO.builder()
                 .id(submission.getId())
                 .assignmentId(submission.getAssignmentId())
@@ -24,7 +25,7 @@ public interface SubmissionService {
                 .classMemberName(submission.getClassMemberName())
                 .content(submission.getContent())
                 .status(submission.getStatus())
-                .submissionFiles(submission.getSubmissionFiles())
+                .submissionFiles(attachmentAdapter.toFileUploadDTOList(submission.getSubmissionFiles()))
                 .regDate(submission.getRegDate())
                 .modDate(submission.getModDate())
                 .build();
@@ -33,7 +34,7 @@ public interface SubmissionService {
     /**
      * Submission 도메인 객체를 SubmissionDTO로 변환 (과제 제목 포함)
      */
-    default SubmissionDTO domainToDtoWithAssignmentTitle(Submission submission, String assignmentTitle) {
+    default SubmissionDTO domainToDtoWithAssignmentTitle(Submission submission, String assignmentTitle, AttachmentAdapter attachmentAdapter) {
         return SubmissionDTO.builder()
                 .id(submission.getId())
                 .assignmentId(submission.getAssignmentId())
@@ -42,7 +43,7 @@ public interface SubmissionService {
                 .classMemberName(submission.getClassMemberName())
                 .content(submission.getContent())
                 .status(submission.getStatus())
-                .submissionFiles(submission.getSubmissionFiles())
+                .submissionFiles(attachmentAdapter.toFileUploadDTOList(submission.getSubmissionFiles()))
                 .regDate(submission.getRegDate())
                 .modDate(submission.getModDate())
                 .build();

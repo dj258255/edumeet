@@ -98,7 +98,7 @@ public class BoardJpaEntity extends BaseEntity {
                             .referenceId(fileEntity.getReferenceId())
                             .fileSize(fileEntity.getFileSize())
                             .contentType(fileEntity.getContentType())
-                            .uploadedAt(fileEntity.getUploadedAt())
+                            .uploadedAt(fileEntity.getRegDate())
                             .uploadedBy(fileEntity.getUploadedBy())
                             .build())
                     .collect(Collectors.toSet());
