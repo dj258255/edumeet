@@ -147,6 +147,7 @@
       @invite="handleInvite"
     />
     <NoticeDetailModal
+      v-if="selectedNotice"
       :isVisible="showNoticeModal"
       :noticeData="selectedNotice"
       :isMyCreatedClass="isMyCreatedClass"
@@ -154,6 +155,7 @@
       @delete="deleteNotice"
     />
     <AssignmentDetailModal
+      v-if="selectedAssignment"
       :isVisible="showAssignmentModal"
       :assignmentData="selectedAssignment"
       :isMyCreatedClass="isMyCreatedClass"
@@ -267,6 +269,7 @@ const getStatusText = (status) => {
 // 공지사항 모달
 const showNoticeModal = ref(false)
 const selectedNotice = ref(null)
+const isFetchingNotice = ref(false)
 
 // 현재 클래스 ID 계산 (다양한 키 지원)
 const currentClassId = computed(() => {
@@ -275,17 +278,28 @@ const currentClassId = computed(() => {
 })
 
 const openNoticeDetailModal = async (notice) => {
+  if (isFetchingNotice.value) return
+  const classId = currentClassId.value
+  if (!classId) {
+    alert('유효한 클래스 ID가 없습니다.')
+    return
+  }
+
+  // 모달 즉시 오픈 후 상세는 백그라운드로 로드
+  selectedNotice.value = notice
+  showNoticeModal.value = true
+  isFetchingNotice.value = true
+
   try {
-    const classId = currentClassId.value
-    console.log('noticeId:', notice)
-    if (!classId) throw new Error('유효한 클래스 ID가 없습니다.')
-    const res = await apiClient.get(`/class/${classId}/boards/${notice.id}`);
-    selectedNotice.value = res.data;
-    console.log(selectedNotice.value)
-    showNoticeModal.value = true;
+    const res = await apiClient.get(`/class/${classId}/boards/${notice.id}`, { timeout: 10000 })
+    if (res?.data) {
+      selectedNotice.value = res.data
+    }
   } catch (err) {
-    console.error('공지사항 상세 불러오기 실패:', err);
-    alert('공지사항 상세 정보를 불러오는데 실패했습니다.');
+    console.error('공지사항 상세 불러오기 실패:', err)
+    // 모달은 유지하되, 필요시 사용자에게 재시도 안내만 표시
+  } finally {
+    isFetchingNotice.value = false
   }
 }
 const closeNoticeModal = () => {

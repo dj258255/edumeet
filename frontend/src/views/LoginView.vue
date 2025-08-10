@@ -133,21 +133,19 @@ const handleLogin = async () => {
     // 실제 백엔드 API를 통한 로그인
     const result = await authStore.login(email.value, password.value)
     console.log('로그인 결과:', result)
-    
+
+    // 먼저 이동 → 가드 통과 안정화 (데이터는 백그라운드 로드)
+    await router.push('/class/create')
+
     message.value = '로그인 성공!'
     console.log('로그인 후 상태:', authStore.isLoggedIn)
     console.log('로그인 후 사용자:', authStore.currentUser)
 
-    // 로그인 직후 반 목록 선로딩 (실패해도 무시)
-    try {
-      await Promise.all([
-        classStore.fetchMyCreatedClasses(),
-        classStore.fetchMyJoinedClasses(),
-      ])
-    } catch (_) {}
-
-    // 클래스 페이지로 이동
-    await router.push('/class/create')
+    // 로그인 직후 반 목록 선로딩 (실패해도 무시) - 백그라운드
+    Promise.allSettled([
+      classStore.fetchMyCreatedClasses(),
+      classStore.fetchMyJoinedClasses(),
+    ])
   } catch (error) {
     message.value = error.message || '로그인에 실패했습니다.'
     console.error('로그인 에러:', error)

@@ -156,7 +156,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClassStore } from '@/stores/class'
 import { useAuthStore } from '@/stores/auth'
@@ -352,6 +352,16 @@ function closeMembersModal() {
 }
 
 
+// 복귀/온라인 이벤트 핸들러는 setup 동기 구간에서 정의
+const onVisibilityChange = () => {
+  if (document.visibilityState === 'visible' && isLoggedIn.value) {
+    loadClasses()
+  }
+}
+const onFocus = () => { if (isLoggedIn.value) loadClasses() }
+const onOnline = () => { if (isLoggedIn.value) loadClasses() }
+const onPageShow = () => { if (isLoggedIn.value) loadClasses() }
+
 // 페이지 진입 시 목록 로드 (로그인 보장 후 실행)
 onMounted(async () => {
   if (isLoggedIn.value) {
@@ -364,6 +374,19 @@ onMounted(async () => {
       }
     })
   }
+
+  // 절전/복귀 및 네트워크 재연결 시 재조회 이벤트 등록
+  window.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('focus', onFocus)
+  window.addEventListener('online', onOnline)
+  window.addEventListener('pageshow', onPageShow)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('focus', onFocus)
+  window.removeEventListener('online', onOnline)
+  window.removeEventListener('pageshow', onPageShow)
 })
 
 </script>
