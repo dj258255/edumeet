@@ -1,7 +1,7 @@
 package com.edu.edumeet.board.presentation.dto;
 
+import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import com.edu.edumeet.board.domain.BoardType;
-import com.edu.edumeet.upload.presentation.dto.FileUploadDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,5 +38,5 @@ public class BoardListAllDTO {
     
     private long dislike;
 
-    private List<FileUploadDTO> boardImages;
+    private List<AttchmentDTO> boardImages;
 }

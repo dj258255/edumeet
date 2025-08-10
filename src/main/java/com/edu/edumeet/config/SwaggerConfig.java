@@ -25,11 +25,11 @@ public class SwaggerConfig {
 
     private Info apiInfo(){
         return new Info()
-                .title("게시판 API")
-                .description("게시판 프로젝트의 REST API 문서")
-                .version("1.1.1")
+                .title("Edumeet API")
+                .description("Edumeet 교육 플랫폼의 REST API 명세서 - 과제 관리, 제출물 관리, 게시판 등의 기능을 제공합니다.")
+                .version("1.0.0")
                 .contact(new Contact()
-                        .name("개발자")
-                        .email("developer@example.com"));
+                        .name("Edumeet Development Team")
+                        .email("developer@edumeet.com"));
     }
 }

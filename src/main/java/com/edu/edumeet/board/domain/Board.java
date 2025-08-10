@@ -1,6 +1,7 @@
 package com.edu.edumeet.board.domain;
 
-import com.edu.edumeet.upload.domain.FileUpload;
+import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -37,7 +38,7 @@ public class Board {
      */
     @Setter
     @Builder.Default
-    private Set<FileUpload> images = new HashSet<>();
+    private Set<Attachment> images = new HashSet<>();
 
     private LocalDateTime regDate;  // 등록일시
     private LocalDateTime modDate;  // 수정일시
@@ -249,14 +250,14 @@ public class Board {
 
     //이미지 추가
     public void addImage(String uuid, String fileName) {
-        FileUpload fileUpload = FileUpload.builder()
+        Attachment attachment = Attachment.builder()
                 .uuid(uuid)
                 .fileName(fileName)
                 .ord(images.size())
                 .img(true)
                 .domain("board")
                 .build();
-        images.add(fileUpload);
+        images.add(attachment);
     }
     
     ///모든 이미지 제거
@@ -271,24 +272,24 @@ public class Board {
 
     
     /**
-     * 기존 이미지 제거 후 FileUploadDTO 목록으로 새 이미지 추가
-     * @param boardImages FileUploadDTO 목록
+     * 기존 이미지 제거 후 AttchmentDTO 목록으로 새 이미지 추가
+     * @param boardImages AttchmentDTO 목록
      * @return 이미지가 변경된 새로운 Board 객체
      */
-    public Board changeBoardImages(List<com.edu.edumeet.upload.presentation.dto.FileUploadDTO> boardImages) {
-        Set<FileUpload> newImages = new HashSet<>();
+    public Board changeBoardImages(List<AttchmentDTO> boardImages) {
+        Set<Attachment> newImages = new HashSet<>();
 
         if (boardImages != null) {
             for (int i = 0; i < boardImages.size(); i++) {
-                com.edu.edumeet.upload.presentation.dto.FileUploadDTO fileDTO = boardImages.get(i);
-                FileUpload fileUpload = FileUpload.builder()
+                AttchmentDTO fileDTO = boardImages.get(i);
+                Attachment attachment = Attachment.builder()
                         .uuid(fileDTO.getUuid())
                         .fileName(fileDTO.getFileName())
                         .ord(fileDTO.getOrd())
                         .img(true)
                         .domain("board")
                         .build();
-                newImages.add(fileUpload);
+                newImages.add(attachment);
             }
         }
 

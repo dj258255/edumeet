@@ -1,5 +1,6 @@
 package com.edu.edumeet.unit.homework.application;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.homework.application.AssignmentRepository;
 import com.edu.edumeet.member.domain.Member;
@@ -8,7 +9,6 @@ import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.application.AssignmentServiceImpl;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,7 +52,7 @@ class AssignmentServiceImplTest {
         System.out.println("[DEBUG_LOG] 테스트 데이터 초기화 시작");
         
         // 파일이 포함된 과제 생성 DTO
-        FileUpload testFile = FileUpload.builder()
+        Attachment testFile = Attachment.builder()
                 .uuid("test-uuid-123")
                 .fileName("guide.pdf")
                 .ord(1)
@@ -202,7 +201,7 @@ class AssignmentServiceImplTest {
         // Given
         System.out.println("[DEBUG_LOG] 테스트 시작: 과제 첨부파일 추가");
         
-        FileUpload newFile = FileUpload.builder()
+        Attachment newFile = Attachment.builder()
                 .uuid("new-uuid-456")
                 .fileName("additional.pdf")
                 .ord(2)

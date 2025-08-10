@@ -67,6 +67,14 @@ public class AssignmentRepositoryImpl implements AssignmentRepository {
     }
 
     @Override
+    public Optional<Assignment> findByIdWithAllDetails(Long id) {
+        log.debug("모든 세부사항 포함 과제 조회 시작: ID={} (N+1 최적화)", id);
+        
+        return assignmentJpaRepository.findByIdWithAllDetails(id)
+                .map(AssignmentJpaEntity::toDomain);
+    }
+
+    @Override
     @Transactional
     public void deleteById(Long id) {
         log.debug("과제 삭제 시작: ID={}", id);

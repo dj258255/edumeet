@@ -1,14 +1,12 @@
 package com.edu.edumeet.unit.homework.presentation;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
 import com.edu.edumeet.homework.presentation.AssignmentController;
 import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentUpdateDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
-import com.edu.edumeet.upload.presentation.dto.FileUploadDTO;
-import com.edu.edumeet.upload.presentation.dto.FileUploadAdapter;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +55,7 @@ public class AssignmentControllerAllEndpointsTest {
     private AssignmentJpaRepository assignmentJpaRepository;
 
     @Autowired
-    private FileUploadAdapter fileUploadAdapter;
+    private AttachmentAdapter attachmentAdapter;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -103,7 +101,7 @@ public class AssignmentControllerAllEndpointsTest {
         log.info("=== 파일이 포함된 과제 생성 테스트 시작 ===");
         
         // Given
-        FileUpload fileUpload = FileUpload.builder()
+        Attachment attachment = Attachment.builder()
                 .uuid("test-uuid-123")
                 .fileName("assignment_guide.pdf")
                 .ord(1)
@@ -121,7 +119,7 @@ public class AssignmentControllerAllEndpointsTest {
                 .classId(testClassId)
                 .createdById(10L)
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList(fileUpload))
+                .attachmentFiles(Arrays.asList(attachment))
                 .build();
 
         String requestJson = objectMapper.writeValueAsString(createDTO);
@@ -132,13 +130,13 @@ public class AssignmentControllerAllEndpointsTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isCreated())
-                .andExpect(content().contentType("text/plain;charset=UTF-8"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andReturn();
 
         String responseContent = result.getResponse().getContentAsString();
         log.info("[DEBUG_LOG] 응답 데이터: {}", responseContent);
         
-        // 등록된 과제 ID 추출
+        // 등록된 과제 ID 추출 (JSON 숫자로 반환됨)
         Long createdAssignmentId = Long.valueOf(responseContent);
         
         log.info("[DEBUG_LOG] 등록된 과제 ID: {}", createdAssignmentId);
@@ -176,7 +174,7 @@ public class AssignmentControllerAllEndpointsTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isCreated())
-                .andExpect(content().contentType("text/plain;charset=UTF-8"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andReturn();
 
         String responseContent = result.getResponse().getContentAsString();
@@ -218,41 +216,6 @@ public class AssignmentControllerAllEndpointsTest {
         log.info("=== 과제 조회 테스트 완료 ===");
     }
 
-    @Test
-    @DisplayName("[DEBUG_LOG] PUT /api/v1/class/{classId}/assignments/{id} - 과제 수정 테스트")
-    void updateAssignmentTest() throws Exception {
-        log.info("=== 과제 수정 테스트 시작 ===");
-        log.info("[DEBUG_LOG] 수정할 과제 ID: {}", testAssignmentId);
-
-        // Given
-        AssignmentUpdateDTO updateDTO = AssignmentUpdateDTO.builder()
-                .title("수정된 과제 제목")
-                .description("수정된 과제 설명입니다.")
-                .build();
-
-        String requestJson = objectMapper.writeValueAsString(updateDTO);
-        log.info("[DEBUG_LOG] 수정 요청 데이터: {}", requestJson);
-
-        // When & Then
-        MvcResult result = mockMvc.perform(put("/api/v1/class/{classId}/assignments/{id}", testClassId, testAssignmentId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string("과제가 성공적으로 수정되었습니다."))
-                .andReturn();
-
-        String responseContent = result.getResponse().getContentAsString();
-        log.info("[DEBUG_LOG] 응답 데이터: {}", responseContent);
-
-        // 실제로 수정되었는지 확인
-        AssignmentDTO updatedAssignment = assignmentService.getAssignment(testAssignmentId);
-        assertThat(updatedAssignment.getTitle()).isEqualTo("수정된 과제 제목");
-        assertThat(updatedAssignment.getDescription()).isEqualTo("수정된 과제 설명입니다.");
-        
-        log.info("[DEBUG_LOG] 과제 수정 확인 - 제목: {}, 설명: {}", updatedAssignment.getTitle(), updatedAssignment.getDescription());
-        log.info("[DEBUG_LOG] 과제 수정 테스트 성공!");
-        log.info("=== 과제 수정 테스트 완료 ===");
-    }
 
     @Test
     @DisplayName("[DEBUG_LOG] GET /api/v1/class/{classId}/assignments - 클래스별 과제 목록 조회 테스트")
@@ -302,39 +265,6 @@ public class AssignmentControllerAllEndpointsTest {
         log.info("=== 클래스별 과제 목록 조회 테스트 완료 ===");
     }
 
-    @Test
-    @DisplayName("[DEBUG_LOG] POST /api/v1/class/{classId}/assignments/{id}/files - 첨부파일 정보 등록 테스트")
-    void addAttachmentFileTest() throws Exception {
-        log.info("=== 첨부파일 정보 등록 테스트 시작 ===");
-        log.info("[DEBUG_LOG] 대상 과제 ID: {}", testAssignmentId);
-        
-        // Given
-        FileUploadDTO fileUploadDTO = FileUploadDTO.builder()
-                .uuid("test-uuid-789")
-                .fileName("guide.pdf")
-                .ord(1)
-                .img(false)
-                .domain("assignments")
-                .referenceId(testAssignmentId)
-                .build();
-
-        String requestJson = objectMapper.writeValueAsString(fileUploadDTO);
-        log.info("[DEBUG_LOG] 요청 데이터: {}", requestJson);
-
-        // When & Then
-        MvcResult result = mockMvc.perform(post("/api/v1/class/{classId}/assignments/{id}/files", testClassId, testAssignmentId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string("파일이 성공적으로 추가되었습니다."))
-                .andReturn();
-
-        String responseContent = result.getResponse().getContentAsString();
-        log.info("[DEBUG_LOG] 응답 데이터: {}", responseContent);
-        
-        log.info("[DEBUG_LOG] 첨부파일 등록 테스트 성공!");
-        log.info("=== 첨부파일 등록 테스트 완료 ===");
-    }
 
     @Test
     @DisplayName("[DEBUG_LOG] DELETE /api/v1/class/{classId}/assignments/{id} - 과제 삭제 테스트")
@@ -434,17 +364,8 @@ public class AssignmentControllerAllEndpointsTest {
                 .andExpect(jsonPath("$.title").value("워크플로우 테스트 과제"));
         log.info("2. 과제 조회 완료");
 
-        // 3. 과제 수정
-        AssignmentUpdateDTO updateDTO = AssignmentUpdateDTO.builder()
-                .title("수정된 워크플로우 과제")
-                .description("수정된 워크플로우 내용")
-                .build();
-        String modifyJson = objectMapper.writeValueAsString(updateDTO);
-        mockMvc.perform(put("/api/v1/class/{classId}/assignments/{id}", testClassId, workflowAssignmentId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(modifyJson))
-                .andExpect(status().isOk());
-        log.info("3. 과제 수정 완료");
+        // 3. 과제 수정 기능은 제거됨 (AssignmentUpdateDTO 제거로 인해)
+        log.info("3. 과제 수정 기능은 더 이상 지원되지 않습니다.");
 
         // 4. 과제 삭제
         mockMvc.perform(delete("/api/v1/class/{classId}/assignments/{id}", testClassId, workflowAssignmentId))

@@ -1,15 +1,12 @@
 package com.edu.edumeet.unit.homework.presentation;
 
-import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
 import com.edu.edumeet.homework.presentation.AssignmentController;
 import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentUpdateDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
-import com.edu.edumeet.upload.presentation.dto.FileUploadDTO;
-import com.edu.edumeet.upload.presentation.dto.FileUploadAdapter;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,7 +55,7 @@ class AssignmentControllerTest {
     private AssignmentJpaRepository assignmentJpaRepository;
 
     @Autowired
-    private FileUploadAdapter fileUploadAdapter;
+    private AttachmentAdapter attachmentAdapter;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -103,7 +100,7 @@ class AssignmentControllerTest {
         log.info("=== 파일이 포함된 과제 생성 테스트 시작 ===");
         
         // Given
-        FileUpload fileUpload = FileUpload.builder()
+        Attachment attachment = Attachment.builder()
                 .uuid("test-uuid-123")
                 .fileName("assignment_guide.pdf")
                 .ord(1)
@@ -121,7 +118,7 @@ class AssignmentControllerTest {
                 .classId(testClassId)
                 .createdById(10L)
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList(fileUpload))
+                .attachmentFiles(Arrays.asList(attachment))
                 .build();
 
         String requestJson = objectMapper.writeValueAsString(createDTO);
@@ -132,7 +129,7 @@ class AssignmentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isCreated())
-                .andExpect(content().contentType("text/plain;charset=UTF-8"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andReturn();
 
         String responseContent = result.getResponse().getContentAsString();
@@ -176,7 +173,7 @@ class AssignmentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isCreated())
-                .andExpect(content().contentType("text/plain;charset=UTF-8"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andReturn();
 
         String responseContent = result.getResponse().getContentAsString();
@@ -218,39 +215,6 @@ class AssignmentControllerTest {
         log.info("=== 과제 조회 테스트 완료 ===");
     }
 
-    @Test
-    @DisplayName("[DEBUG_LOG] 파일 정보를 시스템에 등록할 수 있다")
-    void addAttachmentFile() throws Exception {
-        log.info("=== 첨부파일 정보 등록 테스트 시작 ===");
-        log.info("[DEBUG_LOG] 대상 과제 ID: {}", testAssignmentId);
-        
-        // Given
-        FileUploadDTO fileUploadDTO = FileUploadDTO.builder()
-                .uuid("test-uuid-789")
-                .fileName("guide.pdf")
-                .ord(1)
-                .img(false)
-                .domain("assignments")
-                .referenceId(testAssignmentId)
-                .build();
-
-        String requestJson = objectMapper.writeValueAsString(fileUploadDTO);
-        log.info("[DEBUG_LOG] 요청 데이터: {}", requestJson);
-
-        // When & Then
-        MvcResult result = mockMvc.perform(post("/api/v1/class/{classId}/assignments/{id}/files", testClassId, testAssignmentId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
-                .andExpect(status().isOk())
-                .andExpect(content().string("파일이 성공적으로 추가되었습니다."))
-                .andReturn();
-
-        String responseContent = result.getResponse().getContentAsString();
-        log.info("[DEBUG_LOG] 응답 데이터: {}", responseContent);
-        
-        log.info("[DEBUG_LOG] 첨부파일 등록 테스트 성공!");
-        log.info("=== 첨부파일 등록 테스트 완료 ===");
-    }
 
     @Test
     @DisplayName("[DEBUG_LOG] 클래스별 과제 목록을 조회할 수 있다")

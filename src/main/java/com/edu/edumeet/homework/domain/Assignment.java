@@ -1,7 +1,7 @@
 package com.edu.edumeet.homework.domain;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.classroom.domain.ClassMember;
-import com.edu.edumeet.upload.domain.FileUpload;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,7 +20,7 @@ public class Assignment {
     private String createdByName;
 
     @Builder.Default
-    private List<FileUpload> attachmentFiles = new ArrayList<>();
+    private List<Attachment> attachmentFiles = new ArrayList<>();
 
     @Builder.Default
     private List<StudentSubmissionStatus> studentSubmissionStatuses = new ArrayList<>();
@@ -47,8 +47,8 @@ public class Assignment {
     }
 
     // 첨부파일 추가
-    public Assignment addAttachmentFile(FileUpload file) {
-        List<FileUpload> newFiles = new ArrayList<>(this.attachmentFiles);
+    public Assignment addAttachmentFile(Attachment file) {
+        List<Attachment> newFiles = new ArrayList<>(this.attachmentFiles);
         newFiles.add(file);
 
         return Assignment.builder()
@@ -62,6 +62,23 @@ public class Assignment {
                 .studentSubmissionStatuses(this.studentSubmissionStatuses)
                 .regDate(this.regDate)
                 .modDate(this.modDate)
+                .deletedAt(this.deletedAt)
+                .build();
+    }
+
+    // 첨부파일 업데이트 (기존 파일들을 새로운 파일 목록으로 대체)
+    public Assignment updateAttachmentFiles(List<Attachment> newFiles) {
+        return Assignment.builder()
+                .id(this.id)
+                .title(this.title)
+                .description(this.description)
+                .classId(this.classId)
+                .createdById(this.createdById)
+                .createdByName(this.createdByName)
+                .attachmentFiles(new ArrayList<>(newFiles))
+                .studentSubmissionStatuses(this.studentSubmissionStatuses)
+                .regDate(this.regDate)
+                .modDate(LocalDateTime.now())
                 .deletedAt(this.deletedAt)
                 .build();
     }

@@ -16,6 +16,8 @@ public interface AssignmentRepository {
     Optional<Assignment> findByIdWithAttachmentFiles(Long id);
     //제출 현황 포함 과제 조회
     Optional<Assignment> findByIdWithSubmissionStatuses(Long id);
+    //모든 세부사항 포함 과제 조회 (첨부파일 + 제출현황) - N+1 문제 해결
+    Optional<Assignment> findByIdWithAllDetails(Long id);
     // 과제 삭제 (논리적 삭제)
     void deleteById(Long id);
     // 삭제된 과제 복원

@@ -3,8 +3,7 @@ package com.edu.edumeet.homework.presentation;
 import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentUpdateDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
+import com.edu.edumeet.attachment.domain.Attachment;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,12 +60,6 @@ public interface AssignmentService {
      */
     AssignmentDTO getAssignment(Long id);
 
-    /**
-     * 과제 수정
-     * @param id 수정할 과제 ID
-     * @param assignmentUpdateDTO 수정할 과제 정보
-     */
-    void updateAssignment(Long id, AssignmentUpdateDTO assignmentUpdateDTO);
 
     /**
      * 과제 삭제
@@ -84,9 +77,9 @@ public interface AssignmentService {
     /**
      * 과제에 첨부파일 추가
      * @param assignmentId 과제 ID
-     * @param fileUpload 첨부할 파일
+     * @param attachment 첨부할 파일
      */
-    void addAttachmentFile(Long assignmentId, FileUpload fileUpload);
+    void addAttachmentFile(Long assignmentId, Attachment attachment);
 
     /**
      * 첨부파일 포함 과제 조회
@@ -101,6 +94,13 @@ public interface AssignmentService {
      * @return 제출 현황 포함 과제 정보
      */
     AssignmentDTO getAssignmentWithSubmissionStatuses(Long id);
+
+    /**
+     * 첨부파일과 제출 현황을 모두 포함한 과제 조회
+     * @param id 조회할 과제 ID
+     * @return 모든 세부사항 포함 과제 정보
+     */
+    AssignmentDTO getAssignmentWithAllDetails(Long id);
 
     /**
      * 과제 복원

@@ -1,7 +1,7 @@
 package com.edu.edumeet.homework.infrastructure;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.base.BaseEntity;
-import com.edu.edumeet.upload.domain.FileUpload;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -42,9 +42,9 @@ public class AssignmentFileUploadJpaEntity extends BaseEntity {
     @Column(name = "reference_id")
     private Long referenceId;
 
-    // FileUpload 도메인으로 변환
-    public FileUpload toFileUpload() {
-        return FileUpload.builder()
+    // Attachment 도메인으로 변환
+    public Attachment toFileUpload() {
+        return Attachment.builder()
                 .uuid(this.uuid)
                 .fileName(this.fileName)
                 .ord(this.ord)
@@ -57,18 +57,18 @@ public class AssignmentFileUploadJpaEntity extends BaseEntity {
                 .build();
     }
 
-    // FileUpload 도메인에서 엔티티로 변환
-    public static AssignmentFileUploadJpaEntity fromFileUpload(FileUpload fileUpload, AssignmentJpaEntity assignment) {
+    // Attachment 도메인에서 엔티티로 변환
+    public static AssignmentFileUploadJpaEntity fromFileUpload(Attachment attachment, AssignmentJpaEntity assignment) {
         return AssignmentFileUploadJpaEntity.builder()
                 .assignment(assignment)
-                .uuid(fileUpload.getUuid())
-                .fileName(fileUpload.getFileName())
-                .ord(fileUpload.getOrd())
-                .img(fileUpload.isImg())
-                .fileSize(fileUpload.getFileSize())
-                .contentType(fileUpload.getContentType())
-                .uploadedBy(fileUpload.getUploadedBy())
-                .referenceId(fileUpload.getReferenceId())
+                .uuid(attachment.getUuid())
+                .fileName(attachment.getFileName())
+                .ord(attachment.getOrd())
+                .img(attachment.isImg())
+                .fileSize(attachment.getFileSize())
+                .contentType(attachment.getContentType())
+                .uploadedBy(attachment.getUploadedBy())
+                .referenceId(attachment.getReferenceId())
                 .build();
     }
 }

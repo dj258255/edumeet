@@ -2,7 +2,7 @@ package com.edu.edumeet.board.presentation;
 
 
 import com.edu.edumeet.board.presentation.dto.*;
-import com.edu.edumeet.upload.presentation.FileUploadService;
+import com.edu.edumeet.attachment.presentation.AttachmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -21,7 +21,6 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +40,7 @@ public class BoardController {
     @Value("${edumeet.upload.path}")
     private String uploadPath;
     
-    private final FileUploadService fileUploadService;
+    private final AttachmentService attachmentService;
 
     private final BoardService boardService;
 
@@ -312,7 +311,7 @@ public class BoardController {
             try{
                 // FileUploadService를 사용하여 파일 삭제
                 // 이미지 파일인 경우 섬네일도 자동으로 삭제됨
-                boolean removed = fileUploadService.removeFile(fileName);
+                boolean removed = attachmentService.removeFile(fileName);
                 if (!removed) {
                     log.warn("파일 삭제 실패: {}", fileName);
                 }

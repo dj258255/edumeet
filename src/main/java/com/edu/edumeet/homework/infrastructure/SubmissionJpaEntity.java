@@ -5,6 +5,7 @@ import com.edu.edumeet.homework.domain.Submission;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -12,8 +13,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Entity
-@Table(name = "submission")
 @Getter
+@Table(name = "submission")
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
@@ -37,15 +38,15 @@ public class SubmissionJpaEntity extends BaseEntity {
     private String content;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
-    private SubmissionStatus status = SubmissionStatus.NOT_SUBMITTED;
+    @Column(nullable = false, length = 20)
+    private SubmissionStatus status;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // 제출 파일들
+    // 제출물 파일들
     @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @BatchSize(size = 10) // 제출물당 첨부파일은 보통 적으므로 10으로 설정
     @Builder.Default
     private Set<SubmissionFileUploadJpaEntity> submissionFiles = new HashSet<>();
 
@@ -79,11 +80,7 @@ public class SubmissionJpaEntity extends BaseEntity {
                 .deletedAt(submission.getDeletedAt())
                 .build();
 
-        // 이 두 줄 삭제
-        // entity.setRegDate(submission.getRegDate());
-        // entity.setModDate(submission.getModDate());
-
-        // 제출 파일 변환
+        // 제출물 파일 변환
         if (submission.getSubmissionFiles() != null) {
             Set<SubmissionFileUploadJpaEntity> fileEntities = submission.getSubmissionFiles().stream()
                     .map(fileUpload -> SubmissionFileUploadJpaEntity.fromFileUpload(fileUpload, entity))

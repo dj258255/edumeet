@@ -6,9 +6,9 @@ import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.*;
 import com.edu.edumeet.reply.application.ReplyRepository;
 import com.edu.edumeet.s3.util.S3Uploader;
-import com.edu.edumeet.upload.domain.FileUpload;
-import com.edu.edumeet.upload.presentation.dto.FileUploadAdapter;
-import com.edu.edumeet.upload.presentation.FileUploadService;
+import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.presentation.AttachmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.modelmapper.ModelMapper;
@@ -36,8 +36,8 @@ public class BoardServiceImpl implements BoardService {
     private final BoardCategoryRepository boardCategoryRepository;
     private final ReplyRepository replyRepository;
     private final S3Uploader s3Uploader;
-    private final FileUploadAdapter fileUploadAdapter;
-    private final FileUploadService fileUploadService;
+    private final AttachmentAdapter attachmentAdapter;
+    private final AttachmentService attachmentService;
     
     private BoardDTO convertToBoardDTO(BoardListAllDTO dto) {
         BoardDTO boardDTO = BoardDTO.builder()
@@ -82,8 +82,8 @@ public class BoardServiceImpl implements BoardService {
         Long savedId = boardRepository.save(board);
         validateSaveResult(savedId, "게시글 업데이트");
         
-        // FileUpload 도메인 객체 생성 및 저장
-        FileUpload fileUpload = FileUpload.builder()
+        // Attachment 도메인 객체 생성 및 저장
+        Attachment attachment = Attachment.builder()
                 .uuid(uuid)
                 .fileName(fileName)
                 .ord(board.getImages().size() - 1) // 방금 추가된 이미지의 순서
@@ -92,7 +92,7 @@ public class BoardServiceImpl implements BoardService {
                 .referenceId(boardId)
                 .build();
         
-        // FileUpload 정보는 BoardRepositoryImpl에서 BoardFileUploadJpaEntity로 저장됨
+        // Attachment 정보는 BoardRepositoryImpl에서 BoardFileUploadJpaEntity로 저장됨
         
         log.info("게시글 {}에 이미지 추가 완료: UUID={}, fileName={}", boardId, uuid, fileName);
     }
@@ -145,7 +145,7 @@ public class BoardServiceImpl implements BoardService {
         // 게시글 논리적 삭제
         boardRepository.deleteById(id);
         
-        // 관련 FileUpload 정보는 유지 (게시글 복원 시 필요할 수 있음)
+        // 관련 Attachment 정보는 유지 (게시글 복원 시 필요할 수 있음)
         // 실제 S3 파일은 삭제하지 않음 (다른 곳에서 참조할 수 있음)
         log.info("게시글 {} 삭제 완료 (관련 파일 정보는 유지)", id);
     }

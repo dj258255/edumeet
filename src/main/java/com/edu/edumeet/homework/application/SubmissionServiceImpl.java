@@ -5,8 +5,7 @@ import com.edu.edumeet.homework.domain.Submission;
 import com.edu.edumeet.homework.presentation.SubmissionService;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionUpdateDTO;
-import com.edu.edumeet.upload.domain.FileUpload;
+import com.edu.edumeet.attachment.domain.Attachment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -83,12 +82,18 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public List<SubmissionDTO> getSubmissionsByClassMemberId(Long classMemberId) {
-        log.debug("학생별 제출물 목록 조회: classMemberId={}", classMemberId);
+        log.debug("학생별 제출물 목록 조회 (과제 제목 포함): classMemberId={}", classMemberId);
 
         List<Submission> submissions = submissionRepository.findByClassMemberIdOrderByRegDateDesc(classMemberId);
 
         return submissions.stream()
-                .map(this::domainToDto)
+                .map(submission -> {
+                    // 과제 제목을 가져오기 위해 Assignment 조회
+                    Assignment assignment = assignmentRepository.findById(submission.getAssignmentId())
+                            .orElse(null);
+                    String assignmentTitle = assignment != null ? assignment.getTitle() : "알 수 없는 과제";
+                    return domainToDtoWithAssignmentTitle(submission, assignmentTitle);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -104,13 +109,13 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     @Transactional
-    public void addSubmissionFile(Long submissionId, FileUpload fileUpload) {
-        log.info("제출물 파일 추가: submissionId={}, fileName={}", submissionId, fileUpload.getFileName());
+    public void addSubmissionFile(Long submissionId, Attachment attachment) {
+        log.info("제출물 파일 추가: submissionId={}, fileName={}", submissionId, attachment.getFileName());
 
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 제출물을 찾을 수 없습니다: " + submissionId));
 
-        Submission submissionWithFile = submission.addSubmissionFile(fileUpload);
+        Submission submissionWithFile = submission.addSubmissionFile(attachment);
         submissionRepository.save(submissionWithFile);
 
         log.info("제출물 파일 추가 완료: submissionId={}", submissionId);
