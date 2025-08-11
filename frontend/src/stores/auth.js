@@ -369,16 +369,13 @@ async verifyCode(verifyInfo) {
       this.loading = true
       this.error = null
       try {
-        const result = await resendDummyCode(email)
-        if (result.success) {
-          console.log('재발송된 인증 코드:', result.code)
-          return { success: true, message: result.message }
-        } else {
-          this.error = result.message
-          throw new Error(result.message)
-        }
+        // 실제 백엔드 API 호출 (sendVerificationCode와 동일한 엔드포인트 사용)
+        const response = await authAPI.sendVerificationCode(email)
+        console.log('재전송 API 응답:', response)
+        return { success: true, message: '인증 코드가 재발송되었습니다.' }
       } catch (error) {
-        this.error = error.message || '인증 코드 재전송에 실패했습니다.'
+        console.error('재전송 API 에러:', error)
+        this.error = error.response?.data?.message || '인증 코드 재전송에 실패했습니다.'
         throw error
       } finally {
         this.loading = false

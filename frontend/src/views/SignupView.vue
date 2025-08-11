@@ -75,7 +75,6 @@
                     :id="`code-${index}`"
                     v-model="codeDigits[index]"
                     type="text"
-                    maxlength="1"
                     class="code-input"
                     :class="{ error: errors.code }"
                     @input="handleCodeInput(index, $event)"
@@ -92,14 +91,17 @@
                   인증 코드 유효시간 :
                   <span class="timer-countdown">{{ formatTime(countdown) }}</span>
                 </p>
-                <button
-                  @click="resendCode"
-                  type="button"
-                  class="resend-btn"
-                  :disabled="countdown > 0 || isLoading"
-                >
-                  재전송
-                </button>
+                                 <button
+                   @click="resendCode"
+                   type="button"
+                   class="resend-btn"
+                   :disabled="resendCountdown > 0 || isLoading"
+                 >
+                   {{ 
+                     isLoading ? '처리중...' : 
+                     resendCountdown > 0 ? `재전송 (${resendCountdown}s)` : '재전송'
+                   }}
+                 </button>
               </div>
 
               <button
@@ -222,6 +224,9 @@ const isEmailVerified = ref(false)
 const codeDigits = ref(['', '', '', '', '', '', '', ''])
 const countdown = ref(0)
 const timer = ref(null)
+const resendCountdown = ref(0)
+const resendTimer = ref(null)
+const isFirstResend = ref(true)
 
 const isCodeComplete = computed(() => codeDigits.value.every((digit) => digit !== ''))
 
@@ -254,6 +259,14 @@ const startCountdown = () => {
   }, 1000)
 }
 
+const startResendCountdown = () => {
+  resendCountdown.value = 60
+  resendTimer.value = setInterval(() => {
+    if (resendCountdown.value > 0) resendCountdown.value--
+    else clearInterval(resendTimer.value)
+  }, 1000)
+}
+
 const formatTime = (seconds) => {
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
@@ -262,27 +275,74 @@ const formatTime = (seconds) => {
 
 const handleCodeInput = (index, event) => {
   const value = event.target.value
-  if (!/^\d*$/.test(value)) {
-    event.target.value = ''
-    return
+  // 숫자와 글자 모두 허용하도록 수정
+  if (value.length > 1) {
+    // 여러 문자가 입력된 경우 첫 번째 문자만 사용
+    event.target.value = value.charAt(0)
+    codeDigits.value[index] = value.charAt(0)
+  } else {
+    codeDigits.value[index] = value
   }
-  codeDigits.value[index] = value
+  
+  // 값이 입력되었고 다음 입력란이 있으면 자동으로 다음 칸으로 이동
   if (value && index < 7) {
     const nextInput = document.getElementById(`code-${index + 1}`)
-    if (nextInput) nextInput.focus()
+    if (nextInput) {
+      nextInput.focus()
+      // 다음 입력란의 기존 값을 선택 상태로 만들어 덮어쓰기 쉽게 함
+      nextInput.select()
+    }
   }
 }
 const handleCodeKeydown = (index, event) => {
-  if (event.key === 'Backspace' && !codeDigits.value[index] && index > 0) {
+  // 백스페이스 처리
+  if (event.key === 'Backspace') {
+    if (codeDigits.value[index]) {
+      // 현재 칸에 값이 있으면 지우기
+      codeDigits.value[index] = ''
+    } else if (index > 0) {
+      // 현재 칸이 비어있고 이전 칸이 있으면 이전 칸으로 이동
+      const prevInput = document.getElementById(`code-${index - 1}`)
+      if (prevInput) {
+        prevInput.focus()
+        prevInput.select()
+      }
+    }
+  }
+  
+  // 화살표 키 처리
+  if (event.key === 'ArrowLeft' && index > 0) {
     const prevInput = document.getElementById(`code-${index - 1}`)
-    if (prevInput) prevInput.focus()
+    if (prevInput) {
+      prevInput.focus()
+      prevInput.select()
+    }
+  }
+  
+  if (event.key === 'ArrowRight' && index < 7) {
+    const nextInput = document.getElementById(`code-${index + 1}`)
+    if (nextInput) {
+      nextInput.focus()
+      nextInput.select()
+    }
   }
 }
 const handleCodePaste = (event) => {
   event.preventDefault()
   const pastedData = event.clipboardData.getData('text')
-  const numbers = pastedData.replace(/\D/g, '').slice(0, 8)
-  if (numbers.length === 8) codeDigits.value = numbers.split('')
+  // 숫자와 글자 모두 허용하되, 8자리까지만 사용
+  const characters = pastedData.slice(0, 8).split('')
+  
+  // 8자리가 모두 입력된 경우에만 처리
+  if (characters.length === 8) {
+    codeDigits.value = characters
+    // 마지막 입력란에 포커스
+    const lastInput = document.getElementById('code-7')
+    if (lastInput) {
+      lastInput.focus()
+      lastInput.select()
+    }
+  }
 }
 
 const sendVerificationCode = async () => {
@@ -341,15 +401,39 @@ const verifyCode = async () => {
   }
 }
 const resendCode = async () => {
-  if (countdown.value > 0) return
+  // 재전송 카운트다운이 진행 중이면 차단
+  if (resendCountdown.value > 0) return
+  
   message.value = ''
   try {
+    console.log('🔍 SignupView - 재전송 시작:', email.value);
+    console.log('🔍 isFirstResend:', isFirstResend.value);
+    
     await authStore.resendCode(email.value)
-    startCountdown()
+    
+    if (isFirstResend.value) {
+      // 첫 번째 재전송이면 60초 재전송 카운트다운 시작하고 첫 번째 재전송 플래그 변경
+      startResendCountdown()
+      isFirstResend.value = false
+      console.log('🔍 첫 번째 재전송 완료, 60초 재전송 카운트다운 시작');
+    } else {
+      // 두 번째 재전송부터도 재전송 카운트다운 시작
+      startResendCountdown()
+      console.log('🔍 두 번째 재전송 완료, 재전송 카운트다운 시작');
+    }
+    
     message.value = '인증 코드가 재발송되었습니다.'
     codeDigits.value = ['', '', '', '', '', '', '', '']
     errors.value = {}
+    console.log('🔍 SignupView - 재전송 성공');
   } catch (error) {
+    console.error('🔍 SignupView - 재전송 실패:', error);
+    console.error('🔍 재전송 에러 상세 정보:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
     message.value = authStore.error || '인증 코드 재발송에 실패했습니다.'
   }
 }
@@ -384,5 +468,6 @@ const handleSignup = async () => {
 }
 onUnmounted(() => {
   if (timer.value) clearInterval(timer.value)
+  if (resendTimer.value) clearInterval(resendTimer.value)
 })
 </script>
