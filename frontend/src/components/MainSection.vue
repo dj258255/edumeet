@@ -52,6 +52,7 @@
 <script setup>
 import { ref } from 'vue'
 import '../styles/HomeView.css'
+const assetPath = import.meta.env.VITE_ASSET_PATH;
 
 const currentSlide = ref(0)
 
@@ -60,11 +61,12 @@ const slideTransition = (slideIndex) => {
 }
 
 const getCurrentImage = () => {
-  const images = [
-    '/src/assets/mainim.png',
-    '/src/assets/mainim1.png',
-    '/src/assets/mainim2.png'
-  ]
+
+      const images = [
+      `${assetPath}/assets/mainim.png`,
+      `${assetPath}/assets/mainim1.png`,
+      `${assetPath}/assets/mainim2.png`
+    ];
   return images[currentSlide.value]
 }
 
