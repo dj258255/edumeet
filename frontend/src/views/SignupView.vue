@@ -91,14 +91,17 @@
                   인증 코드 유효시간 :
                   <span class="timer-countdown">{{ formatTime(countdown) }}</span>
                 </p>
-                <button
-                  @click="resendCode"
-                  type="button"
-                  class="resend-btn"
-                  :disabled="countdown > 0 || isLoading"
-                >
-                  재전송
-                </button>
+                                 <button
+                   @click="resendCode"
+                   type="button"
+                   class="resend-btn"
+                   :disabled="resendCountdown > 0 || isLoading"
+                 >
+                   {{ 
+                     isLoading ? '처리중...' : 
+                     resendCountdown > 0 ? `재전송 (${resendCountdown}s)` : '재전송'
+                   }}
+                 </button>
               </div>
 
               <button
@@ -221,6 +224,9 @@ const isEmailVerified = ref(false)
 const codeDigits = ref(['', '', '', '', '', '', '', ''])
 const countdown = ref(0)
 const timer = ref(null)
+const resendCountdown = ref(0)
+const resendTimer = ref(null)
+const isFirstResend = ref(true)
 
 const isCodeComplete = computed(() => codeDigits.value.every((digit) => digit !== ''))
 
@@ -250,6 +256,14 @@ const startCountdown = () => {
   timer.value = setInterval(() => {
     if (countdown.value > 0) countdown.value--
     else clearInterval(timer.value)
+  }, 1000)
+}
+
+const startResendCountdown = () => {
+  resendCountdown.value = 60
+  resendTimer.value = setInterval(() => {
+    if (resendCountdown.value > 0) resendCountdown.value--
+    else clearInterval(resendTimer.value)
   }, 1000)
 }
 
@@ -387,15 +401,39 @@ const verifyCode = async () => {
   }
 }
 const resendCode = async () => {
-  if (countdown.value > 0) return
+  // 재전송 카운트다운이 진행 중이면 차단
+  if (resendCountdown.value > 0) return
+  
   message.value = ''
   try {
+    console.log('🔍 SignupView - 재전송 시작:', email.value);
+    console.log('🔍 isFirstResend:', isFirstResend.value);
+    
     await authStore.resendCode(email.value)
-    startCountdown()
+    
+    if (isFirstResend.value) {
+      // 첫 번째 재전송이면 60초 재전송 카운트다운 시작하고 첫 번째 재전송 플래그 변경
+      startResendCountdown()
+      isFirstResend.value = false
+      console.log('🔍 첫 번째 재전송 완료, 60초 재전송 카운트다운 시작');
+    } else {
+      // 두 번째 재전송부터도 재전송 카운트다운 시작
+      startResendCountdown()
+      console.log('🔍 두 번째 재전송 완료, 재전송 카운트다운 시작');
+    }
+    
     message.value = '인증 코드가 재발송되었습니다.'
     codeDigits.value = ['', '', '', '', '', '', '', '']
     errors.value = {}
+    console.log('🔍 SignupView - 재전송 성공');
   } catch (error) {
+    console.error('🔍 SignupView - 재전송 실패:', error);
+    console.error('🔍 재전송 에러 상세 정보:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
     message.value = authStore.error || '인증 코드 재발송에 실패했습니다.'
   }
 }
@@ -430,5 +468,6 @@ const handleSignup = async () => {
 }
 onUnmounted(() => {
   if (timer.value) clearInterval(timer.value)
+  if (resendTimer.value) clearInterval(resendTimer.value)
 })
 </script>
