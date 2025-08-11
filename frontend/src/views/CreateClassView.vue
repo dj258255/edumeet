@@ -284,9 +284,38 @@ function viewClassDetails(classId) {
 
 // 반 생성 완료 처리
 function handleClassCreated(newClass) {
+  console.log('🔍 handleClassCreated 호출됨:', newClass);
   showCreateForm.value = false;
-  // 새로 생성된 반을 선택
-  selectedClass.value = newClass;
+
+  // 새로 생성된 클래스를 즉시 목록에 추가
+  if (newClass) {
+    console.log('🔍 새 클래스 데이터:', newClass);
+    
+    // classStore에 직접 추가
+    if (classStore.addCreatedClass) {
+      classStore.addCreatedClass(newClass);
+      console.log('🔍 새 클래스가 목록에 추가됨');
+    } else {
+      console.warn('🔍 classStore.addCreatedClass 메서드가 없습니다!');
+      // 대안: 수동으로 배열에 추가
+      if (Array.isArray(classStore.myCreatedClasses)) {
+        classStore.myCreatedClasses.unshift(newClass);
+        console.log('🔍 수동으로 새 클래스를 목록에 추가함');
+      }
+    }
+    
+    // 새로 생성된 반을 선택
+    selectedClass.value = newClass;
+    
+    // 탭을 'created'로 변경하여 새로 만든 클래스가 보이도록 함
+    activeTab.value = 'created';
+    
+    console.log('🔍 현재 선택된 클래스:', selectedClass.value);
+    console.log('🔍 현재 활성 탭:', activeTab.value);
+    console.log('🔍 현재 목록의 클래스 수:', classStore.getMyCreatedClasses.length);
+  } else {
+    console.error('🔍 handleClassCreated - newClass가 null 또는 undefined입니다!');
+  }
 }
 
 // 클래스 목록 새로고침 함수
