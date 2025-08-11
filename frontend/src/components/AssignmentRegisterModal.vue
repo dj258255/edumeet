@@ -20,8 +20,9 @@
           <textarea id="assignment-description" v-model="form.description" placeholder="과제 설명을 입력하세요" class="form-textarea"></textarea>
         </div>
         <div class="form-group">
-          <label for="assignment-due-date">마감일</label>
-          <input type="date" id="assignment-due-date" v-model="form.dueDate" class="form-input" />
+          <label for="assignment-file">첨부 파일 (선택)</label>
+          <input type="file" id="assignment-file" @change="onFileChange" class="form-input" />
+          <small v-if="form.fileName">선택된 파일: {{ form.fileName }}</small>
         </div>
       </div>
       <div class="modal-footer">
@@ -43,15 +44,16 @@ const emit = defineEmits(['close', 'register']);
 const form = ref({
   title: '',
   description: '',
-  dueDate: ''
+  file: null,
+  fileName: ''
 });
 
 const submitForm = () => {
-  if (!form.value.title || !form.value.description || !form.value.dueDate) {
-    alert('제목, 설명, 마감일을 모두 입력해주세요.');
+  if (!form.value.title) {
+    alert('제목을 입력해주세요.');
     return;
   }
-  emit('register', { ...form.value, done: false });
+  emit('register', { title: form.value.title, description: form.value.description, file: form.value.file, done: false });
   resetForm();
 };
 
@@ -64,9 +66,16 @@ const resetForm = () => {
   form.value = {
     title: '',
     description: '',
-    dueDate: ''
+    file: null,
+    fileName: ''
   };
 };
+
+const onFileChange = (e) => {
+  const file = e.target.files && e.target.files[0]
+  form.value.file = file || null
+  form.value.fileName = file ? file.name : ''
+}
 </script>
 
 <style >

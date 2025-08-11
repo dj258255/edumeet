@@ -63,31 +63,54 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+
+    // URL path 계산 (어떤 엔드포인트인지 식별)
+    const base = (originalRequest.baseURL || '').toString();
+    const url = (originalRequest.url || '').toString();
+    const full = url.startsWith('http') ? url : (base ? `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}` : url);
+    let effectivePath = url;
+    try {
+      effectivePath = new URL(full, window.location.origin).pathname;
+    } catch (_) {}
+
+    const publicAuthSegments = [
+      '/members/login',
+      '/members/signup',
+      '/members/send-code',
+      '/members/verification',
+      '/members/check-email',
+      '/members/refresh'
+    ];
+    const isPublicAuthEndpoint = publicAuthSegments.some((seg) => effectivePath.includes(seg));
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const existingRefreshToken = localStorage.getItem("refreshToken");
-      if (!existingRefreshToken) {
-        // 갱신 불가 → 즉시 로그아웃 처리
-        localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+      // 로그인/회원가입 등 공개 엔드포인트의 401은 리다이렉트 하지 않고 에러만 반환
+      if (isPublicAuthEndpoint) {
         return Promise.reject(error);
       }
 
-      // 이미 다른 요청이 갱신 중인 경우 → 갱신 완료를 기다렸다가 재시도
+      const existingRefreshToken = localStorage.getItem('refreshToken');
+      if (!existingRefreshToken) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        // SPA 내 라우팅으로 대체하거나, 여기서는 리다이렉트하지 않고 에러만 반환
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve) => {
           subscribeTokenRefresh((newToken) => {
+            originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             resolve(apiClient(originalRequest));
           });
         });
       }
 
-      // 갱신 시작
       isRefreshing = true;
       try {
         const refreshResponse = await axios.post(`${API_BASE_URL}/members/refresh`, {
@@ -96,22 +119,18 @@ apiClient.interceptors.response.use(
         const newAccessToken = refreshResponse.data.accessToken;
         const newRefreshToken = refreshResponse.data.refreshToken;
 
-        // 새로운 토큰 저장
-        localStorage.setItem("token", newAccessToken);
-        localStorage.setItem("refreshToken", newRefreshToken);
-
-        // 대기 중인 모든 요청 재시도
+        localStorage.setItem('token', newAccessToken);
+        localStorage.setItem('refreshToken', newRefreshToken);
         onRefreshed(newAccessToken);
 
-        // 현재 요청 재시도
+        originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        console.error("토큰 갱신 실패:", refreshError);
-        localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        console.error('토큰 갱신 실패:', refreshError);
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -289,7 +308,7 @@ const useAuthStore = defineStore('auth', {
         this.user = tempUser
         this.isAuthenticated = !!tokenManager.getToken()
 
-        // 4) 프로필 동기화는 선택 (실패해도 흐름 계속)
+        // 4) 프로필 동기화는 선택 (사용자 화면 이동은 컴포넌트에서 제어)
         try {
           await this.getProfile()
         } catch (_) {}
@@ -297,6 +316,7 @@ const useAuthStore = defineStore('auth', {
         return responseData
       } catch (error) {
         this.error = error.response?.data?.message || '로그인에 실패했습니다.'
+        // 페이지 리로드 방지: 에러만 던지고 상태 유지
         throw error
       } finally {
         this.loading = false

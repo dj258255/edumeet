@@ -134,18 +134,13 @@ const handleLogin = async () => {
     const result = await authStore.login(email.value, password.value)
     console.log('로그인 결과:', result)
 
-    // 먼저 이동 → 가드 통과 안정화 (데이터는 백그라운드 로드)
-    await router.push('/class/create')
-
-    message.value = '로그인 성공!'
+    // 성공 시 홈으로 이동
+    message.value = '로그인 성공! 홈으로 이동합니다.'
+    await router.push('/')
     console.log('로그인 후 상태:', authStore.isLoggedIn)
     console.log('로그인 후 사용자:', authStore.currentUser)
 
-    // 로그인 직후 반 목록 선로딩 (실패해도 무시) - 백그라운드
-    Promise.allSettled([
-      classStore.fetchMyCreatedClasses(),
-      classStore.fetchMyJoinedClasses(),
-    ])
+    // 필요 시 사용자가 이동한 후 데이터를 불러오도록 유지
   } catch (error) {
     message.value = error.message || '로그인에 실패했습니다.'
     console.error('로그인 에러:', error)

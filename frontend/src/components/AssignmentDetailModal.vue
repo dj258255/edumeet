@@ -15,10 +15,15 @@
           <span class="status" :class="{ done: assignmentData.done }">
             {{ assignmentData.done ? '완료' : '미완료' }}
           </span>
-          <span class="due-date">마감일: {{ assignmentData.dueDate }}</span>
+          <span v-if="assignmentData.dueDate" class="due-date">마감일: {{ assignmentData.dueDate }}</span>
         </div>
         <div class="assignment-content">
           <p>{{ assignmentData.description }}</p>
+        </div>
+        <div v-if="!isMyCreatedClass && !assignmentData.done" class="form-group">
+          <label for="assignment-submit-file">제출 파일 (선택)</label>
+          <input id="assignment-submit-file" type="file" @change="onFileChange" class="form-input" />
+          <small v-if="selectedFileName">선택된 파일: {{ selectedFileName }}</small>
         </div>
       </div>
       <div class="modal-footer" v-if="!isMyCreatedClass">
@@ -35,7 +40,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { ref, defineProps, defineEmits } from 'vue';
 
 const props = defineProps({
   isVisible: {
@@ -60,9 +65,17 @@ const closeModal = () => {
 };
 
 const submitAssignment = () => {
-  emit('submit', props.assignmentData.id);
+  emit('submit', { id: props.assignmentData.id, file: selectedFile.value });
   closeModal();
 };
+
+const selectedFile = ref(null)
+const selectedFileName = ref('')
+const onFileChange = (e) => {
+  const file = e.target.files && e.target.files[0]
+  selectedFile.value = file || null
+  selectedFileName.value = file ? file.name : ''
+}
 </script>
 
 <style scoped>

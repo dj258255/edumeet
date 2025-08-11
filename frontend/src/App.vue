@@ -86,7 +86,7 @@ onMounted(() => {
           authStore.isAuthenticated = true;
           
           console.log('✅ OAuth2 로그인 완료:', user.nickname);
-          alert(`안녕하세요, ${user.nickname}님! 카카오 로그인에 성공했습니다.`);
+          // 자동 네비게이션/알럿 제거: 헤더 상태만 갱신하고 페이지는 그대로 유지
         } else {
           console.error('사용자 정보 조회 실패');
           localStorage.removeItem('token');
