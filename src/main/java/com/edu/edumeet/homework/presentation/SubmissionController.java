@@ -1,0 +1,90 @@
+package com.edu.edumeet.homework.presentation;
+
+import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
+import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
+import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Tag(name = "Submission", description = "제출물 관리 API")
+@RestController
+@RequestMapping("/api/v1/class/{classId}/submissions")
+@RequiredArgsConstructor
+@Log4j2
+public class SubmissionController {
+
+    private final SubmissionService submissionService;
+    private final AssignmentService assignmentService;
+
+    @Operation(summary = "과제 제출", description = "새로운 제출물을 제출합니다.")
+    @PostMapping("/assignment/{assignmentId}")
+    public ResponseEntity<Long> submitAssignment(
+            @Parameter(description = "클래스 ID") @PathVariable Long classId,
+            @Parameter(description = "과제 ID") @PathVariable Long assignmentId,
+            @Valid @RequestBody SubmissionCreateDTO submissionCreateDTO) {
+        log.info("과제 제출 요청: classId={}, assignmentId={}, classMemberId={}", 
+                classId, assignmentId, submissionCreateDTO.getClassMemberId());
+        
+        // DTO에 assignmentId 설정
+        submissionCreateDTO.setAssignmentId(assignmentId);
+        Long submissionId = submissionService.submitAssignment(submissionCreateDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(submissionId);
+    }
+
+
+
+
+
+    @Operation(summary = "학생별 과제 목록 조회", description = "특정 학생에게 할당된 과제 목록과 제출 상태를 조회합니다.")
+    @GetMapping("/student/{classMemberId}/assignments")
+    public ResponseEntity<List<AssignmentDTO>> getAssignmentsForStudent(
+            @Parameter(description = "클래스 ID") @PathVariable Long classId,
+            @Parameter(description = "학생 ID (클래스 멤버 ID)") @PathVariable Long classMemberId) {
+        log.debug("학생별 과제 목록 조회 요청: classId={}, classMemberId={}", classId, classMemberId);
+        
+        // 클래스의 모든 과제를 조회
+        List<AssignmentDTO> allAssignments = assignmentService.getAssignmentsByClassId(classId);
+        
+        // 각 과제에서 해당 학생의 제출 상태만 필터링
+        List<AssignmentDTO> studentAssignments = allAssignments.stream()
+                .map(assignment -> {
+                    // 해당 학생의 제출 상태만 필터링
+                    List<StudentSubmissionStatus> studentStatus = assignment.getStudentSubmissionStatuses()
+                            .stream()
+                            .filter(status -> status.getStudentId().equals(classMemberId))
+                            .toList();
+                    
+                    // 새로운 AssignmentDTO를 생성하여 해당 학생의 상태만 포함
+                    return AssignmentDTO.builder()
+                            .id(assignment.getId())
+                            .title(assignment.getTitle())
+                            .description(assignment.getDescription())
+                            .classId(assignment.getClassId())
+                            .createdById(assignment.getCreatedById())
+                            .createdByName(assignment.getCreatedByName())
+                            .attachmentFiles(assignment.getAttachmentFiles())
+                            .studentSubmissionStatuses(studentStatus)
+                            .regDate(assignment.getRegDate())
+                            .modDate(assignment.getModDate())
+                            .build();
+                })
+                .toList();
+        
+        return ResponseEntity.ok(studentAssignments);
+    }
+
+
+
+
+
+}

@@ -2,8 +2,7 @@ package com.edu.edumeet.board.presentation;
 
 
 import com.edu.edumeet.board.presentation.dto.*;
-import com.edu.edumeet.util.S3Uploader;
-import io.lettuce.core.dynamic.annotation.Param;
+import com.edu.edumeet.attachment.presentation.AttachmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,8 +14,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,9 +21,6 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +39,8 @@ public class BoardController {
     //파일업로드경로
     @Value("${edumeet.upload.path}")
     private String uploadPath;
-
-    private final S3Uploader s3Uploader;
+    
+    private final AttachmentService attachmentService;
 
     private final BoardService boardService;
 
@@ -310,31 +304,24 @@ public class BoardController {
         }
     }
 
-    //removeFiles를 S3 삭제로 수정
+    //removeFiles를 FileUploadService를 사용하도록 수정
 
     public void removeFiles(List<String> files){
         for(String fileName : files){
             try{
-                //s3에서 파일 삭제
-                s3Uploader.removeS3File(fileName);
-
-                //이미지 파일인 경우 섬네일도 삭제
-                if(isImageFile(fileName)){
-                    String thumbnailFileName = "s_" + fileName;
-                    s3Uploader.removeS3File(thumbnailFileName);
+                // FileUploadService를 사용하여 파일 삭제
+                // 이미지 파일인 경우 섬네일도 자동으로 삭제됨
+                boolean removed = attachmentService.removeFile(fileName);
+                if (!removed) {
+                    log.warn("파일 삭제 실패: {}", fileName);
                 }
             } catch (Exception e){
-                log.error("S3 파일 삭제 실패 : {}", e.getMessage());
+                log.error("파일 삭제 실패: {} - {}", fileName, e.getMessage());
             }
         }
     }
 
 
-    //이미지 파일 확인 헬퍼 메서드
-    private boolean isImageFile(String fileName){
-        String extension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
-        return Arrays.asList("jpg", "jpeg", "png", "gif","bmp","webp").contains(extension);
-    }
     
     /**
      * 게시글 좋아요 추가
