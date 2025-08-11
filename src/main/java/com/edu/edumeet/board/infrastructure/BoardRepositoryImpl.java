@@ -92,7 +92,7 @@ public class BoardRepositoryImpl implements BoardRepository {
     @Override
     public Optional<Board> findById(Long id) {
         // JPA 레포지토리를 통해 엔티티 조회
-        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findByIdWithImages(id);
         
         // 삭제된 엔티티는 제외
         if (entityOptional.isPresent() && entityOptional.get().isDeleted()) {

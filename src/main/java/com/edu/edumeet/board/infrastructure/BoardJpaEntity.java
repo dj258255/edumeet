@@ -150,4 +150,11 @@ public class BoardJpaEntity extends BaseEntity {
         
         // 이미지 정보는 FileUploadJpaEntity에서 별도로 처리
     }
+    
+    /**
+     * 조회수 증가
+     */
+    public void incrementView() {
+        this.view++;
+    }
 }
