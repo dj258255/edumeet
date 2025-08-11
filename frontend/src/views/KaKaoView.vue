@@ -172,7 +172,7 @@ export default {
   methods: {
     redirectToKakaoLogin() {
       // Spring Security OAuth2 표준 경로로 리다이렉트
-      window.location.href = `${import.meta.env.BASE_URL}/oauth2/authorization/kakao`;
+      window.location.href = `${import.meta.env.VITE_BASE_URL}/oauth2/authorization/kakao`;
     },
     async logout() {
       try {
