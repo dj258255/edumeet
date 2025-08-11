@@ -1,6 +1,125 @@
+import axios from "axios"
 import { defineStore } from 'pinia'
-import apiClient from '@/utils/apiClient'
 import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
+// API 기본 설정
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
+// axios 인스턴스 생성
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+})
+
+apiClient.interceptors.request.use(
+  (config) => {
+    // 인증이 불필요한 엔드포인트에서는 토큰을 붙이지 않음
+    const urlPath = (config.url || '').toString();
+    const isAuthEndpoint = [
+      '/members/login',
+      '/members/signup',
+      '/members/refresh',
+      '/members/send-code',
+      '/members/verification',
+      '/members/check-email'
+    ].some((path) => urlPath.startsWith(path));
+
+    if (!isAuthEndpoint) {
+      const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+
+    }
+    
+    // 이 부분에 console.log를 추가하여 헤더를 확인합니다.
+    console.log('API 요청 헤더:', config.headers);
+    console.log('전체 요청 설정:', config);
+    
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// ===== 단일 토큰 갱신 처리 (동시 401 방지) =====
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+function subscribeTokenRefresh(callback) {
+  refreshSubscribers.push(callback);
+}
+
+function onRefreshed(newAccessToken) {
+  refreshSubscribers.forEach((cb) => cb(newAccessToken));
+  refreshSubscribers = [];
+}
+
+// 응답 인터셉터 - 에러 처리 및 토큰 갱신
+apiClient.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      const existingRefreshToken = localStorage.getItem("refreshToken");
+      if (!existingRefreshToken) {
+        // 갱신 불가 → 즉시 로그아웃 처리
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return Promise.reject(error);
+      }
+
+      // 이미 다른 요청이 갱신 중인 경우 → 갱신 완료를 기다렸다가 재시도
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((newToken) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            resolve(apiClient(originalRequest));
+          });
+        });
+      }
+
+      // 갱신 시작
+      isRefreshing = true;
+      try {
+        const refreshResponse = await axios.post(`${API_BASE_URL}/members/refresh`, {
+          refreshToken: existingRefreshToken,
+        });
+        const newAccessToken = refreshResponse.data.accessToken;
+        const newRefreshToken = refreshResponse.data.refreshToken;
+
+        // 새로운 토큰 저장
+        localStorage.setItem("token", newAccessToken);
+        localStorage.setItem("refreshToken", newRefreshToken);
+
+        // 대기 중인 모든 요청 재시도
+        onRefreshed(newAccessToken);
+
+        // 현재 요청 재시도
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        console.error("토큰 갱신 실패:", refreshError);
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // 인증 관련 API 함수들
 const authAPI = {
@@ -30,8 +149,8 @@ const authAPI = {
   },
 
   // 이메일 인증
-  sendVerificationCode:(emailData)=>{
-    return apiClient.post("/members/send-code", emailData)
+  sendVerificationCode:(email)=>{
+    return apiClient.post("/members/send-code",email)
   },
 
   // 인증 확인
@@ -205,10 +324,7 @@ const useAuthStore = defineStore('auth', {
       this.loading = true
       this.error = null
       try {
-        console.log("이메일 인증 코드 전송:", email)
-        const emailData = { email: email }
-        console.log("이메일 인증 코드 전송:", emailData)
-        const result = await authAPI.sendVerificationCode(emailData);
+        const result = await authAPI.sendVerificationCode(email);
         console.log("API 응답 결과:", result);
         console.log('API 응답 결과:', result.data.message);
       } catch (error) {
@@ -282,7 +398,6 @@ async verifyCode(verifyInfo) {
         tokenManager.removeToken();
         userManager.removeUser();
         localStorage.removeItem("refreshToken");
-        localStorage.removeItem("accessToken");
         
         this.user = null;
         this.isAuthenticated = false;
@@ -362,15 +477,11 @@ async verifyCode(verifyInfo) {
     // localStorage 정리
     cleanupLocalStorage() {
       const token = localStorage.getItem("token")
-      const accessToken = localStorage.getItem("accessToken")
       const refreshToken = localStorage.getItem("refreshToken")
       const user = localStorage.getItem("user")
       
       if (token === "undefined" || token === "null") {
         localStorage.removeItem("token")
-      }
-      if (accessToken === "undefined" || accessToken === "null") {
-        localStorage.removeItem("accessToken")
       }
       
       if (refreshToken === "undefined" || refreshToken === "null") {
@@ -384,6 +495,33 @@ async verifyCode(verifyInfo) {
   }
 })
 
-// 기존 export 유지 (스토어/유틸만 노출)
+// 기존 export 유지 (하위 호환성)
 export { authAPI, tokenManager, userManager }
+export default apiClient 
+
+export async function login(email, password) {
+  const response = await apiClient.post("/members/login", { email, password })
+  return response.data
+}
+
+export async function signup(userData) {
+  const response = await apiClient.post("/members/signup", userData)
+  return response.data
+}
+
+export async function sendVerificationCode(email) {
+  const response = await apiClient.post("/members/sendcode", email)
+  return response.data
+}
+
+export async function verifyCode(email, code) {
+  const response = await apiClient.post("/members/verify", { email, code })
+  return response.data
+}
+
+export async function resendCode(email) {
+  return await sendVerificationCode(email)
+}
+
+// auth store export
 export { useAuthStore }
