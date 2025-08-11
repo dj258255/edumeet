@@ -1,0 +1,28 @@
+package com.edu.edumeet.homework.application;
+
+import com.edu.edumeet.homework.domain.Submission;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface SubmissionRepository {
+    // 제출물 저장
+    Submission save(Submission submission);
+    // ID로 제출물 조회
+    Optional<Submission> findById(Long id);
+    // 과제별 제출물 조회
+    List<Submission> findByAssignmentId(Long assignmentId);
+    // 학생별 제출물 조회 (최신순)
+    List<Submission> findByClassMemberIdOrderByRegDateDesc(Long classMemberId);
+    // 특정 과제의 특정 학생 제출물 조회
+    Optional<Submission> findByAssignmentIdAndClassMemberId(Long assignmentId, Long classMemberId);
+    // 첨부파일 포함 제출물 조회
+    Optional<Submission> findByIdWithSubmissionFiles(Long id);
+    // 제출물 삭제 (논리적 삭제)
+    void deleteById(Long id);
+    // 삭제된 제출물 복원
+    boolean restoreById(Long id);
+    // 삭제된 제출물도 포함하여 조회
+    Optional<Submission> findByIdIncludeDeleted(Long id);
+
+}

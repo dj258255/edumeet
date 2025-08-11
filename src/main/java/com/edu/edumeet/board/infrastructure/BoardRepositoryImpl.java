@@ -6,9 +6,11 @@ import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -18,6 +20,8 @@ import java.util.Optional;
  */
 @Repository
 @RequiredArgsConstructor
+@Log4j2
+@Transactional
 public class BoardRepositoryImpl implements BoardRepository {
 
     private final BoardJpaRepository boardJpaRepository;
@@ -31,14 +35,18 @@ public class BoardRepositoryImpl implements BoardRepository {
     @Override
     public Long save(Board board) {
         BoardJpaEntity boardJpaEntity;
+        boolean isUpdate = board.getId() != null;
 
-        if(board.getId() != null) {
+        if(isUpdate) {
             //기존 게시글 업데이트
             Optional<BoardJpaEntity> existingEntity = boardJpaRepository.findById(board.getId());
             if(existingEntity.isPresent()){
                 //기존 엔티티 업데이트
                 boardJpaEntity = existingEntity.get();
                 boardJpaEntity.updateFromDomain(board);
+                
+                // 기존 이미지 정보 삭제 (orphanRemoval=true로 자동 삭제됨)
+                boardJpaEntity.getImageSet().clear();
             }else{
                 // 예외를 던지지 않고 null 반환하여 서비스에서 처리하도록 함
                 return null;
@@ -50,6 +58,34 @@ public class BoardRepositoryImpl implements BoardRepository {
 
         //도메인 -> JPA 엔티티 변환 후 저장
         BoardJpaEntity savedEntity = boardJpaRepository.save(boardJpaEntity);
+        
+        // 이미지 정보 처리
+        if (board.getImages() != null && !board.getImages().isEmpty()) {
+            log.info("게시글 {}의 이미지 정보 처리 - 이미지 수: {}", savedEntity.getId(), board.getImages().size());
+            
+            // 이미지 정보는 BoardJpaEntity의 imageSet에 직접 추가
+            // BoardFileUploadJpaEntity는 cascade=ALL, orphanRemoval=true로 설정되어 있어
+            // BoardJpaEntity가 저장될 때 함께 저장됨
+            board.getImages().forEach(fileUpload -> {
+                BoardFileUploadJpaEntity fileEntity = BoardFileUploadJpaEntity.builder()
+                        .boardJpaEntity(savedEntity)
+                        .uuid(fileUpload.getUuid())
+                        .fileName(fileUpload.getFileName())
+                        .ord(fileUpload.getOrd())
+                        .img(fileUpload.isImage())
+                        .fileSize(fileUpload.getFileSize())
+                        .contentType(fileUpload.getContentType())
+                        .uploadedBy(fileUpload.getUploadedBy())
+                        .referenceId(savedEntity.getId())
+                        .build();
+                
+                savedEntity.getImageSet().add(fileEntity);
+            });
+            
+            // 변경된 엔티티 저장
+            boardJpaRepository.save(savedEntity);
+        }
+        
         return savedEntity.getId();
     }
 
@@ -64,6 +100,7 @@ public class BoardRepositoryImpl implements BoardRepository {
         }
         
         // 엔티티를 도메인 모델로 변환하여 반환
+        // 이미지 정보는 BoardFileUploadJpaEntity에서 가져옴
         return entityOptional.map(BoardJpaEntity::toModel);
     }
 
@@ -102,7 +139,9 @@ public class BoardRepositoryImpl implements BoardRepository {
     public Optional<Board> findByIdIncludeDeleted(Long id) {
         // JPA 레포지토리를 통해 엔티티 조회 (삭제 여부 관계없이)
         Optional<BoardJpaEntity> entityOptional = boardJpaRepository.findById(id);
+        
         // 엔티티를 도메인 모델로 변환하여 반환
+        // 이미지 정보는 BoardFileUploadJpaEntity에서 가져옴
         return entityOptional.map(BoardJpaEntity::toModel);
     }
 

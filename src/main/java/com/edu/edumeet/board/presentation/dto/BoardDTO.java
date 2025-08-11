@@ -1,5 +1,6 @@
 package com.edu.edumeet.board.presentation.dto;
 
+import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
@@ -57,9 +58,8 @@ public class BoardDTO {
     private long dislike;
 
     // 첨부파일 정보 (이미지 DTO 목록)
-    // 기존의 fileNames 대신 BoardImageDTO 리스트를 사용하여 S3 URL 정보를 포함
     @Schema(description = "게시글 이미지 목록")
-    private List<BoardImageDTO> boardImages;
+    private List<AttchmentDTO> boardImages;
 
 
     @Schema(description = "등록일시", example = "2025-07-23T19:32:00")
