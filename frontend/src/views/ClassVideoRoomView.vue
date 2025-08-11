@@ -1,11 +1,6 @@
-<script setup lang="ts">
-import {
-  LocalVideoTrack,
-  Room,
-  RoomEvent,
-  DataPacket_Kind,
-} from 'livekit-client';
-import { onMounted, onUnmounted, ref, type Ref, nextTick } from 'vue';
+<script setup>
+import { Room, RoomEvent } from 'livekit-client';
+import { onMounted, onUnmounted, ref, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import VideoComponent from '@/components/VideoComponent.vue';
 import AudioComponent from '@/components/AudioComponent.vue';
@@ -16,28 +11,28 @@ import '@/styles/ClassRelated.css';
 
 const route = useRoute();
 const router = useRouter();
-const classId = route.params.classId as string;
+const classId = String(route.params.classId ?? '');
 
-const room = ref<Room | null>(null);
-const localTrack = ref<LocalVideoTrack>();
-const remoteTracksMap: Ref<Map<string, any>> = ref(new Map());
+const room = ref(null);
+const localTrack = ref();
+const remoteTracksMap = ref(new Map());
 
 const participantName = ref('Participant' + Math.floor(Math.random() * 100));
 const roomName = ref('');
 const isJoining = ref(false);
 const isUserCreator = ref(false); // 생성자 여부
 
-const activeRooms = ref<Array<{ name: string; participants: number }>>([]);
+const activeRooms = ref([]);
 
-const mainTrack = ref<any>(null);
-const mainIdentity = ref<string>('');
+const mainTrack = ref(null);
+const mainIdentity = ref('');
 const className = ref(''); // 모달에서 입력한 className을 제목으로 사용
 const isCameraOn = ref(true);
 const isMicOn = ref(true);
 
-const chatMessagesList = ref<Array<{ sender: string; message: string }>>([]);
+const chatMessagesList = ref([]);
 const chatInput = ref('');
-const chatBoxRef = ref<HTMLElement | null>(null);
+const chatBoxRef = ref(null);
 
 // 공유 자막 관련 상태
 const sharedCaption = ref('');
@@ -45,30 +40,25 @@ const sharedCaptionConfidence = ref(0);
 const isSharedCaptionActive = ref(false);
 const isCaptionVisible = ref(true); // 자막 표시/숨김 상태
 
-let APPLICATION_SERVER_URL = '';
-let LIVEKIT_URL = '';
+const APPLICATION_SERVER_URL = import.meta.env.VITE_APPLICATION_SERVER_URL;
+const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL;
 
 function configureUrls() {
-  APPLICATION_SERVER_URL =
-    window.location.hostname === 'localhost'
-      ? 'http://localhost:6080/'
-      : 'https://' + window.location.hostname + ':6443/';
-  LIVEKIT_URL =
-    window.location.hostname === 'localhost'
-      ? 'ws://localhost:7880/'
-      : 'wss://' + window.location.hostname + ':7443/';
+  // 이제 아래와 같이 하드코딩된 로직이 필요 없습니다.
+  // APPLICATION_SERVER_URL과 LIVEKIT_URL 변수가 자동으로 환경에 맞게 설정됩니다.
+  console.log('Application Server URL:', APPLICATION_SERVER_URL);
+  console.log('LiveKit URL:', LIVEKIT_URL);
 }
-configureUrls();
 
 onMounted(() => {
   fetchActiveRooms();
   
   // URL 쿼리 파라미터에서 방 이름, 제목, 생성자 여부 확인
-  const queryRoomName = route.query.roomName as string;
-  const queryClassName = route.query.className as string;
+  const queryRoomName = route.query.roomName;
+  const queryClassName = route.query.className;
   const isCreator = route.query.isCreator === 'true';
-  const creatorName = route.query.creatorName as string;
-  const participantNameParam = route.query.participantName as string;
+  const creatorName = route.query.creatorName;
+  const participantNameParam = route.query.participantName;
   
   console.log('🔍 ClassVideoRoomView - URL 파라미터:')
   console.log('🔍 roomName:', queryRoomName)
@@ -113,7 +103,7 @@ function fetchActiveRooms() {
   ];
 }
 
-async function joinRoom(targetRoom?: string) {
+async function joinRoom(targetRoom) {
   isJoining.value = true;
   const target = targetRoom || roomName.value;
   if (!target) {
@@ -179,7 +169,7 @@ async function joinRoom(targetRoom?: string) {
     }
 
     roomName.value = target;
-  } catch (error: any) {
+  } catch (error) {
     console.error('영상방 연결 실패:', error.message);
     await leaveRoom();
   } finally {
@@ -205,7 +195,7 @@ async function leaveRoom() {
 
 onUnmounted(leaveRoom);
 
-async function getToken(roomName: string, participantName: string) {
+async function getToken(roomName, participantName) {
   const response = await fetch(APPLICATION_SERVER_URL + 'token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -215,7 +205,7 @@ async function getToken(roomName: string, participantName: string) {
   return data.token;
 }
 
-function setMainTrack(track: any, identity: string) {
+function setMainTrack(track, identity) {
   mainTrack.value = track;
   mainIdentity.value = identity;
 }
@@ -245,7 +235,7 @@ function sendChatMessage() {
   }));
 
   console.log('📤 채팅 전송:', new TextDecoder().decode(payload));
-  room.value.localParticipant.publishData(payload, DataPacket_Kind.RELIABLE);
+  room.value.localParticipant.publishData(payload, { reliable: true });
   chatMessagesList.value.push({ sender: '나', message: msg });
   chatInput.value = '';
   
@@ -300,7 +290,7 @@ function shareCaptionToAll(text, confidence, isFinal) {
   const payload = encoder.encode(JSON.stringify(captionData));
   
   console.log('📤 자막 공유:', captionData);
-  room.value.localParticipant.publishData(payload, DataPacket_Kind.RELIABLE);
+  room.value.localParticipant.publishData(payload, { reliable: true });
 }
 
 // 다른 참여자로부터 자막 데이터 수신
@@ -368,6 +358,8 @@ function getFirstRemoteParticipantIdentity() {
   return '';
 }
 
+// computed wrappers removed for plain JS
+
 // 음성 녹음 관련 이벤트 핸들러
 function handleRecordingStarted() {
   console.log('🎤 음성 녹음이 시작되었습니다.')
@@ -379,7 +371,7 @@ function handleRecordingStopped() {
   // 여기에 녹음 종료 시 필요한 로직 추가
 }
 
-function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number }) {
+function handleChunkUploaded(chunkData) {
   console.log('📤 청크 업로드 완료:', chunkData)
   // 여기에 청크 업로드 완료 시 필요한 로직 추가
 }
@@ -493,14 +485,14 @@ function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number
                   v-if="remoteTrack.trackPublication.kind === 'video' && 
                          remoteTrack.trackPublication.videoTrack !== mainTrack &&
                          !(getFirstRemoteVideoTrack() === remoteTrack.trackPublication.videoTrack && !isUserCreator)"
-                  :track="remoteTrack.trackPublication.videoTrack!"
+                  :track="remoteTrack.trackPublication.videoTrack"
                   :participantIdentity="remoteTrack.participantIdentity"
                   class="thumbnail"
-                  @click="setMainTrack(remoteTrack.trackPublication.videoTrack!, remoteTrack.participantIdentity)"
+                  @click="setMainTrack(remoteTrack.trackPublication.videoTrack, remoteTrack.participantIdentity)"
                 />
                 <AudioComponent
                   v-else-if="remoteTrack.trackPublication.kind === 'audio'"
-                  :track="remoteTrack.trackPublication.audioTrack!"
+                  :track="remoteTrack.trackPublication.audioTrack"
                   hidden
                 />
               </template>
