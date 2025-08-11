@@ -62,7 +62,7 @@
           </div>
           
           <div v-if="isMyCreatedClass" class="action-bar">
-            <button class="add-btn" @click="openNoticeRegisterModal">📢 공지 등록</button>
+            <button class="add-btn" @click="openNoticeRegisterModal" :disabled="!canRegisterNotice">📢 공지 등록</button>
           </div>
 
           <div class="notice-board">
@@ -183,7 +183,7 @@ import AssignmentDetailModal from './AssignmentDetailModal.vue'
 import NoticeRegisterModal from './NoticeRegisterModal.vue'
 import AssignmentRegisterModal from './AssignmentRegisterModal.vue'
 import { useAuthStore } from '@/stores/auth.js'
-import apiClient from '@/stores/auth.js'
+import apiClient from '@/utils/apiClient'
 
 const authStore = useAuthStore()
 
@@ -277,6 +277,9 @@ const currentClassId = computed(() => {
   return data.classId || data.id || data.classroomId || data._id || ''
 })
 
+// 공지 등록 가능 여부 (유효한 클래스 ID가 있어야 함)
+const canRegisterNotice = computed(() => !!currentClassId.value)
+
 const openNoticeDetailModal = async (notice) => {
   if (isFetchingNotice.value) return
   const classId = currentClassId.value
@@ -294,6 +297,7 @@ const openNoticeDetailModal = async (notice) => {
     const res = await apiClient.get(`/class/${classId}/boards/${notice.id}`, { timeout: 10000 })
     if (res?.data) {
       selectedNotice.value = res.data
+      console.log('selectedNotice:', selectedNotice.value);
     }
   } catch (err) {
     console.error('공지사항 상세 불러오기 실패:', err)
@@ -346,16 +350,26 @@ const fetchNoticesAndAssignments = async () => {
 
 // 공지 등록
 const showNoticeRegisterModal = ref(false)
-const openNoticeRegisterModal = () => showNoticeRegisterModal.value = true
+const openNoticeRegisterModal = () => {
+  if (!currentClassId.value) {
+    alert('클래스가 선택되지 않아 공지 등록을 할 수 없습니다.')
+    return
+  }
+  showNoticeRegisterModal.value = true
+}
 const closeNoticeRegisterModal = () => showNoticeRegisterModal.value = false
 
 const registerNotice = async (newNoticeData) => {
   try {
+    if (!currentClassId.value) {
+      alert('클래스가 선택되지 않아 공지 등록을 할 수 없습니다.')
+      return
+    }
     let uploadedFileNames = []
     if (newNoticeData.files?.length > 0) {
       const formData = new FormData()
       newNoticeData.files.forEach(file => formData.append('files', file))
-      const res = await apiClient.post('/boards/upload', formData, {
+      const res = await apiClient.post('/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       uploadedFileNames = res.data.map(file => `${file.fileName}`)
@@ -369,7 +383,6 @@ const registerNotice = async (newNoticeData) => {
       boardType: newNoticeData.required ? 'NOTICE' : 'NORMAL',
       fileNames: uploadedFileNames
     }
-
     await apiClient.post(`/class/${classId}/boards`, payload)
     fetchNoticesAndAssignments()
     showNoticeRegisterModal.value = false

@@ -50,7 +50,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import apiClient from '@/stores/auth'; // apiClient 경로를 맞게 수정하세요.
+import apiClient from '@/utils/apiClient';
 
 const props = defineProps({
   isVisible: {
