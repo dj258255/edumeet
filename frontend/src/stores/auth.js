@@ -14,9 +14,23 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // 인증이 불필요한 엔드포인트에서는 토큰을 붙이지 않음
+    const urlPath = (config.url || '').toString();
+    const isAuthEndpoint = [
+      '/members/login',
+      '/members/signup',
+      '/members/refresh',
+      '/members/send-code',
+      '/members/verification',
+      '/members/check-email'
+    ].some((path) => urlPath.startsWith(path));
+
+    if (!isAuthEndpoint) {
+      const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+
     }
     
     // 이 부분에 console.log를 추가하여 헤더를 확인합니다.
