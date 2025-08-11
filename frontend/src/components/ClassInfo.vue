@@ -365,23 +365,37 @@ const registerNotice = async (newNoticeData) => {
       alert('클래스가 선택되지 않아 공지 등록을 할 수 없습니다.')
       return
     }
-    let uploadedFileNames = []
+    let boardImages = []
     if (newNoticeData.files?.length > 0) {
       const formData = new FormData()
       newNoticeData.files.forEach(file => formData.append('files', file))
-      const res = await apiClient.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      uploadedFileNames = res.data.map(file => `${file.fileName}`)
-    }
+      
+      try {
+        const res = await apiClient.post('/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
 
+        // 파일 업로드 응답(res.data)에서 boardImages 배열 생성
+        boardImages = res.data.map(file => ({
+          uuid: file.uuid,
+          fileName: file.fileName,
+          ord: file.ord, // 또는 다른 순서 로직
+          img: file.isImage // isImage 속성을 img로 사용
+        }))
+      } catch (error) {
+        console.error('파일 업로드 실패:', error)
+        // 에러 처리: 업로드 실패 시 공지사항 등록 중단
+        return
+      }
+    }
+    console.log('file',boardImages)
     const classId = currentClassId.value
     const payload = {
       title: newNoticeData.title,
       content: newNoticeData.content,
       writer: authStore.currentUser.nickname,
       boardType: newNoticeData.required ? 'NOTICE' : 'NORMAL',
-      fileNames: uploadedFileNames
+      boardImages: boardImages // 위에서 생성한 파일 정보 배열 추가
     }
     await apiClient.post(`/class/${classId}/boards`, payload)
     fetchNoticesAndAssignments()

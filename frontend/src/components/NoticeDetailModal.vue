@@ -92,19 +92,7 @@ async function loadNoticeImage() {
   // 첫 번째 이미지 정보 추출
   console.log('NoticeDetailModal → nd:', nd);
   const boardImage = nd.boardImages[0];
-  console.log('NoticeDetailModal → boardImage:', boardImage);
-  const combinedName = `${boardImage.uuid}_${boardImage.fileName}`;
-  console.log('NoticeDetailModal → combinedName:', combinedName);
-  try {
-    const res = await apiClient.get(`/boards/upload/${combinedName}`);
-    console.log('NoticeDetailModal → res data:', res.data);
-
-    file.value = res.data.url;
-    console.log('NoticeDetailModal → file.value:', file.value);
-  } catch (e) {
-    console.warn('첨부 이미지 요청 실패', e);
-    file.value = '';
-  }
+  file.value=boardImage.s3Url
 }
 
 watch(
@@ -126,4 +114,10 @@ onBeforeUnmount(() => {
     NoticeDetailModal의 스타일은 모두 classinfo.css에 포함되어야 합니다.
   */
   @import '@/styles/classinfo.css';
+  .notice-content img {
+    max-width: 100%;
+    height: auto;
+    display: block; /* To prevent extra space below the image */
+    margin: 0 auto; /* To center the image if it's smaller than the container */
+    }
 </style>
