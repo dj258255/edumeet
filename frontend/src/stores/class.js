@@ -1,8 +1,7 @@
 // src/stores/class.js
 import { defineStore } from 'pinia'
-// apiClient를 명시적으로 import하는 것이 더 안전하고 명확합니다.
-// 하지만 현재 auth.js의 export 구조상 default export로 가져와도 동작합니다.
-import apiClient from '@/stores/auth.js'; // 이 부분이 올바르게 되어 있는지 확
+// 공용 axios 클라이언트 사용
+import apiClient from '@/utils/apiClient';
 
 export const useClassStore = defineStore('class', {
   state: () => ({

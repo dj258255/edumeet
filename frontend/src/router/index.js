@@ -11,6 +11,9 @@ import ClassVideoRoomView from "@/views/ClassVideoRoomView.vue"
 import MyPageView from "@/views/MyPageView.vue"
 import DocumentSummaryView from "@/views/DocumentSummaryView.vue"
 
+// Pinia 스토어 import
+import { useAuthStore } from '@/stores/auth.js';
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -33,7 +36,7 @@ const router = createRouter({
       path: "/articles",
       name: "articles",
       component: ArticlesView,
-      meta: { requiresAuth: true }   // 로그인 필요
+      meta: { requiresAuth: true }  // 로그인 필요
     },
     {
       path: "/search",
@@ -81,17 +84,17 @@ const router = createRouter({
 
 /**
  * 전역 라우터 가드 설정
- * 로그인 여부에 따라 접근 제어
+ * Pinia 스토어의 상태를 사용하여 접근 제어
  */
 router.beforeEach((to, from, next) => {
-  // 로그인 여부 (예시: localStorage에 토큰 있는지 확인)
-  const isLoggedIn = !!(localStorage.getItem('token') || localStorage.getItem('accessToken'))
+  // 스토어 인스턴스를 가져와 사용
+  const authStore = useAuthStore();
 
-  if (to.meta.requiresAuth && !isLoggedIn) {
-    alert('로그인이 필요한 기능입니다.')
-    next('/login')
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    alert('로그인이 필요한 기능입니다.');
+    next('/login');
   } else {
-    next()
+    next();
   }
 })
 

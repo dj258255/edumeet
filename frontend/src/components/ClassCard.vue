@@ -53,7 +53,7 @@
 import { defineProps, defineEmits, computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth.js'
 import defaultImage from '@/assets/class_default_image.png'
-import apiClient from '@/stores/auth.js'
+import apiClient from '@/utils/apiClient'
 
 const props = defineProps({
   card: {

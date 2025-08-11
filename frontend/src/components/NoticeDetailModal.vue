@@ -39,7 +39,7 @@
 <script setup>
 import { defineProps, defineEmits } from 'vue';
 import { ref, watch, onBeforeUnmount } from 'vue';
-import apiClient from '@/stores/auth.js';
+import apiClient from '@/utils/apiClient';
 
 const file=ref('')
 let objectUrl = null
