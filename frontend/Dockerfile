@@ -8,10 +8,17 @@ RUN npm ci
 
 # Build
 COPY . .
+
 ARG VITE_API_URL
 ARG VITE_WS_URL
+ARG VITE_API_BASE_URL
+ARG BASE_URL
+
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_WS_URL=$VITE_WS_URL
+ENV VITE_API_BASE_URL="https://i13c205.p.ssafy.io/api/v1"
+ENV BASE_URL="https://i13c205.p.ssafy.io"
+
 RUN npm run build
 
 # Production stage

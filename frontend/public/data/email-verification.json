@@ -1,0 +1,32 @@
+{
+  "testEmails": [
+    "test@example.com",
+    "lsm122500@gmail.com",
+    "user@test.com"
+  ],
+  "verificationCodes": [
+    {
+      "email": "test@example.com",
+      "code": "12345678",
+      "expiresAt": "2025-12-31T23:59:59.000Z",
+      "isVerified": false
+    },
+    {
+      "email": "lsm122500@gmail.com",
+      "code": "87654321",
+      "expiresAt": "2025-12-31T23:59:59.000Z",
+      "isVerified": false
+    },
+    {
+      "email": "user@test.com",
+      "code": "11111111",
+      "expiresAt": "2025-12-31T23:59:59.000Z",
+      "isVerified": false
+    }
+  ],
+  "settings": {
+    "codeLength": 8,
+    "expirationMinutes": 3,
+    "maxAttempts": 3
+  }
+}

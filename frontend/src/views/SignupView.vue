@@ -293,12 +293,21 @@ const sendVerificationCode = async () => {
   errors.value = {}
   message.value = ''
   try {
+    console.log('🔍 SignupView - 인증 코드 발송 시작:', email.value);
     await authStore.sendVerificationCode(email.value)
     verificationSent.value = true
     startCountdown()
     message.value = '인증 코드가 발송되었습니다.'
+    console.log('🔍 SignupView - 인증 코드 발송 성공');
   } catch (error) {
-    message.value = authStore.error || '인증 코드 발송에 실패했습니다.'
+    console.error('🔍 SignupView - 인증 코드 발송 실패:', error);
+    console.error('🔍 에러 상세 정보:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
+    message.value = authStore.error || `인증 코드 발송에 실패했습니다. (${error.response?.status || '알 수 없는 오류'})`
   }
 }
 const verifyCode = async () => {
@@ -353,10 +362,22 @@ const handleSignup = async () => {
       email: email.value,
       password: password.value,
     })
-    message.value = '회원가입이 완료되었습니다!'
-    setTimeout(() => {
-      router.push('/login')
-    }, 2000)
+    message.value = '회원가입이 완료되었습니다! 자동으로 로그인됩니다.'
+    
+    // 회원가입 성공 후 자동 로그인 시도
+    try {
+      await authStore.login(email.value, password.value)
+      message.value = '로그인 성공! 홈으로 이동합니다.'
+      setTimeout(() => {
+        router.push('/')
+      }, 1500)
+    } catch (loginError) {
+      // 자동 로그인 실패 시 로그인 페이지로 이동
+      message.value = '회원가입 완료! 로그인 페이지로 이동합니다.'
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+    }
   } catch (error) {
     message.value = authStore.error || '회원가입에 실패했습니다.'
   }
