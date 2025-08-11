@@ -399,6 +399,50 @@ export const useClassStore = defineStore('class', {
       }
     },
 
+    /** 새로 생성된 클래스를 목록에 즉시 추가 */
+    addCreatedClass(newClass) {
+      console.log('🔍 addCreatedClass 호출됨:', newClass);
+      console.log('🔍 addCreatedClass - newClass 타입:', typeof newClass);
+      console.log('🔍 addCreatedClass - newClass 키들:', Object.keys(newClass || {}));
+      
+      if (!newClass) {
+        console.warn('🔍 addCreatedClass - newClass가 null 또는 undefined입니다.');
+        return;
+      }
+      
+      // ID 필드 확인 (다양한 ID 필드명 지원)
+      const classId = newClass.id || newClass.classId || newClass.classroomId || newClass._id || newClass.uuid;
+      
+      if (!classId) {
+        console.warn('🔍 addCreatedClass - 클래스 ID를 찾을 수 없습니다:', newClass);
+        // ID가 없어도 일단 추가 (백엔드에서 ID를 나중에 설정할 수 있음)
+        console.log('🔍 addCreatedClass - ID 없이 새 클래스를 목록에 추가합니다');
+        this.myCreatedClasses.unshift(newClass);
+        console.log('🔍 클래스가 목록에 추가됨. 현재 목록:', this.myCreatedClasses);
+        console.log('🔍 현재 목록의 클래스 수:', this.myCreatedClasses.length);
+        return;
+      }
+      
+      // 중복 확인
+      const existingIndex = this.myCreatedClasses.findIndex(cls => {
+        const existingId = cls.id || cls.classId || cls.classroomId || cls._id || cls.uuid;
+        return existingId === classId;
+      });
+      
+      if (existingIndex !== -1) {
+        console.log('🔍 addCreatedClass - 기존 클래스를 업데이트합니다:', classId);
+        // 기존 클래스를 새 데이터로 교체
+        this.myCreatedClasses.splice(existingIndex, 1, newClass);
+      } else {
+        console.log('🔍 addCreatedClass - 새 클래스를 목록에 추가합니다:', classId);
+        // 맨 앞에 새 클래스 추가
+        this.myCreatedClasses.unshift(newClass);
+      }
+      
+      console.log('🔍 클래스가 목록에 추가됨. 현재 목록:', this.myCreatedClasses);
+      console.log('🔍 현재 목록의 클래스 수:', this.myCreatedClasses.length);
+    },
+
     /** 에러 초기화 */
     clearError() {
       this.error = null

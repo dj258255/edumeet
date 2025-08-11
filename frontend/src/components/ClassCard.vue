@@ -7,13 +7,13 @@
           <span class="view-more" @click.stop="handleViewDetail">자세히 보기</span>
         </div>
       </div>
-      <div class="card-badge">{{ card.tags[0] }}</div>
+      <div class="card-badge">{{ firstTag }}</div>
     </div>
     <div class="card-content">
       <h3 class="card-title">{{ card.title }}</h3>
       <p class="card-description">{{ card.description }}</p>
       <div class="card-tags">
-        <span class="tag" v-for="tag in card.tags" :key="tag">{{ tag }}</span>
+        <span class="tag" v-for="tag in safeTags" :key="tag">{{ tag }}</span>
       </div>
       <div class="card-footer">
         <div class="card-stats">
@@ -72,12 +72,37 @@ const props = defineProps({
 
 const emit = defineEmits(['enroll', 'createClass', 'deleteClass', 'joinClass', 'viewDetail', 'viewMembers'])
 
+// 안전한 태그 배열 계산
+const safeTags = computed(() => {
+  return Array.isArray(props.card.tags) ? props.card.tags : []
+})
+
+// 첫 번째 태그 (안전하게)
+const firstTag = computed(() => {
+  return safeTags.value.length > 0 ? safeTags.value[0] : '새 반'
+})
+
 const cardImage = computed(() => {
-  // card.image가 없거나 빈 문자열이거나 유효하지 않은 경우 기본 이미지 사용
-  if (!props.card.image || props.card.image === '' || props.card.image === 'null' || props.card.image === 'undefined') {
-    return defaultImage
+  console.log('🔍 ClassCard - cardImage computed 호출됨')
+  console.log('🔍 ClassCard - card 데이터:', props.card)
+  console.log('🔍 ClassCard - thumbnailUrl:', props.card.thumbnailUrl)
+  console.log('🔍 ClassCard - image:', props.card.image)
+  
+  // API 응답에서 thumbnailUrl 우선 확인
+  if (props.card.thumbnailUrl && props.card.thumbnailUrl !== '' && props.card.thumbnailUrl !== 'null' && props.card.thumbnailUrl !== 'undefined' && props.card.thumbnailUrl !== null) {
+    console.log('🔍 ClassCard - thumbnailUrl 사용:', props.card.thumbnailUrl)
+    return props.card.thumbnailUrl
   }
-  return props.card.image
+  
+  // 기존 image 필드 확인
+  if (props.card.image && props.card.image !== '' && props.card.image !== 'null' && props.card.image !== 'undefined' && props.card.image !== null) {
+    console.log('🔍 ClassCard - 기존 이미지 사용:', props.card.image)
+    return props.card.image
+  }
+  
+  // 기본 이미지 사용
+  console.log('🔍 ClassCard - 기본 이미지 사용')
+  return defaultImage
 })
 
 // 클래스 ID 해석
