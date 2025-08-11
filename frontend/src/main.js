@@ -21,5 +21,7 @@ authStore.initialize()
 
 app.mount('#app')
 
-// kakao로그인 javascript key
-window.Kakao.init(import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY)
+// kakao로그인 javascript key (SDK가 로드되지 않은 경우 안전 처리)
+if (window.Kakao && typeof window.Kakao.init === 'function') {
+  window.Kakao.init(import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY)
+}
