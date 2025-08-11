@@ -75,7 +75,6 @@
                     :id="`code-${index}`"
                     v-model="codeDigits[index]"
                     type="text"
-                    maxlength="1"
                     class="code-input"
                     :class="{ error: errors.code }"
                     @input="handleCodeInput(index, $event)"
@@ -262,27 +261,74 @@ const formatTime = (seconds) => {
 
 const handleCodeInput = (index, event) => {
   const value = event.target.value
-  if (!/^\d*$/.test(value)) {
-    event.target.value = ''
-    return
+  // 숫자와 글자 모두 허용하도록 수정
+  if (value.length > 1) {
+    // 여러 문자가 입력된 경우 첫 번째 문자만 사용
+    event.target.value = value.charAt(0)
+    codeDigits.value[index] = value.charAt(0)
+  } else {
+    codeDigits.value[index] = value
   }
-  codeDigits.value[index] = value
+  
+  // 값이 입력되었고 다음 입력란이 있으면 자동으로 다음 칸으로 이동
   if (value && index < 7) {
     const nextInput = document.getElementById(`code-${index + 1}`)
-    if (nextInput) nextInput.focus()
+    if (nextInput) {
+      nextInput.focus()
+      // 다음 입력란의 기존 값을 선택 상태로 만들어 덮어쓰기 쉽게 함
+      nextInput.select()
+    }
   }
 }
 const handleCodeKeydown = (index, event) => {
-  if (event.key === 'Backspace' && !codeDigits.value[index] && index > 0) {
+  // 백스페이스 처리
+  if (event.key === 'Backspace') {
+    if (codeDigits.value[index]) {
+      // 현재 칸에 값이 있으면 지우기
+      codeDigits.value[index] = ''
+    } else if (index > 0) {
+      // 현재 칸이 비어있고 이전 칸이 있으면 이전 칸으로 이동
+      const prevInput = document.getElementById(`code-${index - 1}`)
+      if (prevInput) {
+        prevInput.focus()
+        prevInput.select()
+      }
+    }
+  }
+  
+  // 화살표 키 처리
+  if (event.key === 'ArrowLeft' && index > 0) {
     const prevInput = document.getElementById(`code-${index - 1}`)
-    if (prevInput) prevInput.focus()
+    if (prevInput) {
+      prevInput.focus()
+      prevInput.select()
+    }
+  }
+  
+  if (event.key === 'ArrowRight' && index < 7) {
+    const nextInput = document.getElementById(`code-${index + 1}`)
+    if (nextInput) {
+      nextInput.focus()
+      nextInput.select()
+    }
   }
 }
 const handleCodePaste = (event) => {
   event.preventDefault()
   const pastedData = event.clipboardData.getData('text')
-  const numbers = pastedData.replace(/\D/g, '').slice(0, 8)
-  if (numbers.length === 8) codeDigits.value = numbers.split('')
+  // 숫자와 글자 모두 허용하되, 8자리까지만 사용
+  const characters = pastedData.slice(0, 8).split('')
+  
+  // 8자리가 모두 입력된 경우에만 처리
+  if (characters.length === 8) {
+    codeDigits.value = characters
+    // 마지막 입력란에 포커스
+    const lastInput = document.getElementById('code-7')
+    if (lastInput) {
+      lastInput.focus()
+      lastInput.select()
+    }
+  }
 }
 
 const sendVerificationCode = async () => {
