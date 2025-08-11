@@ -162,7 +162,7 @@ const handleKakaoLogin = () => {
   
   try {
     // 백엔드 OAuth2 엔드포인트로 이동
-    window.location.href = `${import.meta.env.BASE_URL}/oauth2/authorization/kakao`
+    window.location.href = `${import.meta.env.VITE_BASE_URL}/oauth2/authorization/kakao`
   } catch (error) {
     console.error('카카오 로그인 에러:', error)
     alert('카카오 로그인 중 오류가 발생했습니다.')
