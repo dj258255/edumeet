@@ -58,25 +58,29 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import '../styles/HomeView.css'
-const assetPath = import.meta.env.VITE_ASSET_PATH;
+import { ref } from 'vue';
+import '../styles/HomeView.css';
 
-const currentSlide = ref(0)
+// 🚨 이미지 파일들을 직접 import 합니다.
+import mainImage0 from '@/assets/mainim.png';
+import mainImage1 from '@/assets/mainim1.png';
+import mainImage2 from '@/assets/mainim2.png';
+
+const currentSlide = ref(0);
 
 const slideTransition = (slideIndex) => {
-  currentSlide.value = slideIndex
-}
+  currentSlide.value = slideIndex;
+};
 
 const getCurrentImage = () => {
-
-      const images = [
-      `${assetPath}/mainim.png`,
-      `${assetPath}/mainim1.png`,
-      `${assetPath}/mainim2.png`
-    ];
-  return images[currentSlide.value]
-}
+  // 🚨 import된 이미지 변수들을 사용합니다.
+  const images = [
+    mainImage0,
+    mainImage1,
+    mainImage2,
+  ];
+  return images[currentSlide.value];
+};
 
 const getCurrentHeading = () => {
   const headings = [
