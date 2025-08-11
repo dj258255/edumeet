@@ -15,31 +15,39 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     // 인증이 불필요한 엔드포인트에서는 토큰을 붙이지 않음
-    const urlPath = (config.url || '').toString();
-    const isAuthEndpoint = [
+    const base = (config.baseURL || '').toString();
+    const url = (config.url || '').toString();
+    const full = url.startsWith('http') ? url : (base ? `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}` : url);
+    let effectivePath = url;
+    try {
+      effectivePath = new URL(full, window.location.origin).pathname;
+    } catch (_) {}
+
+    const publicAuthSegments = [
       '/members/login',
       '/members/signup',
       '/members/refresh',
       '/members/send-code',
       '/members/verification',
       '/members/check-email'
-    ].some((path) => urlPath.startsWith(path));
+    ];
+    const isAuthEndpoint = publicAuthSegments.some((seg) => effectivePath.includes(seg));
 
     if (!isAuthEndpoint) {
-      const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
+      const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`
+        config.headers.Authorization = `Bearer ${token}`;
       }
     }
-    
-    // 이 부분에 console.log를 추가하여 헤더를 확인합니다.
+
+    // 디버그 로그
     console.log('API 요청 헤더:', config.headers);
     console.log('전체 요청 설정:', config);
-    
-    return config
+
+    return config;
   },
   (error) => {
-    return Promise.reject(error)
+    return Promise.reject(error);
   }
 )
 
@@ -62,33 +70,53 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
-    // 서버 다운 또는 네트워크 오류 시 자동 로그아웃 처리
     const serverUnavailableStatuses = [502, 503];
+
+    // 안전하게 originalRequest와 요청 경로 도출
+    const originalRequest = error.config || {};
+    const base = (originalRequest.baseURL || '').toString();
+    const url = (originalRequest.url || '').toString();
+    const full = url.startsWith('http') ? url : (base ? `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}` : url);
+    let effectivePath = url;
+    try {
+      effectivePath = new URL(full, window.location.origin).pathname;
+    } catch (_) {}
+    const publicAuthSegments = [
+      '/members/login',
+      '/members/signup',
+      '/members/send-code',
+      '/members/verification',
+      '/members/check-email',
+      '/members/refresh'
+    ];
+    const isPublicAuthEndpoint = publicAuthSegments.some((seg) => effectivePath.includes(seg));
+
+    // 서버 다운 또는 네트워크 오류: 알림만 하고 리다이렉트하지 않음
     if (!error.response || serverUnavailableStatuses.includes(error.response?.status)) {
       try {
-        console.error('서버 연결 문제 감지, 자동 로그아웃 처리');
+        console.error('서버 연결 문제 감지');
+        alert('서버와의 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.');
+      } catch (_) {}
+      return Promise.reject(error);
+    }
+
+    // 401 처리
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      // 회원/인증 관련 공개 엔드포인트에서는 리다이렉트/갱신 시도 없이 그대로 에러 반환
+      if (isPublicAuthEndpoint) {
+        return Promise.reject(error);
+      }
+
+      const existingRefreshToken = localStorage.getItem('refreshToken');
+      if (!existingRefreshToken) {
+        // 보호된 엔드포인트에서만 로그인으로 유도
         localStorage.removeItem('token');
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
-        alert('서버와의 연결이 끊겨 자동 로그아웃되었습니다. 잠시 후 다시 시도해주세요.');
-      } catch (_) {}
-      window.location.href = '/login';
-      return Promise.reject(error);
-    }
-
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      const existingRefreshToken = localStorage.getItem("refreshToken");
-      if (!existingRefreshToken) {
-        // 갱신 불가 → 즉시 로그아웃 처리
-        localStorage.removeItem("token");
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        window.location.href = '/login';
         return Promise.reject(error);
       }
 
@@ -96,6 +124,7 @@ apiClient.interceptors.response.use(
       if (isRefreshing) {
         return new Promise((resolve) => {
           subscribeTokenRefresh((newToken) => {
+            originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             resolve(apiClient(originalRequest));
           });
@@ -111,28 +140,28 @@ apiClient.interceptors.response.use(
         const newAccessToken = refreshResponse.data.accessToken;
         const newRefreshToken = refreshResponse.data.refreshToken;
 
-        // 새로운 토큰 저장
-        localStorage.setItem("token", newAccessToken);
-        localStorage.setItem("refreshToken", newRefreshToken);
-
-        // 대기 중인 모든 요청 재시도
+        // 새로운 토큰 저장 및 대기중인 요청 재시도
+        localStorage.setItem('token', newAccessToken);
+        localStorage.setItem('refreshToken', newRefreshToken);
         onRefreshed(newAccessToken);
 
         // 현재 요청 재시도
+        originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        console.error("토큰 갱신 실패:", refreshError);
-        localStorage.removeItem("token");
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        console.error('토큰 갱신 실패:', refreshError);
+        localStorage.removeItem('token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -165,8 +194,8 @@ const authAPI = {
   },
 
   // 이메일 인증
-  sendVerificationCode:(email)=>{
-    return apiClient.post("/members/send-code",email)
+  sendVerificationCode:(emailData)=>{
+    return apiClient.post("/members/send-code", emailData)
   },
 
   // 인증 확인
@@ -340,7 +369,10 @@ const useAuthStore = defineStore('auth', {
       this.loading = true
       this.error = null
       try {
-        const result = await authAPI.sendVerificationCode(email);
+        console.log("이메일 인증 코드 전송:", email)
+        const emailData = { email: email }
+        console.log("이메일 인증 코드 전송:", emailData)
+        const result = await authAPI.sendVerificationCode(emailData);
         console.log("API 응답 결과:", result);
         console.log('API 응답 결과:', result.data.message);
       } catch (error) {
