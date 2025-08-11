@@ -99,7 +99,7 @@ pipeline {
                         docker build \
                             --build-arg VITE_API_URL=${VITE_API_URL} \
                             --build-arg VITE_WS_URL=${VITE_WS_URL} \
-                            --build-arg VITE_API_BASE_URL="https://i13c205.p.ssafy.io/api/v1 \
+                            --build-arg VITE_API_BASE_URL="https://i13c205.p.ssafy.io/api/v1" \
                             --build-arg BASE_URL="https://i13c205.p.ssafy.io" \
                             -t ${FRONTEND_DOCKER_REPO}:${IMAGE_TAG} \
                             -t ${FRONTEND_DOCKER_REPO}:latest .
