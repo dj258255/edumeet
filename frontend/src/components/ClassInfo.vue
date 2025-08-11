@@ -120,7 +120,7 @@
               </button>
               <button
                 v-else-if="!task.done"
-                @click.stop="submitAssignment(task.id)"
+                @click.stop="openAssignmentDetailModal(task)"
                 class="submit-btn small-btn"
               >
                 제출
@@ -242,20 +242,6 @@ const filteredAssignments = computed(() => {
   return assignments.value.filter(t => !t.done)
 })
 
-const submitAssignment = async (assignmentId) => {
-  try {
-    // 과제 제출 API 호출 (가정)
-    // await apiClient.post(`/class/${props.classData.classId}/assignments/${assignmentId}/submit`);
-    const task = assignments.value.find(t => t.id === assignmentId)
-    if (task) {
-      task.done = true
-      alert(`${task.title}이(가) 성공적으로 제출되었습니다!`)
-    }
-  } catch (err) {
-    console.error('과제 제출 실패:', err);
-    alert('과제 제출에 실패했습니다.');
-  }
-}
 
 const getStatusText = (status) => {
   const map = {
@@ -339,9 +325,18 @@ const fetchNoticesAndAssignments = async () => {
     notices.value = noticeRes.data.dtoList;
     console.log('notices:', notices.value);
     
-    // 과제 목록은 별도 API가 필요할 수 있음 (현재 코드에는 없음, 가정)
-    // const assignmentRes = await apiClient.get(`/class/${classId}/assignments`);
-    // assignments.value = assignmentRes.data.dtoList;
+    // 과제 목록 조회 (있으면 가져오고, 없으면 빈 배열 유지)
+    try {
+      const assignmentRes = await apiClient.get(`/class/${classId}/assignments`)
+      // 응답이 배열일 수도, dtoList 형태일 수도 있어 유연 처리
+      const list = Array.isArray(assignmentRes.data)
+        ? assignmentRes.data
+        : (assignmentRes.data?.dtoList || [])
+      assignments.value = list
+    } catch (e) {
+      console.warn('과제 목록 API가 없거나 실패하여 빈 목록을 유지합니다.', e)
+      assignments.value = []
+    }
 
   } catch (err) {
     console.error('목록 불러오기 실패:', err);
@@ -409,16 +404,144 @@ const registerNotice = async (newNoticeData) => {
 
 // 과제 등록
 const showAssignmentRegisterModal = ref(false)
-const openAssignmentRegisterModal = () => showAssignmentRegisterModal.value = true
-const closeAssignmentRegisterModal = () => showAssignmentRegisterModal.value = false
-const registerAssignment = (newAssignment) => {
-  assignments.value.push({
-    ...newAssignment,
-    id: assignments.value.length + 1,
-    done: false
-  })
+const openAssignmentRegisterModal = () => {
+  if (!currentClassId.value) {
+    alert('클래스가 선택되지 않아 과제제 등록을 할 수 없습니다.')
+    return
+  }
+  showAssignmentRegisterModal.value = true
+}
+const closeAssignmentRegisterModal = () => {
   showAssignmentRegisterModal.value = false
-  alert('과제가 성공적으로 등록되었습니다!')
+}
+
+// Presigned URL 헬퍼
+const getPresignedUrl = async (file) => {
+  const params = { domain: 'assignments', fileName: file.name }
+  try {
+    console.log('🔵 Presigned URL 요청: POST /upload/presigned-url', {
+      baseURL: apiClient.defaults?.baseURL,
+      params
+    })
+    const res = await apiClient.post('/upload/presigned-url', null, { params })
+    console.log('🟢 Presigned URL 응답:', {
+      status: res.status,
+      data: res.data
+    })
+    return res.data
+  } catch (error) {
+    console.error('🔴 Presigned URL 요청 실패:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    })
+    throw error
+  }
+}
+
+const registerAssignment = (newAssignment) => {
+  (async () => {
+    try {
+      const classId = currentClassId.value
+      if (!classId) {
+        alert('클래스가 선택되지 않아 과제를 등록할 수 없습니다.')
+        return
+      }
+      console.log(authStore.currentUser)
+      // 작성자 정보 준비
+      const creatorName =  authStore.currentUser.nickname
+
+      let attachments = []
+      if (newAssignment.file) {
+        const presigned = await getPresignedUrl(newAssignment.file)
+        await uploadToPresignedUrl(presigned.presignedUrl, newAssignment.file)
+        attachments.push({ uuid: presigned.uuid, fileName: presigned.fileName, domain: presigned.domain })
+      }
+
+      const payload = {
+        title: newAssignment.title,
+        description: newAssignment.description,
+        classId: Number(classId),
+        createdByName: creatorName,
+        attachmentFiles: attachments,
+      }
+      console.log('assignment create payload:', payload)
+      const res = await apiClient.post(`/class/${classId}/assignments`, payload)
+
+      // 응답 객체가 있으면 목록에 반영하고, 없으면 재조회
+      const created = res?.data
+      if (created) {
+        // 서버 필드명 유연 처리: id 혹은 assignmentId
+        const normalized = {
+          id: created.id || created.assignmentId || Date.now(),
+          title: created.title || payload.title,
+          description: created.description || payload.description,
+          done: created.done ?? false,
+        }
+        assignments.value.unshift(normalized)
+      } else {
+        await fetchNoticesAndAssignments()
+      }
+
+      showAssignmentRegisterModal.value = false
+      alert('과제가 성공적으로 등록되었습니다!')
+    } catch (err) {
+      console.error('과제 등록 실패:', err)
+      alert('과제 등록에 실패했습니다.')
+    }
+  })()
+}
+
+const submitAssignment = async (payload) => {
+  try {
+    const classId = currentClassId.value
+    if (!classId) {
+      alert('클래스가 선택되지 않아 과제를 제출할 수 없습니다.')
+      return
+    }
+    const assignmentId = typeof payload === 'object' ? payload.id : payload
+    const file = typeof payload === 'object' ? payload.file : null
+
+    let attachments = []
+    if (file) {
+      const presigned = await getPresignedUrl(file)
+      await uploadToPresignedUrl(presigned.presignedUrl, file)
+      attachments.push({ uuid: presigned.uuid, fileName: presigned.fileName, domain: presigned.domain })
+    }
+
+    await apiClient.post(`/class/${classId}/submissions/assignment/${assignmentId}`, { attachmentFiles: attachments })
+    const task = assignments.value.find(t => t.id === assignmentId)
+    if (task) {
+      task.done = true
+      alert(`${task.title}이(가) 성공적으로 제출되었습니다!`)
+    } else {
+      alert('과제가 성공적으로 제출되었습니다!')
+    }
+  } catch (err) {
+    console.error('과제 제출 실패:', err)
+    alert('과제 제출에 실패했습니다.')
+  }
+}
+
+
+
+const uploadToPresignedUrl = async (url, file) => {
+  console.log('🔵 Presigned 업로드 시작 (PUT):', {
+    url,
+    contentType: file.type || 'application/octet-stream',
+    size: file.size
+  })
+  const resp = await fetch(url, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': file.type || 'application/octet-stream' }
+  })
+  console.log('🟢 Presigned 업로드 응답:', { status: resp.status, ok: resp.ok })
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    console.error('🔴 Presigned 업로드 실패:', { status: resp.status, body: text })
+    throw new Error(`Presigned 업로드 실패 (status ${resp.status})`)
+  }
 }
 
 const deleteNotice = async (noticeId) => {
@@ -442,8 +565,7 @@ const deleteAssignment = async (assignmentId) => {
 
   try {
     const classId = currentClassId.value
-    // 과제 삭제 API 호출 (가정)
-    // await apiClient.delete(`/class/${classId}/assignments/${assignmentId}`);
+    await apiClient.delete(`/class/${classId}/assignments/${assignmentId}`)
     // 삭제 성공 시 로컬 상태 반영
     assignments.value = assignments.value.filter(t => t.id !== assignmentId);
     closeAssignmentModal();
@@ -463,9 +585,6 @@ watch(() => currentClassId.value, (newId, oldId) => {
 
 </script>
 
-<style>
-@import '@/styles/classinfo.css';
-</style>
 <style>
 @import '@/styles/classinfo.css';
 </style>
