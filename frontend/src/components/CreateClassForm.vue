@@ -208,55 +208,70 @@ async function handleSubmit() {
   try {
     error.value = ''
     isCreating.value = true
-    let thumbnailUrl = null;
-
-    // 1. 이미지가 있다면 먼저 이미지 업로드 API를 호출하여 URL을 받습니다.
+    
+    let thumbnailUuid = null;
+    
+    // 1단계: 이미지가 있다면 먼저 썸네일 업로드
     if (classImageFile.value) {
       const imageFormData = new FormData();
-      imageFormData.append('file', classImageFile.value);
+      imageFormData.append('files', classImageFile.value);
       
-      // TODO: 실제 이미지 업로드 API 엔드포인트로 변경하세요.
-      // 이 예제에서는 더미 응답을 사용합니다.
-      // const imageUploadResponse = await axios.post('/api/upload/image', imageFormData);
-      // thumbnailUrl = imageUploadResponse.data.url;
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+      console.log('🔍 썸네일 업로드 요청 URL:', `${API_BASE_URL}/classroom/thumbnail`);
       
-      // 임시로 더미 URL을 할당
-      thumbnailUrl = 'https://example.com/uploaded_image_url.jpg';
-      console.log('Image uploaded successfully:', thumbnailUrl);
+      const imageResponse = await axios.post(`${API_BASE_URL}/classroom/thumbnail`, imageFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('accessToken')}`
+        }
+      });
+      
+      console.log('🔍 썸네일 업로드 응답:', imageResponse.data);
+      thumbnailUuid = imageResponse.data.uuid;
     }
     
-    // 2. DTO 객체를 생성합니다.
-    const classDto = {
+    // 2단계: 클래스 생성 API 호출
+    const classData = {
       title: className.value.trim(),
       description: classDescription.value.trim(),
-      thumbnailUrl: thumbnailUrl,
-      limit: 100, // 이 값은 프론트엔드에 입력 필드가 없으므로 임의로 지정하거나 추가해야 합니다.
+      limit: 100,
       tags: tagsArray.value
     };
-
-    // 3. 생성된 JSON 객체로 반 생성 API를 호출합니다.
-    const newClass = await classStore.createClass(classDto);
-
-    // 목록 다시 갱신
-    await classStore.fetchMyCreatedClasses();
-    // await classStore.fetchMyJoinedClasses();
-    console.log('newClass',newClass)
-    // 성공 메시지
-    alert(`반 "${classDto.title}" 이(가) 성공적으로 생성되었습니다!`);
     
-    // 폼 초기화
+    // 썸네일이 업로드되었다면 thumbnailUuid 추가
+    if (thumbnailUuid) {
+      classData.thumbnailUuid = thumbnailUuid;
+    }
+    
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+    console.log('🔍 클래스 생성 요청 URL:', `${API_BASE_URL}/classroom`);
+    console.log('🔍 클래스 생성 요청 데이터:', classData);
+    
+    const classResponse = await axios.post(`${API_BASE_URL}/classroom`, classData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('accessToken')}`
+      }
+    });
+    
+    console.log('🔍 클래스 생성 응답:', classResponse.data);
+    
+    // 성공 메시지
+    alert(`반 "${className.value.trim()}" 이(가) 성공적으로 생성되었습니다!`);
+    
+    // 생성된 클래스 이름을 localStorage에 저장 (폼 초기화 전에)
+    localStorage.setItem('lastCreatedClassName', className.value.trim());
+    console.log('🔍 CreateClassForm - 저장된 클래스 이름:', className.value.trim());
+    console.log('🔍 CreateClassForm - localStorage 확인:', localStorage.getItem('lastCreatedClassName'));
+    
+    // 부모 컴포넌트에 생성 완료 알림
+    emit('created', classResponse.data);
+    
+    // 폼 초기화 (마지막에)
     className.value = '';
     classDescription.value = '';
     removeImage();
     classTags.value = '';
-    
-    // 생성된 클래스 이름을 localStorage에 저장
-    localStorage.setItem('lastCreatedClassName', classDto.title);
-    console.log('🔍 CreateClassForm - 저장된 클래스 이름:', classDto.title);
-    console.log('🔍 CreateClassForm - localStorage 확인:', localStorage.getItem('lastCreatedClassName'));
-    
-    // 부모 컴포넌트에 생성 완료 알림
-    emit('created', newClass);
     
   } catch (err) {
     console.error('클래스 생성 에러:', err);
