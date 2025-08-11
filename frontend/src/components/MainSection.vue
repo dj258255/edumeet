@@ -16,6 +16,14 @@
             <span class="nav-icon">📝</span>
             <span class="nav-text">실시간 자막</span>
           </button>
+          <button type="button" @click="slideTransition(3)" :class="{ active: currentSlide === 3 }" class="nav-btn">
+            <span class="nav-icon">🎯</span>
+            <span class="nav-text">올인원 플랫폼</span>
+          </button>
+          <button type="button" @click="slideTransition(4)" :class="{ active: currentSlide === 4 }" class="nav-btn">
+            <span class="nav-icon">💬</span>
+            <span class="nav-text">실시간 게시판</span>
+          </button>
         </div>
       </div>
       
@@ -63,9 +71,9 @@ const slideTransition = (slideIndex) => {
 const getCurrentImage = () => {
 
       const images = [
-      `${assetPath}/assets/mainim.png`,
-      `${assetPath}/assets/mainim1.png`,
-      `${assetPath}/assets/mainim2.png`
+      `${assetPath}/mainim.png`,
+      `${assetPath}/mainim1.png`,
+      `${assetPath}/mainim2.png`
     ];
   return images[currentSlide.value]
 }
