@@ -85,7 +85,7 @@ const router = createRouter({
  */
 router.beforeEach((to, from, next) => {
   // 로그인 여부 (예시: localStorage에 토큰 있는지 확인)
-  const isLoggedIn = !!localStorage.getItem('token')
+  const isLoggedIn = !!(localStorage.getItem('token') || localStorage.getItem('accessToken'))
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     alert('로그인이 필요한 기능입니다.')

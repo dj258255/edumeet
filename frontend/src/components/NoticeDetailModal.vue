@@ -18,7 +18,10 @@
         <div class="notice-content">
           <p>{{ noticeData.content }}</p>
         </div>
-        <!--noticeData.fileNames의 확장자가 사진일경우-->
+        <!-- 첨부 이미지가 있을 때만 렌더링 -->
+        <div class="notice-content" v-if="file">
+          <img :src="file" alt="attachment image">
+        </div>
       </div>
       
       <div class="modal-footer" v-if="isMyCreatedClass">
@@ -35,7 +38,11 @@
 
 <script setup>
 import { defineProps, defineEmits } from 'vue';
-import { ref, watch } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
+import apiClient from '@/stores/auth.js';
+
+const file=ref('')
+let objectUrl = null
 
 const props = defineProps({
   isVisible: {
@@ -55,6 +62,7 @@ const props = defineProps({
 const localNoticeData = ref(props.noticeData);
 // noticeData prop의 변화를 감시하고, 변화가 있을 때마다 localNoticeData를 업데이트합니다.
 watch(() => props.noticeData, (newVal) => {
+  console.log('NoticeDetailModal → watch newVal:', newVal)
   if (newVal) {
     localNoticeData.value = newVal;
   }
@@ -69,6 +77,47 @@ const closeModal = () => {
 const deleteItem = () => {
   emit('delete', props.noticeData.id);
 };
+// 모달이 열리고 유효한 데이터가 있을 때만 이미지 로드
+async function loadNoticeImage() {
+  const nd = props.noticeData;
+  if (!props.isVisible || !nd || !nd.boardImages || nd.boardImages.length === 0) {
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl)
+      objectUrl = null
+    }
+    file.value = '';
+    return;
+  }
+
+  // 첫 번째 이미지 정보 추출
+  console.log('NoticeDetailModal → nd:', nd);
+  const boardImage = nd.boardImages[0];
+  console.log('NoticeDetailModal → boardImage:', boardImage);
+  const combinedName = `${boardImage.uuid}_${boardImage.fileName}`;
+  console.log('NoticeDetailModal → combinedName:', combinedName);
+  try {
+    const res = await apiClient.get(`/boards/upload/${combinedName}`);
+    console.log('NoticeDetailModal → res data:', res.data);
+
+    file.value = res.data.url;
+    console.log('NoticeDetailModal → file.value:', file.value);
+  } catch (e) {
+    console.warn('첨부 이미지 요청 실패', e);
+    file.value = '';
+  }
+}
+
+watch(
+  () => [props.isVisible, props.noticeData],
+  () => {
+    loadNoticeImage();
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => {
+  if (objectUrl) URL.revokeObjectURL(objectUrl)
+})
 </script>
 
 <style>

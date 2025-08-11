@@ -14,9 +14,22 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // 인증이 불필요한 엔드포인트에서는 토큰을 붙이지 않음
+    const urlPath = (config.url || '').toString();
+    const isAuthEndpoint = [
+      '/members/login',
+      '/members/signup',
+      '/members/refresh',
+      '/members/send-code',
+      '/members/verification',
+      '/members/check-email'
+    ].some((path) => urlPath.startsWith(path));
+
+    if (!isAuthEndpoint) {
+      const token = localStorage.getItem("token") || localStorage.getItem("accessToken")
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
     
     // 이 부분에 console.log를 추가하여 헤더를 확인합니다.
@@ -49,6 +62,21 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
+    // 서버 다운 또는 네트워크 오류 시 자동 로그아웃 처리
+    const serverUnavailableStatuses = [502, 503];
+    if (!error.response || serverUnavailableStatuses.includes(error.response?.status)) {
+      try {
+        console.error('서버 연결 문제 감지, 자동 로그아웃 처리');
+        localStorage.removeItem('token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        alert('서버와의 연결이 끊겨 자동 로그아웃되었습니다. 잠시 후 다시 시도해주세요.');
+      } catch (_) {}
+      window.location.href = '/login';
+      return Promise.reject(error);
+    }
+
     const originalRequest = error.config;
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -57,6 +85,7 @@ apiClient.interceptors.response.use(
       if (!existingRefreshToken) {
         // 갱신 불가 → 즉시 로그아웃 처리
         localStorage.removeItem("token");
+        localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("user");
         window.location.href = "/login";
@@ -95,6 +124,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         console.error("토큰 갱신 실패:", refreshError);
         localStorage.removeItem("token");
+        localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("user");
         window.location.href = "/login";
@@ -384,6 +414,7 @@ async verifyCode(verifyInfo) {
         tokenManager.removeToken();
         userManager.removeUser();
         localStorage.removeItem("refreshToken");
+        localStorage.removeItem("accessToken");
         
         this.user = null;
         this.isAuthenticated = false;
@@ -463,11 +494,15 @@ async verifyCode(verifyInfo) {
     // localStorage 정리
     cleanupLocalStorage() {
       const token = localStorage.getItem("token")
+      const accessToken = localStorage.getItem("accessToken")
       const refreshToken = localStorage.getItem("refreshToken")
       const user = localStorage.getItem("user")
       
       if (token === "undefined" || token === "null") {
         localStorage.removeItem("token")
+      }
+      if (accessToken === "undefined" || accessToken === "null") {
+        localStorage.removeItem("accessToken")
       }
       
       if (refreshToken === "undefined" || refreshToken === "null") {
