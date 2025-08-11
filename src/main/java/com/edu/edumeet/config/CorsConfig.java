@@ -14,11 +14,14 @@ public class CorsConfig {
     @Value("${front.url}")
     private String frontUrl;
 
+    @Value("${front.url2}")
+    private String frontUrl2;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of("http://localhost:5173", frontUrl));
+        config.setAllowedOrigins(List.of("http://localhost:5173", frontUrl, frontUrl2));
 
         config.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
