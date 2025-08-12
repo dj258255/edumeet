@@ -21,7 +21,7 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
 
     private final JwtService jwtService;
     
-    @Value("${front.url}")
+    @Value("${front.url2}")
     private String frontendUrl;
 
     @Override
