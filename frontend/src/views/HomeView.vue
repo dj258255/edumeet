@@ -71,9 +71,27 @@
          <!-- 드래그 가능한 카드 Section -->
      <section class="draggable-cards-section">
        <div class="section-header">
-         <div class="header-badge">추천 콘텐츠</div>
-         <h2 class="section-title">인기 강의를 만나보세요</h2>
+         <div class="header-badge">내 반 목록</div>
+         <h2 class="section-title">내가 만든 반과 속한 반을 확인하세요</h2>
          <p class="section-subtitle">마우스로 드래그하여 더 많은 콘텐츠를 확인하세요</p>
+         
+         <!-- 탭 버튼 -->
+         <div class="tab-buttons">
+           <button 
+             class="tab-btn" 
+             :class="{ active: activeTab === 'created' }"
+             @click="activeTab = 'created'"
+           >
+             내가 만든 반 ({{ createdClassesCount }})
+           </button>
+           <button 
+             class="tab-btn" 
+             :class="{ active: activeTab === 'joined' }"
+             @click="activeTab = 'joined'"
+           >
+             내가 속한 반 ({{ joinedClassesCount }})
+           </button>
+         </div>
        </div>
        
        <!-- 로딩 상태 -->
@@ -111,14 +129,18 @@
                 :style="{ transform: `translateX(${translateX}px)` }"
                 ref="cardsWrapper">
              <ClassCard 
-               v-for="(card, index) in draggableCards" 
+               v-for="(card, index) in currentTabCards" 
                :key="card.id"
                :card="card"
                :animation-delay="index * 0.1"
                :isMyCreatedClass="card.isMyCreatedClass"
+               :viewType="'home'"
                @enroll="handleEnroll"
                @joinClass="handleJoinClass"
                @createClass="handleCreateClass"
+               @deleteClass="handleDeleteClass"
+               @viewDetail="handleViewDetail"
+               @viewMembers="handleViewMembers"
              />
            </div>
          </div>
@@ -133,7 +155,7 @@
        <div v-if="!isLoading && !error" class="cards-indicator">
          <div class="indicator-dots">
            <div 
-             v-for="(_, index) in Math.ceil(draggableCards.length / visibleCards)" 
+             v-for="(_, index) in Math.ceil(currentTabCards.length / visibleCards)" 
              :key="index"
              class="indicator-dot"
              :class="{ active: Math.abs(Math.round(translateX / cardWidth)) === index }"
@@ -317,6 +339,27 @@ const draggableCards = ref([])
 const isLoading = ref(false)
 const error = ref(null)
 
+// 탭 관련 상태
+const activeTab = ref('created') // 'created' 또는 'joined'
+
+// 현재 탭에 따른 카드 목록 계산
+const currentTabCards = computed(() => {
+  if (activeTab.value === 'created') {
+    return draggableCards.value.filter(card => card.isMyCreatedClass)
+  } else {
+    return draggableCards.value.filter(card => !card.isMyCreatedClass)
+  }
+})
+
+// 각 탭별 카드 개수 계산
+const createdClassesCount = computed(() => {
+  return draggableCards.value.filter(card => card.isMyCreatedClass).length
+})
+
+const joinedClassesCount = computed(() => {
+  return draggableCards.value.filter(card => !card.isMyCreatedClass).length
+})
+
 // 기본 클래스 데이터 (백엔드 없을 때 사용)
 const defaultClasses = [
   {
@@ -450,7 +493,7 @@ const maxTranslate = 0
 
 // minTranslate를 computed로 변경하여 반응형으로 계산
 const minTranslate = computed(() => {
-  return -(draggableCards.value.length - visibleCards) * cardWidth
+  return -(currentTabCards.value.length - visibleCards) * cardWidth
 })
 
 // 드래그 시작
@@ -630,6 +673,40 @@ const handleCreateClassConfirm = (createData) => {
   closeCreateModal()
 }
 
+// 클래스 삭제 처리
+const handleDeleteClass = async (classId) => {
+  console.log('🔍 HomeView - 삭제할 classId:', classId)
+  
+  if (!classId) {
+    alert('클래스 ID가 없습니다. 다시 시도해주세요.')
+    return
+  }
+  
+  try {
+    await classStore.deleteClass(classId)
+    
+    // 삭제 성공 후 목록 새로고침
+    await loadClasses()
+    
+    alert('클래스가 성공적으로 삭제되었습니다.')
+  } catch (error) {
+    console.error('클래스 삭제 실패:', error)
+    alert('클래스 삭제에 실패했습니다. 다시 시도해주세요.')
+  }
+}
+
+// 클래스 상세 보기
+const handleViewDetail = (classData) => {
+  console.log('클래스 상세 보기:', classData)
+  // 여기에 상세 보기 로직 추가
+}
+
+// 학생 목록 보기
+const handleViewMembers = (classData) => {
+  console.log('학생 목록 보기:', classData)
+  // 여기에 학생 목록 모달 로직 추가
+}
+
 
 
 // 로그아웃 처리
@@ -668,6 +745,11 @@ watch(isLoggedIn, async (newValue) => {
     user.value = null
     draggableCards.value = defaultClasses.map(cls => ({ ...cls, isMyCreatedClass: false }))
   }
+})
+
+// 탭 변경 시 드래그 위치 초기화
+watch(activeTab, () => {
+  translateX.value = 0
 })
 </script>
 

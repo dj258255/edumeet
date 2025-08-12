@@ -91,6 +91,51 @@
   color: #cbd5e0;
 }
 
+/* 탭 버튼 스타일 */
+.tab-buttons {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--bg-tertiary);
+  padding: 0.5rem;
+  border-radius: 12px;
+  margin-top: var(--spacing-lg);
+  max-width: 800px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 1rem 2rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.tab-btn:hover {
+  background: rgba(34, 122, 83, 0.1);
+  color: var(--brand-main);
+}
+
+.tab-btn.active {
+  background: var(--brand-main);
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(34, 122, 83, 0.3);
+}
+
+.tab-btn.active:hover {
+  background: var(--brand-accent);
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(34, 122, 83, 0.4);
+}
+
 .cards-container-wrapper {
   position: relative;
   max-width: 1400px;
