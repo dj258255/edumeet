@@ -89,7 +89,7 @@ const fetchOAuth2Tokens = async () => {
     await new Promise(resolve => setTimeout(resolve, 300))
     progress.value = 40
     
-    const response = await fetch(`${import.meta.env.VITE_BASE_URL}/api/oauth2/token`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/oauth2/token`, {
       method: 'GET',
       credentials: 'include', // 세션 쿠키 포함
       headers: {
