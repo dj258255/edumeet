@@ -69,7 +69,7 @@ const countdown = ref(5)
 const progress = ref(0)
 const userInfo = ref('')
 
-const API_BASE_URL = 'http://localhost:8080'
+const API_BASE_URL = `${import.meta.env.VITE_BASE_URL}`
 
 // 개발 환경 확인
 const isDevelopment = computed(() => {
