@@ -7,6 +7,7 @@ import SearchView from "../views/SearchView.vue"
 import AboutView from "../views/AboutView.vue"
 import CreateClassView from "../views/CreateClassView.vue"
 import KaKaoView from "../views/KaKaoView.vue"
+import OAuth2SuccessView from "../views/OAuth2SuccessView.vue"
 import ClassVideoRoomView from "@/views/ClassVideoRoomView.vue"
 import MyPageView from "@/views/MyPageView.vue"
 import DocumentSummaryView from "@/views/DocumentSummaryView.vue"
@@ -61,6 +62,12 @@ const router = createRouter({
       name: 'kakao',
       component: KaKaoView,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/oauth2/success',
+      name: 'oauth2-success',
+      component: OAuth2SuccessView,
+      // OAuth2 처리 중이므로 인증 불필요
     },
     // router 설정
     { path: '/class/:classId/video',
