@@ -1,7 +1,7 @@
 package com.edu.edumeet.board.domain;
 
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -276,12 +276,12 @@ public class Board {
      * @param boardImages AttchmentDTO 목록
      * @return 이미지가 변경된 새로운 Board 객체
      */
-    public Board changeBoardImages(List<AttchmentDTO> boardImages) {
+    public Board changeBoardImages(List<AttachmentDTO> boardImages) {
         Set<Attachment> newImages = new HashSet<>();
 
         if (boardImages != null) {
             for (int i = 0; i < boardImages.size(); i++) {
-                AttchmentDTO fileDTO = boardImages.get(i);
+                AttachmentDTO fileDTO = boardImages.get(i);
                 Attachment attachment = Attachment.builder()
                         .uuid(fileDTO.getUuid())
                         .fileName(fileDTO.getFileName())

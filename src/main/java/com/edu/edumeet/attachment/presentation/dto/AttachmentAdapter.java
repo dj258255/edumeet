@@ -5,7 +5,6 @@ import com.edu.edumeet.s3.util.S3Uploader;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -63,14 +62,14 @@ public class AttachmentAdapter {
     /**
      * FileUpload를 FileUploadDTO로 변환
      * @param attachment 변환할 Attachment 객체
-     * @return 변환된 AttchmentDTO 객체
+     * @return 변환된 AttachmentDTO 객체
      */
-    public AttchmentDTO toFileUploadDTO(Attachment attachment) {
+    public AttachmentDTO toFileUploadDTO(Attachment attachment) {
         if (attachment == null) {
             return null;
         }
         
-        AttchmentDTO dto = AttchmentDTO.builder()
+        AttachmentDTO dto = AttachmentDTO.builder()
                 .uuid(attachment.getUuid())
                 .fileName(attachment.getFileName())
                 .ord(attachment.getOrd())
@@ -103,30 +102,31 @@ public class AttachmentAdapter {
     
     /**
      * FileUploadDTO를 FileUpload로 변환
-     * @param attchmentDTO 변환할 AttchmentDTO 객체
+     * @param attachmentDTO 변환할 AttachmentDTO 객체
      * @return 변환된 Attachment 객체
      */
-    public Attachment fromFileUploadDTO(AttchmentDTO attchmentDTO) {
-        if (attchmentDTO == null) {
+    public Attachment fromFileUploadDTO(AttachmentDTO attachmentDTO) {
+        if (attachmentDTO == null) {
             return null;
         }
         
         return Attachment.builder()
-                .uuid(attchmentDTO.getUuid())
-                .fileName(attchmentDTO.getFileName())
-                .ord(attchmentDTO.getOrd())
-                .img(attchmentDTO.isImg())
-                .domain(attchmentDTO.getDomain())
-                .referenceId(attchmentDTO.getReferenceId())
+                .uuid(attachmentDTO.getUuid())
+                .fileName(attachmentDTO.getFileName())
+                .ord(attachmentDTO.getOrd())
+                .img(attachmentDTO.isImg())
+                .domain(attachmentDTO.getDomain())
+                .referenceId(attachmentDTO.getReferenceId())
                 .build();
+
     }
     
     /**
-     * Attachment 리스트를 AttchmentDTO 리스트로 변환
+     * Attachment 리스트를 AttachmentDTO 리스트로 변환
      * @param attachments 변환할 Attachment 객체 리스트
-     * @return 변환된 AttchmentDTO 객체 리스트
+     * @return 변환된 AttachmentDTO 객체 리스트
      */
-    public List<AttchmentDTO> toFileUploadDTOList(List<Attachment> attachments) {
+    public List<AttachmentDTO> toFileUploadDTOList(List<Attachment> attachments) {
         if (attachments == null) {
             return null;
         }
@@ -137,16 +137,16 @@ public class AttachmentAdapter {
     }
     
     /**
-     * AttchmentDTO 리스트를 Attachment 리스트로 변환
-     * @param attchmentDTOS 변환할 AttchmentDTO 객체 리스트
+     * AttachmentDTO 리스트를 Attachment 리스트로 변환
+     * @param attachmentDTOS 변환할 AttachmentDTO 객체 리스트
      * @return 변환된 Attachment 객체 리스트
      */
-    public List<Attachment> fromFileUploadDTOList(List<AttchmentDTO> attchmentDTOS) {
-        if (attchmentDTOS == null) {
+    public List<Attachment> fromFileUploadDTOList(List<AttachmentDTO> attachmentDTOS) {
+        if (attachmentDTOS == null) {
             return null;
         }
         
-        return attchmentDTOS.stream()
+        return attachmentDTOS.stream()
                 .map(this::fromFileUploadDTO)
                 .collect(Collectors.toList());
     }
