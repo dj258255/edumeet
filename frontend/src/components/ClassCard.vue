@@ -1,5 +1,5 @@
 <template>
-  <div class="draggable-card" :style="{ animationDelay: `${animationDelay}s` }">
+  <div class="draggable-card" :class="viewTypeClass" :style="{ animationDelay: `${animationDelay}s` }">
     <div class="card-image">
       <img :src="cardImage" :alt="card.title" />
       <div class="card-overlay">
@@ -9,43 +9,51 @@
       </div>
       <div class="card-badge">{{ firstTag }}</div>
     </div>
-    <div class="card-content">
-      <h3 class="card-title">{{ card.title }}</h3>
-      <p class="card-description">{{ card.description }}</p>
-      <div class="card-tags">
-        <span class="tag" v-for="tag in safeTags" :key="tag">{{ tag }}</span>
-      </div>
-      <div class="card-footer">
-        <div class="card-stats">
-          <span class="stat">👤 {{ creatorDisplayName }}</span>
-          <span class="stat">👥 {{ memberCountDisplay }}</span>
+         <div class="card-content">
+       <div class="content-main">
+         <div class="content-left">
+           <h3 class="card-title">{{ card.title }}</h3>
+           <p class="card-description">{{ card.description }}</p>
+           <div class="card-tags">
+             <span class="tag" v-for="tag in safeTags" :key="tag">{{ tag }}</span>
+           </div>
+         </div>
+         <div class="content-right">
+           <div class="card-stats">
+             <span class="stat">👤 {{ creatorDisplayName }}</span>
+             <span class="stat">👥 {{ memberCountDisplay }}</span>
+           </div>
+         </div>
+       </div>
+               <div class="card-actions">
+          <div class="left-actions">
+            <button 
+              class="enroll-btn" 
+              :class="{ 'create-btn': isMyCreatedClass }"
+              @click="handleButtonClick"
+            >
+              {{ isMyCreatedClass ? '수업 생성' : '입장하기' }}
+            </button>
+          </div>
+          <div class="right-actions">
+            <button 
+              v-if="isMyCreatedClass"
+              class="delete-btn" 
+              @click="handleDeleteClick"
+              title="클래스 삭제"
+            >
+              🗑️
+            </button>
+            <button 
+              class="members-btn" 
+              @click="handleViewMembers"
+              title="학생 목록 보기"
+            >
+              👥
+            </button>
+          </div>
         </div>
-        <div class="card-actions">
-          <button 
-            class="enroll-btn" 
-            :class="{ 'create-btn': isMyCreatedClass }"
-            @click="handleButtonClick"
-          >
-            {{ isMyCreatedClass ? '수업 생성' : '입장하기' }}
-          </button>
-          <button 
-            v-if="isMyCreatedClass"
-            class="delete-btn" 
-            @click="handleDeleteClick"
-            title="클래스 삭제"
-          >
-            🗑️
-          </button>
-          <button 
-            class="members-btn" 
-            @click="handleViewMembers"
-            title="학생 목록 보기"
-          >
-            👥
-          </button>
-        </div>
-      </div>
-    </div>
+     </div>
   </div>
 </template>
 
@@ -67,6 +75,11 @@ const props = defineProps({
   isMyCreatedClass: {
     type: Boolean,
     default: false
+  },
+  viewType: {
+    type: String,
+    default: 'default', // 'default', 'create-class', 'home'
+    validator: (value) => ['default', 'create-class', 'home'].includes(value)
   }
 })
 
@@ -80,6 +93,18 @@ const safeTags = computed(() => {
 // 첫 번째 태그 (안전하게)
 const firstTag = computed(() => {
   return safeTags.value.length > 0 ? safeTags.value[0] : '새 반'
+})
+
+// viewType에 따른 CSS 클래스 계산
+const viewTypeClass = computed(() => {
+  switch (props.viewType) {
+    case 'create-class':
+      return 'create-class-view'
+    case 'home':
+      return 'home-view'
+    default:
+      return ''
+  }
 })
 
 const cardImage = computed(() => {
@@ -207,7 +232,7 @@ const handleViewDetail = () => {
 }
 
 const handleButtonClick = () => {
-  console.log('�� ClassCard - props.card:', props.card)
+  console.log('🔍 ClassCard - props.card:', props.card)
   console.log('🔍 ClassCard - props.card.id:', props.card.id)
   console.log('🔍 ClassCard - props.card.classId:', props.card.classId)
   console.log('🔍 ClassCard - 모든 키:', Object.keys(props.card))
@@ -257,27 +282,519 @@ const handleViewMembers = () => {
 </script>
 
 <style scoped>
-/* HomeView.css의 카드 관련 스타일을 그대로 사용하기 위해 scoped를 제거하고 
-   부모 컴포넌트에서 CSS를 import하도록 설정 */
-/* 학생 목록 버튼 스타일 */
-.members-btn {
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 6px;
+.draggable-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: var(--transition-normal);
   cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-  margin-left: 8px;
+  position: relative;
+  border: 1px solid var(--border-color);
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+  transform: translateY(20px);
+  /* 기본 크기 - HomeView용 */
+  width: 600px;
+  min-height: 420px;
+}
+
+.draggable-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(34, 122, 83, 0.15);
+  border-color: var(--brand-main);
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-image {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: var(--transition-normal);
+}
+
+.draggable-card:hover .card-image img {
+  transform: scale(1.05);
+}
+
+.card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-overlay);
+  opacity: 0;
+  transition: var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.draggable-card:hover .card-overlay {
+  opacity: 1;
+}
+
+.card-hover-content {
+  text-align: center;
+}
+
+.view-more {
+  color: var(--text-inverse);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  padding: 10px 20px;
+  border: 2px solid var(--text-inverse);
+  border-radius: var(--radius-2xl);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  transition: var(--transition-normal);
+  cursor: pointer;
+}
+
+.view-more:hover {
+  background: var(--text-inverse);
+  color: var(--brand-main);
+  transform: scale(1.05);
+}
+
+.card-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: var(--brand-main);
+  color: var(--text-inverse);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-content {
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  height: 220px;
+  overflow: hidden;
+}
+
+.content-main {
+  display: flex;
+  gap: var(--spacing-md);
+  flex: 1;
+  min-height: 0;
+}
+
+.content-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.content-right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-end;
+  min-width: 120px;
+}
+
+.card-title {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.card-description {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+  margin: 0 0 8px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.tag {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  transition: var(--transition-fast);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag:hover {
+  background: var(--brand-main);
+  color: var(--text-inverse);
+}
+
+.card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.stat {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  text-align: right;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--spacing-md);
+  flex-shrink: 0;
+  min-height: 50px;
+}
+
+.left-actions {
+  display: flex;
+  align-items: center;
+}
+
+.right-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.enroll-btn {
+  background: rgba(34, 197, 94, 0.9);
+  color: #ffffff !important;
+  border: 2px solid rgba(34, 197, 94, 0.3);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+}
+
+.enroll-btn:hover {
+  background: rgba(34, 197, 94, 1);
+  border-color: rgba(34, 197, 94, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+}
+
+.enroll-btn:active {
+  transform: translateY(0);
+}
+
+.enroll-btn.create-btn {
+  background: rgba(22, 163, 74, 0.9);
+  color: #ffffff !important;
+  border-color: rgba(22, 163, 74, 0.3);
+}
+
+.enroll-btn.create-btn:hover {
+  background: rgba(22, 163, 74, 1);
+  border-color: rgba(22, 163, 74, 0.5);
+}
+
+.delete-btn {
+  background: rgba(239, 68, 68, 0.9);
+  color: #ffffff !important;
+  border: 2px solid rgba(239, 68, 68, 0.3);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 1);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+.delete-btn:active {
+  transform: translateY(0);
+}
+
+.members-btn {
+  background: rgba(34, 197, 94, 0.8);
+  color: #ffffff !important;
+  border: 2px solid rgba(34, 197, 94, 0.3);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
 }
 
 .members-btn:hover {
-  background: #2563eb;
-  transform: translateY(-1px);
+  background: rgba(34, 197, 94, 1);
+  border-color: rgba(34, 197, 94, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
 }
 
 .members-btn:active {
   transform: translateY(0);
+}
+
+/* CreateClassView에서 더 큰 카드 스타일 */
+.draggable-card.create-class-view {
+  width: 100%;
+  min-height: 600px;
+  max-width: 100%;
+  margin: 0;
+  border-radius: 0;
+}
+
+.draggable-card.create-class-view .card-image {
+  height: 250px;
+}
+
+.draggable-card.create-class-view .card-content {
+  height: 350px;
+  padding: var(--spacing-xl);
+  border-radius: 0;
+}
+
+.draggable-card.create-class-view .card-title {
+  font-size: var(--font-size-lg);
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.draggable-card.create-class-view .card-description {
+  font-size: var(--font-size-base);
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+}
+
+.draggable-card.create-class-view .card-tags {
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.draggable-card.create-class-view .enroll-btn {
+  padding: 12px 24px;
+  font-size: var(--font-size-base);
+}
+
+.draggable-card.create-class-view .delete-btn {
+  padding: 10px 16px;
+  font-size: var(--font-size-sm);
+}
+
+.draggable-card.create-class-view .members-btn {
+  padding: 10px 16px;
+  font-size: var(--font-size-sm);
+}
+
+.draggable-card.create-class-view .content-main {
+  gap: var(--spacing-lg);
+}
+
+.draggable-card.create-class-view .content-right {
+  min-width: 140px;
+}
+
+.draggable-card.create-class-view .card-actions {
+  min-height: 60px;
+}
+
+.draggable-card.create-class-view .right-actions {
+  gap: 12px;
+}
+
+/* HomeView에서 더 작은 카드 스타일 */
+.draggable-card.home-view {
+  width: 300px;
+  min-height: 400px;
+}
+
+.draggable-card.home-view .card-image {
+  height: 180px;
+}
+
+.draggable-card.home-view .card-content {
+  height: 220px;
+  padding: var(--spacing-lg);
+}
+
+.draggable-card.home-view .card-title {
+  font-size: var(--font-size-base);
+  margin: 0 0 6px 0;
+  line-height: 1.3;
+}
+
+.draggable-card.home-view .card-description {
+  font-size: var(--font-size-sm);
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+}
+
+.draggable-card.home-view .card-tags {
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.draggable-card.home-view .enroll-btn {
+  padding: 10px 20px;
+  font-size: var(--font-size-sm);
+}
+
+.draggable-card.home-view .delete-btn {
+  padding: 8px 14px;
+  font-size: var(--font-size-xs);
+}
+
+.draggable-card.home-view .members-btn {
+  padding: 8px 14px;
+  font-size: var(--font-size-xs);
+}
+
+.draggable-card.home-view .content-main {
+  gap: var(--spacing-sm);
+}
+
+.draggable-card.home-view .content-right {
+  min-width: 110px;
+}
+
+.draggable-card.home-view .card-actions {
+  min-height: 45px;
+}
+
+.draggable-card.home-view .right-actions {
+  gap: 6px;
+}
+
+/* 다크 모드 대응 */
+@media (prefers-color-scheme: dark) {
+  .draggable-card {
+    background: var(--bg-card);
+    border-color: var(--border-dark);
+  }
+  
+  .card-title {
+    color: var(--text-primary);
+  }
+  
+  .card-description {
+    color: var(--text-secondary);
+  }
+  
+  .tag {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-color: var(--border-dark);
+  }
+  
+  .tag:hover {
+    background: var(--brand-main);
+    color: var(--text-inverse);
+  }
+  
+  .stat {
+    color: var(--text-tertiary);
+  }
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .draggable-card {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .content-main {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .content-right {
+    align-items: flex-start;
+    min-width: auto;
+  }
+  
+  .card-stats {
+    align-items: flex-start;
+  }
+  
+  .stat {
+    text-align: left;
+  }
+  
+  .card-actions {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  .left-actions,
+  .right-actions {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .enroll-btn {
+    flex: 1;
+    max-width: 200px;
+  }
 }
 </style> 

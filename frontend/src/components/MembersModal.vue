@@ -22,13 +22,7 @@
         </div>
         
         <div v-else class="members-list">
-          <div 
-            class="member-item" 
-            v-for="(member, index) in members" 
-            :key="index"
-            @click="handleMemberClick(member)"
-            :class="{ 'clickable': isTeacher && member.email !== currentUserEmail }"
-          >
+          <div class="member-item" v-for="(member, index) in members" :key="index">
             <div class="member-avatar">
               <span class="avatar-text">{{ member.nickname.charAt(0) }}</span>
             </div>
@@ -40,17 +34,6 @@
               <span class="role-badge" :class="{ 'teacher': member.email === teacherEmail }">
                 {{ member.email === teacherEmail ? '선생님' : '학생' }}
               </span>
-            </div>
-            
-            <!-- 강제 퇴장 버튼 (선생님이고 학생을 클릭했을 때만 표시) -->
-            <div v-if="isTeacher && selectedMember && selectedMember.email === member.email" class="kick-actions">
-              <button 
-                @click.stop="() => { console.log('🔘 강제 퇴장 버튼 클릭됨:', member); showKickConfirm(member); }" 
-                class="kick-btn"
-                :disabled="kickingMember === member.email"
-              >
-                {{ kickingMember === member.email ? '처리중...' : '강제 퇴장' }}
-              </button>
             </div>
           </div>
         </div>
@@ -65,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import apiClient from '@/utils/apiClient';
 
@@ -91,123 +74,10 @@ const members = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const teacherEmail = ref('');
-const selectedMember = ref(null);
-const kickingMember = ref(null);
-
-// 현재 사용자 정보
-const currentUserEmail = computed(() => {
-  return authStore.currentUser?.email || '';
-});
-
-// 현재 사용자가 선생님인지 확인
-const isTeacher = computed(() => {
-  return currentUserEmail.value === teacherEmail.value;
-});
 
 // 모달 닫기
 const closeModal = () => {
-  selectedMember.value = null;
   emit('close');
-};
-
-// 학생 클릭 처리
-const handleMemberClick = (member) => {
-  // 선생님이고 학생을 클릭한 경우에만 선택
-  if (isTeacher.value && member.email !== currentUserEmail.value) {
-    selectedMember.value = selectedMember.value?.email === member.email ? null : member;
-  }
-};
-
-// 강제 퇴장 확인 다이얼로그
-const showKickConfirm = (member) => {
-  console.log('💬 showKickConfirm 호출됨:', member);
-  if (confirm(`정말로 ${member.nickname}님을 강제 퇴장시키시겠습니까?`)) {
-    console.log('✅ 사용자가 확인함, kickMember 호출');
-    kickMember(member);
-  } else {
-    console.log('❌ 사용자가 취소함');
-  }
-};
-
-// 강제 퇴장 API 호출
-const kickMember = async (member) => {
-  console.log('🚀 kickMember 함수 시작');
-  kickingMember.value = member.email;
-  
-  try {
-    const accessToken = localStorage.getItem('token');
-    if (!accessToken) {
-      throw new Error('로그인이 필요합니다.');
-    }
-
-    // 디버깅을 위한 로그 추가
-    console.log('🔍 강제 퇴장 API 호출 정보:');
-    console.log('🔍 classId:', props.classId, '타입:', typeof props.classId);
-    console.log('🔍 member.email:', member.email, '타입:', typeof member.email);
-    console.log('🔍 요청 URL:', `/classroom/eviction`);
-    console.log('🔍 요청 본문:', {
-      classId: Number(props.classId),
-      email: member.email
-    });
-    console.log('🔍 accessToken 존재:', !!accessToken);
-    console.log('🔍 apiClient baseURL:', apiClient.defaults?.baseURL);
-
-    // 백엔드 API 명세에 맞게 수정
-    const response = await apiClient.delete(`/classroom/eviction`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      data: {
-        classId: Number(props.classId),
-        email: member.email
-      }
-    });
-
-    console.log('강제 퇴장 성공:', response.data);
-    
-    // 성공 시 목록에서 제거
-    members.value = members.value.filter(m => m.email !== member.email);
-    selectedMember.value = null;
-    
-    // 성공 메시지 표시 (선택사항)
-    alert(`${member.nickname}님이 강제 퇴장되었습니다.`);
-    
-  } catch (err) {
-    console.error('❌ 강제 퇴장 실패:', err);
-    console.error('❌ 에러 상세 정보:', {
-      message: err.message,
-      status: err.response?.status,
-      statusText: err.response?.statusText,
-      data: err.response?.data,
-      config: err.config
-    });
-    
-    let errorMessage = '강제 퇴장에 실패했습니다.';
-    
-    if (err.response) {
-      const status = err.response.status;
-      console.log('❌ HTTP 상태 코드:', status);
-      console.log('❌ 에러 응답 데이터:', err.response.data);
-      
-      if (status === 400) {
-        errorMessage = '잘못된 요청입니다.';
-      } else if (status === 401) {
-        errorMessage = '인증이 필요합니다.';
-      } else if (status === 403) {
-        errorMessage = '강제 퇴장 권한이 없습니다.';
-      } else if (status === 404) {
-        errorMessage = '클래스 또는 멤버를 찾을 수 없습니다.';
-      } else if (status === 500) {
-        errorMessage = '서버 오류가 발생했습니다.';
-      }
-    }
-    
-    alert(errorMessage);
-  } finally {
-    console.log('🏁 kickMember 함수 종료');
-    kickingMember.value = null;
-  }
 };
 
 // 학생 목록 조회
@@ -305,8 +175,6 @@ onMounted(() => {
 watch(() => props.isVisible, (newValue) => {
   if (newValue) {
     fetchMembers();
-  } else {
-    selectedMember.value = null;
   }
 }, { immediate: true }); // 컴포넌트가 마운트될 때 즉시 실행되도록 immediate 옵션 추가
 </script>
@@ -428,22 +296,9 @@ watch(() => props.isVisible, (newValue) => {
   border-radius: 8px;
   background: #f9fafb;
   transition: background 0.2s;
-  position: relative;
 }
 
-.member-item.clickable {
-  cursor: pointer;
-}
-
-.member-item.clickable:hover {
-  background: #f3f4f6;
-}
-
-.member-item.clickable {
-  cursor: pointer;
-}
-
-.member-item.clickable:hover {
+.member-item:hover {
   background: #f3f4f6;
 }
 
@@ -504,34 +359,6 @@ watch(() => props.isVisible, (newValue) => {
 .role-badge.teacher {
   background: #fef3c7;
   color: #92400e;
-}
-
-.kick-actions {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.kick-btn {
-  background: #ef4444;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.kick-btn:hover:not(:disabled) {
-  background: #dc2626;
-}
-
-.kick-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
 }
 
 .modal-footer {
