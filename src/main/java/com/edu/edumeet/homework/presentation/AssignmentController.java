@@ -30,7 +30,7 @@ public class AssignmentController {
             @Valid @RequestBody AssignmentCreateDTO assignmentCreateDTO) {
         log.info("과제 생성 요청: classId={}, title={}", classId, assignmentCreateDTO.getTitle());
         
-        Long assignmentId = assignmentService.createAssignment(assignmentCreateDTO);
+        Long assignmentId = assignmentService.createAssignment(assignmentCreateDTO, classId);
         return ResponseEntity.status(HttpStatus.CREATED).body(assignmentId);
     }
 

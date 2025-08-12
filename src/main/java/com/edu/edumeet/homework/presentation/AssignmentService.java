@@ -38,11 +38,11 @@ public interface AssignmentService {
     /**
      * AssignmentCreateDTO를 Assignment 도메인 객체로 변환
      */
-    default Assignment createDtoToDomain(AssignmentCreateDTO dto) {
+    default Assignment createDtoToDomain(AssignmentCreateDTO dto, Long classId) {
         return Assignment.builder()
                 .title(dto.getTitle())
                 .description(dto.getDescription())
-                .classId(dto.getClassId())
+                .classId(classId)
                 .createdById(dto.getCreatedById())
                 .createdByName(dto.getCreatedByName())
                 .attachmentFiles(dto.getAttachmentFiles() != null ? dto.getAttachmentFiles() : new ArrayList<>())
@@ -52,9 +52,10 @@ public interface AssignmentService {
     /**
      * 과제 생성
      * @param assignmentCreateDTO 생성할 과제 정보
+     * @param classId 클래스 ID
      * @return 생성된 과제의 ID
      */
-    Long createAssignment(AssignmentCreateDTO assignmentCreateDTO);
+    Long createAssignment(AssignmentCreateDTO assignmentCreateDTO, Long classId);
 
     /**
      * 과제 조회

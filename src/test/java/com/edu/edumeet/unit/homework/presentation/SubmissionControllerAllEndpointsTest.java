@@ -110,13 +110,12 @@ public class SubmissionControllerAllEndpointsTest {
         AssignmentCreateDTO assignmentCreateDTO = AssignmentCreateDTO.builder()
                 .title("통합테스트 과제")
                 .description("제출물 테스트를 위한 과제입니다")
-                .classId(testClassId)
                 .createdById(10L)
                 .createdByName("테스트선생님")
                 .attachmentFiles(null)
                 .build();
         
-        testAssignmentId = assignmentService.createAssignment(assignmentCreateDTO);
+        testAssignmentId = assignmentService.createAssignment(assignmentCreateDTO, testClassId);
         
         // 테스트용 제출물 생성 (수정/삭제 테스트용)
         SubmissionCreateDTO submissionCreateDTO = SubmissionCreateDTO.builder()

@@ -30,10 +30,6 @@ public class AssignmentCreateDTO {
     @Schema(description = "과제 설명", example = "스프링 부트를 이용한 게시판 만들기")
     private String description;
 
-    @Schema(description = "클래스 ID", example = "1", required = true)
-    @NotNull(message = "클래스 ID는 필수입니다")
-    private Long classId;
-
     @Schema(description = "과제 생성자 ID", example = "1", required = true)
     private Long createdById;
 
