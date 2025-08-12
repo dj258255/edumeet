@@ -1,6 +1,7 @@
 import axios from "axios"
 import { defineStore } from 'pinia'
 import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
+
 // API 기본 설정
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -30,12 +31,7 @@ apiClient.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
       }
-
     }
-    
-    // 이 부분에 console.log를 추가하여 헤더를 확인합니다.
-    console.log('API 요청 헤더:', config.headers);
-    console.log('전체 요청 설정:', config);
     
     return config
   },
@@ -97,7 +93,6 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
-        // SPA 내 라우팅으로 대체하거나, 여기서는 리다이렉트하지 않고 에러만 반환
         return Promise.reject(error);
       }
 
@@ -266,7 +261,43 @@ const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    // 로그인
+    // OAuth2 로그인 (카카오 등)
+    async loginWithOAuth2(tokenData) {
+      this.loading = true
+      this.error = null
+      
+      try {
+        // OAuth2로 받은 토큰 정보 저장
+        if (tokenData.accessToken) {
+          tokenManager.setToken(tokenData.accessToken)
+          localStorage.setItem('accessToken', tokenData.accessToken)
+        }
+        
+        if (tokenData.refreshToken) {
+          localStorage.setItem('refreshToken', tokenData.refreshToken)
+        }
+        
+        // 사용자 정보 저장
+        if (tokenData.user) {
+          userManager.setUser(tokenData.user)
+          this.user = tokenData.user
+        }
+        
+        this.isAuthenticated = true
+        
+        console.log('✅ OAuth2 로그인 성공:', this.user)
+        return tokenData
+        
+      } catch (error) {
+        this.error = 'OAuth2 로그인 처리에 실패했습니다.'
+        console.error('OAuth2 로그인 오류:', error)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 일반 로그인
     async login(email, password) {
       this.loading = true
       this.error = null
@@ -356,33 +387,32 @@ const useAuthStore = defineStore('auth', {
     },
 
     // 인증 코드 검증
-async verifyCode(verifyInfo) {
-  this.loading = true;
-  this.error = null;
+    async verifyCode(verifyInfo) {
+      this.loading = true;
+      this.error = null;
 
-  try {
-    const payload = verifyInfo.value || verifyInfo;
-    
-    // API 호출
-    const result = await authAPI.verifyCode(payload);
+      try {
+        const payload = verifyInfo.value || verifyInfo;
+        
+        // API 호출
+        const result = await authAPI.verifyCode(payload);
 
-    // 백엔드의 메시지 내용을 직접 확인하여 성공/실패를 구분
-    if (result.data?.message === "인증 성공") {
-      return { success: true, message: result.data.message };
-    } else {
-      // '인증 실패' 메시지를 받으면, error 상태 업데이트 후 실패 반환
-      this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
-      return { success: false, message: this.error };
-    }
-  } catch (error) {
-    // API 호출 자체에 실패했을 때 (네트워크 오류 등)만 이 블록이 실행됩니다.
-    this.error = error.message || '인증 코드 검증 중 네트워크 오류가 발생했습니다.';
-    return { success: false, message: this.error };
-  } finally {
-    this.loading = false;
-  }
-},
-
+        // 백엔드의 메시지 내용을 직접 확인하여 성공/실패를 구분
+        if (result.data?.message === "인증 성공") {
+          return { success: true, message: result.data.message };
+        } else {
+          // '인증 실패' 메시지를 받으면, error 상태 업데이트 후 실패 반환
+          this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
+          return { success: false, message: this.error };
+        }
+      } catch (error) {
+        // API 호출 자체에 실패했을 때 (네트워크 오류 등)만 이 블록이 실행됩니다.
+        this.error = error.message || '인증 코드 검증 중 네트워크 오류가 발생했습니다.';
+        return { success: false, message: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
 
     // 인증 코드 재전송
     async resendCode(email) {
