@@ -366,6 +366,7 @@ const registerNotice = async (newNoticeData) => {
       newNoticeData.files.forEach(file => formData.append('files', file))
       
       try {
+        console.log(formData)
         const res = await apiClient.post('/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
@@ -415,81 +416,71 @@ const closeAssignmentRegisterModal = () => {
   showAssignmentRegisterModal.value = false
 }
 
-// Presigned URL 헬퍼
-const getPresignedUrl = async (file) => {
-  const params = { domain: 'assignments', fileName: file.name }
+const registerAssignment = async (newAssignment) => {
   try {
-    console.log('🔵 Presigned URL 요청: POST /upload/presigned-url', {
-      baseURL: apiClient.defaults?.baseURL,
-      params
-    })
-    const res = await apiClient.post('/upload/presigned-url', null, { params })
-    console.log('🟢 Presigned URL 응답:', {
-      status: res.status,
-      data: res.data
-    })
-    return res.data
-  } catch (error) {
-    console.error('🔴 Presigned URL 요청 실패:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data
-    })
-    throw error
-  }
-}
+    const classId = currentClassId.value
+    if (!classId) {
+      alert('클래스가 선택되지 않아 과제를 등록할 수 없습니다.')
+      return
+    }
+    console.log(authStore.currentUser)
 
-const registerAssignment = (newAssignment) => {
-  (async () => {
-    try {
-      const classId = currentClassId.value
-      if (!classId) {
-        alert('클래스가 선택되지 않아 과제를 등록할 수 없습니다.')
+    // 작성자 정보 준비
+    const creatorName = authStore.currentUser.nickname
+
+    let attachments = []
+    if (newAssignment.file) {
+      const formData = new FormData()
+      newAssignment.files.forEach(file => formData.append('files', file))
+
+      try {
+        console.log(formData)
+        const res = await apiClient.post('/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+
+        // 파일 업로드 응답을 attachments 형식으로 변환
+        attachments = res.data.map(file => ({
+          uuid: file.uuid,
+          fileName: file.fileName,
+          ord: file.ord,
+          img: file.isImage
+        }))
+      } catch (error) {
+        console.error('파일 업로드 실패:', error)
         return
       }
-      console.log(authStore.currentUser)
-      // 작성자 정보 준비
-      const creatorName =  authStore.currentUser.nickname
-
-      let attachments = []
-      if (newAssignment.file) {
-        const presigned = await getPresignedUrl(newAssignment.file)
-        await uploadToPresignedUrl(presigned.presignedUrl, newAssignment.file)
-        attachments.push({ uuid: presigned.uuid, fileName: presigned.fileName, domain: presigned.domain })
-      }
-
-      const payload = {
-        title: newAssignment.title,
-        description: newAssignment.description,
-        classId: Number(classId),
-        createdByName: creatorName,
-        attachmentFiles: attachments,
-      }
-      console.log('assignment create payload:', payload)
-      const res = await apiClient.post(`/class/${classId}/assignments`, payload)
-
-      // 응답 객체가 있으면 목록에 반영하고, 없으면 재조회
-      const created = res?.data
-      if (created) {
-        // 서버 필드명 유연 처리: id 혹은 assignmentId
-        const normalized = {
-          id: created.id || created.assignmentId || Date.now(),
-          title: created.title || payload.title,
-          description: created.description || payload.description,
-          done: created.done ?? false,
-        }
-        assignments.value.unshift(normalized)
-      } else {
-        await fetchNoticesAndAssignments()
-      }
-
-      showAssignmentRegisterModal.value = false
-      alert('과제가 성공적으로 등록되었습니다!')
-    } catch (err) {
-      console.error('과제 등록 실패:', err)
-      alert('과제 등록에 실패했습니다.')
     }
-  })()
+
+    const payload = {
+      title: newAssignment.title,
+      description: newAssignment.description,
+      createdByName: creatorName,
+      attachmentFiles: attachments,
+    }
+    console.log('assignment create payload:', payload)
+
+    const res = await apiClient.post(`/class/${classId}/assignments`, payload)
+
+    // 응답이 있으면 즉시 반영
+    const created = res?.data
+    if (created) {
+      assignments.value.unshift({
+        id: created.id || created.assignmentId || Date.now(),
+        title: created.title || payload.title,
+        description: created.description || payload.description,
+        done: created.done ?? false,
+      })
+    } else {
+      await fetchNoticesAndAssignments()
+    }
+
+    showAssignmentRegisterModal.value = false
+    alert('과제가 성공적으로 등록되었습니다!')
+  } catch (err) {
+    console.error('과제 등록 실패:', err)
+    alert('과제 등록에 실패했습니다.')
+  }
 }
 
 const submitAssignment = async (payload) => {
