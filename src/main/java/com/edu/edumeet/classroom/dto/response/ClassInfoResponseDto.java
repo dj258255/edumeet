@@ -19,7 +19,7 @@ public class ClassInfoResponseDto {
     @Schema(description = "클래스 설명", example = "초보자를 위한 자바 프로그래밍 강의입니다.")
     private String description;
     
-    @Schema(description = "썸네일 이미지 URL", example = "https://bucket-name.s3.amazonaws.com/s_uuid_thumbnail.jpg")
+    @Schema(description = "썸네일 이미지 URL", example = "https://bucket-name.s3.ap-northeast-2.amazonaws.com/s_uuid_thumbnail.jpg")
     private String thumbnailUrl;
     
     @Schema(description = "클래스 태그 목록", example = "[\"자바\", \"프로그래밍\", \"기초\"]")
