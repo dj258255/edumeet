@@ -75,8 +75,8 @@ const currentSlide = ref(0)
 const isModalVisible = ref(false)
 
 const slideTransition = (slideIndex) => {
-  currentSlide.value = slideIndex
-}
+  currentSlide.value = slideIndex;
+};
 
 const openModal = () => {
   isModalVisible.value = true
@@ -87,16 +87,14 @@ const closeModal = () => {
 }
 
 const getCurrentImage = () => {
-
-      const images = [
-      `${assetPath}/mainim.png`,
-      `${assetPath}/mainim1.png`,
-      `${assetPath}/mainim2.png`,
-      `${assetPath}/mainim3.png`,
-      `${assetPath}/mainim4.png`
-    ];
-  return images[currentSlide.value]
-}
+  // 🚨 import된 이미지 변수들을 사용합니다.
+  const images = [
+    mainImage0,
+    mainImage1,
+    mainImage2,
+  ];
+  return images[currentSlide.value];
+};
 
 const getCurrentHeading = () => {
   const headings = [

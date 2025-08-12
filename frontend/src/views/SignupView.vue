@@ -441,27 +441,12 @@ const handleSignup = async () => {
   if (!validateForm()) return
   message.value = ''
   try {
-    await authStore.signup({
+    const signupResult = await authStore.signup({
       nickname: name.value,
       email: email.value,
       password: password.value,
     })
-    message.value = '회원가입이 완료되었습니다! 자동으로 로그인됩니다.'
-    
-    // 회원가입 성공 후 자동 로그인 시도
-    try {
-      await authStore.login(email.value, password.value)
-      message.value = '로그인 성공! 홈으로 이동합니다.'
-      setTimeout(() => {
-        router.push('/')
-      }, 1500)
-    } catch (loginError) {
-      // 자동 로그인 실패 시 로그인 페이지로 이동
-      message.value = '회원가입 완료! 로그인 페이지로 이동합니다.'
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
-    }
+    message.value = '회원가입이 완료되었습니다! 로그인 페이지로 이동해 로그인해주세요.'
   } catch (error) {
     message.value = authStore.error || '회원가입에 실패했습니다.'
   }

@@ -1,6 +1,7 @@
 import axios from "axios"
 import { defineStore } from 'pinia'
 import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
+
 // API 기본 설정
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -30,12 +31,7 @@ apiClient.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
       }
-
     }
-    
-    // 이 부분에 console.log를 추가하여 헤더를 확인합니다.
-    console.log('API 요청 헤더:', config.headers);
-    console.log('전체 요청 설정:', config);
     
     return config
   },
@@ -63,31 +59,53 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+
+    // URL path 계산 (어떤 엔드포인트인지 식별)
+    const base = (originalRequest.baseURL || '').toString();
+    const url = (originalRequest.url || '').toString();
+    const full = url.startsWith('http') ? url : (base ? `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}` : url);
+    let effectivePath = url;
+    try {
+      effectivePath = new URL(full, window.location.origin).pathname;
+    } catch (_) {}
+
+    const publicAuthSegments = [
+      '/members/login',
+      '/members/signup',
+      '/members/send-code',
+      '/members/verification',
+      '/members/check-email',
+      '/members/refresh'
+    ];
+    const isPublicAuthEndpoint = publicAuthSegments.some((seg) => effectivePath.includes(seg));
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const existingRefreshToken = localStorage.getItem("refreshToken");
-      if (!existingRefreshToken) {
-        // 갱신 불가 → 즉시 로그아웃 처리
-        localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+      // 로그인/회원가입 등 공개 엔드포인트의 401은 리다이렉트 하지 않고 에러만 반환
+      if (isPublicAuthEndpoint) {
         return Promise.reject(error);
       }
 
-      // 이미 다른 요청이 갱신 중인 경우 → 갱신 완료를 기다렸다가 재시도
+      const existingRefreshToken = localStorage.getItem('refreshToken');
+      if (!existingRefreshToken) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve) => {
           subscribeTokenRefresh((newToken) => {
+            originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             resolve(apiClient(originalRequest));
           });
         });
       }
 
-      // 갱신 시작
       isRefreshing = true;
       try {
         const refreshResponse = await axios.post(`${API_BASE_URL}/members/refresh`, {
@@ -96,22 +114,18 @@ apiClient.interceptors.response.use(
         const newAccessToken = refreshResponse.data.accessToken;
         const newRefreshToken = refreshResponse.data.refreshToken;
 
-        // 새로운 토큰 저장
-        localStorage.setItem("token", newAccessToken);
-        localStorage.setItem("refreshToken", newRefreshToken);
-
-        // 대기 중인 모든 요청 재시도
+        localStorage.setItem('token', newAccessToken);
+        localStorage.setItem('refreshToken', newRefreshToken);
         onRefreshed(newAccessToken);
 
-        // 현재 요청 재시도
+        originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        console.error("토큰 갱신 실패:", refreshError);
-        localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        console.error('토큰 갱신 실패:', refreshError);
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -247,7 +261,43 @@ const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    // 로그인
+    // OAuth2 로그인 (카카오 등)
+    async loginWithOAuth2(tokenData) {
+      this.loading = true
+      this.error = null
+      
+      try {
+        // OAuth2로 받은 토큰 정보 저장
+        if (tokenData.accessToken) {
+          tokenManager.setToken(tokenData.accessToken)
+          localStorage.setItem('accessToken', tokenData.accessToken)
+        }
+        
+        if (tokenData.refreshToken) {
+          localStorage.setItem('refreshToken', tokenData.refreshToken)
+        }
+        
+        // 사용자 정보 저장
+        if (tokenData.user) {
+          userManager.setUser(tokenData.user)
+          this.user = tokenData.user
+        }
+        
+        this.isAuthenticated = true
+        
+        console.log('✅ OAuth2 로그인 성공:', this.user)
+        return tokenData
+        
+      } catch (error) {
+        this.error = 'OAuth2 로그인 처리에 실패했습니다.'
+        console.error('OAuth2 로그인 오류:', error)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 일반 로그인
     async login(email, password) {
       this.loading = true
       this.error = null
@@ -289,7 +339,7 @@ const useAuthStore = defineStore('auth', {
         this.user = tempUser
         this.isAuthenticated = !!tokenManager.getToken()
 
-        // 4) 프로필 동기화는 선택 (실패해도 흐름 계속)
+        // 4) 프로필 동기화는 선택 (사용자 화면 이동은 컴포넌트에서 제어)
         try {
           await this.getProfile()
         } catch (_) {}
@@ -297,6 +347,7 @@ const useAuthStore = defineStore('auth', {
         return responseData
       } catch (error) {
         this.error = error.response?.data?.message || '로그인에 실패했습니다.'
+        // 페이지 리로드 방지: 에러만 던지고 상태 유지
         throw error
       } finally {
         this.loading = false
@@ -336,33 +387,32 @@ const useAuthStore = defineStore('auth', {
     },
 
     // 인증 코드 검증
-async verifyCode(verifyInfo) {
-  this.loading = true;
-  this.error = null;
+    async verifyCode(verifyInfo) {
+      this.loading = true;
+      this.error = null;
 
-  try {
-    const payload = verifyInfo.value || verifyInfo;
-    
-    // API 호출
-    const result = await authAPI.verifyCode(payload);
+      try {
+        const payload = verifyInfo.value || verifyInfo;
+        
+        // API 호출
+        const result = await authAPI.verifyCode(payload);
 
-    // 백엔드의 메시지 내용을 직접 확인하여 성공/실패를 구분
-    if (result.data?.message === "인증 성공") {
-      return { success: true, message: result.data.message };
-    } else {
-      // '인증 실패' 메시지를 받으면, error 상태 업데이트 후 실패 반환
-      this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
-      return { success: false, message: this.error };
-    }
-  } catch (error) {
-    // API 호출 자체에 실패했을 때 (네트워크 오류 등)만 이 블록이 실행됩니다.
-    this.error = error.message || '인증 코드 검증 중 네트워크 오류가 발생했습니다.';
-    return { success: false, message: this.error };
-  } finally {
-    this.loading = false;
-  }
-},
-
+        // 백엔드의 메시지 내용을 직접 확인하여 성공/실패를 구분
+        if (result.data?.message === "인증 성공") {
+          return { success: true, message: result.data.message };
+        } else {
+          // '인증 실패' 메시지를 받으면, error 상태 업데이트 후 실패 반환
+          this.error = result.data?.message || '인증 코드 검증에 실패했습니다.';
+          return { success: false, message: this.error };
+        }
+      } catch (error) {
+        // API 호출 자체에 실패했을 때 (네트워크 오류 등)만 이 블록이 실행됩니다.
+        this.error = error.message || '인증 코드 검증 중 네트워크 오류가 발생했습니다.';
+        return { success: false, message: this.error };
+      } finally {
+        this.loading = false;
+      }
+    },
 
     // 인증 코드 재전송
     async resendCode(email) {
