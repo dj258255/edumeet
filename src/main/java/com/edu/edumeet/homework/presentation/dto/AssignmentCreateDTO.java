@@ -1,6 +1,7 @@
 package com.edu.edumeet.homework.presentation.dto;
 
 import com.edu.edumeet.attachment.domain.Attachment;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -37,5 +38,5 @@ public class AssignmentCreateDTO {
     private String createdByName;
 
     @Schema(description = "첨부파일 목록", example = "[]")
-    private List<Attachment> attachmentFiles;
+    private List<AttachmentDTO> attachmentFiles;
 }

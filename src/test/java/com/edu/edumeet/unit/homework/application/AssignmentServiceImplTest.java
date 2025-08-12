@@ -10,7 +10,7 @@ import com.edu.edumeet.homework.application.AssignmentServiceImpl;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,12 +69,22 @@ class AssignmentServiceImplTest {
                 .uploadedAt(LocalDateTime.now())
                 .build();
 
+        // 테스트용 AttachmentDTO 생성
+        AttachmentDTO testFileDTO = AttachmentDTO.builder()
+                .uuid("test-uuid-123")
+                .fileName("guide.pdf")
+                .ord(1)
+                .img(false)
+                .domain("assignment")
+                .referenceId(1L)
+                .build();
+
         createDTOWithFiles = AssignmentCreateDTO.builder()
                 .title("파일 포함 과제")
                 .description("참고자료가 첨부된 과제입니다")
                 .createdById(10L)
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList(testFile))
+                .attachmentFiles(Arrays.asList(testFileDTO)) // 실제 AttachmentDTO 리스트 제공
                 .build();
 
         // 파일이 없는 과제 생성 DTO
@@ -181,7 +191,7 @@ class AssignmentServiceImplTest {
         System.out.println("[DEBUG_LOG] 테스트 시작: 첨부파일 포함 과제 조회");
         
         // AttachmentAdapter mock 설정
-        AttchmentDTO testFileDTO = AttchmentDTO.builder()
+        AttachmentDTO testFileDTO = AttachmentDTO.builder()
                 .uuid("test-uuid-123")
                 .fileName("guide.pdf")
                 .ord(1)
@@ -308,8 +318,19 @@ class AssignmentServiceImplTest {
         // Given
         System.out.println("[DEBUG_LOG] 테스트 시작: 도메인 변환 테스트");
         
-        // AttachmentAdapter mock 설정
-        AttchmentDTO testFileDTO = AttchmentDTO.builder()
+        // AttachmentDTO를 Attachment로 변환하는 mock 설정
+        Attachment testAttachment = Attachment.builder()
+                .uuid("test-uuid-123")
+                .fileName("guide.pdf")
+                .ord(1)
+                .img(false)
+                .build();
+        
+        when(attachmentAdapter.fromFileUploadDTOList(any()))
+                .thenReturn(Arrays.asList(testAttachment));
+        
+        // AttachmentAdapter mock 설정 (Domain -> DTO 변환용)
+        AttachmentDTO testFileDTO = AttachmentDTO.builder()
                 .uuid("test-uuid-123")
                 .fileName("guide.pdf")
                 .ord(1)
@@ -323,7 +344,7 @@ class AssignmentServiceImplTest {
                 .thenReturn(Arrays.asList(testFileDTO));
         
         // When - DTO to Domain 변환
-        Assignment domainFromDTO = assignmentService.createDtoToDomain(createDTOWithFiles, 1L);
+        Assignment domainFromDTO = assignmentService.createDtoToDomain(createDTOWithFiles, 1L, attachmentAdapter);
         System.out.println("[DEBUG_LOG] DTO -> Domain 변환 완료");
         
         // Domain to DTO 변환
@@ -353,7 +374,7 @@ class AssignmentServiceImplTest {
         System.out.println("[DEBUG_LOG] 테스트 시작: null 파일 처리 테스트");
         
         // When - null 첨부파일로 도메인 변환
-        Assignment domainFromNullFiles = assignmentService.createDtoToDomain(createDTOWithoutFiles, 1L);
+        Assignment domainFromNullFiles = assignmentService.createDtoToDomain(createDTOWithoutFiles, 1L, attachmentAdapter);
         
         // Then
         assertThat(domainFromNullFiles.getAttachmentFiles()).isNotNull();

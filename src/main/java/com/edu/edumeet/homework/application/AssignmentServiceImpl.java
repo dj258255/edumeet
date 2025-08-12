@@ -3,6 +3,7 @@ package com.edu.edumeet.homework.application;
 import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.application.AssignmentRepository;
 import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
@@ -31,16 +32,15 @@ public class AssignmentServiceImpl implements AssignmentService {
     public Long createAssignment(AssignmentCreateDTO assignmentCreateDTO, Long classId) {
         log.info("과제 생성 시작: {}", assignmentCreateDTO.getTitle());
 
-        // 1. 도메인 객체 생성
-        Assignment assignment = createDtoToDomain(assignmentCreateDTO, classId);
-
-        // 2. 과제 저장
-        Assignment savedAssignment = assignmentRepository.save(assignment);
-
-        // 3. 클래스 멤버들의 제출 현황 초기화
+        // 1. 클래스 멤버들 먼저 조회 (성능 최적화)
         List<ClassMember> classMembers = classMemberRepository.findAllByClassRoomId(classId);
-        Assignment assignmentWithStatuses = savedAssignment.initializeStudentStatuses(classMembers);
-        assignmentRepository.save(assignmentWithStatuses);
+        
+        // 2. 도메인 객체 생성
+        Assignment assignment = createDtoToDomain(assignmentCreateDTO, classId, attachmentAdapter);
+        
+        // 3. 제출 현황 초기화 후 한 번에 저장 (성능 최적화: 중복 save() 제거)
+        Assignment assignmentWithStatuses = assignment.initializeStudentStatuses(classMembers);
+        Assignment savedAssignment = assignmentRepository.save(assignmentWithStatuses);
 
         log.info("과제 생성 완료: ID={}", savedAssignment.getId());
         return savedAssignment.getId();
@@ -62,9 +62,7 @@ public class AssignmentServiceImpl implements AssignmentService {
     public void deleteAssignment(Long id) {
         log.info("과제 삭제 시작: ID={}", id);
 
-        Assignment assignment = assignmentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
-
+        // 성능 최적화: 불필요한 조회 제거 (deleteById는 존재하지 않는 ID에도 안전)
         assignmentRepository.deleteById(id);
         log.info("과제 삭제 완료: ID={}", id);
     }

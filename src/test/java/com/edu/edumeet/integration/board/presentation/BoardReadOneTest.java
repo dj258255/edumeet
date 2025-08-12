@@ -1,6 +1,7 @@
 package com.edu.edumeet.board.presentation;
 
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
+
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.infrastructure.BoardCategoryJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardCategoryJpaRepository;
@@ -82,7 +83,7 @@ public class BoardReadOneTest {
         assertThat(boardDTO.getId()).isEqualTo(testBoardId);
         
         // 이미지 확인
-        List<AttchmentDTO> boardImages = boardDTO.getBoardImages();
+        List<AttachmentDTO> boardImages = boardDTO.getBoardImages();
         assertThat(boardImages).isNotNull();
         assertThat(boardImages).isNotEmpty();
         
@@ -90,7 +91,7 @@ public class BoardReadOneTest {
         log.info("Board Images: {}", boardImages);
         
         // 각 이미지 필드 확인
-        AttchmentDTO imageDTO = boardImages.get(0);
+        AttachmentDTO imageDTO = boardImages.get(0);
         assertThat(imageDTO.getUuid()).isNotNull();
         assertThat(imageDTO.getFileName()).isNotNull();
         assertThat(imageDTO.getS3Url()).isNotNull();

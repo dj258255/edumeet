@@ -1,7 +1,7 @@
 package com.edu.edumeet.board.presentation;
 
 
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardType;
 import com.edu.edumeet.board.presentation.dto.*;
@@ -46,7 +46,7 @@ public interface BoardService {
 
         // AttchmentDTO 정보를 도메인 이미지로 변환
         if(boardDTO.getBoardImages() != null){
-            for (AttchmentDTO imageDTO : boardDTO.getBoardImages()) {
+            for (AttachmentDTO imageDTO : boardDTO.getBoardImages()) {
                 board.addImage(imageDTO.getUuid(), imageDTO.getFileName());
             }
         }
@@ -78,7 +78,7 @@ public interface BoardService {
 
         // 도메인 이미지를 FileUploadDTO로 변환
         if (board.getImages() != null && !board.getImages().isEmpty()) {
-            List<AttchmentDTO> boardImages = board.getImages().stream()
+            List<AttachmentDTO> boardImages = board.getImages().stream()
                     .sorted()
                     .map(img -> {
                         String uuid = img.getUuid();
@@ -88,7 +88,7 @@ public interface BoardService {
                         String s3Url = s3Uploader.getOriginalUrl(uuid, fileName);
                         String s3ThumbnailUrl = s3Uploader.getThumbnailUrl(uuid, fileName);
                         
-                        return AttchmentDTO.builder()
+                        return AttachmentDTO.builder()
                                 .uuid(uuid)
                                 .fileName(fileName)
                                 .ord(img.getOrd())

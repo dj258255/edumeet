@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class AttchmentDTO {
+public class AttachmentDTO {
 
     private String uuid;
     private String fileName;
