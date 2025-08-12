@@ -28,10 +28,10 @@ public class SubmissionJpaEntity extends BaseEntity {
     @Column(name = "assignment_id", nullable = false)
     private Long assignmentId;
 
-    @Column(name = "class_member_id", nullable = false)
+    @Column(name = "class_member_id")
     private Long classMemberId;
 
-    @Column(name = "class_member_name", nullable = false, length = 50)
+    @Column(name = "class_member_name")
     private String classMemberName;
 
     @Column(columnDefinition = "TEXT")

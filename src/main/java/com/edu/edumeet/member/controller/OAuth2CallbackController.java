@@ -30,6 +30,9 @@ public class OAuth2CallbackController {
     @Value("${spring.security.oauth2.client.registration.kakao.client-secret}")
     private String kakaoClientSecret;
 
+    @Value("${spring.security.oauth2.client.registration.kakao.redirect-uri}")
+    private String kakaoRedirectUri;
+
     @PostMapping("/kakao/callback")
     public ResponseEntity<Map<String, Object>> handleKakaoCallback(@RequestBody Map<String, String> request) {
         try {
@@ -93,7 +96,7 @@ public class OAuth2CallbackController {
         params.add("grant_type", "authorization_code");
         params.add("client_id", kakaoClientId);
         params.add("client_secret", kakaoClientSecret);
-        params.add("redirect_uri", "http://localhost:5173/kakao"); // 프론트엔드 페이지
+        params.add("redirect_uri", kakaoRedirectUri); // 프론트엔드 페이지
         params.add("code", authorizationCode);
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);

@@ -33,10 +33,10 @@ public class AssignmentJpaEntity extends BaseEntity {
     @Column(name = "class_id", nullable = false)
     private Long classId;
 
-    @Column(name = "created_by_id", nullable = false)
+    @Column(name = "created_by_id")
     private Long createdById;
 
-    @Column(name = "created_by_name",nullable = false,length = 50)
+    @Column(name = "created_by_name")
     private String createdByName;
 
     @Column(name = "deleted_at")
