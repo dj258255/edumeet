@@ -1,6 +1,6 @@
 package com.edu.edumeet.board.infrastructure;
 
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
@@ -333,7 +333,7 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
 
         //이미지 정보 변환 (N+1 문제 방지를 위해 batch size 활용)
         if (board.getImageSet() != null && !board.getImageSet().isEmpty()) {
-            List<AttchmentDTO> imageDTOs = board.getImageSet().stream()
+            List<AttachmentDTO> imageDTOs = board.getImageSet().stream()
                     .sorted(Comparator.comparingInt(BoardFileUploadJpaEntity::getOrd))
                     .map(boardImage -> {
                         String uuid = boardImage.getUuid();
@@ -343,7 +343,7 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
                         String s3Url = s3Uploader.getOriginalUrl(uuid, fileName);
                         String s3ThumbnailUrl = s3Uploader.getThumbnailUrl(uuid, fileName);
                         
-                        return AttchmentDTO.builder()
+                        return AttachmentDTO.builder()
                                 .uuid(uuid)
                                 .fileName(fileName)
                                 .ord(boardImage.getOrd())
@@ -464,7 +464,7 @@ public Page<BoardListAllDTO> searchDeletedWithAll(String[] types, String keyword
 
         //이미지 정보 변환 (N+1 문제 방지를 위해 batch size 활용)
         if (board.getImageSet() != null && !board.getImageSet().isEmpty()) {
-            List<AttchmentDTO> imageDTOs = board.getImageSet().stream()
+            List<AttachmentDTO> imageDTOs = board.getImageSet().stream()
                     .sorted(Comparator.comparingInt(BoardFileUploadJpaEntity::getOrd))
                     .map(boardImage -> {
                         String uuid = boardImage.getUuid();
@@ -474,7 +474,7 @@ public Page<BoardListAllDTO> searchDeletedWithAll(String[] types, String keyword
                         String s3Url = s3Uploader.getOriginalUrl(uuid, fileName);
                         String s3ThumbnailUrl = s3Uploader.getThumbnailUrl(uuid, fileName);
                             
-                        return AttchmentDTO.builder()
+                        return AttachmentDTO.builder()
                                 .uuid(uuid)
                                 .fileName(fileName)
                                 .ord(boardImage.getOrd())

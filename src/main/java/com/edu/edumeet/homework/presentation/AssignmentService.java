@@ -4,7 +4,6 @@ import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 
 import java.util.ArrayList;
@@ -38,16 +37,18 @@ public interface AssignmentService {
     /**
      * AssignmentCreateDTO를 Assignment 도메인 객체로 변환
      */
-    default Assignment createDtoToDomain(AssignmentCreateDTO dto, Long classId) {
+    default Assignment createDtoToDomain(AssignmentCreateDTO dto, Long classId, AttachmentAdapter attachmentAdapter) {
         return Assignment.builder()
-                .title(dto.getTitle())
-                .description(dto.getDescription())
-                .classId(classId)
-                .createdById(dto.getCreatedById())
-                .createdByName(dto.getCreatedByName())
-                .attachmentFiles(dto.getAttachmentFiles() != null ? dto.getAttachmentFiles() : new ArrayList<>())
-                .build();
-    }
+            .title(dto.getTitle())
+            .description(dto.getDescription())
+            .classId(classId)
+            .createdById(dto.getCreatedById())
+            .createdByName(dto.getCreatedByName())
+            .attachmentFiles(dto.getAttachmentFiles() != null ? 
+                attachmentAdapter.fromFileUploadDTOList(dto.getAttachmentFiles()) : // ✅ 어댑터 사용
+                new ArrayList<>())
+            .build();
+}
 
     /**
      * 과제 생성

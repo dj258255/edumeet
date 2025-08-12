@@ -1,6 +1,6 @@
 package com.edu.edumeet.board.presentation.dto;
 
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
@@ -59,7 +59,7 @@ public class BoardDTO {
 
     // 첨부파일 정보 (이미지 DTO 목록)
     @Schema(description = "게시글 이미지 목록")
-    private List<AttchmentDTO> boardImages;
+    private List<AttachmentDTO> boardImages;
 
 
     @Schema(description = "등록일시", example = "2025-07-23T19:32:00")

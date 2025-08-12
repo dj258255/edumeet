@@ -1,7 +1,7 @@
 package com.edu.edumeet.homework.presentation.dto;
 
+import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
-import com.edu.edumeet.attachment.presentation.dto.AttchmentDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,7 +41,7 @@ public class AssignmentDTO {
     private String createdByName;
 
     @Schema(description = "첨부 파일 목록")
-    private List<AttchmentDTO> attachmentFiles;
+    private List<AttachmentDTO> attachmentFiles;
 
     @Schema(description = "학생별 제출 현황")
     private List<StudentSubmissionStatus> studentSubmissionStatuses;

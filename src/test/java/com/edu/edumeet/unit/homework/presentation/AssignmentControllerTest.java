@@ -116,7 +116,7 @@ class AssignmentControllerTest {
                 .description("Spring Boot를 활용한 REST API 개발")
                 .createdById(10L)
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList(attachment))
+                .attachmentFiles(null) // DTO는 AttachmentDTO 리스트를 받아야 함
                 .build();
 
         String requestJson = objectMapper.writeValueAsString(createDTO);
