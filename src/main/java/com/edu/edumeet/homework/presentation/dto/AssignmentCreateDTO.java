@@ -35,11 +35,9 @@ public class AssignmentCreateDTO {
     private Long classId;
 
     @Schema(description = "과제 생성자 ID", example = "1", required = true)
-    @NotNull(message = "생성자 ID는 필수입니다")
     private Long createdById;
 
     @Schema(description = "과제 생성자 이름", example = "홍길동", required = true)
-    @NotEmpty(message = "생성자 이름은 필수입니다")
     private String createdByName;
 
     @Schema(description = "첨부파일 목록", example = "[]")

@@ -88,7 +88,8 @@ public class Assignment {
         List<StudentSubmissionStatus> statuses = new ArrayList<>();
         for (ClassMember classMember : classMembers) {
             // 생성자는 제외하고 클래스 멤버들만 추가
-            if (!classMember.getMember().getId().equals(this.createdById)) {
+            // createdById가 null이면 모든 멤버를 포함
+            if (this.createdById == null || !classMember.getMember().getId().equals(this.createdById)) {
                 statuses.add(StudentSubmissionStatus.notSubmitted(
                         this.id,
                         classMember.getMember().getId(),
@@ -111,6 +112,7 @@ public class Assignment {
                 .deletedAt(this.deletedAt)
                 .build();
     }
+
 
     // 클래스 멤버 제출 시 상태 업데이트
     public Assignment updateSubmissionStatus(Long classMemberId) {
@@ -136,7 +138,8 @@ public class Assignment {
 
     // 생성자인지 확인
     public boolean isCreatedBy(Long memberId) {
-        return this.createdById.equals(memberId);
+        // createdById가 null인 경우 항상 false 반환
+        return this.createdById != null && this.createdById.equals(memberId);
     }
 
     // 삭제 여부
