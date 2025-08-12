@@ -78,22 +78,22 @@ public class S3Uploader {
 
     //기본 원본 파일 url 생성
     public String getOriginalUrl(String uuid, String fileName) {
-        return String.format("https://%s.s3.amazonaws.com/%s_%s", bucket, uuid, fileName);
+        return String.format("https://%s.s3.%s.amazonaws.com/%s_%s", bucket, region, uuid, fileName);
     }
 
     //썸네일 url 생성(이미지인 경우만)
     public String getThumbnailUrl(String uuid, String fileName) {
-        return String.format("https://%s.s3.amazonaws.com/s_%s_%s", bucket, uuid, fileName);
+        return String.format("https://%s.s3.%s.amazonaws.com/s_%s_%s", bucket, region, uuid, fileName);
     }
 
     //도메인별 원본 파일 생성
     public String getDomainOriginalUrl(String domain, String uuid, String fileName) {
-        return String.format("https://%s.s3.amazonaws.com/%s/%s_%s", bucket, domain, uuid, fileName);
+        return String.format("https://%s.s3.%s.amazonaws.com/%s/%s_%s", bucket, region, domain, uuid, fileName);
     }
 
     //도메인별 썸네일 url 생성
     public String getDomainThumbnailUrl(String domain, String uuid, String fileName) {
-        return String.format("https://%s.s3.amazonaws.com/%s/s_%s_%s", bucket, domain, uuid, fileName);
+        return String.format("https://%s.s3.%s.amazonaws.com/%s/s_%s_%s", bucket, region, domain, uuid, fileName);
     }
 
     // ================== 파일 삭제 메서드들 ==================
