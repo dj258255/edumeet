@@ -72,8 +72,7 @@ public class SecurityConfig {
                                 "/webjars/**",
                                 "/api/v1/members/send-code",
                                 "/api/v1/members/verification",
-                                "/api/v1/members/check-email",
-                                "api/v1/**"
+                                "/api/v1/members/check-email"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
