@@ -70,6 +70,11 @@ import '../styles/HomeView.css'
 import FeatureDetailModal from './FeatureDetailModal.vue'
 
 const assetPath = import.meta.env.VITE_ASSET_PATH;
+import mainImage0 from '@/assets/mainim.png';
+import mainImage1 from '@/assets/mainim1.png';
+import mainImage2 from '@/assets/mainim2.png';
+import mainImage3 from '@/assets/mainim3.png';
+import mainImage4 from '@/assets/mainim4.png';
 
 const currentSlide = ref(0)
 const isModalVisible = ref(false)
@@ -92,6 +97,8 @@ const getCurrentImage = () => {
     mainImage0,
     mainImage1,
     mainImage2,
+    mainImage3,
+    mainImage4
   ];
   return images[currentSlide.value];
 };
@@ -110,9 +117,9 @@ const getCurrentHeading = () => {
 const getCurrentSubheading = () => {
   const subheadings = [
     '언제 어디서나 편리한 수업',
-    'AI가 자동으로 요약해드려요',
+    'AI의 자동으로 요약',
     '언어 장벽 없는 교육',
-    '모든 교육 도구를 한 곳에서',
+    '모든 교육 도구를 한 곳에',
     '즉시 소통하는 학습 공간'
   ]
   return subheadings[currentSlide.value]
