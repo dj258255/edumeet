@@ -183,7 +183,8 @@ public class AttachmentServiceImpl implements AttachmentService {
             String originalFileName = fileName.substring(fileName.indexOf('_') + 1);
             return s3Uploader.getOriginalUrl(uuid, originalFileName);
         } else {
-            // 단순 파일명인 경우
+            // 단순 파일명인 경우 - S3Uploader의 putS3 메서드와 동일한 패턴 사용
+            // 실제로는 UUID가 없는 파일에 대해서는 별도 처리가 필요할 수 있음
             return String.format("https://%s.s3.%s.amazonaws.com/%s",
                     bucket, region, fileName);
         }

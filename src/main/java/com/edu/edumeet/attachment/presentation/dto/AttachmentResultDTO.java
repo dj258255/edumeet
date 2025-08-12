@@ -46,10 +46,10 @@ public class AttachmentResultDTO {
     private String uploadedBy;
 
     // S3 URL 필드 - 직접 저장
-    @Schema(description = "원본 파일 S3 URL", example = "https://bucket.s3.amazonaws.com/domain/uuid_filename.jpg")
+    @Schema(description = "원본 파일 S3 URL", example = "https://bucket.s3.ap-northeast-2.amazonaws.com/domain/uuid_filename.jpg")
     private String originalUrl;
     
-    @Schema(description = "썸네일 파일 S3 URL (이미지인 경우)", example = "https://bucket.s3.amazonaws.com/domain/s_uuid_filename.jpg")
+    @Schema(description = "썸네일 파일 S3 URL (이미지인 경우)", example = "https://bucket.s3.ap-northeast-2.amazonaws.com/domain/s_uuid_filename.jpg")
     private String thumbnailUrl;
 
     /**

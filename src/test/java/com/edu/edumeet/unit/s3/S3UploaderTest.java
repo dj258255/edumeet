@@ -73,11 +73,11 @@ class S3UploaderTest {
         String url = s3Uploader.getOriginalUrl(uuid, fileName);
         
         // Then
-        assertEquals("https://test-bucket.s3.amazonaws.com/test-uuid-123_image.jpg", url);
+        assertEquals("https://test-bucket.s3.us-east-1.amazonaws.com/test-uuid-123_image.jpg", url);
         assertTrue(url.contains(uuid));
         assertTrue(url.contains(fileName));
         assertTrue(url.startsWith("https://"));
-        assertTrue(url.contains("s3.amazonaws.com"));
+        assertTrue(url.contains("s3.us-east-1.amazonaws.com"));
     }
 
     @Test
@@ -91,7 +91,7 @@ class S3UploaderTest {
         String url = s3Uploader.getThumbnailUrl(uuid, fileName);
         
         // Then
-        assertEquals("https://test-bucket.s3.amazonaws.com/s_test-uuid-456_photo.png", url);
+        assertEquals("https://test-bucket.s3.us-east-1.amazonaws.com/s_test-uuid-456_photo.png", url);
         assertTrue(url.contains("s_" + uuid));
         assertTrue(url.contains(fileName));
         assertTrue(url.startsWith("https://"));
@@ -109,7 +109,7 @@ class S3UploaderTest {
         String url = s3Uploader.getDomainOriginalUrl(domain, uuid, fileName);
         
         // Then
-        assertEquals("https://test-bucket.s3.amazonaws.com/board/uuid-789_document.pdf", url);
+        assertEquals("https://test-bucket.s3.us-east-1.amazonaws.com/board/uuid-789_document.pdf", url);
         assertTrue(url.contains(domain));
         assertTrue(url.contains(uuid));
         assertTrue(url.contains(fileName));
@@ -127,7 +127,7 @@ class S3UploaderTest {
         String url = s3Uploader.getDomainThumbnailUrl(domain, uuid, fileName);
         
         // Then
-        assertEquals("https://test-bucket.s3.amazonaws.com/classroom/s_uuid-abc_thumbnail.jpg", url);
+        assertEquals("https://test-bucket.s3.us-east-1.amazonaws.com/classroom/s_uuid-abc_thumbnail.jpg", url);
         assertTrue(url.contains(domain));
         assertTrue(url.contains("s_" + uuid));
         assertTrue(url.contains(fileName));
@@ -190,7 +190,7 @@ class S3UploaderTest {
         String fileName = "upload.jpg";
         Duration duration = Duration.ofMinutes(10);
         
-        URL mockUrl = new URL("https://test-bucket.s3.amazonaws.com/temp/presign-uuid_upload.jpg?presigned=true");
+        URL mockUrl = new URL("https://test-bucket.s3.us-east-1.amazonaws.com/temp/presign-uuid_upload.jpg?presigned=true");
         PresignedPutObjectRequest mockPresignedRequest = mock(PresignedPutObjectRequest.class);
         when(mockPresignedRequest.url()).thenReturn(mockUrl);
         when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
@@ -231,7 +231,7 @@ class S3UploaderTest {
     @DisplayName("URL 파싱 테스트 - UUID 추출")
     void 테스트_URL에서UUID추출() {
         // Given
-        String url = "https://test-bucket.s3.amazonaws.com/uuid-test-123_filename.jpg";
+        String url = "https://test-bucket.s3.us-east-1.amazonaws.com/uuid-test-123_filename.jpg";
         
         // When
         String uuid = s3Uploader.extractUuidFromUrl(url);
@@ -244,7 +244,7 @@ class S3UploaderTest {
     @DisplayName("URL 파싱 테스트 - 파일명 추출")
     void 테스트_URL에서파일명추출() {
         // Given
-        String url = "https://test-bucket.s3.amazonaws.com/uuid-456_original-name.pdf";
+        String url = "https://test-bucket.s3.us-east-1.amazonaws.com/uuid-456_original-name.pdf";
         
         // When
         String fileName = s3Uploader.extractFileNameFromUrl(url);
@@ -257,7 +257,7 @@ class S3UploaderTest {
     @DisplayName("URL 파싱 테스트 - 전체 파일명 추출")
     void 테스트_URL에서전체파일명추출() {
         // Given
-        String url = "https://test-bucket.s3.amazonaws.com/board/uuid-789_full-filename.docx";
+        String url = "https://test-bucket.s3.us-east-1.amazonaws.com/board/uuid-789_full-filename.docx";
         
         // When
         String fullFileName = s3Uploader.extractFullFileNameFromUrl(url);
