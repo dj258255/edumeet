@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,9 @@ import java.io.IOException;
 public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final JwtService jwtService;
+    
+    @Value("${front.url2}")
+    private String frontendUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
@@ -44,21 +48,22 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
             log.info("✅ JWT 토큰 발급 완료 - accessToken 길이: {}, refreshToken 길이: {}", 
             accessToken.length(), refreshToken.length());
 
-    // 세션에 토큰 정보 저장 (RestAPI 방식을 위해)
-    request.getSession().setAttribute("accessToken", accessToken);
-    request.getSession().setAttribute("refreshToken", refreshToken);
-        request.getSession().setAttribute("authenticated", true);
-
-    // 프론트엔드로 토큰과 함께 리다이렉트
-        String redirectUrl = String.format("http://localhost:5173/kakao?accessToken=%s&refreshToken=%s", 
-                    accessToken, refreshToken);
+            // 개선된 세션 기반 토큰 저장
+            request.getSession().setAttribute("oauth2_success", true);
+            request.getSession().setAttribute("accessToken", accessToken);
+            request.getSession().setAttribute("refreshToken", refreshToken);
+            request.getSession().setAttribute("userEmail", email);
+            request.getSession().setAttribute("userNickname", userDetails.getMember().getNickname());
             
-            log.info("프론트엔드로 리다이렉트: {}", "http://localhost:5173/kakao?accessToken=***&refreshToken=***");
+            // 프론트엔드에서 별도 API로 토큰 조회하도록 리다이렉트
+            String redirectUrl = frontendUrl + "/oauth2/success";
+            
+            log.info("프론트엔드로 리다이렉트: {}", redirectUrl);
             response.sendRedirect(redirectUrl);
             
         } catch (Exception e) {
             log.error("OAuth2 성공 처리 중 오류 발생", e);
-            response.sendRedirect("http://localhost:5173/login?error=oauth_failed");
+            response.sendRedirect(frontendUrl + "/login?error=oauth_failed");
         }
         
         log.info("=== OAuth2 성공 핸들러 완료 ===");
