@@ -72,7 +72,6 @@ class AssignmentServiceImplTest {
         createDTOWithFiles = AssignmentCreateDTO.builder()
                 .title("파일 포함 과제")
                 .description("참고자료가 첨부된 과제입니다")
-                .classId(1L)
                 .createdById(10L)
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList(testFile))
@@ -82,7 +81,6 @@ class AssignmentServiceImplTest {
         createDTOWithoutFiles = AssignmentCreateDTO.builder()
                 .title("파일 없는 과제")
                 .description("별도의 첨부파일 없이 진행하는 과제입니다")
-                .classId(1L)
                 .createdById(10L)
                 .createdByName("김선생")
                 .attachmentFiles(null)
@@ -129,7 +127,7 @@ class AssignmentServiceImplTest {
                 .thenReturn(classMembers);
 
         // When
-        Long assignmentId = assignmentService.createAssignment(createDTOWithFiles);
+        Long assignmentId = assignmentService.createAssignment(createDTOWithFiles, 1L);
 
         // Then
         assertThat(assignmentId).isEqualTo(1234L);
@@ -165,7 +163,7 @@ class AssignmentServiceImplTest {
                 .thenReturn(classMembers);
 
         // When
-        Long assignmentId = assignmentService.createAssignment(createDTOWithoutFiles);
+        Long assignmentId = assignmentService.createAssignment(createDTOWithoutFiles, 1L);
 
         // Then
         assertThat(assignmentId).isEqualTo(5678L);
@@ -325,7 +323,7 @@ class AssignmentServiceImplTest {
                 .thenReturn(Arrays.asList(testFileDTO));
         
         // When - DTO to Domain 변환
-        Assignment domainFromDTO = assignmentService.createDtoToDomain(createDTOWithFiles);
+        Assignment domainFromDTO = assignmentService.createDtoToDomain(createDTOWithFiles, 1L);
         System.out.println("[DEBUG_LOG] DTO -> Domain 변환 완료");
         
         // Domain to DTO 변환
@@ -335,7 +333,7 @@ class AssignmentServiceImplTest {
         // Then - DTO to Domain 검증
         assertThat(domainFromDTO.getTitle()).isEqualTo(createDTOWithFiles.getTitle());
         assertThat(domainFromDTO.getDescription()).isEqualTo(createDTOWithFiles.getDescription());
-        assertThat(domainFromDTO.getClassId()).isEqualTo(createDTOWithFiles.getClassId());
+        assertThat(domainFromDTO.getClassId()).isEqualTo(1L);
         assertThat(domainFromDTO.getCreatedById()).isEqualTo(createDTOWithFiles.getCreatedById());
         assertThat(domainFromDTO.getCreatedByName()).isEqualTo(createDTOWithFiles.getCreatedByName());
         assertThat(domainFromDTO.getAttachmentFiles()).hasSize(1);
@@ -355,7 +353,7 @@ class AssignmentServiceImplTest {
         System.out.println("[DEBUG_LOG] 테스트 시작: null 파일 처리 테스트");
         
         // When - null 첨부파일로 도메인 변환
-        Assignment domainFromNullFiles = assignmentService.createDtoToDomain(createDTOWithoutFiles);
+        Assignment domainFromNullFiles = assignmentService.createDtoToDomain(createDTOWithoutFiles, 1L);
         
         // Then
         assertThat(domainFromNullFiles.getAttachmentFiles()).isNotNull();

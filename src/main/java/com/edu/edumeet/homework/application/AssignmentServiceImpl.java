@@ -28,17 +28,17 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Override
     @Transactional
-    public Long createAssignment(AssignmentCreateDTO assignmentCreateDTO) {
+    public Long createAssignment(AssignmentCreateDTO assignmentCreateDTO, Long classId) {
         log.info("과제 생성 시작: {}", assignmentCreateDTO.getTitle());
 
         // 1. 도메인 객체 생성
-        Assignment assignment = createDtoToDomain(assignmentCreateDTO);
+        Assignment assignment = createDtoToDomain(assignmentCreateDTO, classId);
 
         // 2. 과제 저장
         Assignment savedAssignment = assignmentRepository.save(assignment);
 
         // 3. 클래스 멤버들의 제출 현황 초기화
-        List<ClassMember> classMembers = classMemberRepository.findAllByClassRoomId(assignmentCreateDTO.getClassId());
+        List<ClassMember> classMembers = classMemberRepository.findAllByClassRoomId(classId);
         Assignment assignmentWithStatuses = savedAssignment.initializeStudentStatuses(classMembers);
         assignmentRepository.save(assignmentWithStatuses);
 
