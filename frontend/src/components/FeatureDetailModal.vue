@@ -24,19 +24,18 @@
         </div>
       </div>
       
-             <div class="modal-footer">
-         <button class="try-btn" @click="navigateToCreateClass">
-           바로 시작하기
-           <span class="arrow">→</span>
-         </button>
-       </div>
+      <div class="modal-footer">
+        <button class="try-btn" @click="closeModal">
+          바로 시작하기
+          <span class="arrow">→</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { defineProps, defineEmits } from 'vue'
-import { useRouter } from 'vue-router'
 
 const props = defineProps({
   isVisible: Boolean,
@@ -44,15 +43,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
-const router = useRouter()
 
 const closeModal = () => {
   emit('close')
-}
-
-const navigateToCreateClass = () => {
-  emit('close')
-  router.push('/create-class')
 }
 
 const getFeatureIcon = () => {
