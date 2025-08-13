@@ -83,7 +83,7 @@ public class AssignmentControllerAllEndpointsTest {
         AssignmentCreateDTO createDTO = AssignmentCreateDTO.builder()
                 .title("통합테스트 과제")
                 .description("통합테스트를 위한 과제입니다")
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("테스트선생님")
                 .attachmentFiles(null)
                 .build();
@@ -115,7 +115,7 @@ public class AssignmentControllerAllEndpointsTest {
         AssignmentCreateDTO createDTO = AssignmentCreateDTO.builder()
                 .title("Spring Boot 과제")
                 .description("Spring Boot를 활용한 REST API 개발")
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(null) // DTO는 AttachmentDTO 리스트를 받아야 함
                 .build();
@@ -158,7 +158,7 @@ public class AssignmentControllerAllEndpointsTest {
         AssignmentCreateDTO createDTO = AssignmentCreateDTO.builder()
                 .title("문제해결 과제")
                 .description("알고리즘 문제 풀이")
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(null)
                 .build();
@@ -224,7 +224,7 @@ public class AssignmentControllerAllEndpointsTest {
             AssignmentCreateDTO additionalAssignment = AssignmentCreateDTO.builder()
                     .title("추가 과제 " + i)
                     .description("추가 과제 설명 " + i)
-                    .createdById(10L)
+                    .createdByEmail("teacher@example.com")
                     .createdByName("테스트선생님" + i)
                     .attachmentFiles(Collections.emptyList())
                     .build();
@@ -338,7 +338,7 @@ public class AssignmentControllerAllEndpointsTest {
         AssignmentCreateDTO newAssignment = AssignmentCreateDTO.builder()
                 .title("워크플로우 테스트 과제")
                 .description("워크플로우 테스트 내용")
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("워크플로우테스터")
                 .attachmentFiles(null)
                 .build();

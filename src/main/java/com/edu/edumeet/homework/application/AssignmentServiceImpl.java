@@ -165,7 +165,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .title(assignment.getTitle())
                 .description(assignment.getDescription())
                 .classId(assignment.getClassId())
-                .createdById(assignment.getCreatedById())
+                .createdByEmail(assignment.getCreatedByEmail())
                 .createdByName(assignment.getCreatedByName())
                 .attachmentFiles(attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()))
                 .studentSubmissionStatuses(enrichedStatuses)

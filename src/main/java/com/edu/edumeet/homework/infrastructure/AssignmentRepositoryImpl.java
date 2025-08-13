@@ -47,7 +47,7 @@ public class AssignmentRepositoryImpl implements AssignmentRepository {
                     .title(assignment.getTitle())
                     .description(assignment.getDescription())
                     .classId(assignment.getClassId())
-                    .createdById(assignment.getCreatedById())
+                    .createdByEmail(assignment.getCreatedByEmail())
                     .createdByName(assignment.getCreatedByName())
                     .attachmentFiles(new java.util.ArrayList<>()) // 빈 리스트
                     .regDate(assignment.getRegDate())
