@@ -560,3 +560,31 @@
   color: #3e7c43;
   font-size: 16px;
 }
+.student-submission-status {
+  margin-top: 1.5rem;
+}
+.student-submission-status ul {
+  list-style: none;
+  padding-left: 0;
+}
+.student-submission-status li {
+  margin-bottom: 0.5rem;
+}
+.student-name {
+  font-weight: 600;
+}
+.submission-status {
+  font-weight: 700;
+  margin-left: 0.5rem;
+}
+.submitted {
+  color: green;
+}
+.not-submitted {
+  color: red;
+}
+.submitted-at {
+  font-size: 0.8rem;
+  color: #666;
+  margin-left: 0.5rem;
+}

@@ -11,12 +11,6 @@
         </button>
       </div>
       <div class="modal-body">
-        <div class="assignment-meta">
-          <span class="status" :class="{ done: assignmentData.done }">
-            {{ assignmentData.done ? '완료' : '미완료' }}
-          </span>
-          <span v-if="assignmentData.dueDate" class="due-date">마감일: {{ assignmentData.dueDate }}</span>
-        </div>
         <div class="assignment-content">
           <p>{{ assignmentData.description }}</p>
         </div>
@@ -31,6 +25,24 @@
           </ul>
         </div>
 
+        <!-- 선생님만 보는 학생 제출 현황 -->
+        <div v-if="isMyCreatedClass && assignmentData.studentSubmissionStatuses?.length" class="student-submission-status">
+          <h4>학생 제출 현황</h4>
+          <ul>
+            <li v-for="student in assignmentData.studentSubmissionStatuses" :key="student.studentId">
+              <span class="student-name">{{ student.studentName }}</span>:
+              <span 
+                class="submission-status" 
+                :class="{'submitted': student.submitted, 'not-submitted': !student.submitted}"
+              >
+                {{ student.status === 'NOT_SUBMITTED' ? '미제출' : '제출' }}
+              </span>
+              <span v-if="student.submittedAt" class="submitted-at">({{ new Date(student.submittedAt).toLocaleString() }})</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 학생만 제출 파일 선택 UI -->
         <div v-if="!isMyCreatedClass && !assignmentData.done" class="form-group">
           <label for="assignment-submit-file">제출 파일 (선택)</label>
           <input id="assignment-submit-file" type="file" @change="onFileChange" class="form-input" />
@@ -61,7 +73,14 @@ const props = defineProps({
   assignmentData: {
     type: Object,
     required: true,
-    default: () => ({ title: '', description: '', done: false, dueDate: '', attachmentFiles: [] }),
+    default: () => ({
+      title: '',
+      description: '',
+      done: false,
+      dueDate: '',
+      attachmentFiles: [],
+      studentSubmissionStatuses: []
+    }),
   },
   isMyCreatedClass: {
     type: Boolean,
@@ -75,20 +94,22 @@ const closeModal = () => {
   emit('close');
 };
 
-const selectedFile = ref(null)
-const selectedFileName = ref('')
+const selectedFile = ref(null);
+const selectedFileName = ref('');
 
 const onFileChange = (e) => {
-  const file = e.target.files && e.target.files[0]
-  selectedFile.value = file || null
-  selectedFileName.value = file ? file.name : ''
+  const file = e.target.files && e.target.files[0];
+  selectedFile.value = file || null;
+  selectedFileName.value = file ? file.name : '';
 }
 
 const submitAssignment = () => {
-  emit('submit', { id: props.assignmentData.id, file: selectedFile.value });
+  const filesArray = selectedFile.value ? [selectedFile.value] : [];
+  emit('submit', { id: props.assignmentData.id, files: filesArray });
   closeModal();
 };
 </script>
+
 
 <style scoped>
   @import '@/styles/classinfo.css';

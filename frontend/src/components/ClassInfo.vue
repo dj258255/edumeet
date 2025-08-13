@@ -108,7 +108,8 @@
               :class="{ done: task.done }"
             >
               <div @click="openAssignmentDetailModal(task)" class="task-info-left">
-                <span class="status">{{ task.done ? '완료' : '미완료' }}</span>
+                <!-- 학생인 경우에만 제출 상태 표시 -->
+                <span v-if="!isMyCreatedClass" class="status">{{ task.done ? '완료' : '미완료' }}</span>
                 <span class="text">{{ task.title }}</span>
               </div>
               <button
@@ -174,6 +175,7 @@
     />
   </div>
 </template>
+
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
@@ -321,7 +323,6 @@ const openAssignmentDetailModal = async (assignment) => {
       selectedAssignment.value = res.data; // 상세 정보로 업데이트
       console.log('selectedAssignment:', res.data);
     }
-    console.log('222222222222222222222222222',selectedAssignment.value)
   } catch (err) {
     console.error('과제 상세 불러오기 실패:', err);
     // 모달을 닫거나, 에러 메시지를 표시할 수 있습니다.
@@ -412,7 +413,7 @@ const registerNotice = async (newNoticeData) => {
     const payload = {
       title: newNoticeData.title,
       content: newNoticeData.content,
-      writer: authStore.currentUser.nickname,
+      writer: authStore.currentUser.email,
       boardType: newNoticeData.required ? 'NOTICE' : 'NORMAL',
       boardImages: boardImages // 위에서 생성한 파일 정보 배열 추가
     }
@@ -449,7 +450,7 @@ const registerAssignment = async (newAssignment) => {
     console.log(authStore.currentUser)
 
     // 작성자 정보 준비
-    const creatorName = authStore.currentUser.nickname
+    const creatorName = authStore.currentUser.email
 
     let attachments = []
     if (Array.isArray(newAssignment.files) && newAssignment.files.length > 0) {
@@ -511,34 +512,67 @@ const registerAssignment = async (newAssignment) => {
 
 const submitAssignment = async (payload) => {
   try {
-    const classId = currentClassId.value
+    const classId = currentClassId.value;
     if (!classId) {
-      alert('클래스가 선택되지 않아 과제를 제출할 수 없습니다.')
-      return
-    }
-    const assignmentId = typeof payload === 'object' ? payload.id : payload
-    const file = typeof payload === 'object' ? payload.file : null
-
-    let attachments = []
-    if (file) {
-      const presigned = await getPresignedUrl(file)
-      await uploadToPresignedUrl(presigned.presignedUrl, file)
-      attachments.push({ uuid: presigned.uuid, fileName: presigned.fileName, domain: presigned.domain })
+      alert('클래스가 선택되지 않아 과제를 제출할 수 없습니다.');
+      return;
     }
 
-    await apiClient.post(`/class/${classId}/submissions/assignment/${assignmentId}`, { attachmentFiles: attachments })
-    const task = assignments.value.find(t => t.id === assignmentId)
+    const assignmentId = typeof payload === 'object' ? payload.id : payload;
+
+    // 파일 업로드
+    let attachments = [];
+    if (Array.isArray(payload.files) && payload.files.length > 0) {
+      const formData = new FormData();
+      payload.files.forEach(file => formData.append('files', file));
+      formData.append('domain', 'submission'); // 제출이니까 submission;
+
+      try {
+        const res = await apiClient.post('/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        attachments = res.data.map(file => ({
+          uuid: file.uuid,
+          fileName: file.fileName,
+          ord: file.ord,
+          img: file.isImage
+        }));
+      } catch (error) {
+        console.error('파일 업로드 실패:', error);
+        return;
+      }
+    }
+
+    // 제출 데이터 구성
+    const submissionData = {
+      classMemberId: authStore.currentUser.id,
+      classMemberName: authStore.currentUser.email,
+      content: payload.content || '',                // 선택 제출 내용
+      attachmentFiles: attachments                   // 업로드한 파일 목록
+    };
+    console.log('sumbitData',submissionData)
+    console.log(authStore.currentUser.id)
+    // 제출 API 호출
+    await apiClient.post(
+      `/class/${classId}/submissions/assignment/${assignmentId}`,
+      submissionData
+    );
+
+    // 상태 업데이트
+    const task = assignments.value.find(t => t.id === assignmentId);
     if (task) {
-      task.done = true
-      alert(`${task.title}이(가) 성공적으로 제출되었습니다!`)
+      task.done = true;
+      alert(`${task.title}이(가) 성공적으로 제출되었습니다!`);
     } else {
-      alert('과제가 성공적으로 제출되었습니다!')
+      alert('과제가 성공적으로 제출되었습니다!');
     }
   } catch (err) {
-    console.error('과제 제출 실패:', err)
-    alert('과제 제출에 실패했습니다.')
+    console.error('과제 제출 실패:', err);
+    alert('과제 제출에 실패했습니다.');
   }
-}
+};
+
 
 
 
