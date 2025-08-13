@@ -300,10 +300,35 @@ const closeNoticeModal = () => {
 // 과제 모달
 const showAssignmentModal = ref(false)
 const selectedAssignment = ref(null)
-const openAssignmentDetailModal = (assignment) => {
-  selectedAssignment.value = assignment
-  showAssignmentModal.value = true
-}
+const isFetchingAssignment = ref(false); 
+
+const openAssignmentDetailModal = async (assignment) => {
+  if (isFetchingAssignment.value) return; // 이미 로딩 중이면 중복 호출 방지
+  const classId = currentClassId.value;
+
+  if (!classId) {
+    alert('유효한 클래스 ID가 없습니다.');
+    return;
+  }
+
+  selectedAssignment.value = assignment; // 모달을 미리 띄우기 위해 초기 데이터 설정
+  showAssignmentModal.value = true;
+  isFetchingAssignment.value = true;
+
+  try {
+    const res = await apiClient.get(`/class/${classId}/assignments/${assignment.id}`, { timeout: 10000 });
+    if (res?.data) {
+      selectedAssignment.value = res.data; // 상세 정보로 업데이트
+      console.log('selectedAssignment:', res.data);
+    }
+    console.log('222222222222222222222222222',selectedAssignment.value)
+  } catch (err) {
+    console.error('과제 상세 불러오기 실패:', err);
+    // 모달을 닫거나, 에러 메시지를 표시할 수 있습니다.
+  } finally {
+    isFetchingAssignment.value = false;
+  }
+};
 const closeAssignmentModal = () => {
   showAssignmentModal.value = false
   selectedAssignment.value = null
@@ -361,29 +386,27 @@ const registerNotice = async (newNoticeData) => {
       return
     }
     let boardImages = []
-    if (newNoticeData.files?.length > 0) {
+    if (Array.isArray(newNoticeData.files) && newNoticeData.files.length > 0) {
       const formData = new FormData()
       newNoticeData.files.forEach(file => formData.append('files', file))
       
       try {
-        console.log(formData)
         const res = await apiClient.post('/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
 
-        // 파일 업로드 응답(res.data)에서 boardImages 배열 생성
         boardImages = res.data.map(file => ({
           uuid: file.uuid,
           fileName: file.fileName,
-          ord: file.ord, // 또는 다른 순서 로직
-          img: file.isImage // isImage 속성을 img로 사용
+          ord: file.ord,
+          img: file.isImage
         }))
       } catch (error) {
         console.error('파일 업로드 실패:', error)
-        // 에러 처리: 업로드 실패 시 공지사항 등록 중단
         return
       }
     }
+
     console.log('file',boardImages)
     const classId = currentClassId.value
     const payload = {
@@ -429,16 +452,17 @@ const registerAssignment = async (newAssignment) => {
     const creatorName = authStore.currentUser.nickname
 
     let attachments = []
-    if (newAssignment.file) {
+    if (Array.isArray(newAssignment.files) && newAssignment.files.length > 0) {
       const formData = new FormData()
       newAssignment.files.forEach(file => formData.append('files', file))
 
       try {
         console.log(formData)
+        formData.append('domain', 'assignment');
         const res = await apiClient.post('/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
-
+        console.log('resewqewewe',res)
         // 파일 업로드 응답을 attachments 형식으로 변환
         attachments = res.data.map(file => ({
           uuid: file.uuid,
@@ -462,6 +486,7 @@ const registerAssignment = async (newAssignment) => {
 
     const res = await apiClient.post(`/class/${classId}/assignments`, payload)
 
+    console.log('파일등록',res.data)
     // 응답이 있으면 즉시 반영
     const created = res?.data
     if (created) {
@@ -471,6 +496,7 @@ const registerAssignment = async (newAssignment) => {
         description: created.description || payload.description,
         done: created.done ?? false,
       })
+      await fetchNoticesAndAssignments()
     } else {
       await fetchNoticesAndAssignments()
     }
@@ -516,24 +542,6 @@ const submitAssignment = async (payload) => {
 
 
 
-const uploadToPresignedUrl = async (url, file) => {
-  console.log('🔵 Presigned 업로드 시작 (PUT):', {
-    url,
-    contentType: file.type || 'application/octet-stream',
-    size: file.size
-  })
-  const resp = await fetch(url, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type || 'application/octet-stream' }
-  })
-  console.log('🟢 Presigned 업로드 응답:', { status: resp.status, ok: resp.ok })
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '')
-    console.error('🔴 Presigned 업로드 실패:', { status: resp.status, body: text })
-    throw new Error(`Presigned 업로드 실패 (status ${resp.status})`)
-  }
-}
 
 const deleteNotice = async (noticeId) => {
   if (!confirm('정말 이 공지사항을 삭제하시겠습니까?')) return;

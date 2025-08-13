@@ -20,6 +20,17 @@
         <div class="assignment-content">
           <p>{{ assignmentData.description }}</p>
         </div>
+        
+        <!-- 첨부파일 리스트 -->
+        <div v-if="assignmentData.attachmentFiles && assignmentData.attachmentFiles.length" class="attachment-files">
+          <h4>첨부 파일</h4>
+          <ul>
+            <li v-for="file in assignmentData.attachmentFiles" :key="file.uuid">
+              <a :href="file.s3Url" target="_blank" rel="noopener noreferrer">{{ file.fileName }}</a>
+            </li>
+          </ul>
+        </div>
+
         <div v-if="!isMyCreatedClass && !assignmentData.done" class="form-group">
           <label for="assignment-submit-file">제출 파일 (선택)</label>
           <input id="assignment-submit-file" type="file" @change="onFileChange" class="form-input" />
@@ -50,7 +61,7 @@ const props = defineProps({
   assignmentData: {
     type: Object,
     required: true,
-    default: () => ({ title: '', description: '', done: false, dueDate: '' }),
+    default: () => ({ title: '', description: '', done: false, dueDate: '', attachmentFiles: [] }),
   },
   isMyCreatedClass: {
     type: Boolean,
@@ -64,18 +75,19 @@ const closeModal = () => {
   emit('close');
 };
 
-const submitAssignment = () => {
-  emit('submit', { id: props.assignmentData.id, file: selectedFile.value });
-  closeModal();
-};
-
 const selectedFile = ref(null)
 const selectedFileName = ref('')
+
 const onFileChange = (e) => {
   const file = e.target.files && e.target.files[0]
   selectedFile.value = file || null
   selectedFileName.value = file ? file.name : ''
 }
+
+const submitAssignment = () => {
+  emit('submit', { id: props.assignmentData.id, file: selectedFile.value });
+  closeModal();
+};
 </script>
 
 <style scoped>
