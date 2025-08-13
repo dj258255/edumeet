@@ -45,6 +45,41 @@ public class SubmissionController {
 
 
 
+    @Operation(summary = "학생용 과제 상세 조회", description = "특정 학생 관점에서 과제 상세 정보와 자신의 제출 상태를 조회합니다.")
+    @GetMapping("/student/{classMemberEmail}/assignment/{assignmentId}")
+    public ResponseEntity<AssignmentDTO> getAssignmentForStudent(
+            @Parameter(description = "클래스 ID") @PathVariable Long classId,
+            @Parameter(description = "학생 이메일") @PathVariable String classMemberEmail,
+            @Parameter(description = "과제 ID") @PathVariable Long assignmentId) {
+        log.debug("학생용 과제 상세 조회 요청: classId={}, classMemberEmail={}, assignmentId={}", 
+                classId, classMemberEmail, assignmentId);
+        
+        // 과제 기본 정보 조회
+        AssignmentDTO assignment = assignmentService.getAssignment(assignmentId);
+        
+        // 해당 학생의 제출 상태만 필터링
+        List<StudentSubmissionStatusDTO> studentStatus = assignment.getStudentSubmissionStatuses()
+                .stream()
+                .filter(status -> status.getStudentEmail().equals(classMemberEmail))
+                .toList();
+        
+        // 학생 관점의 AssignmentDTO 생성 (자신의 제출 상태만 포함)
+        AssignmentDTO studentAssignment = AssignmentDTO.builder()
+                .id(assignment.getId())
+                .title(assignment.getTitle())
+                .description(assignment.getDescription())
+                .classId(assignment.getClassId())
+                .createdByEmail(assignment.getCreatedByEmail())
+                .createdByName(assignment.getCreatedByName())
+                .attachmentFiles(assignment.getAttachmentFiles())
+                .studentSubmissionStatuses(studentStatus)
+                .regDate(assignment.getRegDate())
+                .modDate(assignment.getModDate())
+                .build();
+        
+        return ResponseEntity.ok(studentAssignment);
+    }
+
     @Operation(summary = "학생별 과제 목록 조회", description = "특정 학생에게 할당된 과제 목록과 제출 상태를 조회합니다.")
     @GetMapping("/student/{classMemberEmail}/assignments")
     public ResponseEntity<List<AssignmentDTO>> getAssignmentsForStudent(
