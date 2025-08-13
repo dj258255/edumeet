@@ -23,12 +23,6 @@ public class AttachmentServiceImpl implements AttachmentService {
     
     // ... 기존 필드들
     
-    @Value("${spring.cloud.aws.s3.bucket}")
-    private String bucket;
-
-    @Value("${spring.cloud.aws.region.static}")
-    private String region;
-
     private final LocalUploader localUploader;
     private final S3Uploader s3Uploader;
     
@@ -143,8 +137,17 @@ public class AttachmentServiceImpl implements AttachmentService {
 
             // 이미지인 경우 섬네일 삭제
             if (isImageFile(fileName)) {
-                String thumbnailFileName = "s_" + fileName;
-                s3Uploader.removeS3File(thumbnailFileName);
+                // UUID_파일명 형식에서 UUID와 원본 파일명 추출
+                if (fileName.contains("_")) {
+                    String uuid = fileName.substring(0, fileName.indexOf('_'));
+                    String originalFileName = fileName.substring(fileName.indexOf('_') + 1);
+                    String thumbnailFileName = s3Uploader.createThumbnailFileName(uuid, originalFileName);
+                    s3Uploader.removeS3File(thumbnailFileName);
+                } else {
+                    // 기존 방식 유지 (하위 호환성)
+                    String thumbnailFileName = "s_" + fileName;
+                    s3Uploader.removeS3File(thumbnailFileName);
+                }
             }
 
             return true;
@@ -183,10 +186,9 @@ public class AttachmentServiceImpl implements AttachmentService {
             String originalFileName = fileName.substring(fileName.indexOf('_') + 1);
             return s3Uploader.getOriginalUrl(uuid, originalFileName);
         } else {
-            // 단순 파일명인 경우 - S3Uploader의 putS3 메서드와 동일한 패턴 사용
-            // 실제로는 UUID가 없는 파일에 대해서는 별도 처리가 필요할 수 있음
-            return String.format("https://%s.s3.%s.amazonaws.com/%s",
-                    bucket, region, fileName);
+            // 단순 파일명인 경우 - S3Uploader의 기존 로직을 활용하여 URL 생성
+            // UUID가 없는 파일에 대해서는 S3Uploader에 위임
+            throw new RuntimeException("파일명에 UUID가 없습니다. 올바른 형식의 파일명을 사용해주세요: " + fileName);
         }
     }
 }

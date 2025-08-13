@@ -84,9 +84,9 @@ public interface BoardService {
                         String uuid = img.getUuid();
                         String fileName = img.getFileName();
                         
-                        // S3Uploader를 사용하여 URL 생성
-                        String s3Url = s3Uploader.getOriginalUrl(uuid, fileName);
-                        String s3ThumbnailUrl = s3Uploader.getThumbnailUrl(uuid, fileName);
+                        // S3Uploader를 사용하여 도메인 경로 포함된 URL 생성
+                        String s3Url = s3Uploader.getDomainOriginalUrl(img.getDomain(), uuid, fileName);
+                        String s3ThumbnailUrl = s3Uploader.getDomainThumbnailUrl(img.getDomain(), uuid, fileName);
                         
                         return AttachmentDTO.builder()
                                 .uuid(uuid)
