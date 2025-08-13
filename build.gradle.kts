@@ -80,6 +80,9 @@ dependencies {
 
     // OAuth
     implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
+
+    // LiveKit Server SDK
+    implementation("io.livekit:livekit-server:0.8.2")
 }
 
 // 기본 테스트 태스크 (MySQL 테스트 제외)
