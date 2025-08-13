@@ -1,6 +1,7 @@
 import axios from "axios"
 import { defineStore } from 'pinia'
 import { sendVerificationCode as sendDummyCode, verifyEmailCode as verifyDummyCode, resendVerificationCode as resendDummyCode } from '@/utils/emailVerification.js'
+import router from '@/router'
 
 // API 기본 설정
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -353,7 +354,6 @@ const useAuthStore = defineStore('auth', {
         this.loading = false
       }
     },
-
     // 회원가입
     async signup(userData) {
       this.loading = true
@@ -361,6 +361,10 @@ const useAuthStore = defineStore('auth', {
       
       try {
         const response = await authAPI.signup(userData)
+        
+        // ✅ 회원가입 성공 시 로그인 페이지로 이동
+        router.push("/login")
+
         return response.data
       } catch (error) {
         this.error = error.response?.data?.message || '회원가입에 실패했습니다.'
@@ -369,6 +373,7 @@ const useAuthStore = defineStore('auth', {
         this.loading = false
       }
     },
+
 
     // 이메일 인증 코드 전송
     async sendVerificationCode(email) {
@@ -452,7 +457,7 @@ const useAuthStore = defineStore('auth', {
         this.error = null;
         
         // 여기에 페이지 리다이렉션 로직 추가
-        window.location.href = "/login"; // 로그인 페이지로 리다이렉션
+        router.push("/login")
         // 또는
         // window.location.href = "/"; // 홈 페이지로 리다이렉션
       }

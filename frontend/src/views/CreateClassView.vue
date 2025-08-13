@@ -1,6 +1,5 @@
 <template>
   <div class="create-class-container">
-    <!-- 헤더 섹션 -->
     <div class="header-section">
       <h1 class="page-title">새 반 만들기</h1>
       <p class="page-subtitle">학생들과 함께 학습할 새로운 반을 만들어보세요</p>
@@ -13,14 +12,12 @@
     </div>
 
     <div class="content-layout">
-      <!-- 반 목록 (좌측) -->
       <div class="classes-section">
         <div class="classes-header">
           <h2 class="section-title">내 반 목록</h2>
           <div class="classes-count">{{ totalClassesCount }}개의 반</div>
         </div>
 
-        <!-- 탭 버튼 -->
         <div class="tab-buttons">
           <button 
             class="tab-btn" 
@@ -38,7 +35,6 @@
           </button>
         </div>
 
-        <!-- 로딩 상태 -->
         <div v-if="classStore.isLoading" class="loading-state">
           <div class="loading-spinner">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -48,7 +44,6 @@
           <p>반 목록을 불러오는 중...</p>
         </div>
 
-        <!-- 카드 섹션 -->
         <div class="cards-section">
           <div class="cards-scroll-container">
             <div class="class-cards-grid">
@@ -74,7 +69,6 @@
           </div>
         </div>
 
-        <!-- 에러 상태 -->
         <div v-if="listError" class="error-message">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10.29 3.86L1.82 18A2 2 0 0 0 3.54 21H20.46A2 2 0 0 0 22.18 18L13.71 3.86A2 2 0 0 0 10.29 3.86Z"/>
@@ -84,7 +78,6 @@
           {{ listError }}
         </div>
 
-        <!-- 빈 상태 -->
         <div v-if="currentClasses.length === 0 && !listError" class="empty-state">
           <div class="empty-icon">
             {{ activeTab === 'created' ? '📚' : '👥' }}
@@ -94,7 +87,6 @@
         </div>
       </div>
 
-      <!-- 클래스 정보 (우측) -->
       <div class="class-info-section">
         <div v-if="selectedClass" class="class-info-wrapper">
           <ClassInfo 
@@ -119,14 +111,12 @@
       </div>
     </div>
 
-    <!-- 반 생성 폼 모달 -->
     <CreateClassForm 
       :isVisible="showCreateForm"
       @close="showCreateForm = false"
       @created="handleClassCreated"
     />
 
-    <!-- 수업 참여 모달 -->
     <JoinClassModal
       :isOpen="isJoinModalOpen"
       :className="selectedClassForJoin?.className || ''"
@@ -136,7 +126,6 @@
       @join="handleJoinClassConfirm"
     />
 
-    <!-- 수업 생성 모달 -->
     <CreateClassModal
       :isOpen="showCreateClassModal"
       :defaultClassName="pendingClassData?.className || ''"
@@ -145,7 +134,6 @@
       @create="handleCreateClassConfirm"
     />
 
-    <!-- 학생 목록 모달 -->
     <MembersModal
       :isVisible="isMembersModalOpen"
       :classId="selectedClassForMembers?.classId || ''"
@@ -196,6 +184,11 @@ const currentClasses = computed(() => {
   } else {
     return classStore.getMyJoinedClasses;
   }
+});
+
+// `activeTab`이 변경될 때 `selectedClass`를 초기화하는 watch 함수 추가
+watch(activeTab, () => {
+  selectedClass.value = null;
 });
 
 // 전체 반 개수 계산
