@@ -1,5 +1,10 @@
 package com.edu.edumeet.openvidu.service;
 
+import com.edu.edumeet.classroom.domain.ClassRoom;
+import com.edu.edumeet.classroom.repository.ClassRepository;
+import com.edu.edumeet.openvidu.domain.Meeting;
+import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
+import com.edu.edumeet.openvidu.repository.MeetingRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.http.*;
@@ -9,9 +14,12 @@ import org.springframework.web.client.HttpClientErrorException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.time.Duration;
+import java.util.Optional;
+
 import io.livekit.server.AccessToken;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
@@ -20,6 +28,9 @@ import io.livekit.server.RoomName;
 @Service
 @RequiredArgsConstructor
 public class OpenviduService {
+
+    private final MeetingRepository meetingRepository;
+    private final ClassRepository classRepository;
 
     // OpenVidu 인증 정보 (application.properties에 추가)
     @Value("${openvidu.livekit.api.key}")
@@ -99,5 +110,21 @@ public class OpenviduService {
             log.error("Failed to get room info", e);
             throw new RuntimeException("Failed to get room info: " + e.getMessage());
         }
+    }
+
+    public void create(Long memberId, MeetingCreateRequestDto meetingCreateRequestDto) {
+        ClassRoom classRoom = classRepository.findById(meetingCreateRequestDto.getClassId())
+                .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
+
+        if (!classRoom.getMember().getId().equals(memberId)) {
+            throw new IllegalArgumentException("해당 클래스의 생성자가 아닙니다.");
+        }
+
+        meetingRepository.save(Meeting.builder()
+                        .title(meetingCreateRequestDto.getTitle())
+                        .description(meetingCreateRequestDto.getDescription())
+                        .startTime(LocalDateTime.now())
+                        .classRoom(classRoom)
+                        .build());
     }
 }

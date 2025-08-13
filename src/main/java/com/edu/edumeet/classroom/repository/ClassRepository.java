@@ -10,4 +10,6 @@ public interface ClassRepository extends JpaRepository<ClassRoom, Long> {
     List<ClassRoom> findAllByMemberIdAndIsDeletedFalse(Long memberId);
 
     Optional<ClassRoom> findByIdAndIsDeletedFalse(Long classId);
+
+    Optional<ClassRoom> findById(Long classId);
 }

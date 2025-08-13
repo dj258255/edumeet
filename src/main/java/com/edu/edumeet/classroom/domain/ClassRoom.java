@@ -2,6 +2,7 @@ package com.edu.edumeet.classroom.domain;
 
 import com.edu.edumeet.base.BaseEntity;
 import com.edu.edumeet.member.infrastructure.MemberJpaEntity;
+import com.edu.edumeet.openvidu.domain.Meeting;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,6 +31,9 @@ public class ClassRoom extends BaseEntity {
     @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Tag> tags;
 
+    @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Meeting> meetings;
+
     private String title;
 
     private String description;
@@ -44,6 +48,11 @@ public class ClassRoom extends BaseEntity {
 
     public void markAsDeleted() {
         this.isDeleted = true;
+    }
+
+    public void addMeeting(com.edu.edumeet.openvidu.domain.Meeting meeting) {
+        meetings.add(meeting);
+        meeting.assignTo(this);
     }
 
     @Builder

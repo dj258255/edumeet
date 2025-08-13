@@ -1,8 +1,11 @@
 package com.edu.edumeet.openvidu.controller;
 
+import com.edu.edumeet.member.domain.SecurityMember;
+import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
 import com.edu.edumeet.openvidu.service.OpenviduService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -16,17 +19,11 @@ public class OpenviduController {
     private final OpenviduService openviduService;
 
     @PostMapping("/token")
-    public ResponseEntity<Map<String, Object>> createToken(@RequestBody Map<String, String> params) {
-        String roomName = params.get("roomName");
-        String participantName = params.get("participantName");
-
-        if (roomName == null || participantName == null) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "roomName and participantName are required"
-            ));
-        }
-
-        Map<String, Object> token = openviduService.createToken(roomName, participantName);
+    public ResponseEntity<Map<String, Object>> createToken(
+            @AuthenticationPrincipal SecurityMember member,
+            @RequestBody MeetingCreateRequestDto meetingCreateRequestDto) {
+        openviduService.create(member.getMemberId(), meetingCreateRequestDto);
+        Map<String, Object> token = openviduService.createToken(meetingCreateRequestDto.getTitle(), member.getEmail());
         return ResponseEntity.ok(token);
     }
 
