@@ -354,6 +354,7 @@ const fetchNoticesAndAssignments = async () => {
     // 과제 목록 조회 (있으면 가져오고, 없으면 빈 배열 유지)
     try {
       const assignmentRes = await apiClient.get(`/class/${classId}/assignments`)
+      console.log('aaaaaaaaaaaaaaaaaaaaaaaaa',assignmentRes)
       // 응답이 배열일 수도, dtoList 형태일 수도 있어 유연 처리
       const list = Array.isArray(assignmentRes.data)
         ? assignmentRes.data
@@ -447,24 +448,20 @@ const registerAssignment = async (newAssignment) => {
       alert('클래스가 선택되지 않아 과제를 등록할 수 없습니다.')
       return
     }
-    console.log(authStore.currentUser)
 
-    // 작성자 정보 준비
     const creatorName = authStore.currentUser.email
-
     let attachments = []
+
+    // 파일 업로드 처리
     if (Array.isArray(newAssignment.files) && newAssignment.files.length > 0) {
       const formData = new FormData()
       newAssignment.files.forEach(file => formData.append('files', file))
+      formData.append('domain', 'assignment')
 
       try {
-        console.log(formData)
-        formData.append('domain', 'assignment');
         const res = await apiClient.post('/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
-        console.log('resewqewewe',res)
-        // 파일 업로드 응답을 attachments 형식으로 변환
         attachments = res.data.map(file => ({
           uuid: file.uuid,
           fileName: file.fileName,
@@ -483,24 +480,20 @@ const registerAssignment = async (newAssignment) => {
       createdByName: creatorName,
       attachmentFiles: attachments,
     }
-    console.log('assignment create payload:', payload)
 
     const res = await apiClient.post(`/class/${classId}/assignments`, payload)
-
-    console.log('파일등록',res.data)
-    // 응답이 있으면 즉시 반영
     const created = res?.data
-    if (created) {
-      assignments.value.unshift({
-        id: created.id || created.assignmentId || Date.now(),
-        title: created.title || payload.title,
-        description: created.description || payload.description,
-        done: created.done ?? false,
-      })
-      await fetchNoticesAndAssignments()
-    } else {
-      await fetchNoticesAndAssignments()
-    }
+
+    // ✅ UI 즉시 반영
+    assignments.value.unshift({
+      id: created?.id || created?.assignmentId || Date.now(),
+      title: created?.title || payload.title,
+      description: created?.description || payload.description,
+      done: created?.done ?? false,
+    })
+
+    // 서버 데이터 싱크
+    await fetchNoticesAndAssignments()
 
     showAssignmentRegisterModal.value = false
     alert('과제가 성공적으로 등록되었습니다!')
@@ -510,70 +503,71 @@ const registerAssignment = async (newAssignment) => {
   }
 }
 
+
 const submitAssignment = async (payload) => {
   try {
-    const classId = currentClassId.value;
+    const classId = currentClassId.value
     if (!classId) {
-      alert('클래스가 선택되지 않아 과제를 제출할 수 없습니다.');
-      return;
+      alert('클래스가 선택되지 않아 과제를 제출할 수 없습니다.')
+      return
     }
 
-    const assignmentId = typeof payload === 'object' ? payload.id : payload;
+    const assignmentId = typeof payload === 'object' ? payload.id : payload
+    let attachments = []
 
-    // 파일 업로드
-    let attachments = [];
+    // 파일 업로드 처리
     if (Array.isArray(payload.files) && payload.files.length > 0) {
-      const formData = new FormData();
-      payload.files.forEach(file => formData.append('files', file));
-      formData.append('domain', 'submission'); // 제출이니까 submission;
+      const formData = new FormData()
+      payload.files.forEach(file => formData.append('files', file))
+      formData.append('domain', 'submission')
 
       try {
         const res = await apiClient.post('/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
+        })
         attachments = res.data.map(file => ({
           uuid: file.uuid,
           fileName: file.fileName,
           ord: file.ord,
           img: file.isImage
-        }));
+        }))
       } catch (error) {
-        console.error('파일 업로드 실패:', error);
-        return;
+        console.error('파일 업로드 실패:', error)
+        return
       }
     }
 
-    // 제출 데이터 구성
     const submissionData = {
       classMemberEmail: authStore.currentUser.email,
       classMemberName: authStore.currentUser.email,
-      content: payload.content || '',                // 선택 제출 내용
-      attachmentFiles: attachments                   // 업로드한 파일 목록
-    };
-    console.log('sumbitData',submissionData)
-    console.log(authStore.currentUser.id)
-    // 제출 API 호출
+      content: payload.content || '',
+      attachmentFiles: attachments
+    }
+
     await apiClient.post(
       `/class/${classId}/submissions/assignment/${assignmentId}`,
       submissionData
-    );
+    )
 
-    // 제출 후 서버에서 최신 과제 목록 다시 가져오기
-    await fetchNoticesAndAssignments();
-    
-    // 사용자에게 성공 메시지 표시
-    const task = assignments.value.find(t => t.id === assignmentId);
+    // ✅ UI 즉시 반영
+    assignments.value = assignments.value.map(t =>
+      t.id === assignmentId ? { ...t, done: true } : t
+    )
+
+    // 서버 데이터 싱크
+    await fetchNoticesAndAssignments()
+
+    const task = assignments.value.find(t => t.id === assignmentId)
     if (task) {
-      alert(`${task.title}이(가) 성공적으로 제출되었습니다!`);
+      alert(`${task.title}이(가) 성공적으로 제출되었습니다!`)
     } else {
-      alert('과제가 성공적으로 제출되었습니다!');
+      alert('과제가 성공적으로 제출되었습니다!')
     }
   } catch (err) {
-    console.error('과제 제출 실패:', err);
-    alert('과제 제출에 실패했습니다.');
+    console.error('과제 제출 실패:', err)
+    alert('과제 제출에 실패했습니다.')
   }
-};
+}
 
 
 
