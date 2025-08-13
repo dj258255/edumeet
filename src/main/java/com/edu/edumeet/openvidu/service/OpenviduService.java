@@ -2,6 +2,7 @@ package com.edu.edumeet.openvidu.service;
 
 import com.edu.edumeet.classroom.domain.ClassRoom;
 import com.edu.edumeet.classroom.repository.ClassRepository;
+import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.openvidu.domain.Meeting;
 import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
 import com.edu.edumeet.openvidu.dto.response.MeetingCreateResponseDto;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
 import lombok.RequiredArgsConstructor;
@@ -134,5 +136,13 @@ public class OpenviduService {
                 .email(classRoom.getMember().getEmail())
                 .meetingId(meeting.getId())
                 .build();
+    }
+
+    @Transactional
+    public void endMeeting(String email, Long meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new IllegalArgumentException("미팅을 찾을 수 없습니다."));
+
+        meeting.endNow();
     }
 }

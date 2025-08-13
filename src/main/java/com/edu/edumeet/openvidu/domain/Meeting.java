@@ -40,4 +40,22 @@ public class Meeting {
             classRoom.getMeetings().add(this);
         }
     }
+
+    public void changeEndTime(LocalDateTime newEndTime) {
+        if (newEndTime != null && !newEndTime.isAfter(this.startTime)) {
+            throw new IllegalArgumentException("endTime must be after startTime");
+        }
+        this.endTime = newEndTime;
+    }
+
+    public void endNow() {
+        changeEndTime(LocalDateTime.now());
+    }
+
+    @PrePersist @PreUpdate
+    private void validateTimes() {
+        if (endTime != null && !endTime.isAfter(startTime)) {
+            throw new IllegalArgumentException("endTime must be after startTime");
+        }
+    }
 }
