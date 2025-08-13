@@ -62,6 +62,7 @@ dependencies {
     implementation("io.awspring.cloud:spring-cloud-aws-starter:3.4.0")
     implementation("software.amazon.awssdk:s3:2.32.9")
 
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
