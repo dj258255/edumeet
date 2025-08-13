@@ -54,6 +54,18 @@ public class StudentSubmissionStatus {
                 .build();
     }
 
+    // 제출 완료로 변경 (제출 파일 포함)
+    public StudentSubmissionStatus markAsSubmitted(List<Attachment> submissionFiles) {
+        return StudentSubmissionStatus.builder()
+                .assignmentId(this.assignmentId)
+                .studentId(this.studentId)
+                .studentName(this.studentName)
+                .status(SubmissionStatus.SUBMITTED)
+                .submittedAt(LocalDateTime.now())
+                .submissionFiles(submissionFiles != null ? submissionFiles : new ArrayList<>())
+                .build();
+    }
+
     // 제출 완료 상태로 생성 (제출 파일 포함)
     public static StudentSubmissionStatus submitted(Long assignmentId, Long classMemberId, String classMemberName, 
                                                    List<Attachment> submissionFiles, LocalDateTime submittedAt) {

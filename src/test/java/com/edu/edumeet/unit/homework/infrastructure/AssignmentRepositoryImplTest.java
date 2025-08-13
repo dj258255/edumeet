@@ -1,7 +1,10 @@
-package com.edu.edumeet.homework.infrastructure;
+package com.edu.edumeet.unit.homework.infrastructure;
 
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.infrastructure.AssignmentJpaEntity;
+import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
+import com.edu.edumeet.homework.infrastructure.AssignmentRepositoryImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,7 +62,7 @@ class AssignmentRepositoryImplTest {
                 .title("파일 포함 과제")
                 .description("참고자료가 첨부된 과제입니다")
                 .classId(1L)
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList(testFile))
                 .regDate(LocalDateTime.now())
@@ -71,7 +74,7 @@ class AssignmentRepositoryImplTest {
                 .title("파일 없는 과제")
                 .description("별도의 첨부파일 없이 진행하는 과제입니다")
                 .classId(1L)
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList()) // 빈 리스트
                 .regDate(LocalDateTime.now())
@@ -84,7 +87,7 @@ class AssignmentRepositoryImplTest {
                 .title(assignmentWithFiles.getTitle())
                 .description(assignmentWithFiles.getDescription())
                 .classId(assignmentWithFiles.getClassId())
-                .createdById(assignmentWithFiles.getCreatedById())
+                .createdByEmail(assignmentWithFiles.getCreatedByEmail())
                 .createdByName(assignmentWithFiles.getCreatedByName())
                 .attachmentFiles(assignmentWithFiles.getAttachmentFiles())
                 .regDate(assignmentWithFiles.getRegDate())
@@ -96,7 +99,7 @@ class AssignmentRepositoryImplTest {
                 .title(assignmentWithoutFiles.getTitle())
                 .description(assignmentWithoutFiles.getDescription())
                 .classId(assignmentWithoutFiles.getClassId())
-                .createdById(assignmentWithoutFiles.getCreatedById())
+                .createdByEmail(assignmentWithoutFiles.getCreatedByEmail())
                 .createdByName(assignmentWithoutFiles.getCreatedByName())
                 .attachmentFiles(assignmentWithoutFiles.getAttachmentFiles())
                 .regDate(assignmentWithoutFiles.getRegDate())
@@ -334,7 +337,7 @@ class AssignmentRepositoryImplTest {
         assertThat(entityFromDomain.getTitle()).isEqualTo(assignmentWithFiles.getTitle());
         assertThat(entityFromDomain.getDescription()).isEqualTo(assignmentWithFiles.getDescription());
         assertThat(entityFromDomain.getClassId()).isEqualTo(assignmentWithFiles.getClassId());
-        assertThat(entityFromDomain.getCreatedById()).isEqualTo(assignmentWithFiles.getCreatedById());
+        assertThat(entityFromDomain.getCreatedByEmail()).isEqualTo(assignmentWithFiles.getCreatedByEmail());
         assertThat(entityFromDomain.getCreatedByName()).isEqualTo(assignmentWithFiles.getCreatedByName());
         
         // Entity to Domain 검증

@@ -1,8 +1,9 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.integration.board.infrastructure;
 
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.domain.BoardType;
+import com.edu.edumeet.board.infrastructure.*;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

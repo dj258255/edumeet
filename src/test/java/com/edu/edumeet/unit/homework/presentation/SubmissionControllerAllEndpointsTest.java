@@ -110,7 +110,7 @@ public class SubmissionControllerAllEndpointsTest {
         AssignmentCreateDTO assignmentCreateDTO = AssignmentCreateDTO.builder()
                 .title("통합테스트 과제")
                 .description("제출물 테스트를 위한 과제입니다")
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("테스트선생님")
                 .attachmentFiles(null)
                 .build();

@@ -70,7 +70,7 @@ public class SubmissionController {
                             .title(assignment.getTitle())
                             .description(assignment.getDescription())
                             .classId(assignment.getClassId())
-                            .createdById(assignment.getCreatedById())
+                            .createdByEmail(assignment.getCreatedByEmail())
                             .createdByName(assignment.getCreatedByName())
                             .attachmentFiles(assignment.getAttachmentFiles())
                             .studentSubmissionStatuses(studentStatus)
