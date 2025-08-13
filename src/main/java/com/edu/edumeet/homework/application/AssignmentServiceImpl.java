@@ -3,7 +3,10 @@ package com.edu.edumeet.homework.application;
 import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.domain.Submission;
+import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.application.AssignmentRepository;
+import com.edu.edumeet.homework.application.SubmissionRepository;
 import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,6 +28,7 @@ import java.util.stream.Collectors;
 public class AssignmentServiceImpl implements AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
+    private final SubmissionRepository submissionRepository;
     private final ClassMemberRepository classMemberRepository;
     private final AttachmentAdapter attachmentAdapter;
 
@@ -120,7 +125,53 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = assignmentRepository.findByIdWithAllDetails(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
-        return domainToDto(assignment, attachmentAdapter);
+        // 해당 과제의 모든 제출물 조회 (제출 파일 포함)
+        List<Submission> submissions = submissionRepository.findByAssignmentId(id);
+        
+        return domainToDtoWithSubmissionFiles(assignment, submissions, attachmentAdapter);
+    }
+
+    /**
+     * Assignment 도메인 객체를 AssignmentDTO로 변환 (제출 파일 정보 포함)
+     */
+    private AssignmentDTO domainToDtoWithSubmissionFiles(Assignment assignment, List<Submission> submissions, AttachmentAdapter attachmentAdapter) {
+        // 학생 ID별로 제출물 매핑 (성능 최적화를 위한 Map 사용)
+        Map<Long, Submission> submissionMap = submissions.stream()
+                .collect(Collectors.toMap(Submission::getClassMemberId, submission -> submission));
+        
+        // StudentSubmissionStatus 리스트에 제출 파일 정보 포함
+        List<StudentSubmissionStatus> enrichedStatuses = assignment.getStudentSubmissionStatuses().stream()
+                .map(status -> {
+                    Submission submission = submissionMap.get(status.getStudentId());
+                    if (submission != null && submission.isSubmitted()) {
+                        // 제출 완료 상태이면 제출 파일 정보 포함하여 새로운 Status 생성
+                        return StudentSubmissionStatus.submitted(
+                                status.getAssignmentId(),
+                                status.getStudentId(),
+                                status.getStudentName(),
+                                submission.getSubmissionFiles(),
+                                submission.getModDate() // 제출 시간은 수정일시 사용
+                        );
+                    } else {
+                        // 미제출 상태이면 기존 상태 그대로 반환
+                        return status;
+                    }
+                })
+                .collect(Collectors.toList());
+        
+        // 제출 파일 정보가 포함된 AssignmentDTO 생성
+        return AssignmentDTO.builder()
+                .id(assignment.getId())
+                .title(assignment.getTitle())
+                .description(assignment.getDescription())
+                .classId(assignment.getClassId())
+                .createdById(assignment.getCreatedById())
+                .createdByName(assignment.getCreatedByName())
+                .attachmentFiles(attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()))
+                .studentSubmissionStatuses(enrichedStatuses)
+                .regDate(assignment.getRegDate())
+                .modDate(assignment.getModDate())
+                .build();
     }
 
     @Override
