@@ -3,12 +3,7 @@
     <div class="modal-container" @click.stop>
       <div class="modal-header">
         <h3 class="modal-title">📝 과제 등록</h3>
-        <button class="close-btn" @click="closeModal">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <button class="close-btn" @click="closeModal">X</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -20,9 +15,14 @@
           <textarea id="assignment-description" v-model="form.description" placeholder="과제 설명을 입력하세요" class="form-textarea"></textarea>
         </div>
         <div class="form-group">
-          <label for="assignment-file">첨부 파일 (선택)</label>
-          <input type="file" id="assignment-file" @change="onFileChange" class="form-input" />
-          <small v-if="form.fileName">선택된 파일: {{ form.fileName }}</small>
+          <label>첨부 파일 (선택)</label>
+          <input type="file" @change="onFileChange" class="form-input" />
+          <ul>
+            <li v-for="(file, index) in form.files" :key="index">
+              {{ file.name }}
+              <button type="button" @click="removeFile(index)">삭제</button>
+            </li>
+          </ul>
         </div>
       </div>
       <div class="modal-footer">
@@ -35,25 +35,38 @@
 <script setup>
 import { ref, defineProps, defineEmits } from 'vue';
 
-const props = defineProps({
-  isVisible: Boolean
-});
-
+const props = defineProps({ isVisible: Boolean });
 const emit = defineEmits(['close', 'register']);
 
 const form = ref({
   title: '',
   description: '',
-  file: null,
-  fileName: ''
+  files: []
 });
+
+const onFileChange = (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (file) {
+    form.value.files.push(file);
+  }
+  e.target.value = null;  // 같은 파일 다시 선택 가능하게 초기화
+};
+
+const removeFile = (index) => {
+  form.value.files.splice(index, 1);
+};
 
 const submitForm = () => {
   if (!form.value.title) {
     alert('제목을 입력해주세요.');
     return;
   }
-  emit('register', { title: form.value.title, description: form.value.description, file: form.value.file, done: false });
+  emit('register', {
+    title: form.value.title,
+    description: form.value.description,
+    files: form.value.files,
+    done: false
+  });
   resetForm();
 };
 
@@ -66,17 +79,11 @@ const resetForm = () => {
   form.value = {
     title: '',
     description: '',
-    file: null,
-    fileName: ''
+    files: []
   };
 };
-
-const onFileChange = (e) => {
-  const file = e.target.files && e.target.files[0]
-  form.value.file = file || null
-  form.value.fileName = file ? file.name : ''
-}
 </script>
+
 
 <style >
   @import '@/styles/classinfo.css';
