@@ -8,7 +8,10 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Repository
@@ -92,22 +95,45 @@ public class AssignmentRepositoryImpl implements AssignmentRepository {
         if (assignment.getStudentSubmissionStatuses() != null && !assignment.getStudentSubmissionStatuses().isEmpty()) {
             log.info("과제 {}의 학생 제출 현황 처리 - 학생 수: {}", savedEntity.getId(), assignment.getStudentSubmissionStatuses().size());
             
-            // 기존 제출 현황 모두 삭제 (중복 방지)
-            savedEntity.getStudentSubmissionStatuses().clear();
+            // 업데이트 로직: 기존 제출 현황과 비교하여 변경된 것만 처리
+            Map<String, StudentSubmissionStatusJpaEntity> existingStatusMap = savedEntity.getStudentSubmissionStatuses().stream()
+                    .collect(Collectors.toMap(StudentSubmissionStatusJpaEntity::getStudentEmail, Function.identity()));
             
-            // 학생 제출 현황은 AssignmentJpaEntity의 studentSubmissionStatuses에 직접 추가
-            // StudentSubmissionStatusJpaEntity는 cascade=ALL, orphanRemoval=true로 설정되어 있어
-            // AssignmentJpaEntity가 저장될 때 함께 저장됨
             assignment.getStudentSubmissionStatuses().forEach(status -> {
-                StudentSubmissionStatusJpaEntity statusEntity = StudentSubmissionStatusJpaEntity.builder()
-                        .assignment(savedEntity)
-                        .studentId(status.getStudentId())
-                        .studentName(status.getStudentName())
-                        .status(status.getStatus())
-                        .submittedAt(status.getSubmittedAt())
-                        .build();
+                StudentSubmissionStatusJpaEntity existingStatus = existingStatusMap.get(status.getStudentEmail());
                 
-                savedEntity.getStudentSubmissionStatuses().add(statusEntity);
+                if (existingStatus != null) {
+                    // 기존 상태 업데이트
+                    if (!existingStatus.getStatus().equals(status.getStatus()) || 
+                        !Objects.equals(existingStatus.getSubmittedAt(), status.getSubmittedAt())) {
+                        
+                        // 상태나 제출 시간이 변경된 경우에만 업데이트
+                        StudentSubmissionStatusJpaEntity updatedStatus = StudentSubmissionStatusJpaEntity.builder()
+                                .id(existingStatus.getId()) // 기존 ID 유지
+                                .assignment(savedEntity)
+                                .studentEmail(status.getStudentEmail())
+                                .studentName(status.getStudentName())
+                                .status(status.getStatus())
+                                .submittedAt(status.getSubmittedAt())
+                                .submissionFiles(existingStatus.getSubmissionFiles()) // 기존 파일 유지
+                                .build();
+                        
+                        // 기존 엔티티 제거 후 새 엔티티 추가
+                        savedEntity.getStudentSubmissionStatuses().remove(existingStatus);
+                        savedEntity.getStudentSubmissionStatuses().add(updatedStatus);
+                    }
+                } else {
+                    // 새로운 학생 제출 현황 추가
+                    StudentSubmissionStatusJpaEntity statusEntity = StudentSubmissionStatusJpaEntity.builder()
+                            .assignment(savedEntity)
+                            .studentEmail(status.getStudentEmail())
+                            .studentName(status.getStudentName())
+                            .status(status.getStatus())
+                            .submittedAt(status.getSubmittedAt())
+                            .build();
+                    
+                    savedEntity.getStudentSubmissionStatuses().add(statusEntity);
+                }
             });
         }
         

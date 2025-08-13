@@ -74,12 +74,52 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Override
     public List<AssignmentDTO> getAssignmentsByClassId(Long classId) {
-        log.debug("클래스별 과제 목록 조회: classId={}", classId);
+        log.debug("클래스별 과제 목록 조회 (제출 파일 포함): classId={}", classId);
 
         List<Assignment> assignments = assignmentRepository.findByClassIdOrderByRegDateDesc(classId);
 
         return assignments.stream()
-                .map(assignment -> domainToDto(assignment, attachmentAdapter))
+                .map(assignment -> {
+                    // 각 과제의 제출물 조회 (제출 파일 포함)
+                    List<Submission> submissions = submissionRepository.findByAssignmentIdWithSubmissionFiles(assignment.getId());
+                    
+                    // 제출 파일 정보를 포함한 DTO 생성
+                    return domainToDtoWithSubmissionFiles(assignment, submissions, attachmentAdapter);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<AssignmentDTO> getAssignmentsByClassIdWithUserStatus(Long classId, String userEmail) {
+        log.debug("클래스별 과제 목록 조회 (사용자 제출 상태 포함): classId={}, userEmail={}", classId, userEmail);
+
+        List<Assignment> assignments = assignmentRepository.findByClassIdOrderByRegDateDesc(classId);
+
+        return assignments.stream()
+                .map(assignment -> {
+                    // 기본 AssignmentDTO 생성
+                    AssignmentDTO assignmentDTO = domainToDto(assignment, attachmentAdapter);
+                    
+                    // 현재 사용자의 제출 상태 확인
+                    boolean isSubmitted = assignment.getStudentSubmissionStatuses().stream()
+                            .anyMatch(status -> status.getStudentEmail().equals(userEmail) && 
+                                     status.getStatus() == com.edu.edumeet.homework.domain.SubmissionStatus.SUBMITTED);
+                    
+                    // done 필드 추가 (프론트엔드에서 사용)
+                    return AssignmentDTO.builder()
+                            .id(assignmentDTO.getId())
+                            .title(assignmentDTO.getTitle())
+                            .description(assignmentDTO.getDescription())
+                            .classId(assignmentDTO.getClassId())
+                            .createdByEmail(assignmentDTO.getCreatedByEmail())
+                            .createdByName(assignmentDTO.getCreatedByName())
+                            .attachmentFiles(assignmentDTO.getAttachmentFiles())
+                            .studentSubmissionStatuses(assignmentDTO.getStudentSubmissionStatuses())
+                            .regDate(assignmentDTO.getRegDate())
+                            .modDate(assignmentDTO.getModDate())
+                            .done(isSubmitted) // 제출 여부 설정
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 
@@ -135,19 +175,19 @@ public class AssignmentServiceImpl implements AssignmentService {
      * Assignment 도메인 객체를 AssignmentDTO로 변환 (제출 파일 정보 포함)
      */
     private AssignmentDTO domainToDtoWithSubmissionFiles(Assignment assignment, List<Submission> submissions, AttachmentAdapter attachmentAdapter) {
-        // 학생 ID별로 제출물 매핑 (성능 최적화를 위한 Map 사용)
-        Map<Long, Submission> submissionMap = submissions.stream()
-                .collect(Collectors.toMap(Submission::getClassMemberId, submission -> submission));
+        // 학생 Email별로 제출물 매핑 (성능 최적화를 위한 Map 사용)
+        Map<String, Submission> submissionMap = submissions.stream()
+                .collect(Collectors.toMap(Submission::getClassMemberEmail, submission -> submission));
         
         // StudentSubmissionStatus 리스트에 제출 파일 정보 포함
         List<StudentSubmissionStatus> enrichedStatuses = assignment.getStudentSubmissionStatuses().stream()
                 .map(status -> {
-                    Submission submission = submissionMap.get(status.getStudentId());
+                    Submission submission = submissionMap.get(status.getStudentEmail());
                     if (submission != null && submission.isSubmitted()) {
                         // 제출 완료 상태이면 제출 파일 정보 포함하여 새로운 Status 생성
                         return StudentSubmissionStatus.submitted(
                                 status.getAssignmentId(),
-                                status.getStudentId(),
+                                status.getStudentEmail(),
                                 status.getStudentName(),
                                 submission.getSubmissionFiles(),
                                 submission.getModDate() // 제출 시간은 수정일시 사용

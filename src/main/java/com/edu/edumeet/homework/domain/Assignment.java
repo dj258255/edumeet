@@ -92,7 +92,7 @@ public class Assignment {
             if (this.createdByEmail == null || !classMember.getMember().getEmail().equals(this.createdByEmail)) {
                 statuses.add(StudentSubmissionStatus.notSubmitted(
                         this.id,
-                        classMember.getMember().getId(),
+                        classMember.getMember().getEmail(),
                         classMember.getMember().getNickname()
                 ));
             }
@@ -114,10 +114,10 @@ public class Assignment {
     }
 
 
-    // 클래스 멤버 제출 시 상태 업데이트
-    public Assignment updateSubmissionStatus(Long classMemberId) {
+    // 클래스 멤버 제출 시 상태 업데이트 (email 기준)
+    public Assignment updateSubmissionStatus(String classMemberEmail) {
         List<StudentSubmissionStatus> updatedStatuses = this.studentSubmissionStatuses.stream()
-                .map(status -> status.getStudentId().equals(classMemberId) ?
+                .map(status -> status.getStudentEmail().equals(classMemberEmail) ?
                         status.markAsSubmitted() : status)
                 .toList();
 
@@ -136,27 +136,7 @@ public class Assignment {
                 .build();
     }
 
-    // 클래스 멤버 제출 시 상태 업데이트 (제출 파일 포함)
-    public Assignment updateSubmissionStatus(Long classMemberId, List<Attachment> submissionFiles) {
-        List<StudentSubmissionStatus> updatedStatuses = this.studentSubmissionStatuses.stream()
-                .map(status -> status.getStudentId().equals(classMemberId) ?
-                        status.markAsSubmitted(submissionFiles) : status)
-                .toList();
 
-        return Assignment.builder()
-                .id(this.id)
-                .title(this.title)
-                .description(this.description)
-                .classId(this.classId)
-                .createdByEmail(this.createdByEmail)
-                .createdByName(this.createdByName)
-                .attachmentFiles(this.attachmentFiles)
-                .studentSubmissionStatuses(updatedStatuses)
-                .regDate(this.regDate)
-                .modDate(LocalDateTime.now())
-                .deletedAt(this.deletedAt)
-                .build();
-    }
 
     // 생성자인지 확인 (이메일로 확인)
     public boolean isCreatedBy(String email) {

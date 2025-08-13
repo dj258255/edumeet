@@ -31,8 +31,8 @@ public class SubmissionDTO {
     @Schema(description = "과제 제목", example = "Spring Boot 과제")
     private String assignmentTitle;
 
-    @Schema(description = "클래스 멤버 ID", example = "1")
-    private Long classMemberId;
+    @Schema(description = "클래스 멤버 이메일", example = "student@test.com")
+    private String classMemberEmail;
 
     @Schema(description = "클래스 멤버 이름", example = "김학생")
     private String classMemberName;

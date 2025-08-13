@@ -80,6 +80,14 @@ public interface AssignmentService {
     List<AssignmentDTO> getAssignmentsByClassId(Long classId);
 
     /**
+     * 클래스별 과제 목록 조회 (특정 사용자의 제출 상태 포함)
+     * @param classId 클래스 ID
+     * @param userEmail 사용자 이메일
+     * @return 과제 목록 (사용자 제출 상태 포함)
+     */
+    List<AssignmentDTO> getAssignmentsByClassIdWithUserStatus(Long classId, String userEmail);
+
+    /**
      * 과제에 첨부파일 추가
      * @param assignmentId 과제 ID
      * @param attachment 첨부할 파일

@@ -46,6 +46,9 @@ public class AssignmentDTO {
     @Schema(description = "학생별 제출 현황")
     private List<StudentSubmissionStatus> studentSubmissionStatuses;
 
+    @Schema(description = "제출 완료 여부 (현재 사용자 기준)", example = "false")
+    private Boolean done;
+
     @Schema(description = "등록일시", example = "2025-07-23T19:32:00")
     private LocalDateTime regDate;
 

@@ -28,8 +28,8 @@ public class SubmissionJpaEntity extends BaseEntity {
     @Column(name = "assignment_id", nullable = false)
     private Long assignmentId;
 
-    @Column(name = "class_member_id")
-    private Long classMemberId;
+    @Column(name = "class_member_email")
+    private String classMemberEmail;
 
     @Column(name = "class_member_name")
     private String classMemberName;
@@ -55,7 +55,7 @@ public class SubmissionJpaEntity extends BaseEntity {
         return Submission.builder()
                 .id(this.id)
                 .assignmentId(this.assignmentId)
-                .classMemberId(this.classMemberId)
+                .classMemberEmail(this.classMemberEmail)
                 .classMemberName(this.classMemberName)
                 .content(this.content)
                 .status(this.status)
@@ -73,7 +73,7 @@ public class SubmissionJpaEntity extends BaseEntity {
         SubmissionJpaEntity entity = SubmissionJpaEntity.builder()
                 .id(submission.getId())
                 .assignmentId(submission.getAssignmentId())
-                .classMemberId(submission.getClassMemberId())
+                .classMemberEmail(submission.getClassMemberEmail())
                 .classMemberName(submission.getClassMemberName())
                 .content(submission.getContent())
                 .status(submission.getStatus())

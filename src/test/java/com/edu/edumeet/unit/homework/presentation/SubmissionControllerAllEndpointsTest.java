@@ -15,6 +15,7 @@ import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -25,12 +26,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * SubmissionController의 모든 엔드포인트를 테스트하는 통합 테스트
@@ -69,148 +71,307 @@ public class SubmissionControllerAllEndpointsTest {
     @Autowired
     private WebApplicationContext webApplicationContext;
 
-    private Long testClassId;
+    // 테스트 데이터 상수
+    private static final Long TEST_CLASS_ID = 1L;
+    private static final String TEST_CLASS_MEMBER_EMAIL = "100L";
+    private static final String TEACHER_EMAIL = "teacher@example.com";
+    private static final String TEACHER_NAME = "테스트선생님";
+
     private Long testAssignmentId;
-    private Long testClassMemberId;
     private Long testSubmissionId;
 
     /**
      * 테스트용 첨부파일 목록을 생성하는 헬퍼 메서드
      */
     private List<Attachment> createTestAttachments() {
-        return List.of(
-            Attachment.builder()
-                .uuid("test-uuid-1")
-                .fileName("test-file.pdf")
-                .ord(1)
-                .img(false)
-                .fileSize(1024L)
-                .contentType("application/pdf")
-                .domain("homework")
-                .referenceId(null)
-                .build()
+        return Arrays.asList(
+                Attachment.builder()
+                        .uuid("test-uuid-1")
+                        .fileName("test-file.pdf")
+                        .ord(1)
+                        .img(false)
+                        .fileSize(1024L)
+                        .contentType("application/pdf")
+                        .domain("homework")
+                        .referenceId(null)
+                        .build(),
+                Attachment.builder()
+                        .uuid("test-uuid-2")
+                        .fileName("test-image.jpg")
+                        .ord(2)
+                        .img(true)
+                        .fileSize(2048L)
+                        .contentType("image/jpeg")
+                        .domain("homework")
+                        .referenceId(null)
+                        .build()
         );
+    }
+
+    /**
+     * 테스트용 과제 생성 헬퍼 메서드
+     */
+    private AssignmentCreateDTO createTestAssignmentDTO(String title, String description) {
+        return AssignmentCreateDTO.builder()
+                .title(title)
+                .description(description)
+                .createdByEmail(TEACHER_EMAIL)
+                .createdByName(TEACHER_NAME)
+                .attachmentFiles(null)
+                .build();
+    }
+
+    /**
+     * 테스트용 제출물 생성 헬퍼 메서드
+     */
+    private SubmissionCreateDTO createTestSubmissionDTO(String classMemberEmail, String classMemberName, String content) {
+        return SubmissionCreateDTO.builder()
+                .assignmentId(testAssignmentId)
+                .classMemberEmail(classMemberEmail)
+                .classMemberName(classMemberName)
+                .content(content)
+                .attachmentFiles(createTestAttachments())
+                .build();
     }
 
     @BeforeEach
     void setUp() {
         log.info("=== 테스트 환경 설정 시작 ===");
-        
+
         // MockMvc 설정
         this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
-        
+
         // 기존 데이터 정리
-        submissionJpaRepository.deleteAll();
-        assignmentJpaRepository.deleteAll();
-        
-        testClassId = 1L;
-        testClassMemberId = 100L;
-        
-        // 테스트용 과제 생성 (제출물 테스트용)
-        AssignmentCreateDTO assignmentCreateDTO = AssignmentCreateDTO.builder()
-                .title("통합테스트 과제")
-                .description("제출물 테스트를 위한 과제입니다")
-                .createdByEmail("teacher@example.com")
-                .createdByName("테스트선생님")
-                .attachmentFiles(null)
-                .build();
-        
-        testAssignmentId = assignmentService.createAssignment(assignmentCreateDTO, testClassId);
-        
+        cleanupTestData();
+
+        // 테스트용 과제 생성
+        createTestAssignment();
+
         // 테스트용 제출물 생성 (수정/삭제 테스트용)
-        SubmissionCreateDTO submissionCreateDTO = SubmissionCreateDTO.builder()
-                .assignmentId(testAssignmentId)
-                .classMemberId(testClassMemberId)
-                .classMemberName("테스트학생")
-                .content("통합테스트 제출물 내용")
-                .attachmentFiles(createTestAttachments())
-                .build();
-        
-        testSubmissionId = submissionService.submitAssignment(submissionCreateDTO);
-        
-        log.info("테스트 준비 완료: classId={}, assignmentId={}, classMemberId={}, submissionId={}", 
-                testClassId, testAssignmentId, testClassMemberId, testSubmissionId);
+        createTestSubmission();
+
+        log.info("테스트 준비 완료: classId={}, assignmentId={}, classMemberId={}, submissionId={}",
+                TEST_CLASS_ID, testAssignmentId, TEST_CLASS_MEMBER_EMAIL, testSubmissionId);
         log.info("=== 테스트 환경 설정 완료 ===");
     }
 
-    @Test
-    @DisplayName("[DEBUG_LOG] POST /api/v1/class/{classId}/submissions/assignment/{assignmentId} - 과제 제출 테스트")
-    void submitAssignmentTest() throws Exception {
-        log.info("=== 과제 제출 테스트 시작 ===");
-        
-        // Given
-        SubmissionCreateDTO newSubmissionDTO = SubmissionCreateDTO.builder()
-                .classMemberId(200L)  // 다른 학생
-                .classMemberName("새학생")
-                .content("새로운 제출물 내용입니다.")
-                .attachmentFiles(createTestAttachments())
-                .build();
+    @AfterEach
+    void tearDown() {
+        log.info("=== 테스트 정리 시작 ===");
+        cleanupTestData();
+        log.info("=== 테스트 정리 완료 ===");
+    }
 
+    /**
+     * 테스트 데이터 정리
+     */
+    private void cleanupTestData() {
+        try {
+            submissionJpaRepository.deleteAll();
+            assignmentJpaRepository.deleteAll();
+            log.info("테스트 데이터 정리 완료");
+        } catch (Exception e) {
+            log.warn("테스트 데이터 정리 중 오류 발생: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 테스트용 과제 생성
+     */
+    private void createTestAssignment() {
+        AssignmentCreateDTO assignmentCreateDTO = createTestAssignmentDTO(
+                "통합테스트 과제",
+                "제출물 테스트를 위한 과제입니다"
+        );
+        testAssignmentId = assignmentService.createAssignment(assignmentCreateDTO, TEST_CLASS_ID);
+        log.info("테스트용 과제 생성 완료: assignmentId={}", testAssignmentId);
+    }
+
+    /**
+     * 테스트용 제출물 생성
+     */
+    private void createTestSubmission() {
+        SubmissionCreateDTO submissionCreateDTO = createTestSubmissionDTO(
+                TEST_CLASS_MEMBER_EMAIL,
+                "테스트학생",
+                "통합테스트 제출물 내용"
+        );
+        testSubmissionId = submissionService.submitAssignment(submissionCreateDTO);
+        log.info("테스트용 제출물 생성 완료: submissionId={}", testSubmissionId);
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/class/{classId}/submissions/assignment/{assignmentId} - 과제 제출 성공 테스트")
+    void submitAssignmentSuccessTest() throws Exception {
+        log.info("=== 과제 제출 성공 테스트 시작 ===");
+
+        // Given
+        String newStudentEmail = "200L";
+        String newStudentName = "새학생";
+        String content = "새로운 제출물 내용입니다.";
+
+        SubmissionCreateDTO newSubmissionDTO = createTestSubmissionDTO(newStudentEmail, newStudentName, content);
         String requestJson = objectMapper.writeValueAsString(newSubmissionDTO);
-        log.info("[DEBUG_LOG] 요청 데이터: {}", requestJson);
+
+        log.info("요청 데이터: {}", requestJson);
 
         // When & Then
-        MvcResult result = mockMvc.perform(post("/api/v1/class/{classId}/submissions/assignment/{assignmentId}", testClassId, testAssignmentId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson))
+        MvcResult result = mockMvc.perform(
+                        post("/api/v1/class/{classId}/submissions/assignment/{assignmentId}",
+                                TEST_CLASS_ID, testAssignmentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestJson))
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andReturn();
 
         String responseContent = result.getResponse().getContentAsString();
-        log.info("[DEBUG_LOG] 응답 데이터: {}", responseContent);
-        
-        // 등록된 제출물 ID 추출
+        log.info("응답 데이터: {}", responseContent);
+
+        // 등록된 제출물 ID 추출 및 검증
         Long createdSubmissionId = Long.valueOf(responseContent);
-        
-        log.info("[DEBUG_LOG] 등록된 제출물 ID: {}", createdSubmissionId);
-        
+        assertThat(createdSubmissionId).isNotNull().isGreaterThan(0L);
+
+        log.info("등록된 제출물 ID: {}", createdSubmissionId);
+
         // 실제로 등록되었는지 확인
         SubmissionDTO savedSubmission = submissionService.getSubmission(createdSubmissionId);
         assertThat(savedSubmission).isNotNull();
-        assertThat(savedSubmission.getContent()).isEqualTo("새로운 제출물 내용입니다.");
-        assertThat(savedSubmission.getClassMemberId()).isEqualTo(200L);
-        
-        log.info("[DEBUG_LOG] 과제 제출 테스트 성공!");
-        log.info("=== 과제 제출 테스트 완료 ===");
+        assertThat(savedSubmission.getContent()).isEqualTo(content);
+        assertThat(savedSubmission.getClassMemberEmail()).isEqualTo(200L);
+        assertThat(savedSubmission.getAssignmentId()).isEqualTo(testAssignmentId);
+
+        log.info("과제 제출 테스트 성공!");
+        log.info("=== 과제 제출 성공 테스트 완료 ===");
     }
 
+    @Test
+    @DisplayName("POST /api/v1/class/{classId}/submissions/assignment/{assignmentId} - 잘못된 요청 데이터 테스트")
+    void submitAssignmentWithInvalidDataTest() throws Exception {
+        log.info("=== 잘못된 요청 데이터 테스트 시작 ===");
 
+        // Given - 필수 필드가 누락된 요청
+        SubmissionCreateDTO invalidSubmissionDTO = SubmissionCreateDTO.builder()
+                .classMemberEmail("")  // 빈 이메일
+                .classMemberName("테스트학생")
+                .content("")  // 빈 내용
+                .attachmentFiles(null)
+                .build();
 
+        String requestJson = objectMapper.writeValueAsString(invalidSubmissionDTO);
+        log.info("잘못된 요청 데이터: {}", requestJson);
 
+        // When & Then
+        mockMvc.perform(
+                        post("/api/v1/class/{classId}/submissions/assignment/{assignmentId}",
+                                TEST_CLASS_ID, testAssignmentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestJson))
+                .andExpect(status().isBadRequest());
 
+        log.info("=== 잘못된 요청 데이터 테스트 완료 ===");
+    }
 
+    @Test
+    @DisplayName("POST /api/v1/class/{classId}/submissions/assignment/{assignmentId} - 존재하지 않는 과제 ID 테스트")
+    void submitAssignmentWithNonExistentAssignmentTest() throws Exception {
+        log.info("=== 존재하지 않는 과제 ID 테스트 시작 ===");
 
+        // Given
+        Long nonExistentAssignmentId = 99999L;
+        SubmissionCreateDTO submissionDTO = createTestSubmissionDTO("300L", "테스트학생", "테스트 내용");
+        String requestJson = objectMapper.writeValueAsString(submissionDTO);
+
+        // When & Then
+        mockMvc.perform(
+                        post("/api/v1/class/{classId}/submissions/assignment/{assignmentId}",
+                                TEST_CLASS_ID, nonExistentAssignmentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestJson))
+                .andExpect(status().isNotFound());
+
+        log.info("=== 존재하지 않는 과제 ID 테스트 완료 ===");
+    }
 
     @Test
     @DisplayName("전체 제출물 엔드포인트 플로우 테스트")
     void fullWorkflowTest() throws Exception {
         log.info("=== 전체 제출물 워크플로우 테스트 시작 ===");
 
-        // 1. 제출물 제출
+        // 1. 새로운 과제 생성
+        AssignmentCreateDTO newAssignmentDTO = createTestAssignmentDTO(
+                "워크플로우 테스트 과제",
+                "워크플로우 테스트를 위한 과제입니다"
+        );
+        Long workflowAssignmentId = assignmentService.createAssignment(newAssignmentDTO, TEST_CLASS_ID);
+        log.info("1. 워크플로우용 과제 생성 완료 - ID: {}", workflowAssignmentId);
+
+        // 2. 제출물 제출
         SubmissionCreateDTO newSubmission = SubmissionCreateDTO.builder()
-                .classMemberId(999L)
+                .classMemberEmail("999L")
                 .classMemberName("워크플로우학생")
                 .content("워크플로우 테스트 제출물 내용")
                 .attachmentFiles(createTestAttachments())
                 .build();
 
         String submitJson = objectMapper.writeValueAsString(newSubmission);
-        MvcResult submitResult = mockMvc.perform(post("/api/v1/class/{classId}/submissions/assignment/{assignmentId}", testClassId, testAssignmentId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(submitJson))
+        MvcResult submitResult = mockMvc.perform(
+                        post("/api/v1/class/{classId}/submissions/assignment/{assignmentId}",
+                                TEST_CLASS_ID, workflowAssignmentId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(submitJson))
                 .andExpect(status().isCreated())
                 .andReturn();
 
         Long workflowSubmissionId = Long.valueOf(submitResult.getResponse().getContentAsString());
-        log.info("1. 제출물 제출 완료 - ID: {}", workflowSubmissionId);
+        log.info("2. 제출물 제출 완료 - ID: {}", workflowSubmissionId);
 
-        // 2. 제출물 목록 조회 기능은 AssignmentController로 이관됨
-        log.info("2. 제출물 목록 조회 기능은 AssignmentController에서 제공됩니다.");
+        // 3. 제출물 조회 확인
+        SubmissionDTO submittedWork = submissionService.getSubmission(workflowSubmissionId);
+        assertThat(submittedWork).isNotNull();
+        assertThat(submittedWork.getContent()).isEqualTo("워크플로우 테스트 제출물 내용");
+        assertThat(submittedWork.getClassMemberEmail()).isEqualTo(999L);
+        log.info("3. 제출물 조회 확인 완료");
 
-        // 제출물 삭제/복원 기능은 제거됨 (한번 제출하면 끝)
-        log.info("제출물 삭제/복원 기능은 더 이상 지원되지 않습니다. 한번 제출하면 최종입니다.");
+        // 4. 시스템 변경사항 확인
+        log.info("4. 시스템 변경사항:");
+        log.info("   - 제출물 목록 조회 기능은 AssignmentController에서 제공됩니다.");
+        log.info("   - 제출물 삭제/복원 기능은 더 이상 지원되지 않습니다. 한번 제출하면 최종입니다.");
+        log.info("   - 제출물 수정 기능도 제한될 수 있습니다.");
 
         log.info("=== 전체 제출물 워크플로우 테스트 성공! ===");
+    }
+
+    @Test
+    @DisplayName("동시에 여러 제출물 제출 테스트")
+    void multipleSubmissionsTest() throws Exception {
+        log.info("=== 다중 제출물 테스트 시작 ===");
+
+        // 여러 학생의 제출물 생성
+        String[] studentEmails = {"500L", "501L", "502L"};
+        String[] studentNames = {"학생1", "학생2", "학생3"};
+
+        for (int i = 0; i < studentEmails.length; i++) {
+            SubmissionCreateDTO submission = createTestSubmissionDTO(
+                    studentEmails[i],
+                    studentNames[i],
+                    "학생 " + (i + 1) + "의 제출물 내용"
+            );
+
+            String requestJson = objectMapper.writeValueAsString(submission);
+
+            MvcResult result = mockMvc.perform(
+                            post("/api/v1/class/{classId}/submissions/assignment/{assignmentId}",
+                                    TEST_CLASS_ID, testAssignmentId)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestJson))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+
+            Long submissionId = Long.valueOf(result.getResponse().getContentAsString());
+            log.info("학생 {} 제출완료 - ID: {}", studentNames[i], submissionId);
+        }
+
+        log.info("=== 다중 제출물 테스트 완료 ===");
     }
 }

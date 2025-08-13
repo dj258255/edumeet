@@ -21,7 +21,7 @@ import java.util.List;
 @JsonDeserialize(builder = StudentSubmissionStatus.StudentSubmissionStatusBuilder.class)
 public class StudentSubmissionStatus {
     private Long assignmentId;
-    private Long studentId; // classMemberId
+    private String studentEmail; // classMemberEmail
     private String studentName; // class MemberName
     private SubmissionStatus status;
     
@@ -33,10 +33,10 @@ public class StudentSubmissionStatus {
     private List<Attachment> submissionFiles = new ArrayList<>();
 
     // 미제출 상태로 생성
-    public static StudentSubmissionStatus notSubmitted(Long assignmentId, Long classMemberId, String classMemberName) {
+    public static StudentSubmissionStatus notSubmitted(Long assignmentId, String classMemberEmail, String classMemberName) {
         return StudentSubmissionStatus.builder()
                 .assignmentId(assignmentId)
-                .studentId(classMemberId)
+                .studentEmail(classMemberEmail)
                 .studentName(classMemberName)
                 .status(SubmissionStatus.NOT_SUBMITTED)
                 .build();
@@ -46,7 +46,7 @@ public class StudentSubmissionStatus {
     public StudentSubmissionStatus markAsSubmitted() {
         return StudentSubmissionStatus.builder()
                 .assignmentId(this.assignmentId)
-                .studentId(this.studentId)
+                .studentEmail(this.studentEmail)
                 .studentName(this.studentName)
                 .status(SubmissionStatus.SUBMITTED)
                 .submittedAt(LocalDateTime.now())
@@ -58,7 +58,7 @@ public class StudentSubmissionStatus {
     public StudentSubmissionStatus markAsSubmitted(List<Attachment> submissionFiles) {
         return StudentSubmissionStatus.builder()
                 .assignmentId(this.assignmentId)
-                .studentId(this.studentId)
+                .studentEmail(this.studentEmail)
                 .studentName(this.studentName)
                 .status(SubmissionStatus.SUBMITTED)
                 .submittedAt(LocalDateTime.now())
@@ -67,11 +67,11 @@ public class StudentSubmissionStatus {
     }
 
     // 제출 완료 상태로 생성 (제출 파일 포함)
-    public static StudentSubmissionStatus submitted(Long assignmentId, Long classMemberId, String classMemberName, 
+    public static StudentSubmissionStatus submitted(Long assignmentId, String classMemberEmail, String classMemberName, 
                                                    List<Attachment> submissionFiles, LocalDateTime submittedAt) {
         return StudentSubmissionStatus.builder()
                 .assignmentId(assignmentId)
-                .studentId(classMemberId)
+                .studentEmail(classMemberEmail)
                 .studentName(classMemberName)
                 .status(SubmissionStatus.SUBMITTED)
                 .submittedAt(submittedAt)

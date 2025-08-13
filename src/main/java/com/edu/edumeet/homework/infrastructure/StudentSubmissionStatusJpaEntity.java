@@ -28,8 +28,8 @@ public class StudentSubmissionStatusJpaEntity {
     @JoinColumn(name = "assignment_id")
     private AssignmentJpaEntity assignment;
 
-    @Column(name = "student_id", nullable = false)
-    private Long studentId;
+    @Column(name = "student_email", nullable = false)
+    private String studentEmail;
 
     @Column(name = "student_name", nullable = false, length = 50)
     private String studentName;
@@ -45,20 +45,20 @@ public class StudentSubmissionStatusJpaEntity {
     // 제출된 파일들
     @OneToMany(mappedBy = "studentSubmissionStatus", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
-    private Set<StudentSubmissionFileJpaEntity> submissionFiles = new HashSet<>();
+    private Set<SubmissionFileUploadJpaEntity> submissionFiles = new HashSet<>();
 
     // 도메인 모델로 변환
     public StudentSubmissionStatus toDomain() {
         List<com.edu.edumeet.attachment.domain.Attachment> attachments = new ArrayList<>();
         if (this.submissionFiles != null) {
             attachments = this.submissionFiles.stream()
-                    .map(StudentSubmissionFileJpaEntity::toAttachment)
+                    .map(SubmissionFileUploadJpaEntity::toFileUpload)
                     .toList();
         }
 
         return StudentSubmissionStatus.builder()
                 .assignmentId(this.assignment.getId())
-                .studentId(this.studentId)
+                .studentEmail(this.studentEmail)
                 .studentName(this.studentName)
                 .status(this.status)
                 .submittedAt(this.submittedAt)
@@ -70,7 +70,7 @@ public class StudentSubmissionStatusJpaEntity {
     public static StudentSubmissionStatusJpaEntity fromDomain(StudentSubmissionStatus status, AssignmentJpaEntity assignment) {
         StudentSubmissionStatusJpaEntity entity = StudentSubmissionStatusJpaEntity.builder()
                 .assignment(assignment)
-                .studentId(status.getStudentId())
+                .studentEmail(status.getStudentEmail())
                 .studentName(status.getStudentName())
                 .status(status.getStatus())
                 .submittedAt(status.getSubmittedAt())
@@ -78,9 +78,9 @@ public class StudentSubmissionStatusJpaEntity {
 
         // submissionFiles 처리
         if (status.getSubmissionFiles() != null && !status.getSubmissionFiles().isEmpty()) {
-            Set<StudentSubmissionFileJpaEntity> fileEntities = new HashSet<>();
+            Set<SubmissionFileUploadJpaEntity> fileEntities = new HashSet<>();
             for (com.edu.edumeet.attachment.domain.Attachment attachment : status.getSubmissionFiles()) {
-                StudentSubmissionFileJpaEntity fileEntity = StudentSubmissionFileJpaEntity.fromAttachment(attachment, entity);
+                SubmissionFileUploadJpaEntity fileEntity = SubmissionFileUploadJpaEntity.fromAttachment(attachment, entity);
                 fileEntities.add(fileEntity);
             }
             entity.submissionFiles = fileEntities;

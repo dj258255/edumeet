@@ -229,7 +229,7 @@ class N1QueryOptimizationTest {
         for (int i = 1; i <= 3; i++) {
             StudentSubmissionStatusJpaEntity status = StudentSubmissionStatusJpaEntity.builder()
                     .assignment(assignment)
-                    .studentId(Long.valueOf(i))
+                    .studentEmail( i + "@example.com")
                     .studentName("학생" + i)
                     .status(i % 2 == 0 ? SubmissionStatus.SUBMITTED : SubmissionStatus.NOT_SUBMITTED)
                     .submittedAt(i % 2 == 0 ? LocalDateTime.now() : null)
