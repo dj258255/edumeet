@@ -158,4 +158,12 @@ apiClient.interceptors.response.use(
 
 export default apiClient
 
+// 브라우저/컴퓨터 종료 시 로그아웃 처리
+window.addEventListener('beforeunload', () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+})
+
 
