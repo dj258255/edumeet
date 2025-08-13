@@ -2,6 +2,11 @@ package com.edu.edumeet.homework.application;
 
 import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.domain.Submission;
+import com.edu.edumeet.homework.domain.SubmissionStatus;
+import com.edu.edumeet.homework.infrastructure.StudentSubmissionStatusJpaEntity;
+import com.edu.edumeet.homework.infrastructure.StudentSubmissionStatusJpaRepository;
+import com.edu.edumeet.homework.infrastructure.SubmissionFileUploadJpaEntity;
+import com.edu.edumeet.homework.infrastructure.SubmissionFileUploadJpaRepository;
 import com.edu.edumeet.homework.presentation.SubmissionService;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
@@ -13,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,12 +30,14 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final SubmissionRepository submissionRepository;
     private final AssignmentRepository assignmentRepository;
     private final AttachmentAdapter attachmentAdapter;
+    private final StudentSubmissionStatusJpaRepository studentSubmissionStatusJpaRepository;
+    private final SubmissionFileUploadJpaRepository submissionFileUploadJpaRepository;
 
     @Override
     @Transactional
     public Long submitAssignment(SubmissionCreateDTO submissionCreateDTO) {
-        log.info("과제 제출 시작: assignmentId={}, classMemberId={}", 
-                submissionCreateDTO.getAssignmentId(), submissionCreateDTO.getClassMemberId());
+        log.info("과제 제출 시작: assignmentId={}, classMemberEmail={}", 
+                submissionCreateDTO.getAssignmentId(), submissionCreateDTO.getClassMemberEmail());
 
         // 1. 도메인 객체 생성
         Submission submission = createDtoToDomain(submissionCreateDTO);
@@ -37,14 +45,35 @@ public class SubmissionServiceImpl implements SubmissionService {
         // 2. 제출물 저장
         Submission savedSubmission = submissionRepository.save(submission);
 
-        // 3. 과제의 제출 상태 업데이트 (제출 파일 포함)
-        Assignment assignment = assignmentRepository.findById(submissionCreateDTO.getAssignmentId())
-                .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + submissionCreateDTO.getAssignmentId()));
-
-        Assignment updatedAssignment = assignment.updateSubmissionStatus(
-                submissionCreateDTO.getClassMemberId(), 
-                savedSubmission.getSubmissionFiles());
-        assignmentRepository.save(updatedAssignment);
+        // 3. StudentSubmissionStatus 업데이트 및 제출 파일 연결
+        Optional<StudentSubmissionStatusJpaEntity> statusEntityOpt = studentSubmissionStatusJpaRepository
+                .findByAssignmentIdAndStudentEmail(submissionCreateDTO.getAssignmentId(), submissionCreateDTO.getClassMemberEmail());
+        
+        if (statusEntityOpt.isPresent()) {
+            StudentSubmissionStatusJpaEntity statusEntity = statusEntityOpt.get();
+            
+            // 제출 상태를 SUBMITTED로 변경하고 제출 시간 설정
+            StudentSubmissionStatusJpaEntity updatedEntity = StudentSubmissionStatusJpaEntity.builder()
+                    .id(statusEntity.getId())
+                    .assignment(statusEntity.getAssignment())
+                    .studentEmail(statusEntity.getStudentEmail())
+                    .studentName(statusEntity.getStudentName())
+                    .status(SubmissionStatus.SUBMITTED)
+                    .submittedAt(java.time.LocalDateTime.now())
+                    .submissionFiles(statusEntity.getSubmissionFiles()) // 먼저 기존 파일 유지
+                    .build();
+            
+            StudentSubmissionStatusJpaEntity savedStatusEntity = studentSubmissionStatusJpaRepository.save(updatedEntity);
+            
+            // 4. 제출한 파일들을 StudentSubmissionStatus와도 연결
+            updateStudentSubmissionStatusFiles(savedSubmission, savedStatusEntity);
+            
+            log.info("StudentSubmissionStatus 업데이트 완료: assignmentId={}, studentEmail={}", 
+                    submissionCreateDTO.getAssignmentId(), submissionCreateDTO.getClassMemberEmail());
+        } else {
+            log.warn("StudentSubmissionStatus를 찾을 수 없음: assignmentId={}, studentEmail={}", 
+                    submissionCreateDTO.getAssignmentId(), submissionCreateDTO.getClassMemberEmail());
+        }
 
         log.info("과제 제출 완료: ID={}", savedSubmission.getId());
         return savedSubmission.getId();
@@ -85,10 +114,10 @@ public class SubmissionServiceImpl implements SubmissionService {
     }
 
     @Override
-    public List<SubmissionDTO> getSubmissionsByClassMemberId(Long classMemberId) {
-        log.debug("학생별 제출물 목록 조회 (과제 제목 포함): classMemberId={}", classMemberId);
+    public List<SubmissionDTO> getSubmissionsByClassMemberEmail(String classMemberEmail) {
+        log.debug("학생별 제출물 목록 조회 (과제 제목 포함): classMemberEmail={}", classMemberEmail);
 
-        List<Submission> submissions = submissionRepository.findByClassMemberIdOrderByRegDateDesc(classMemberId);
+        List<Submission> submissions = submissionRepository.findByClassMemberEmailOrderByRegDateDesc(classMemberEmail);
 
         return submissions.stream()
                 .map(submission -> {
@@ -102,10 +131,10 @@ public class SubmissionServiceImpl implements SubmissionService {
     }
 
     @Override
-    public SubmissionDTO getSubmissionByAssignmentAndClassMember(Long assignmentId, Long classMemberId) {
-        log.debug("특정 과제의 특정 학생 제출물 조회: assignmentId={}, classMemberId={}", assignmentId, classMemberId);
+    public SubmissionDTO getSubmissionByAssignmentAndClassMember(Long assignmentId, String classMemberEmail) {
+        log.debug("특정 과제의 특정 학생 제출물 조회: assignmentId={}, classMemberEmail={}", assignmentId, classMemberEmail);
 
-        Submission submission = submissionRepository.findByAssignmentIdAndClassMemberId(assignmentId, classMemberId)
+        Submission submission = submissionRepository.findByAssignmentIdAndClassMemberEmail(assignmentId, classMemberEmail)
                 .orElseThrow(() -> new IllegalArgumentException("해당 제출물을 찾을 수 없습니다."));
 
         return domainToDto(submission, attachmentAdapter);
@@ -146,5 +175,40 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
 
         log.info("제출물 복원 완료: ID={}", id);
+    }
+
+    /**
+     * 제출한 파일들을 StudentSubmissionStatus와 연결
+     */
+    @Transactional
+    private void updateStudentSubmissionStatusFiles(Submission savedSubmission, StudentSubmissionStatusJpaEntity statusEntity) {
+        log.debug("StudentSubmissionStatus 파일 연결 시작: submissionId={}, statusId={}", 
+                savedSubmission.getId(), statusEntity.getId());
+        
+        // 해당 제출물의 파일들을 조회
+        List<SubmissionFileUploadJpaEntity> submissionFiles = submissionFileUploadJpaRepository
+                .findBySubmissionId(savedSubmission.getId());
+        
+        // 각 파일에 StudentSubmissionStatus 연결
+        for (SubmissionFileUploadJpaEntity fileEntity : submissionFiles) {
+            SubmissionFileUploadJpaEntity updatedFileEntity = SubmissionFileUploadJpaEntity.builder()
+                    .id(fileEntity.getId())
+                    .submission(fileEntity.getSubmission())
+                    .studentSubmissionStatus(statusEntity) // StudentSubmissionStatus 연결
+                    .uuid(fileEntity.getUuid())
+                    .fileName(fileEntity.getFileName())
+                    .ord(fileEntity.getOrd())
+                    .img(fileEntity.isImg())
+                    .fileSize(fileEntity.getFileSize())
+                    .contentType(fileEntity.getContentType())
+                    .uploadedBy(fileEntity.getUploadedBy())
+                    .referenceId(fileEntity.getReferenceId())
+                    .domain(fileEntity.getDomain())
+                    .build();
+            
+            submissionFileUploadJpaRepository.save(updatedFileEntity);
+        }
+        
+        log.debug("StudentSubmissionStatus 파일 연결 완료: 연결된 파일 수={}", submissionFiles.size());
     }
 }

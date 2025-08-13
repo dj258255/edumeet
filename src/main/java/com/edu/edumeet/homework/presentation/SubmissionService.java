@@ -21,7 +21,7 @@ public interface SubmissionService {
         return SubmissionDTO.builder()
                 .id(submission.getId())
                 .assignmentId(submission.getAssignmentId())
-                .classMemberId(submission.getClassMemberId())
+                .classMemberEmail(submission.getClassMemberEmail())
                 .classMemberName(submission.getClassMemberName())
                 .content(submission.getContent())
                 .status(submission.getStatus())
@@ -39,7 +39,7 @@ public interface SubmissionService {
                 .id(submission.getId())
                 .assignmentId(submission.getAssignmentId())
                 .assignmentTitle(assignmentTitle)
-                .classMemberId(submission.getClassMemberId())
+                .classMemberEmail(submission.getClassMemberEmail())
                 .classMemberName(submission.getClassMemberName())
                 .content(submission.getContent())
                 .status(submission.getStatus())
@@ -55,7 +55,7 @@ public interface SubmissionService {
     default Submission createDtoToDomain(SubmissionCreateDTO dto) {
         return Submission.builder()
                 .assignmentId(dto.getAssignmentId())
-                .classMemberId(dto.getClassMemberId())
+                .classMemberEmail(dto.getClassMemberEmail())
                 .classMemberName(dto.getClassMemberName())
                 .content(dto.getContent())
                 .submissionFiles(dto.getAttachmentFiles() != null ? dto.getAttachmentFiles() : new java.util.ArrayList<>())
@@ -92,18 +92,18 @@ public interface SubmissionService {
 
     /**
      * 학생별 제출물 목록 조회
-     * @param classMemberId 학생 ID
+     * @param classMemberEmail 학생 이메일
      * @return 제출물 목록
      */
-    List<SubmissionDTO> getSubmissionsByClassMemberId(Long classMemberId);
+    List<SubmissionDTO> getSubmissionsByClassMemberEmail(String classMemberEmail);
 
     /**
      * 특정 과제의 특정 학생 제출물 조회
      * @param assignmentId 과제 ID
-     * @param classMemberId 학생 ID
+     * @param classMemberEmail 학생 이메일
      * @return 제출물 정보
      */
-    SubmissionDTO getSubmissionByAssignmentAndClassMember(Long assignmentId, Long classMemberId);
+    SubmissionDTO getSubmissionByAssignmentAndClassMember(Long assignmentId, String classMemberEmail);
 
     /**
      * 제출물에 파일 추가

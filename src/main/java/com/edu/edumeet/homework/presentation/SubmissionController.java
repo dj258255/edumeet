@@ -3,7 +3,7 @@ package com.edu.edumeet.homework.presentation;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
+import com.edu.edumeet.homework.presentation.dto.StudentSubmissionStatusDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,8 +32,8 @@ public class SubmissionController {
             @Parameter(description = "클래스 ID") @PathVariable Long classId,
             @Parameter(description = "과제 ID") @PathVariable Long assignmentId,
             @Valid @RequestBody SubmissionCreateDTO submissionCreateDTO) {
-        log.info("과제 제출 요청: classId={}, assignmentId={}, classMemberId={}", 
-                classId, assignmentId, submissionCreateDTO.getClassMemberId());
+        log.info("과제 제출 요청: classId={}, assignmentId={}, classMemberEmail={}", 
+                classId, assignmentId, submissionCreateDTO.getClassMemberEmail());
         
         // DTO에 assignmentId 설정
         submissionCreateDTO.setAssignmentId(assignmentId);
@@ -46,11 +46,11 @@ public class SubmissionController {
 
 
     @Operation(summary = "학생별 과제 목록 조회", description = "특정 학생에게 할당된 과제 목록과 제출 상태를 조회합니다.")
-    @GetMapping("/student/{classMemberId}/assignments")
+    @GetMapping("/student/{classMemberEmail}/assignments")
     public ResponseEntity<List<AssignmentDTO>> getAssignmentsForStudent(
             @Parameter(description = "클래스 ID") @PathVariable Long classId,
-            @Parameter(description = "학생 ID (클래스 멤버 ID)") @PathVariable Long classMemberId) {
-        log.debug("학생별 과제 목록 조회 요청: classId={}, classMemberId={}", classId, classMemberId);
+            @Parameter(description = "학생 이메일") @PathVariable String classMemberEmail) {
+        log.debug("학생별 과제 목록 조회 요청: classId={}, classMemberEmail={}", classId, classMemberEmail);
         
         // 클래스의 모든 과제를 조회
         List<AssignmentDTO> allAssignments = assignmentService.getAssignmentsByClassId(classId);
@@ -59,9 +59,9 @@ public class SubmissionController {
         List<AssignmentDTO> studentAssignments = allAssignments.stream()
                 .map(assignment -> {
                     // 해당 학생의 제출 상태만 필터링
-                    List<StudentSubmissionStatus> studentStatus = assignment.getStudentSubmissionStatuses()
+                    List<StudentSubmissionStatusDTO> studentStatus = assignment.getStudentSubmissionStatuses()
                             .stream()
-                            .filter(status -> status.getStudentId().equals(classMemberId))
+                            .filter(status -> status.getStudentEmail().equals(classMemberEmail))
                             .toList();
                     
                     // 새로운 AssignmentDTO를 생성하여 해당 학생의 상태만 포함
@@ -82,9 +82,4 @@ public class SubmissionController {
         
         return ResponseEntity.ok(studentAssignments);
     }
-
-
-
-
-
 }

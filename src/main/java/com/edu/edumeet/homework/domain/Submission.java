@@ -13,7 +13,7 @@ import java.util.List;
 public class Submission {
     private Long id;
     private Long assignmentId;
-    private Long classMemberId;
+    private String classMemberEmail;
     private String classMemberName;
     private String content;
     @Builder.Default
@@ -60,9 +60,9 @@ public class Submission {
                 .build();
     }
 
-    // 제출자인지 확인
-    public boolean isSubmittedBy(Long memberId) {
-        return this.classMemberId.equals(memberId);
+    // 제출자인지 확인 (이메일 기준)
+    public boolean isSubmittedBy(String memberEmail) {
+        return this.classMemberEmail != null && this.classMemberEmail.equals(memberEmail);
     }
 
     // 제출 여부 확인
