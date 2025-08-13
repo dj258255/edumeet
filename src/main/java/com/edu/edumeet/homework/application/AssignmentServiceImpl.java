@@ -126,7 +126,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
         // 해당 과제의 모든 제출물 조회 (제출 파일 포함)
-        List<Submission> submissions = submissionRepository.findByAssignmentId(id);
+        List<Submission> submissions = submissionRepository.findByAssignmentIdWithSubmissionFiles(id);
         
         return domainToDtoWithSubmissionFiles(assignment, submissions, attachmentAdapter);
     }
