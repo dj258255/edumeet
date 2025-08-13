@@ -4,6 +4,7 @@ import com.edu.edumeet.classroom.domain.ClassRoom;
 import com.edu.edumeet.classroom.repository.ClassRepository;
 import com.edu.edumeet.openvidu.domain.Meeting;
 import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
+import com.edu.edumeet.openvidu.dto.response.MeetingCreateResponseDto;
 import com.edu.edumeet.openvidu.repository.MeetingRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ReactiveAdapterRegistry;
@@ -112,7 +113,7 @@ public class OpenviduService {
         }
     }
 
-    public void create(Long memberId, MeetingCreateRequestDto meetingCreateRequestDto) {
+    public MeetingCreateResponseDto create(Long memberId, MeetingCreateRequestDto meetingCreateRequestDto) {
         ClassRoom classRoom = classRepository.findById(meetingCreateRequestDto.getClassId())
                 .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
 
@@ -120,11 +121,18 @@ public class OpenviduService {
             throw new IllegalArgumentException("해당 클래스의 생성자가 아닙니다.");
         }
 
-        meetingRepository.save(Meeting.builder()
-                        .title(meetingCreateRequestDto.getTitle())
-                        .description(meetingCreateRequestDto.getDescription())
-                        .startTime(LocalDateTime.now())
-                        .classRoom(classRoom)
-                        .build());
+        Meeting meeting = Meeting.builder()
+                .title(meetingCreateRequestDto.getTitle())
+                .description(meetingCreateRequestDto.getDescription())
+                .startTime(LocalDateTime.now())
+                .classRoom(classRoom)
+                .build();
+
+        meetingRepository.save(meeting);
+        return MeetingCreateResponseDto.builder()
+                .title(meeting.getTitle())
+                .email(classRoom.getMember().getEmail())
+                .meetingId(meeting.getId())
+                .build();
     }
 }

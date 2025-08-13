@@ -2,6 +2,7 @@ package com.edu.edumeet.openvidu.controller;
 
 import com.edu.edumeet.member.domain.SecurityMember;
 import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
+import com.edu.edumeet.openvidu.dto.response.MeetingCreateResponseDto;
 import com.edu.edumeet.openvidu.service.OpenviduService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,12 +20,10 @@ public class OpenviduController {
     private final OpenviduService openviduService;
 
     @PostMapping("/token")
-    public ResponseEntity<Map<String, Object>> createToken(
+    public ResponseEntity<MeetingCreateResponseDto> createToken(
             @AuthenticationPrincipal SecurityMember member,
             @RequestBody MeetingCreateRequestDto meetingCreateRequestDto) {
-        openviduService.create(member.getMemberId(), meetingCreateRequestDto);
-        Map<String, Object> token = openviduService.createToken(meetingCreateRequestDto.getTitle(), member.getEmail());
-        return ResponseEntity.ok(token);
+        return ResponseEntity.ok(openviduService.create(member.getMemberId(), meetingCreateRequestDto));
     }
 
     @GetMapping("/room/{roomName}")
