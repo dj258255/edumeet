@@ -100,6 +100,16 @@ public class SubmissionRepositoryImpl implements SubmissionRepository {
     }
 
     @Override
+    public List<Submission> findByAssignmentIdWithSubmissionFiles(Long assignmentId) {
+        log.debug("과제별 제출물 조회 시작 (파일 포함): assignmentId={}", assignmentId);
+        
+        return submissionJpaRepository.findByAssignmentIdWithSubmissionFiles(assignmentId)
+                .stream()
+                .map(SubmissionJpaEntity::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Submission> findByClassMemberIdOrderByRegDateDesc(Long classMemberId) {
         log.debug("학생별 제출물 조회 시작: classMemberId={}", classMemberId);
         
