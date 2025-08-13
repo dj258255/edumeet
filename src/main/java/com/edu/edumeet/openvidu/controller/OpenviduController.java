@@ -2,6 +2,7 @@ package com.edu.edumeet.openvidu.controller;
 
 import com.edu.edumeet.member.domain.SecurityMember;
 import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
+import com.edu.edumeet.openvidu.dto.response.ClassMeetingInfoResponseDto;
 import com.edu.edumeet.openvidu.dto.response.MeetingCreateResponseDto;
 import com.edu.edumeet.openvidu.service.OpenviduService;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -35,6 +37,13 @@ public class OpenviduController {
         return ResponseEntity.ok(Map.of(
                 "message", "화상강의를 완료하였습니다."
         ));
+    }
+
+    @GetMapping("/{classId}")
+    public ResponseEntity<List<ClassMeetingInfoResponseDto>> getLiveList(
+            @AuthenticationPrincipal SecurityMember member,
+            @PathVariable Long classId) {
+        return ResponseEntity.ok(openviduService.getMeetingList(member.getEmail(), classId));
     }
 
     @GetMapping("/room/{roomName}")

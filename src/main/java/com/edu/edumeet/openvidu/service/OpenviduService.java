@@ -5,6 +5,7 @@ import com.edu.edumeet.classroom.repository.ClassRepository;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.openvidu.domain.Meeting;
 import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
+import com.edu.edumeet.openvidu.dto.response.ClassMeetingInfoResponseDto;
 import com.edu.edumeet.openvidu.dto.response.MeetingCreateResponseDto;
 import com.edu.edumeet.openvidu.repository.MeetingRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.time.Duration;
 import java.util.Optional;
@@ -144,5 +146,26 @@ public class OpenviduService {
                 .orElseThrow(() -> new IllegalArgumentException("미팅을 찾을 수 없습니다."));
 
         meeting.endNow();
+    }
+
+    public List<ClassMeetingInfoResponseDto> getMeetingList(String email, Long classId) {
+        ClassRoom classRoom = classRepository.findById(classId)
+                .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
+
+        if (!classRoom.getMember().getEmail().equals(email)) {
+            throw new IllegalArgumentException("해당 클래스의 생성자가 아닙니다.");
+        }
+
+        return meetingRepository.findAllSortedByNullFirst(classId)
+                .stream()
+                .map(m -> ClassMeetingInfoResponseDto.builder()
+                        .meetingId(m.getId())
+                        .title(m.getTitle())
+                        .description(m.getDescription())
+                        .startTime(m.getStartTime())
+                        .endTime(m.getEndTime())
+                        .s3url(m.getS3url())
+                        .build())
+                .toList();
     }
 }
