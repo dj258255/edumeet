@@ -1,5 +1,6 @@
 package com.edu.edumeet.homework.domain;
 
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -10,6 +11,8 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Builder
 @Getter
@@ -24,6 +27,10 @@ public class StudentSubmissionStatus {
     
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime submittedAt;
+    
+    // 제출된 파일들 (선생님이 볼 수 있도록)
+    @Builder.Default
+    private List<Attachment> submissionFiles = new ArrayList<>();
 
     // 미제출 상태로 생성
     public static StudentSubmissionStatus notSubmitted(Long assignmentId, Long classMemberId, String classMemberName) {
@@ -43,6 +50,20 @@ public class StudentSubmissionStatus {
                 .studentName(this.studentName)
                 .status(SubmissionStatus.SUBMITTED)
                 .submittedAt(LocalDateTime.now())
+                .submissionFiles(this.submissionFiles)
+                .build();
+    }
+
+    // 제출 완료 상태로 생성 (제출 파일 포함)
+    public static StudentSubmissionStatus submitted(Long assignmentId, Long classMemberId, String classMemberName, 
+                                                   List<Attachment> submissionFiles, LocalDateTime submittedAt) {
+        return StudentSubmissionStatus.builder()
+                .assignmentId(assignmentId)
+                .studentId(classMemberId)
+                .studentName(classMemberName)
+                .status(SubmissionStatus.SUBMITTED)
+                .submittedAt(submittedAt)
+                .submissionFiles(submissionFiles != null ? submissionFiles : new ArrayList<>())
                 .build();
     }
 
