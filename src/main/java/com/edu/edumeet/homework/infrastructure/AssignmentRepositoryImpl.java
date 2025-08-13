@@ -86,8 +86,34 @@ public class AssignmentRepositoryImpl implements AssignmentRepository {
                 
                 savedEntity.getAttachmentFiles().add(fileEntity);
             });
+        }
+        
+        // 학생 제출 현황 처리 (assignment_id 설정 후)
+        if (assignment.getStudentSubmissionStatuses() != null && !assignment.getStudentSubmissionStatuses().isEmpty()) {
+            log.info("과제 {}의 학생 제출 현황 처리 - 학생 수: {}", savedEntity.getId(), assignment.getStudentSubmissionStatuses().size());
             
-            // 변경된 엔티티 저장
+            // 기존 제출 현황 모두 삭제 (중복 방지)
+            savedEntity.getStudentSubmissionStatuses().clear();
+            
+            // 학생 제출 현황은 AssignmentJpaEntity의 studentSubmissionStatuses에 직접 추가
+            // StudentSubmissionStatusJpaEntity는 cascade=ALL, orphanRemoval=true로 설정되어 있어
+            // AssignmentJpaEntity가 저장될 때 함께 저장됨
+            assignment.getStudentSubmissionStatuses().forEach(status -> {
+                StudentSubmissionStatusJpaEntity statusEntity = StudentSubmissionStatusJpaEntity.builder()
+                        .assignment(savedEntity)
+                        .studentId(status.getStudentId())
+                        .studentName(status.getStudentName())
+                        .status(status.getStatus())
+                        .submittedAt(status.getSubmittedAt())
+                        .build();
+                
+                savedEntity.getStudentSubmissionStatuses().add(statusEntity);
+            });
+        }
+        
+        // 첨부파일 또는 제출현황이 있는 경우 변경된 엔티티 저장
+        if ((assignment.getAttachmentFiles() != null && !assignment.getAttachmentFiles().isEmpty()) ||
+            (assignment.getStudentSubmissionStatuses() != null && !assignment.getStudentSubmissionStatuses().isEmpty())) {
             assignmentJpaRepository.save(savedEntity);
         }
         
