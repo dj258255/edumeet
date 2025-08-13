@@ -546,7 +546,7 @@ const submitAssignment = async (payload) => {
 
     // 제출 데이터 구성
     const submissionData = {
-      classMemberId: authStore.currentUser.id,
+      classMemberEmail: authStore.currentUser.email,
       classMemberName: authStore.currentUser.email,
       content: payload.content || '',                // 선택 제출 내용
       attachmentFiles: attachments                   // 업로드한 파일 목록
@@ -559,10 +559,12 @@ const submitAssignment = async (payload) => {
       submissionData
     );
 
-    // 상태 업데이트
+    // 제출 후 서버에서 최신 과제 목록 다시 가져오기
+    await fetchNoticesAndAssignments();
+    
+    // 사용자에게 성공 메시지 표시
     const task = assignments.value.find(t => t.id === assignmentId);
     if (task) {
-      task.done = true;
       alert(`${task.title}이(가) 성공적으로 제출되었습니다!`);
     } else {
       alert('과제가 성공적으로 제출되었습니다!');
