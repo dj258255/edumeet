@@ -1,6 +1,8 @@
 package com.edu.edumeet.board.infrastructure;
 
 import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
+import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
@@ -30,10 +32,12 @@ import java.util.stream.Collectors;
 public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport implements BoardSearchRepository {
 
     private final S3Uploader s3Uploader;
+    private final AttachmentAdapter attachmentAdapter;
 
-    public BoardSearchRepositoryImpl(S3Uploader s3Uploader) {
+    public BoardSearchRepositoryImpl(S3Uploader s3Uploader, AttachmentAdapter attachmentAdapter) {
         super(BoardJpaEntity.class);
         this.s3Uploader = s3Uploader;
+        this.attachmentAdapter = attachmentAdapter;
     }
 
     /**
@@ -336,23 +340,10 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
             List<AttachmentDTO> imageDTOs = board.getImageSet().stream()
                     .sorted(Comparator.comparingInt(BoardFileUploadJpaEntity::getOrd))
                     .map(boardImage -> {
-                        String uuid = boardImage.getUuid();
-                        String fileName = boardImage.getFileName();
-                        
-                        // S3Uploader의 메서드를 사용하여 URL 생성
-                        String s3Url = s3Uploader.getOriginalUrl(uuid, fileName);
-                        String s3ThumbnailUrl = s3Uploader.getThumbnailUrl(uuid, fileName);
-                        
-                        return AttachmentDTO.builder()
-                                .uuid(uuid)
-                                .fileName(fileName)
-                                .ord(boardImage.getOrd())
-                                .s3Url(s3Url)
-                                .s3ThumbnailUrl(s3ThumbnailUrl)
-                                .img(boardImage.isImg())
-                                .domain("board")
-                                .referenceId(board.getId())
-                                .build();
+                        // BoardFileUploadJpaEntity를 Attachment 도메인으로 변환
+                        Attachment attachment = convertToAttachment(boardImage, board.getId());
+                        // AttachmentAdapter를 사용하여 동적으로 URL 생성
+                        return attachmentAdapter.toFileUploadDTO(attachment);
                     })
                     .collect(Collectors.toList());
             
@@ -467,23 +458,10 @@ public Page<BoardListAllDTO> searchDeletedWithAll(String[] types, String keyword
             List<AttachmentDTO> imageDTOs = board.getImageSet().stream()
                     .sorted(Comparator.comparingInt(BoardFileUploadJpaEntity::getOrd))
                     .map(boardImage -> {
-                        String uuid = boardImage.getUuid();
-                        String fileName = boardImage.getFileName();
-                            
-                        // S3Uploader의 메서드를 사용하여 URL 생성
-                        String s3Url = s3Uploader.getOriginalUrl(uuid, fileName);
-                        String s3ThumbnailUrl = s3Uploader.getThumbnailUrl(uuid, fileName);
-                            
-                        return AttachmentDTO.builder()
-                                .uuid(uuid)
-                                .fileName(fileName)
-                                .ord(boardImage.getOrd())
-                                .s3Url(s3Url)
-                                .s3ThumbnailUrl(s3ThumbnailUrl)
-                                .img(boardImage.isImg())
-                                .domain("board")
-                                .referenceId(board.getId())
-                                .build();
+                        // BoardFileUploadJpaEntity를 Attachment 도메인으로 변환
+                        Attachment attachment = convertToAttachment(boardImage, board.getId());
+                        // AttachmentAdapter를 사용하여 동적으로 URL 생성
+                        return attachmentAdapter.toFileUploadDTO(attachment);
                     })
                     .collect(Collectors.toList());
                 
@@ -498,4 +476,18 @@ public Page<BoardListAllDTO> searchDeletedWithAll(String[] types, String keyword
 
     return new PageImpl<>(dtoList, pageable, totalCount);
 }
+
+    /**
+     * BoardFileUploadJpaEntity를 Attachment 도메인 객체로 변환하는 헬퍼 메서드
+     */
+    private Attachment convertToAttachment(BoardFileUploadJpaEntity boardImage, Long boardId) {
+        return Attachment.builder()
+                .uuid(boardImage.getUuid())
+                .fileName(boardImage.getFileName())
+                .ord(boardImage.getOrd())
+                .img(boardImage.isImg())
+                .domain("board")
+                .referenceId(boardId)
+                .build();
+    }
 }
