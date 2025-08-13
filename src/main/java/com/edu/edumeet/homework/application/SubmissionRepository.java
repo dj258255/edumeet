@@ -15,9 +15,9 @@ public interface SubmissionRepository {
     // 과제별 제출물 조회 (제출 파일 포함)
     List<Submission> findByAssignmentIdWithSubmissionFiles(Long assignmentId);
     // 학생별 제출물 조회 (최신순)
-    List<Submission> findByClassMemberIdOrderByRegDateDesc(Long classMemberId);
+    List<Submission> findByClassMemberEmailOrderByRegDateDesc(String classMemberEmail);
     // 특정 과제의 특정 학생 제출물 조회
-    Optional<Submission> findByAssignmentIdAndClassMemberId(Long assignmentId, Long classMemberId);
+    Optional<Submission> findByAssignmentIdAndClassMemberEmail(Long assignmentId, String classMemberEmail);
     // 첨부파일 포함 제출물 조회
     Optional<Submission> findByIdWithSubmissionFiles(Long id);
     // 제출물 삭제 (논리적 삭제)

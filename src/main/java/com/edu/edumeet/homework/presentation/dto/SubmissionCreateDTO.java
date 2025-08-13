@@ -24,8 +24,8 @@ public class SubmissionCreateDTO {
     // 과제 ID는 URL path에서 설정됨 (validation 불필요)
     private Long assignmentId;
 
-    @Schema(description = "클래스 멤버 ID", example = "1", required = true)
-    private Long classMemberId;
+    @Schema(description = "클래스 멤버 이메일", example = "student@test.com", required = true)
+    private String classMemberEmail;
 
     @Schema(description = "클래스 멤버 이름", example = "김학생", required = true)
     private String classMemberName;

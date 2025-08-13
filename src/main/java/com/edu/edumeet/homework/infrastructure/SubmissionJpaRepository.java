@@ -9,10 +9,10 @@ import java.util.Optional;
 
 public interface SubmissionJpaRepository extends JpaRepository<SubmissionJpaEntity, Long> {
 
-    List<SubmissionJpaEntity> findByClassMemberIdOrderByRegDateDesc(Long classMemberId);
+    List<SubmissionJpaEntity> findByClassMemberEmailOrderByRegDateDesc(String classMemberEmail);
 
-    @Query("SELECT s FROM SubmissionJpaEntity s WHERE s.assignmentId = :assignmentId AND s.classMemberId = :classMemberId AND s.deletedAt IS NULL")
-    Optional<SubmissionJpaEntity> findByAssignmentIdAndClassMemberIdAndDeletedAtIsNull(@Param("assignmentId") Long assignmentId, @Param("classMemberId") Long classMemberId);
+    @Query("SELECT s FROM SubmissionJpaEntity s WHERE s.assignmentId = :assignmentId AND s.classMemberEmail = :classMemberEmail AND s.deletedAt IS NULL")
+    Optional<SubmissionJpaEntity> findByAssignmentIdAndClassMemberEmailAndDeletedAtIsNull(@Param("assignmentId") Long assignmentId, @Param("classMemberEmail") String classMemberEmail);
 
     @Query("SELECT s FROM SubmissionJpaEntity s WHERE s.assignmentId = :assignmentId AND s.deletedAt IS NULL")
     List<SubmissionJpaEntity> findByAssignmentIdAndDeletedAtIsNull(@Param("assignmentId") Long assignmentId);
@@ -31,13 +31,13 @@ public interface SubmissionJpaRepository extends JpaRepository<SubmissionJpaEnti
 
     @Query("SELECT DISTINCT s FROM SubmissionJpaEntity s " +
            "LEFT JOIN FETCH s.submissionFiles " +
-           "WHERE s.classMemberId = :classMemberId " +
+           "WHERE s.classMemberEmail = :classMemberEmail " +
            "ORDER BY s.regDate DESC")
-    List<SubmissionJpaEntity> findByClassMemberIdWithSubmissionFilesOrderByRegDateDesc(@Param("classMemberId") Long classMemberId);
+    List<SubmissionJpaEntity> findByClassMemberEmailWithSubmissionFilesOrderByRegDateDesc(@Param("classMemberEmail") String classMemberEmail);
 
     @Query("SELECT DISTINCT s FROM SubmissionJpaEntity s " +
            "LEFT JOIN FETCH s.submissionFiles " +
-           "WHERE s.assignmentId = :assignmentId AND s.classMemberId = :classMemberId AND s.deletedAt IS NULL")
-    Optional<SubmissionJpaEntity> findByAssignmentIdAndClassMemberIdWithSubmissionFiles(@Param("assignmentId") Long assignmentId, @Param("classMemberId") Long classMemberId);
+           "WHERE s.assignmentId = :assignmentId AND s.classMemberEmail = :classMemberEmail AND s.deletedAt IS NULL")
+    Optional<SubmissionJpaEntity> findByAssignmentIdAndClassMemberEmailWithSubmissionFiles(@Param("assignmentId") Long assignmentId, @Param("classMemberEmail") String classMemberEmail);
 
 }

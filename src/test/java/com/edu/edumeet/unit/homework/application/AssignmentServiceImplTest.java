@@ -46,6 +46,9 @@ class AssignmentServiceImplTest {
 
     @Mock
     private AttachmentAdapter attachmentAdapter;
+    
+    @Mock
+    private com.edu.edumeet.homework.application.SubmissionRepository submissionRepository;
 
     private AssignmentCreateDTO createDTOWithFiles;
     private AssignmentCreateDTO createDTOWithoutFiles;
@@ -283,6 +286,10 @@ class AssignmentServiceImplTest {
         
         // AttachmentAdapter mock 설정 (빈 리스트 처리)
         when(attachmentAdapter.toFileUploadDTOList(any()))
+                .thenReturn(Arrays.asList());
+        
+        // SubmissionRepository mock 설정 (빈 리스트 처리)
+        when(submissionRepository.findByAssignmentIdWithSubmissionFiles(any()))
                 .thenReturn(Arrays.asList());
         
         Assignment assignment1 = Assignment.builder()

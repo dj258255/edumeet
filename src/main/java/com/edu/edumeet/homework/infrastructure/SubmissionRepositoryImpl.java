@@ -22,8 +22,8 @@ public class SubmissionRepositoryImpl implements SubmissionRepository {
     @Override
     @Transactional
     public Submission save(Submission submission) {
-        log.debug("제출물 저장 시작: assignmentId={}, classMemberId={}", 
-                submission.getAssignmentId(), submission.getClassMemberId());
+        log.debug("제출물 저장 시작: assignmentId={}, classMemberEmail={}", 
+                submission.getAssignmentId(), submission.getClassMemberEmail());
         
         SubmissionJpaEntity submissionJpaEntity;
         boolean isUpdate = submission.getId() != null;
@@ -68,6 +68,7 @@ public class SubmissionRepositoryImpl implements SubmissionRepository {
                         .contentType(fileUpload.getContentType())
                         .uploadedBy(fileUpload.getUploadedBy())
                         .referenceId(savedEntity.getId())
+                        .domain("submission")
                         .build();
                 
                 savedEntity.getSubmissionFiles().add(fileEntity);
@@ -110,10 +111,10 @@ public class SubmissionRepositoryImpl implements SubmissionRepository {
     }
 
     @Override
-    public List<Submission> findByClassMemberIdOrderByRegDateDesc(Long classMemberId) {
-        log.debug("학생별 제출물 조회 시작: classMemberId={}", classMemberId);
+    public List<Submission> findByClassMemberEmailOrderByRegDateDesc(String classMemberEmail) {
+        log.debug("학생별 제출물 조회 시작: classMemberEmail={}", classMemberEmail);
         
-        return submissionJpaRepository.findByClassMemberIdOrderByRegDateDesc(classMemberId)
+        return submissionJpaRepository.findByClassMemberEmailOrderByRegDateDesc(classMemberEmail)
                 .stream()
                 .filter(entity -> entity.getDeletedAt() == null)
                 .map(SubmissionJpaEntity::toDomain)
@@ -121,10 +122,10 @@ public class SubmissionRepositoryImpl implements SubmissionRepository {
     }
 
     @Override
-    public Optional<Submission> findByAssignmentIdAndClassMemberId(Long assignmentId, Long classMemberId) {
-        log.debug("특정 과제의 특정 학생 제출물 조회 시작: assignmentId={}, classMemberId={}", assignmentId, classMemberId);
+    public Optional<Submission> findByAssignmentIdAndClassMemberEmail(Long assignmentId, String classMemberEmail) {
+        log.debug("특정 과제의 특정 학생 제출물 조회 시작: assignmentId={}, classMemberEmail={}", assignmentId, classMemberEmail);
         
-        return submissionJpaRepository.findByAssignmentIdAndClassMemberIdAndDeletedAtIsNull(assignmentId, classMemberId)
+        return submissionJpaRepository.findByAssignmentIdAndClassMemberEmailAndDeletedAtIsNull(assignmentId, classMemberEmail)
                 .map(SubmissionJpaEntity::toDomain);
     }
 

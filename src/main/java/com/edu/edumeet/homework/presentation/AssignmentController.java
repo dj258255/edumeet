@@ -2,6 +2,7 @@ package com.edu.edumeet.homework.presentation;
 
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.member.domain.SecurityMember;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -10,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -57,13 +60,31 @@ public class AssignmentController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "클래스별 과제 목록 조회", description = "특정 클래스의 모든 과제를 조회합니다.")
+    @Operation(summary = "클래스별 과제 목록 조회", description = "특정 클래스의 모든 과제를 조회합니다. 로그인한 사용자의 제출 상태를 포함합니다.")
     @GetMapping
     public ResponseEntity<List<AssignmentDTO>> getAssignmentsByClassId(
             @Parameter(description = "클래스 ID") @PathVariable Long classId) {
         log.debug("클래스별 과제 목록 조회 요청: classId={}", classId);
         
-        List<AssignmentDTO> assignments = assignmentService.getAssignmentsByClassId(classId);
+        // 현재 로그인한 사용자의 이메일 가져오기
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUserEmail = null;
+        
+        if (authentication != null && authentication.getPrincipal() instanceof SecurityMember) {
+            SecurityMember securityMember = (SecurityMember) authentication.getPrincipal();
+            currentUserEmail = securityMember.getEmail();
+            log.debug("현재 사용자 이메일: {}", currentUserEmail);
+        }
+        
+        List<AssignmentDTO> assignments;
+        if (currentUserEmail != null) {
+            // 현재 사용자의 제출 상태를 포함한 과제 목록 조회
+            assignments = assignmentService.getAssignmentsByClassIdWithUserStatus(classId, currentUserEmail);
+        } else {
+            // 인증되지 않은 사용자는 기본 과제 목록 조회
+            assignments = assignmentService.getAssignmentsByClassId(classId);
+        }
+        
         return ResponseEntity.ok(assignments);
     }
 

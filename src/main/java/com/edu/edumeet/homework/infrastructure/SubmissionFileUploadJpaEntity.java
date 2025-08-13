@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@ToString(exclude = {"submission"})
+@ToString(exclude = {"submission", "studentSubmissionStatus"})
 public class SubmissionFileUploadJpaEntity extends BaseEntity {
 
     @Id
@@ -23,6 +23,10 @@ public class SubmissionFileUploadJpaEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "submission_id")
     private SubmissionJpaEntity submission;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "student_submission_status_id")
+    private StudentSubmissionStatusJpaEntity studentSubmissionStatus;
 
     @Column(nullable = false)
     private String uuid;
@@ -61,10 +65,26 @@ public class SubmissionFileUploadJpaEntity extends BaseEntity {
                 .build();
     }
 
-    // Attachment 도메인에서 엔티티로 변환
+    // Attachment 도메인에서 엔티티로 변환 (Submission용)
     public static SubmissionFileUploadJpaEntity fromFileUpload(Attachment attachment, SubmissionJpaEntity submission) {
         return SubmissionFileUploadJpaEntity.builder()
                 .submission(submission)
+                .uuid(attachment.getUuid())
+                .fileName(attachment.getFileName())
+                .ord(attachment.getOrd())
+                .img(attachment.isImg())
+                .fileSize(attachment.getFileSize())
+                .contentType(attachment.getContentType())
+                .uploadedBy(attachment.getUploadedBy())
+                .referenceId(attachment.getReferenceId())
+                .domain(attachment.getDomain())
+                .build();
+    }
+    
+    // Attachment 도메인에서 엔티티로 변환 (StudentSubmissionStatus용)
+    public static SubmissionFileUploadJpaEntity fromAttachment(Attachment attachment, StudentSubmissionStatusJpaEntity studentSubmissionStatus) {
+        return SubmissionFileUploadJpaEntity.builder()
+                .studentSubmissionStatus(studentSubmissionStatus)
                 .uuid(attachment.getUuid())
                 .fileName(attachment.getFileName())
                 .ord(attachment.getOrd())
