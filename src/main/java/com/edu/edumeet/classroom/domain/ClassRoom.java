@@ -2,6 +2,7 @@ package com.edu.edumeet.classroom.domain;
 
 import com.edu.edumeet.base.BaseEntity;
 import com.edu.edumeet.member.domain.Member;
+import com.edu.edumeet.openvidu.domain.Meeting;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -29,6 +30,9 @@ public class ClassRoom extends BaseEntity {
 
     @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Tag> tags;
+
+    @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Meeting> meetings;
 
     // 썸네일 관련 필드들 (별도 엔티티 대신 직접 포함)
     @Column(name = "thumbnail_uuid")
