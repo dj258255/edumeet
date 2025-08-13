@@ -179,6 +179,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     /**
      * 제출한 파일들을 StudentSubmissionStatus와 연결
+     * 중복 저장을 방지하기 위해 기존 파일에 StudentSubmissionStatus만 업데이트
      */
     @Transactional
     private void updateStudentSubmissionStatusFiles(Submission savedSubmission, StudentSubmissionStatusJpaEntity statusEntity) {
@@ -189,26 +190,35 @@ public class SubmissionServiceImpl implements SubmissionService {
         List<SubmissionFileUploadJpaEntity> submissionFiles = submissionFileUploadJpaRepository
                 .findBySubmissionId(savedSubmission.getId());
         
-        // 각 파일에 StudentSubmissionStatus 연결
+        // 기존 파일 엔티티에 StudentSubmissionStatus만 업데이트 (중복 저장 방지)
         for (SubmissionFileUploadJpaEntity fileEntity : submissionFiles) {
-            SubmissionFileUploadJpaEntity updatedFileEntity = SubmissionFileUploadJpaEntity.builder()
-                    .id(fileEntity.getId())
-                    .submission(fileEntity.getSubmission())
-                    .studentSubmissionStatus(statusEntity) // StudentSubmissionStatus 연결
-                    .uuid(fileEntity.getUuid())
-                    .fileName(fileEntity.getFileName())
-                    .ord(fileEntity.getOrd())
-                    .img(fileEntity.isImg())
-                    .fileSize(fileEntity.getFileSize())
-                    .contentType(fileEntity.getContentType())
-                    .uploadedBy(fileEntity.getUploadedBy())
-                    .referenceId(fileEntity.getReferenceId())
-                    .domain(fileEntity.getDomain())
-                    .build();
-            
-            submissionFileUploadJpaRepository.save(updatedFileEntity);
+            // 도메인이 제대로 설정되어 있는 파일들만 연결 (도메인 없는 파일은 연결하지 않음)
+            if (fileEntity.getDomain() != null && !fileEntity.getDomain().isEmpty()) {
+                // 기존 엔티티를 업데이트하되, 기존 ID 유지하여 중복 저장 방지
+                SubmissionFileUploadJpaEntity updatedFileEntity = SubmissionFileUploadJpaEntity.builder()
+                        .id(fileEntity.getId()) // 기존 ID 유지
+                        .submission(fileEntity.getSubmission())
+                        .studentSubmissionStatus(statusEntity) // StudentSubmissionStatus 연결
+                        .uuid(fileEntity.getUuid())
+                        .fileName(fileEntity.getFileName())
+                        .ord(fileEntity.getOrd())
+                        .img(fileEntity.isImg())
+                        .fileSize(fileEntity.getFileSize())
+                        .contentType(fileEntity.getContentType())
+                        .uploadedBy(fileEntity.getUploadedBy())
+                        .referenceId(fileEntity.getReferenceId())
+                        .domain(fileEntity.getDomain())
+                        .build();
+                
+                submissionFileUploadJpaRepository.save(updatedFileEntity);
+                log.debug("파일 연결 완료: uuid={}, domain={}", fileEntity.getUuid(), fileEntity.getDomain());
+            } else {
+                log.warn("도메인이 없는 파일은 StudentSubmissionStatus와 연결하지 않음: uuid={}", fileEntity.getUuid());
+            }
         }
         
-        log.debug("StudentSubmissionStatus 파일 연결 완료: 연결된 파일 수={}", submissionFiles.size());
+        log.debug("StudentSubmissionStatus 파일 연결 완료: 총 파일 수={}, 연결된 파일 수={}", 
+                submissionFiles.size(), 
+                submissionFiles.stream().filter(f -> f.getDomain() != null && !f.getDomain().isEmpty()).count());
     }
 }

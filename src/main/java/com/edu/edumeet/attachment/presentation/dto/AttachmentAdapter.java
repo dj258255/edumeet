@@ -3,6 +3,7 @@ package com.edu.edumeet.attachment.presentation.dto;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.s3.util.S3Uploader;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.stream.Collectors;
  */
 @Component
 @RequiredArgsConstructor
+@Log4j2
 public class AttachmentAdapter {
 
     private final S3Uploader s3Uploader;
@@ -81,19 +83,27 @@ public class AttachmentAdapter {
         // S3 URL 설정
         if (attachment.getDomain() != null && !attachment.getDomain().isEmpty()) {
             // 도메인별 URL 생성
-            dto.setS3Url(s3Uploader.getDomainOriginalUrl(
-                    attachment.getDomain(), attachment.getUuid(), attachment.getFileName()));
+            String originalUrl = s3Uploader.getDomainOriginalUrl(
+                    attachment.getDomain(), attachment.getUuid(), attachment.getFileName());
+            dto.setS3Url(originalUrl);
             
             if (attachment.isImage()) {
-                dto.setS3ThumbnailUrl(s3Uploader.getDomainThumbnailUrl(
-                        attachment.getDomain(), attachment.getUuid(), attachment.getFileName()));
+                String thumbnailUrl = s3Uploader.getDomainThumbnailUrl(
+                        attachment.getDomain(), attachment.getUuid(), attachment.getFileName());
+                dto.setS3ThumbnailUrl(thumbnailUrl);
+                log.debug("도메인별 썸네일 URL 설정 - UUID: {}, 도메인: {}, 이미지: {}, 썸네일URL: {}", 
+                        attachment.getUuid(), attachment.getDomain(), attachment.isImage(), thumbnailUrl);
             }
         } else {
             // 기본 URL 생성
-            dto.setS3Url(s3Uploader.getOriginalUrl(attachment.getUuid(), attachment.getFileName()));
+            String originalUrl = s3Uploader.getOriginalUrl(attachment.getUuid(), attachment.getFileName());
+            dto.setS3Url(originalUrl);
             
             if (attachment.isImage()) {
-                dto.setS3ThumbnailUrl(s3Uploader.getThumbnailUrl(attachment.getUuid(), attachment.getFileName()));
+                String thumbnailUrl = s3Uploader.getThumbnailUrl(attachment.getUuid(), attachment.getFileName());
+                dto.setS3ThumbnailUrl(thumbnailUrl);
+                log.debug("기본 썸네일 URL 설정 - UUID: {}, 이미지: {}, 썸네일URL: {}", 
+                        attachment.getUuid(), attachment.isImage(), thumbnailUrl);
             }
         }
         

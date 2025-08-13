@@ -7,7 +7,7 @@ import com.edu.edumeet.s3.util.S3Uploader;
 import com.edu.edumeet.attachment.presentation.AttachmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Value;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -47,6 +47,9 @@ public class AttachmentServiceImpl implements AttachmentService {
                         .collect(Collectors.toList());
 
                 boolean isImage = s3Urls.size() > 1;
+                
+                log.debug("파일 업로드 처리 - 파일명: {}, 로컬경로수: {}, S3URL수: {}, 이미지여부: {}", 
+                        originalName, localPaths.size(), s3Urls.size(), isImage);
 
                 Attachment attachment = Attachment.builder()
                         .uuid(uuid)
@@ -61,11 +64,16 @@ public class AttachmentServiceImpl implements AttachmentService {
                         .build();
 
                 // S3 URL 정보 로그 추가
-                String originalUrl = s3Uploader.getDomainOriginalUrl(domain, uuid, originalName);
-                String thumbnailUrl = isImage ? s3Uploader.getDomainThumbnailUrl(domain, uuid, originalName) : null;
+                String originalUrl = domain != null ? 
+                        s3Uploader.getDomainOriginalUrl(domain, uuid, originalName) :
+                        s3Uploader.getOriginalUrl(uuid, originalName);
+                String thumbnailUrl = isImage ? 
+                        (domain != null ? 
+                                s3Uploader.getDomainThumbnailUrl(domain, uuid, originalName) :
+                                s3Uploader.getThumbnailUrl(uuid, originalName)) : null;
                 
-                log.info("파일 업로드 완료 - UUID: {}, 원본URL: {}, 썸네일URL: {}", 
-                        uuid, originalUrl, thumbnailUrl);
+                log.info("파일 업로드 완료 - UUID: {}, 이미지: {}, 원본URL: {}, 썸네일URL: {}", 
+                        uuid, isImage, originalUrl, thumbnailUrl);
 
                 uploadedFiles.add(attachment);
             }
