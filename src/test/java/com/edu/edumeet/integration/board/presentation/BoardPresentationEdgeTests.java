@@ -1,4 +1,4 @@
-package com.edu.edumeet.board.presentation;
+package com.edu.edumeet.integration.board.presentation;
 
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardCategory;
@@ -7,6 +7,7 @@ import com.edu.edumeet.board.infrastructure.BoardCategoryJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardCategoryJpaRepository;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
+import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.BoardDTO;
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
 import lombok.extern.log4j.Log4j2;

@@ -37,11 +37,13 @@ public class SubmissionServiceImpl implements SubmissionService {
         // 2. 제출물 저장
         Submission savedSubmission = submissionRepository.save(submission);
 
-        // 3. 과제의 제출 상태 업데이트
+        // 3. 과제의 제출 상태 업데이트 (제출 파일 포함)
         Assignment assignment = assignmentRepository.findById(submissionCreateDTO.getAssignmentId())
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + submissionCreateDTO.getAssignmentId()));
 
-        Assignment updatedAssignment = assignment.updateSubmissionStatus(submissionCreateDTO.getClassMemberId());
+        Assignment updatedAssignment = assignment.updateSubmissionStatus(
+                submissionCreateDTO.getClassMemberId(), 
+                savedSubmission.getSubmissionFiles());
         assignmentRepository.save(updatedAssignment);
 
         log.info("과제 제출 완료: ID={}", savedSubmission.getId());

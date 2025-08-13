@@ -25,7 +25,7 @@ public interface AssignmentService {
                 .title(assignment.getTitle())
                 .description(assignment.getDescription())
                 .classId(assignment.getClassId())
-                .createdById(assignment.getCreatedById())
+                .createdByEmail(assignment.getCreatedByEmail())
                 .createdByName(assignment.getCreatedByName())
                 .attachmentFiles(attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()))
                 .studentSubmissionStatuses(assignment.getStudentSubmissionStatuses())
@@ -42,7 +42,7 @@ public interface AssignmentService {
             .title(dto.getTitle())
             .description(dto.getDescription())
             .classId(classId)
-            .createdById(dto.getCreatedById())
+            .createdByEmail(dto.getCreatedByEmail())
             .createdByName(dto.getCreatedByName())
             .attachmentFiles(dto.getAttachmentFiles() != null ? 
                 attachmentAdapter.fromFileUploadDTOList(dto.getAttachmentFiles()) : // ✅ 어댑터 사용

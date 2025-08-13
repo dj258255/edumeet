@@ -1,4 +1,4 @@
-package com.edu.edumeet;
+package com.edu.edumeet.integration;
 
 import lombok.Cleanup;
 import lombok.extern.log4j.Log4j2;

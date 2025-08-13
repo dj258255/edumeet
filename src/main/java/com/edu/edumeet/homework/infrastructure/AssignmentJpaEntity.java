@@ -33,8 +33,8 @@ public class AssignmentJpaEntity extends BaseEntity {
     @Column(name = "class_id", nullable = false)
     private Long classId;
 
-    @Column(name = "created_by_id")
-    private Long createdById;
+    @Column(name = "created_by_email")
+    private String createdByEmail;
 
     @Column(name = "created_by_name")
     private String createdByName;
@@ -61,7 +61,7 @@ public class AssignmentJpaEntity extends BaseEntity {
                 .title(this.title)
                 .description(this.description)
                 .classId(this.classId)
-                .createdById(this.createdById)
+                .createdByEmail(this.createdByEmail)
                 .createdByName(this.createdByName)
                 .attachmentFiles(this.attachmentFiles.stream()
                         .map(AssignmentFileUploadJpaEntity::toFileUpload)
@@ -82,7 +82,7 @@ public class AssignmentJpaEntity extends BaseEntity {
                 .title(assignment.getTitle())
                 .description(assignment.getDescription())
                 .classId(assignment.getClassId())
-                .createdById(assignment.getCreatedById())
+                .createdByEmail(assignment.getCreatedByEmail())
                 .createdByName(assignment.getCreatedByName())
                 .deletedAt(assignment.getDeletedAt())
                 .build();

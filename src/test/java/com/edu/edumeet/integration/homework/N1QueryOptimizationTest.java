@@ -200,7 +200,7 @@ class N1QueryOptimizationTest {
                 .title("테스트 과제")
                 .description("N+1 테스트를 위한 과제")
                 .classId(testClassId)
-                .createdById(1L)
+                .createdByEmail("test@example.com")
                 .createdByName("테스트 선생님")
                 .attachmentFiles(new HashSet<>())
                 .studentSubmissionStatuses(new HashSet<>())

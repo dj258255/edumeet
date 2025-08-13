@@ -82,7 +82,7 @@ class AssignmentServiceImplTest {
         createDTOWithFiles = AssignmentCreateDTO.builder()
                 .title("파일 포함 과제")
                 .description("참고자료가 첨부된 과제입니다")
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList(testFileDTO)) // 실제 AttachmentDTO 리스트 제공
                 .build();
@@ -91,7 +91,7 @@ class AssignmentServiceImplTest {
         createDTOWithoutFiles = AssignmentCreateDTO.builder()
                 .title("파일 없는 과제")
                 .description("별도의 첨부파일 없이 진행하는 과제입니다")
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(null)
                 .build();
@@ -102,7 +102,7 @@ class AssignmentServiceImplTest {
                 .title("파일 포함 과제")
                 .description("참고자료가 첨부된 과제입니다")
                 .classId(1L)
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList(testFile))
                 .regDate(LocalDateTime.now())
@@ -110,9 +110,24 @@ class AssignmentServiceImplTest {
                 .build();
 
         // 클래스 멤버들
-        Member teacher = Member.builder().id(10L).nickname("김선생").build();
-        Member student1 = Member.builder().id(20L).nickname("김학생1").build();
-        Member student2 = Member.builder().id(21L).nickname("김학생2").build();
+        Member teacher = Member.builder()
+                .id(10L)
+                .nickname("김선생")
+                .email("teacher@example.com")
+                .build();
+
+        Member student1 = Member.builder()
+                .id(20L)
+                .nickname("김학생1")
+                .email("student1@example.com")
+                .build();
+
+        Member student2 = Member.builder()
+                .id(21L)
+                .nickname("김학생2")
+                .email("student2@example.com")
+                .build();
+
 
         classMembers = Arrays.asList(
                 ClassMember.builder().member(teacher).build(),
@@ -160,7 +175,7 @@ class AssignmentServiceImplTest {
                 .title("파일 없는 과제")
                 .description("별도의 첨부파일 없이 진행하는 과제입니다")
                 .classId(1L)
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList()) // 빈 리스트
                 .regDate(LocalDateTime.now())
@@ -274,7 +289,7 @@ class AssignmentServiceImplTest {
                 .id(1L)
                 .title("첫 번째 과제")
                 .classId(1L)
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList())
                 .regDate(LocalDateTime.now())
@@ -284,7 +299,7 @@ class AssignmentServiceImplTest {
                 .id(2L)
                 .title("두 번째 과제")
                 .classId(1L)
-                .createdById(10L)
+                .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
                 .attachmentFiles(Arrays.asList())
                 .regDate(LocalDateTime.now())
@@ -355,7 +370,7 @@ class AssignmentServiceImplTest {
         assertThat(domainFromDTO.getTitle()).isEqualTo(createDTOWithFiles.getTitle());
         assertThat(domainFromDTO.getDescription()).isEqualTo(createDTOWithFiles.getDescription());
         assertThat(domainFromDTO.getClassId()).isEqualTo(1L);
-        assertThat(domainFromDTO.getCreatedById()).isEqualTo(createDTOWithFiles.getCreatedById());
+        assertThat(domainFromDTO.getCreatedByEmail()).isEqualTo(createDTOWithFiles.getCreatedByEmail());
         assertThat(domainFromDTO.getCreatedByName()).isEqualTo(createDTOWithFiles.getCreatedByName());
         assertThat(domainFromDTO.getAttachmentFiles()).hasSize(1);
         

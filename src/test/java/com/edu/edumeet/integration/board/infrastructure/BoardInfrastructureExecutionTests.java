@@ -1,9 +1,10 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.integration.board.infrastructure;
 
 import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.domain.BoardType;
+import com.edu.edumeet.board.infrastructure.*;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.infrastructure.ReplyJpaRepository;

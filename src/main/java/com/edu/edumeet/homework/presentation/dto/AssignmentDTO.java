@@ -35,7 +35,7 @@ public class AssignmentDTO {
     private Long classId;
 
     @Schema(description = "과제 생성자 ID", example = "1", required = true)
-    private Long createdById;
+    private String createdByEmail;
 
     @Schema(description = "과제 생성자 이름", example = "홍길동", required = true)
     private String createdByName;

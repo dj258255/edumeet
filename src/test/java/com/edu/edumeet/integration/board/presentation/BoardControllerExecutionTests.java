@@ -1,5 +1,7 @@
-package com.edu.edumeet.board.presentation;
+package com.edu.edumeet.integration.board.presentation;
 
+import com.edu.edumeet.board.presentation.BoardController;
+import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
 import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
