@@ -3,7 +3,7 @@ package com.edu.edumeet.homework.presentation;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
+import com.edu.edumeet.homework.presentation.dto.StudentSubmissionStatusDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -59,7 +59,7 @@ public class SubmissionController {
         List<AssignmentDTO> studentAssignments = allAssignments.stream()
                 .map(assignment -> {
                     // 해당 학생의 제출 상태만 필터링
-                    List<StudentSubmissionStatus> studentStatus = assignment.getStudentSubmissionStatuses()
+                    List<StudentSubmissionStatusDTO> studentStatus = assignment.getStudentSubmissionStatuses()
                             .stream()
                             .filter(status -> status.getStudentEmail().equals(classMemberEmail))
                             .toList();

@@ -1,8 +1,10 @@
 package com.edu.edumeet.homework.presentation;
 
 import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.homework.presentation.dto.StudentSubmissionStatusDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 
@@ -17,6 +19,22 @@ import java.util.stream.Collectors;
 public interface AssignmentService {
 
     /**
+     * StudentSubmissionStatus를 StudentSubmissionStatusDTO로 변환
+     */
+    default StudentSubmissionStatusDTO statusToDto(StudentSubmissionStatus status, AttachmentAdapter attachmentAdapter) {
+        return StudentSubmissionStatusDTO.builder()
+                .assignmentId(status.getAssignmentId())
+                .studentEmail(status.getStudentEmail())
+                .studentName(status.getStudentName())
+                .status(status.getStatus())
+                .submittedAt(status.getSubmittedAt())
+                .submissionFiles(status.getSubmissionFiles() != null ? 
+                    attachmentAdapter.toFileUploadDTOList(status.getSubmissionFiles()) : 
+                    new ArrayList<>())
+                .build();
+    }
+
+    /**
      * Assignment 도메인 객체를 AssignmentDTO로 변환
      */
     default AssignmentDTO domainToDto(Assignment assignment, AttachmentAdapter attachmentAdapter) {
@@ -27,8 +45,12 @@ public interface AssignmentService {
                 .classId(assignment.getClassId())
                 .createdByEmail(assignment.getCreatedByEmail())
                 .createdByName(assignment.getCreatedByName())
-                .attachmentFiles(attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()))
-                .studentSubmissionStatuses(assignment.getStudentSubmissionStatuses())
+                .attachmentFiles(assignment.getAttachmentFiles() != null ? 
+                    attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()) : 
+                    new ArrayList<>())
+                .studentSubmissionStatuses(assignment.getStudentSubmissionStatuses().stream()
+                    .map(status -> statusToDto(status, attachmentAdapter))
+                    .collect(Collectors.toList()))
                 .regDate(assignment.getRegDate())
                 .modDate(assignment.getModDate())
                 .build();

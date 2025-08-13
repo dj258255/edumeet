@@ -17,6 +17,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -179,13 +180,14 @@ public class AssignmentServiceImpl implements AssignmentService {
         Map<String, Submission> submissionMap = submissions.stream()
                 .collect(Collectors.toMap(Submission::getClassMemberEmail, submission -> submission));
         
-        // StudentSubmissionStatus 리스트에 제출 파일 정보 포함
-        List<StudentSubmissionStatus> enrichedStatuses = assignment.getStudentSubmissionStatuses().stream()
+        // StudentSubmissionStatus 리스트에 제출 파일 정보 포함하고 DTO로 변환
+        List<com.edu.edumeet.homework.presentation.dto.StudentSubmissionStatusDTO> enrichedStatuses = assignment.getStudentSubmissionStatuses().stream()
                 .map(status -> {
                     Submission submission = submissionMap.get(status.getStudentEmail());
+                    StudentSubmissionStatus enrichedStatus;
                     if (submission != null && submission.isSubmitted()) {
                         // 제출 완료 상태이면 제출 파일 정보 포함하여 새로운 Status 생성
-                        return StudentSubmissionStatus.submitted(
+                        enrichedStatus = StudentSubmissionStatus.submitted(
                                 status.getAssignmentId(),
                                 status.getStudentEmail(),
                                 status.getStudentName(),
@@ -194,8 +196,10 @@ public class AssignmentServiceImpl implements AssignmentService {
                         );
                     } else {
                         // 미제출 상태이면 기존 상태 그대로 반환
-                        return status;
+                        enrichedStatus = status;
                     }
+                    // StudentSubmissionStatus를 DTO로 변환
+                    return statusToDto(enrichedStatus, attachmentAdapter);
                 })
                 .collect(Collectors.toList());
         
@@ -207,7 +211,9 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .classId(assignment.getClassId())
                 .createdByEmail(assignment.getCreatedByEmail())
                 .createdByName(assignment.getCreatedByName())
-                .attachmentFiles(attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()))
+                .attachmentFiles(assignment.getAttachmentFiles() != null ? 
+                    attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()) : 
+                    new ArrayList<>())
                 .studentSubmissionStatuses(enrichedStatuses)
                 .regDate(assignment.getRegDate())
                 .modDate(assignment.getModDate())
