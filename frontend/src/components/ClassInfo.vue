@@ -239,10 +239,13 @@ const filteredNotices = computed(() => {
 })
 
 const filteredAssignments = computed(() => {
-  if (assignmentFilter.value === 'all') return assignments.value
-  if (assignmentFilter.value === 'complete') return assignments.value.filter(t => t.done)
-  return assignments.value.filter(t => !t.done)
-})
+    // props.classData.assignments를 직접 참조
+    const assignmentList = props.classData?.assignments || [];
+
+    if (assignmentFilter.value === 'all') return assignmentList;
+    if (assignmentFilter.value === 'complete') return assignmentList.filter(t => t.done);
+    return assignmentList.filter(t => !t.done);
+});
 
 
 const getStatusText = (status) => {
@@ -391,11 +394,13 @@ const registerNotice = async (newNoticeData) => {
     if (Array.isArray(newNoticeData.files) && newNoticeData.files.length > 0) {
       const formData = new FormData()
       newNoticeData.files.forEach(file => formData.append('files', file))
+      formData.append('domain', 'board')
       
       try {
         const res = await apiClient.post('/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
+        
 
         boardImages = res.data.map(file => ({
           uuid: file.uuid,
