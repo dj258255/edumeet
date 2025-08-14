@@ -43,7 +43,8 @@ const props = defineProps({
 const emit = defineEmits([
   'screen-share-started',
   'screen-share-stopped',
-  'screen-share-error'
+  'screen-share-error',
+  'camera-restored'
 ])
 
 // 상태 관리
@@ -77,14 +78,8 @@ async function startScreenShare() {
     })
     screenTrack.value = videoTrack
 
-    // 기존 카메라 비디오 트랙을 화면 공유 트랙으로 교체
+    // 화면 공유 트랙을 추가로 퍼블리시 (기존 카메라 트랙은 유지)
     if (props.room && props.room.localParticipant) {
-      // 기존 비디오 트랙들 언퍼블리시
-      const videoTracks = props.room.localParticipant.videoTrackPublications
-      for (const trackPub of videoTracks.values()) {
-        await props.room.localParticipant.unpublishTrack(trackPub.track)
-      }
-
       // 화면 공유 트랙 퍼블리시 (다른 참여자들에게 전송)
       await props.room.localParticipant.publishTrack(videoTrack, {
         priority: 'high',
@@ -92,8 +87,8 @@ async function startScreenShare() {
         adaptiveStream: true
       })
       
-      // 카메라 비활성화 (화면 공유 중에는 카메라 끄기)
-      await props.room.localParticipant.setCameraEnabled(false)
+      // 기존 카메라 트랙은 그대로 유지하여 썸네일에 표시
+      console.log('🖥️ 화면 공유 트랙 추가, 카메라 트랙 유지')
     }
 
     isScreenSharing.value = true
@@ -136,17 +131,8 @@ async function stopScreenShare() {
       screenTrack.value = null
     }
 
-    // 카메라 트랙 다시 퍼블리시
-    if (props.room && props.room.localParticipant) {
-      try {
-        // 카메라 다시 활성화
-        await props.room.localParticipant.setCameraEnabled(true)
-        await props.room.localParticipant.setMicrophoneEnabled(true)
-      } catch (error) {
-        console.warn('카메라/마이크 재활성화 실패:', error)
-        // 실패해도 계속 진행
-      }
-    }
+    // 화면 공유 중지 완료 (기존 카메라 트랙은 그대로 유지)
+    console.log('🖥️ 화면 공유 중지 완료, 기존 카메라 트랙 유지')
 
     isScreenSharing.value = false
     console.log('🖥️ 화면 공유 중지 완료')

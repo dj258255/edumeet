@@ -39,7 +39,9 @@ const isMicOn = ref(true);
 const recordingState = ref<'idle' | 'recording' | 'paused'>('idle');
 const isRecorderOpen = ref(false);
 const audioRecorderRef = ref<any | null>(null);
-const screenShareRef = ref<any | null>(null);
+const screenShareRef = ref<any | null>(null)
+const directVideoRef = ref<HTMLVideoElement | null>(null);
+const mainVideoRef = ref<HTMLVideoElement | null>(null);
 
 // 퇴장 모달
 const showExitModal = ref(false);
@@ -64,8 +66,12 @@ const isScreenShareVisible = ref(true); // 화면 공유 패널 표시/숨김 �
 const isScreenSharing = ref(false); // 화면 공유 중인지 상태
 const screenShareTrack = ref(null); // 화면 공유 트랙
 const isControlPanelOpen = ref(false); // 컨트롤 패널 열림/닫힘 상태
-const hamburgerPosition = ref({ x: 20, y: 20 }); // 햄버거 버튼 위치
-const isDragging = ref(false); // 드래그 상태
+
+// URL 파라미터 존재 여부를 확인하는 computed 속성
+const hasUrlParams = computed(() => {
+  return !!(route.query.meetingId || route.query.roomName);
+});
+
 
 let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
@@ -77,32 +83,55 @@ function configureUrls() {
 }
 configureUrls();
 
-onMounted(() => {
+onMounted(async () => {
   fetchActiveRooms();
   
-  // 전역 마우스 이벤트 리스너 추가
-  document.addEventListener('mousemove', onDrag);
-  document.addEventListener('mouseup', stopDrag);
+  // ESC 키로 컨트롤 패널 닫기
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && isControlPanelOpen.value) {
+      isControlPanelOpen.value = false;
+    }
+  };
   
-  // URL 쿼리 파라미터에서 방 이름, 제목, 생성자 여부 확인
+  document.addEventListener('keydown', handleKeyDown);
+  
+  // 컴포넌트 언마운트 시 이벤트 리스너 제거
+  onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeyDown);
+  });
+  
+  // URL 쿼리 파라미터에서 화상수업 정보 확인
+  const meetingId = route.query.meetingId as string;
   const queryRoomName = route.query.roomName as string;
+  const queryTitle = route.query.title as string;
   const queryClassName = route.query.className as string;
+  const queryEmail = route.query.email as string;
   const isCreator = route.query.isCreator === 'true';
   const creatorName = route.query.creatorName as string;
+  const description = route.query.description as string;
   const participantNameParam = route.query.participantName as string;
+  const token = route.query.token as string; // 백엔드에서 받은 토큰
   
   console.log('🔍 ClassVideoRoomView - URL 파라미터:')
+  console.log('🔍 meetingId:', meetingId)
   console.log('🔍 roomName:', queryRoomName)
+  console.log('🔍 title:', queryTitle)
   console.log('🔍 className:', queryClassName)
+  console.log('🔍 email:', queryEmail)
   console.log('🔍 isCreator:', isCreator)
   console.log('🔍 creatorName:', creatorName)
+  console.log('🔍 description:', description)
   console.log('🔍 participantName:', participantNameParam)
+  console.log('🔍 token:', token ? '있음' : '없음')
   
-  if (queryRoomName) {
-    roomName.value = queryRoomName;
-    // 모달에서 입력한 className을 제목으로 사용
-    if (queryClassName) {
-      className.value = queryClassName;
+  // meetingId가 있으면 생성자, roomName이 있으면 참여자
+  if (meetingId) {
+    // meetingId를 roomName으로 사용 (생성자)
+    roomName.value = meetingId;
+    
+    // API에서 받은 제목을 사용
+    if (queryTitle) {
+      className.value = queryTitle;
     }
     
     // 생성자 여부 설정
@@ -119,11 +148,30 @@ onMounted(() => {
       if (creatorName) {
         participantName.value = creatorName;
       }
-      joinRoom(queryRoomName);
+      await joinRoom(meetingId, token); // 토큰 전달, await 추가
     } else {
       // 참여자인 경우도 자동으로 방에 참가
-      joinRoom(queryRoomName);
+      await joinRoom(meetingId, token); // 토큰 전달, await 추가
     }
+  } else if (queryRoomName) {
+    // roomName을 사용 (참여자)
+    roomName.value = queryRoomName;
+    
+    // className을 제목으로 사용
+    if (queryClassName) {
+      className.value = queryClassName;
+    }
+    
+    // 생성자 여부 설정
+    isUserCreator.value = isCreator;
+    
+    // 참여자 이름이 있으면 설정
+    if (participantNameParam) {
+      participantName.value = participantNameParam;
+    }
+    
+    // 참여자로 방에 참가 (참여자는 토큰이 없으므로 null 전달)
+    await joinRoom(queryRoomName, null); // await 추가
   }
 });
 
@@ -134,7 +182,7 @@ function fetchActiveRooms() {
   ];
 }
 
-async function joinRoom(targetRoom?: string) {
+async function joinRoom(targetRoom?: string, existingToken?: string) {
   isJoining.value = true;
   const target = targetRoom || roomName.value;
   if (!target) {
@@ -159,6 +207,17 @@ async function joinRoom(targetRoom?: string) {
       console.log('🖥️ 원격 화면 공유 트랙 감지:', participant.identity, _track.mediaStreamTrack.label)
       // 화면 공유 트랙을 메인으로 설정
       setMainTrack(publication.videoTrack!, participant.identity + ' (화면 공유)')
+    }
+    
+    // 새로운 카메라 트랙인지 확인 (화면 공유 중지 후)
+    if (publication.kind === 'video' && _track.mediaStreamTrack && 
+        !_track.mediaStreamTrack.label.includes('screen') && 
+        !_track.mediaStreamTrack.label.includes('display') &&
+        participant.identity === participantName.value) {
+      console.log('🖥️ 새로운 카메라 트랙 감지:', participant.identity, _track.mediaStreamTrack.label)
+      
+      // 새로운 카메라 트랙을 메인으로 설정
+      setMainTrack(publication.videoTrack!, participant.identity)
     }
   });
 
@@ -211,15 +270,29 @@ async function joinRoom(targetRoom?: string) {
   });
 
   try {
-    const token = await getToken(target, participantName.value);
-    await currentRoom.connect(LIVEKIT_URL, token);
+    // URL에서 받은 토큰이 있으면 사용, 없으면 새로 요청
+    let livekitToken: string;
+    if (existingToken) {
+      console.log('🔍 URL에서 받은 토큰 사용')
+      livekitToken = existingToken;
+    } else {
+      console.log('🔍 새로운 토큰 요청')
+      livekitToken = await getToken(target, participantName.value);
+    }
+    
+    await currentRoom.connect(LIVEKIT_URL, livekitToken);
     await currentRoom.localParticipant.enableCameraAndMicrophone();
+
+    // 카메라 트랙이 준비될 때까지 기다리기
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     const firstVideoPub = currentRoom.localParticipant.videoTrackPublications.values().next().value;
     if (firstVideoPub) {
+      console.log('🖥️ 초기 카메라 트랙 발견:', firstVideoPub.track.mediaStreamTrack?.label)
       localTrack.value = firstVideoPub.videoTrack;
-      mainTrack.value = firstVideoPub.videoTrack;
-      mainIdentity.value = participantName.value;
+      setMainTrack(firstVideoPub.videoTrack, participantName.value);
+    } else {
+      console.log('🖥️ 초기 카메라 트랙을 찾을 수 없음')
     }
 
     roomName.value = target;
@@ -248,9 +321,6 @@ async function leaveRoom() {
 }
 
 onUnmounted(() => {
-  // 전역 마우스 이벤트 리스너 제거
-  document.removeEventListener('mousemove', onDrag);
-  document.removeEventListener('mouseup', stopDrag);
   leaveRoom();
 });
 
@@ -265,8 +335,19 @@ async function getToken(roomName: string, participantName: string) {
 }
 
 function setMainTrack(track: any, identity: string) {
+  console.log('🖥️ setMainTrack 호출:', track, identity)
   mainTrack.value = track;
   mainIdentity.value = identity;
+  console.log('🖥️ mainTrack 설정 완료:', mainTrack.value)
+  
+  // 직접 video 엘리먼트에 스트림 연결
+  nextTick(() => {
+    if (mainVideoRef.value && track && track.mediaStreamTrack) {
+      const stream = new MediaStream([track.mediaStreamTrack])
+      mainVideoRef.value.srcObject = stream
+      console.log('🖥️ 메인 video 엘리먼트에 스트림 연결 완료')
+    }
+  })
 }
 
 function toggleCamera() {
@@ -295,34 +376,7 @@ function toggleControlPanel() {
   isControlPanelOpen.value = !isControlPanelOpen.value;
 }
 
-// 햄버거 버튼 드래그 관련 함수들
-let dragOffset = { x: 0, y: 0 };
 
-function startDrag(event) {
-  isDragging.value = true;
-  const rect = event.currentTarget.getBoundingClientRect();
-  dragOffset.x = event.clientX - rect.left;
-  dragOffset.y = event.clientY - rect.top;
-  event.preventDefault();
-}
-
-function onDrag(event) {
-  if (!isDragging.value) return;
-  
-  const x = event.clientX - dragOffset.x;
-  const y = event.clientY - dragOffset.y;
-  
-  // 화면 경계 내에서만 이동
-  const maxX = window.innerWidth - 50;
-  const maxY = window.innerHeight - 50;
-  
-  hamburgerPosition.value.x = Math.max(0, Math.min(x, maxX));
-  hamburgerPosition.value.y = Math.max(0, Math.min(y, maxY));
-}
-
-function stopDrag() {
-  isDragging.value = false;
-}
 
 // 녹화 토글 버튼 동작
 async function handleRecordToggle() {
@@ -539,13 +593,51 @@ function handleScreenShareStarted(stream: MediaStream) {
   }
 }
 
+// 직접 video 엘리먼트에 카메라 스트림 연결
+function connectDirectVideo() {
+  if (localTrack.value && directVideoRef.value) {
+    const stream = new MediaStream([localTrack.value.mediaStreamTrack])
+    directVideoRef.value.srcObject = stream
+    console.log('🖥️ 직접 video 엘리먼트에 카메라 스트림 연결')
+  }
+}
+
 function handleScreenShareStopped() {
   console.log('🖥️ 화면 공유 중지됨')
   isScreenSharing.value = false
   screenShareTrack.value = null
   
-  // 카메라 트랙을 메인 트랙으로 복원
+  // 현재 활성화된 카메라 트랙을 찾아서 메인 화면으로 설정
+  if (room.value && room.value.localParticipant) {
+    const videoTracks = room.value.localParticipant.videoTrackPublications
+    for (const trackPub of videoTracks.values()) {
+      // 화면 공유가 아닌 카메라 트랙 찾기
+      if (trackPub.track && trackPub.track.mediaStreamTrack && 
+          !trackPub.track.mediaStreamTrack.label.includes('screen') && 
+          !trackPub.track.mediaStreamTrack.label.includes('display')) {
+        console.log('🖥️ 카메라 트랙 발견:', trackPub.track.mediaStreamTrack.label)
+        console.log('🖥️ 카메라 트랙 객체:', trackPub.track)
+        setMainTrack(trackPub.track, participantName.value)
+        console.log('🖥️ setMainTrack 호출 완료')
+        
+        // DOM 업데이트를 강제로 트리거
+        nextTick(() => {
+          console.log('🖥️ nextTick 후 mainTrack 상태:', mainTrack.value)
+          // 직접 video 엘리먼트에 카메라 스트림 연결
+          if (mainVideoRef.value && trackPub.track && trackPub.track.mediaStreamTrack) {
+            const stream = new MediaStream([trackPub.track.mediaStreamTrack])
+            mainVideoRef.value.srcObject = stream
+            console.log('🖥️ 화면 공유 중지 후 메인 video 엘리먼트에 카메라 스트림 연결')
+          }
+        })
+        return
+      }
+    }
+  }
+  
+  // 카메라 트랙을 찾지 못한 경우 localTrack 사용
   if (localTrack.value) {
+    console.log('🖥️ localTrack으로 메인 화면 설정')
     setMainTrack(localTrack.value, participantName.value)
   }
 }
@@ -555,6 +647,44 @@ function handleScreenShareError(error: any) {
   isScreenSharing.value = false
   screenShareTrack.value = null
 }
+
+// 화면 공유 토글 함수
+function handleScreenShareToggle() {
+  if (isScreenSharing.value) {
+    // 화면 공유 중지
+    console.log('🖥️ 햄버거 메뉴에서 화면 공유 중지 요청')
+    // ScreenShareComponent의 stopScreenShare 메서드 호출
+    if (screenShareRef.value) {
+      screenShareRef.value.stopScreenShare()
+    }
+  } else {
+    // 화면 공유 시작
+    console.log('🖥️ 햄버거 메뉴에서 화면 공유 시작 요청')
+    // ScreenShareComponent의 startScreenShare 메서드 호출
+    if (screenShareRef.value) {
+      screenShareRef.value.startScreenShare()
+    }
+  }
+}
+
+function handleCameraRestored(newCameraTrack: any) {
+  console.log('🖥️ 새로운 카메라 트랙 복원됨:', newCameraTrack)
+  
+  // 새로운 카메라 트랙을 localTrack으로 설정
+  localTrack.value = newCameraTrack
+  
+  // 즉시 메인 화면을 새로운 카메라 트랙으로 설정
+  nextTick(() => {
+    console.log('🖥️ 새로운 카메라 트랙으로 메인 화면 설정')
+    setMainTrack(newCameraTrack, participantName.value)
+  })
+  
+  // 추가로 지연 복원도 시도
+  setTimeout(() => {
+    console.log('🖥️ 지연 복원 시도')
+    setMainTrack(newCameraTrack, participantName.value)
+  }, 1000)
+}
 </script>
 
 <!-- 나머지 template 부분은 동일하므로 생략 가능. 필요시 다시 제공 가능. -->
@@ -562,7 +692,8 @@ function handleScreenShareError(error: any) {
 
 <template>
   <div id="class-video-room">
-    <div v-if="!room" class="room-layout">
+    <!-- URL 파라미터가 없고 방에 연결되지 않은 경우에만 방 참가 폼 표시 -->
+    <div v-if="!room && !hasUrlParams" class="room-layout">
       <div class="join-section">
         <h2>🎥 화상채팅 방 참가</h2>
         <form @submit.prevent="joinRoom()">
@@ -593,6 +724,19 @@ function handleScreenShareError(error: any) {
       </div>
     </div>
 
+    <!-- URL 파라미터가 있지만 아직 방에 연결되지 않은 경우 로딩 표시 -->
+    <div v-else-if="!room && hasUrlParams" class="loading-layout">
+      <div class="loading-section">
+        <div class="loading-spinner">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2V6M12 18V22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12H6M18 12H22M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"/>
+          </svg>
+        </div>
+        <h2>화상수업에 참여하는 중...</h2>
+        <p>잠시만 기다려주세요.</p>
+      </div>
+    </div>
+
     <div v-else class="video-room">
               <div class="video-room-header">
           <div class="header-info">
@@ -602,30 +746,21 @@ function handleScreenShareError(error: any) {
               <span v-else class="participant-badge">👤 참여자</span>
             </div>
           </div>
-          <!-- 드래그 가능한 햄버거 버튼 -->
-          <button 
-            class="hamburger-btn" 
-            :style="{ left: hamburgerPosition.x + 'px', top: hamburgerPosition.y + 'px' }"
-            @click="!isDragging && toggleControlPanel()" 
-            @mousedown="startDrag"
-            title="컨트롤 패널 (드래그하여 이동 가능)"
+          
+          <!-- 컨트롤 패널 오버레이 -->
+          <div 
+            v-if="isControlPanelOpen" 
+            class="control-panel-overlay"
+            @click="toggleControlPanel"
           >
-            ☰
-          </button>
+          </div>
           
           <!-- 컨트롤 패널 -->
           <div 
             v-if="isControlPanelOpen" 
-            class="control-panel"
-            :style="{ 
-              left: (hamburgerPosition.x + 60) + 'px', 
-              top: (hamburgerPosition.y - 200) + 'px' 
-            }"
+            class="control-panel-fixed"
+            @click.stop
           >
-            <div class="control-panel-header">
-              <h3>컨트롤</h3>
-              <button class="close-btn" @click="toggleControlPanel">✕</button>
-            </div>
             <div class="control-buttons">
               <button v-if="isUserCreator" @click="handleRecordToggle" :title="recordButtonLabel">
                 {{ recordingState === 'idle' ? '⏺' : recordingState === 'recording' ? '⏸' : '▶' }}
@@ -642,8 +777,12 @@ function handleScreenShareError(error: any) {
               <button :class="{ off: !isChatVisible }" @click="toggleChat" title="채팅 숨기기/보기">
                 💬
               </button>
-              <button :class="{ off: !isScreenShareVisible }" @click="toggleScreenShare" title="화면 공유 패널 숨기기/보기">
-                🖥️
+              <button 
+                :class="{ active: isScreenSharing }" 
+                @click="handleScreenShareToggle" 
+                :title="isScreenSharing ? '화면 공유 중지' : '화면 공유 시작'"
+              >
+                {{ isScreenSharing ? '🖥️⏹️' : '🖥️' }}
               </button>
               <button class="leave" @click="handleLeaveClick" title="퇴장하기">
                 ✕
@@ -656,27 +795,89 @@ function handleScreenShareError(error: any) {
         <div class="main-content">
           <div class="video-section">
             <div class="main-video">
+
+              
               <!-- 화면 공유 중인 경우 화면 공유 트랙을 메인에 표시 -->
-              <VideoComponent
-                v-if="isScreenSharing && screenShareTrack"
-                :track="screenShareTrack"
-                :participantIdentity="participantName + ' (화면 공유)'"
-                class="main-tile screen-share"
-              />
+              <div v-if="isScreenSharing && screenShareTrack" class="main-tile screen-share" style="position: relative;">
+                <VideoComponent
+                  :track="screenShareTrack"
+                  :participantIdentity="participantName + ' (화면 공유)'"
+                />
+                <!-- 햄버거 버튼 (우측 하단 고정) -->
+                <button 
+                  class="hamburger-btn-fixed" 
+                  @click="toggleControlPanel()" 
+                  title="컨트롤 패널"
+                >
+                  ☰
+                </button>
+              </div>
+              <!-- 생성자인 경우 직접 video 엘리먼트 사용 -->
+              <div v-else-if="mainTrack" class="main-tile" style="position: relative;">
+                <video 
+                  ref="mainVideoRef"
+                  autoplay 
+                  muted 
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+                <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; border-radius: 4px;">
+                  {{ mainIdentity }}
+                </div>
+                <!-- 햄버거 버튼 (우측 하단 고정) -->
+                <button 
+                  class="hamburger-btn-fixed" 
+                  @click="toggleControlPanel()" 
+                  title="컨트롤 패널"
+                >
+                  ☰
+                </button>
+              </div>
               <!-- 참여자인 경우 원격 참가자 화면을 메인에 표시 -->
-              <VideoComponent
-                v-else-if="!isUserCreator && getFirstRemoteVideoTrack()"
-                :track="getFirstRemoteVideoTrack()"
-                :participantIdentity="getFirstRemoteParticipantIdentity()"
-                class="main-tile"
-              />
-              <!-- 생성자인 경우 기존 로직 유지 -->
-              <VideoComponent
-                v-else-if="mainTrack"
-                :track="mainTrack"
-                :participantIdentity="mainIdentity"
-                class="main-tile"
-              />
+              <div v-else-if="!isUserCreator && getFirstRemoteVideoTrack()" class="main-tile" style="position: relative;">
+                <VideoComponent
+                  :track="getFirstRemoteVideoTrack()"
+                  :participantIdentity="getFirstRemoteParticipantIdentity()"
+                />
+                <!-- 햄버거 버튼 (우측 하단 고정) -->
+                <button 
+                  class="hamburger-btn-fixed" 
+                  @click="toggleControlPanel()" 
+                  title="컨트롤 패널"
+                >
+                  ☰
+                </button>
+              </div>
+              <!-- 직접 video 엘리먼트로 카메라 표시 (fallback) -->
+              <div v-else-if="localTrack" class="main-tile" style="position: relative;">
+                <video 
+                  ref="directVideoRef"
+                  autoplay 
+                  muted 
+                  style="width: 100%; height: 100%; object-fit: cover;"
+                />
+                <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; border-radius: 4px;">
+                  {{ participantName }} (직접 렌더링)
+                </div>
+                <!-- 햄버거 버튼 (우측 하단 고정) -->
+                <button 
+                  class="hamburger-btn-fixed" 
+                  @click="toggleControlPanel()" 
+                  title="컨트롤 패널"
+                >
+                  ☰
+                </button>
+              </div>
+              <!-- fallback: 아무것도 표시되지 않을 때 -->
+              <div v-else style="display: flex; align-items: center; justify-content: center; height: 100%; background: #000; color: white;">
+                <div style="text-align: center;">
+                  <div style="font-size: 24px; margin-bottom: 10px;">📹</div>
+                  <div>비디오를 불러오는 중...</div>
+                  <div style="font-size: 12px; margin-top: 10px; opacity: 0.7;">
+                    mainTrack: {{ !!mainTrack }}<br>
+                    mainIdentity: {{ mainIdentity }}
+                  </div>
+                </div>
+              </div>
             </div>
 
 
@@ -742,14 +943,15 @@ function handleScreenShareError(error: any) {
           </div>
         </div>
         
-        <!-- 화면 공유 패널 -->
-        <div v-if="isScreenShareVisible" class="screen-share-section">
+        <!-- 화면 공유 컴포넌트 (항상 숨겨진 상태로 동작) -->
+        <div class="screen-share-section" style="display: none;">
           <ScreenShareComponent
             ref="screenShareRef"
             :room="room"
             @screen-share-started="handleScreenShareStarted"
             @screen-share-stopped="handleScreenShareStopped"
             @screen-share-error="handleScreenShareError"
+            @camera-restored="handleCameraRestored"
           />
         </div>
         
@@ -846,5 +1048,169 @@ function handleScreenShareError(error: any) {
 
 .thumbnail.camera {
   border: 2px solid #007bff;
+}
+
+/* 컨트롤 패널 오버레이 */
+.control-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  cursor: pointer;
+}
+
+/* 고정된 햄버거 버튼 스타일 */
+.hamburger-btn-fixed {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  background: rgba(0, 0, 0, 0.8);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.hamburger-btn-fixed:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.1);
+}
+
+/* 고정된 컨트롤 패널 스타일 */
+.control-panel-fixed {
+  position: fixed;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 12px;
+  padding: 15px;
+  z-index: 1001;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+}
+
+.control-panel-fixed .control-panel-header {
+  display: none; /* 헤더 숨기기 */
+}
+
+.control-panel-fixed .control-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+}
+
+.control-panel-fixed .control-buttons button {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-panel-fixed .control-buttons button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.control-panel-fixed .control-buttons button.off {
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.5;
+}
+
+.control-panel-fixed .control-buttons button.leave {
+  background: rgba(220, 53, 69, 0.8);
+}
+
+.control-panel-fixed .control-buttons button.leave:hover {
+  background: rgba(220, 53, 69, 1);
+}
+
+/* 햄버거 메뉴 화면 공유 버튼 스타일 */
+.control-buttons button.active {
+  background: #dc3545 !important;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.control-buttons button.active:hover {
+  background: #c82333 !important;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+/* 로딩 화면 스타일 */
+.loading-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-color);
+}
+
+.loading-section {
+  text-align: center;
+  padding: 3rem;
+  background: var(--bg-primary);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+  margin-bottom: 1.5rem;
+  color: var(--brand-main);
+}
+
+.loading-section h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.loading-section p {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

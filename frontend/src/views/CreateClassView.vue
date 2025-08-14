@@ -223,7 +223,7 @@ function closeJoinModal() {
 function handleJoinClassConfirm(joinData) {
   console.log('수업 참여 데이터:', joinData)
   
-  // 화상 수업 페이지로 이동
+  // 화상 수업 페이지로 이동 (참여자는 기존 meetingId가 없으므로 className을 roomName으로 사용)
   const queryParams = {
     roomName: joinData.roomName,
     className: joinData.className,
@@ -246,18 +246,21 @@ function handleCreateClass(classData) {
   showCreateClassModal.value = true
 }
 
-// 모달에서 수업 생성 확인 시 호출됨
+// 모달에서 화상수업 생성 확인 시 호출됨
 function handleCreateClassConfirm(modalData) {
   console.log('🔍 handleCreateClassConfirm - modalData:', modalData)
   
-  // ClassVideoRoomView로 이동하면서 방 이름은 roomName, 제목은 className으로 설정
+  // ClassVideoRoomView로 이동하면서 meetingId와 생성된 화상수업 정보 전달
   router.push({
     path: `/class/${modalData.classId}/video`,
     query: {
-      roomName: modalData.roomName,
-      className: modalData.className, // className을 제목으로 사용
+      meetingId: modalData.meetingId,
+      title: modalData.title,
+      email: modalData.email,
       isCreator: 'true',
-      creatorName: modalData.creatorName
+      creatorName: modalData.creatorName,
+      description: modalData.description,
+      token: modalData.token // 백엔드에서 받은 토큰
     }
   });
   showCreateClassModal.value = false
