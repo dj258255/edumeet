@@ -70,10 +70,10 @@
               v-for="notice in filteredNotices"
               :key="notice.id"
               class="notice-item"
-              :class="{ required: notice.required }"
+              :class="{ required: notice.boardType === 'NOTICE' }"
             >
               <div @click="openNoticeDetailModal(notice)" class="notice-item-content">
-                <span class="badge">{{ notice.required ? '필수' : '일반' }}</span>
+                <span class="badge">{{ notice.boardType === 'NOTICE' ? '필수' : '일반' }}</span>
                 <span class="text">{{ notice.title }}</span>
               </div>
               <button
@@ -232,11 +232,19 @@ const noticeFilter = ref('all')
 const assignmentFilter = ref('all')
 
 const filteredNotices = computed(() => {
-  if (noticeFilter.value === 'all') return notices.value
-  // notice 객체에 required 속성이 없으므로 boardType으로 필터링
-  if (noticeFilter.value === 'required') return notices.value.filter(n => n.boardType === 'NOTICE')
-  return notices.value.filter(n => n.boardType === 'NORMAL')
-})
+  if (noticeFilter.value === 'all') {
+    return notices.value;
+  }
+
+  // '필수' 필터링은 boardType이 'NOTICE'인 경우
+  if (noticeFilter.value === 'required') {
+    return notices.value.filter(n => (n.boardType || '').toUpperCase() === 'NOTICE');
+  }
+  
+  // '일반' 필터링은 boardType이 'NORMAL'인 경우
+  return notices.value.filter(n => (n.boardType || '').toUpperCase() === 'NORMAL');
+});
+
 
 const filteredAssignments = computed(() => {
     // props.classData?.assignments 대신 로컬 상태인 assignments.value를 사용
