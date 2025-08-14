@@ -94,6 +94,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  meetingId: {
+    type: [String, Number],
+    default: null
+  },
   isOpen: {
     type: Boolean,
     default: true
@@ -310,6 +314,8 @@ const sendChunk = async () => {
     const formData = new FormData()
     formData.append('audio', audioBlob, `chunk_${currentChunk.value}.wav`)
     
+    // meetingId는 문서 요약 시에만 전송하므로 여기서는 제거
+    
     // HTTP API를 통해 청크 업로드
     const response = await fetch(`${API_BASE_URL}/api/class/${props.classId}/update-recording`, {
       method: 'POST',
@@ -356,6 +362,16 @@ const sendChunk = async () => {
 // 문서 요약 생성
 const generateSummary = async () => {
   try {
+    console.log('🔍 generateSummary 호출됨')
+    console.log('🔍 props.meetingId:', props.meetingId)
+    console.log('🔍 props.meetingId 타입:', typeof props.meetingId)
+    console.log('🔍 props.meetingId === undefined:', props.meetingId === undefined)
+    console.log('🔍 props.meetingId === null:', props.meetingId === null)
+    console.log('🔍 props.meetingId === ""', props.meetingId === "")
+    console.log('🔍 props.classId:', props.classId)
+    console.log('🔍 props.className:', props.className)
+    console.log('🔍 props.creatorName:', props.creatorName)
+    
     isGeneratingSummary.value = true
     summaryStatus.value = {
       type: 'uploading',
@@ -367,25 +383,36 @@ const generateSummary = async () => {
       await sendChunk()
     }
     
+    const requestBody = {
+      totalChunks: currentChunk.value,
+      generateSummary: true,
+      endTime: Date.now(),
+      meetingId: props.meetingId // meetingId 추가
+    }
+    
+    console.log('🔍 generateSummary - 요청 본문:', requestBody)
+    console.log('🔍 generateSummary - JSON 문자열:', JSON.stringify(requestBody))
+    console.log('🔍 generateSummary - 요청 URL:', `${API_BASE_URL}/api/class/${props.classId}/stop-recording`)
+    
     // 백엔드에 문서 요약 요청
     const response = await fetch(`${API_BASE_URL}/api/class/${props.classId}/stop-recording`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        totalChunks: currentChunk.value,
-        generateSummary: true,
-        endTime: Date.now()
-      })
+      body: JSON.stringify(requestBody)
     })
+    
+    console.log('🔍 generateSummary - 응답 상태:', response.status)
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
+      console.log('🔍 generateSummary - 에러 응답:', errorData)
       throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
     }
     
     const result = await response.json()
+    console.log('🔍 generateSummary - 성공 응답:', result)
     console.log('✅ 문서 요약 성공:', result)
     
     if (result.recordingStopped) {
@@ -431,17 +458,28 @@ const generateSummary = async () => {
 // 수업 시작 알림
 const notifyRecordingStart = async () => {
   try {
-    console.log("Vue 에서", `${API_BASE_URL}/api/class/${props.classId}/start-recording`, " 호출");
+    console.log('🔍 notifyRecordingStart 호출됨')
+    console.log('🔍 props.meetingId:', props.meetingId)
+    console.log('🔍 props.classId:', props.classId)
+    console.log('🔍 props.className:', props.className)
+    console.log('🔍 props.creatorName:', props.creatorName)
+    
+    const requestBody = {
+      className: props.className,
+      creatorName: props.creatorName,
+      startTime: Date.now()
+    }
+    
+    console.log('🔍 notifyRecordingStart - 요청 본문:', requestBody)
+    console.log('🔍 notifyRecordingStart - JSON 문자열:', JSON.stringify(requestBody))
+    console.log('🔍 notifyRecordingStart - 요청 URL:', `${API_BASE_URL}/api/class/${props.classId}/start-recording`)
+    
     const response = await fetch(`${API_BASE_URL}/api/class/${props.classId}/start-recording`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        className: props.className,
-        creatorName: props.creatorName,
-        startTime: Date.now()
-      })
+      body: JSON.stringify(requestBody)
     })
     
     if (!response.ok) {
@@ -542,21 +580,26 @@ onUnmounted(async () => {
       await sendChunk()
     }
     
-    // 백엔드에 녹음 종료 알림 (문서 요약 없이)
+    // 백엔드에 일시정지 알림
     try {
-      await fetch(`${API_BASE_URL}/api/class/${props.classId}/stop-recording`, {
+      const requestBody = {
+        totalChunks: currentChunk.value,
+        endTime: Date.now(),
+        meetingId: props.meetingId // meetingId 추가
+      }
+      
+      console.log('🔍 일시정지 - 요청 본문:', requestBody)
+      console.log('🔍 일시정지 - JSON 문자열:', JSON.stringify(requestBody))
+      
+      await fetch(`${API_BASE_URL}/api/class/${props.classId}/pause-recording`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          totalChunks: currentChunk.value,
-          generateSummary: false,
-          endTime: Date.now()
-        })
+        body: JSON.stringify(requestBody)
       })
     } catch (error) {
-      console.error('녹음 종료 알림 실패:', error)
+      console.error('일시정지 알림 실패:', error)
     }
   }
   stopDrag()

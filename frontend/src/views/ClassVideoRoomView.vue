@@ -190,6 +190,12 @@ async function joinRoom(targetRoom?: string, existingToken?: string) {
     return;
   }
 
+  console.log('🔍 joinRoom 호출 - targetRoom:', targetRoom)
+  console.log('🔍 joinRoom 호출 - target:', target)
+  console.log('🔍 joinRoom 호출 - existingToken:', existingToken ? '있음' : '없음')
+  console.log('🔍 joinRoom 호출 - route.query.meetingId:', route.query.meetingId)
+  console.log('🔍 joinRoom 호출 - route.query:', route.query)
+
   const currentRoom = new Room();
   room.value = currentRoom;
 
@@ -325,12 +331,31 @@ onUnmounted(() => {
 });
 
 async function getToken(roomName: string, participantName: string) {
+  console.log('🔍 getToken 호출 - roomName:', roomName)
+  console.log('🔍 getToken 호출 - participantName:', participantName)
+  console.log('🔍 getToken 호출 - route.query.meetingId:', route.query.meetingId)
+  
+  const requestBody = { roomName, participantName };
+  
+  // meetingId가 있으면 요청 본문에 추가
+  if (route.query.meetingId) {
+    requestBody.meetingId = route.query.meetingId as string;
+    console.log('🔍 getToken - meetingId를 요청 본문에 추가:', route.query.meetingId)
+  }
+  
+  console.log('🔍 getToken - 최종 요청 본문:', requestBody)
+  console.log('🔍 getToken - 요청 URL:', APPLICATION_SERVER_URL + 'token')
+  
   const response = await fetch(APPLICATION_SERVER_URL + 'token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ roomName, participantName }),
+    body: JSON.stringify(requestBody),
   });
+  
+  console.log('🔍 getToken - 응답 상태:', response.status)
   const data = await response.json();
+  console.log('🔍 getToken - 응답 데이터:', data)
+  
   return data.token;
 }
 
@@ -422,6 +447,13 @@ async function confirmLeaveWithoutSummary() {
 
 async function confirmLeaveWithSummary() {
   showExitModal.value = false;
+  try {
+    // 문서 요약 생성 후 퇴장
+    await handleGenerateSummary();
+    console.log('🔍 문서 요약 생성 완료, 퇴장 진행');
+  } catch (error) {
+    console.error('🔍 문서 요약 생성 실패:', error);
+  }
   await leaveRoom();
 }
 
@@ -990,6 +1022,7 @@ function handleCameraRestored(newCameraTrack: any) {
         :classId="classId"
         :className="className"
         :creatorName="participantName"
+        :meetingId="route.query.meetingId as string"
         @recording-started="handleRecordingStarted"
         @recording-stopped="handleRecordingStopped"
         @chunk-uploaded="handleChunkUploaded"
