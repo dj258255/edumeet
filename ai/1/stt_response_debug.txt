@@ -1,0 +1,5 @@
+HTTP 200
+Content-Type: application/json;charset=UTF-8
+Took: 2.43s
+
+{"result":"COMPLETED","message":"Succeeded","token":"99b64d2cd00f4d949c06ba97ef718296","version":"ncp_v2_v2.4.6-c00dd1b-20250528__v4.2.12_ko_firedepartment_20240624_","params":{"service":"ncp","domain":"general","lang":"ko","completion":"sync","diarization":{"enable":false},"sed":{"enable":false},"boostings":[],"forbiddens":"","wordAlignment":false,"fullText":true,"noiseFiltering":true,"resultToObs":false,"priority":0,"userdata":{"_ncp_DomainCode":"EduMeet-Domain","_ncp_DomainId":12417,"_ncp_TaskId":37900744,"_ncp_TraceId":"2921ac2698cc4aa4a667c7d82f2d3275"}},"progress":100,"keywords":{},"segments":[],"text":"","confidence":1.0,"speakers":[],"events":[],"eventTypes":[]}
