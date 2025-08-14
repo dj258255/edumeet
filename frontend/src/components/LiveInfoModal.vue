@@ -46,25 +46,22 @@
               </div>
             </div>
 
-            <div v-if="info.files && info.files.length > 0" class="info-files">
-              <h4 class="files-title">📎 첨부 파일</h4>
+            <!-- ✅ s3url이 있을 때만 다운로드 섹션 표시 -->
+            <div v-if="info.hasRecordingFile" class="info-files">
+              <h4 class="files-title">🎥 녹화 파일</h4>
               <div class="file-list">
-                <div 
-                  v-for="file in info.files" 
-                  :key="file.id"
-                  class="file-item"
-                >
+                <div class="file-item">
                   <div class="file-info">
-                    <span class="file-icon">📄</span>
-                    <span class="file-name">{{ file.fileName }}</span>
-                    <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                    <span class="file-icon">🎥</span>
+                    <span class="file-name">{{ info.recordingFileName }}</span>
+                    <span v-if="info.fileSize" class="file-size">{{ formatFileSize(info.fileSize) }}</span>
                   </div>
                   <button 
                     class="download-btn"
-                    @click="downloadFile(file)"
-                    :disabled="file.downloading"
+                    @click="downloadMeetingFile(info)"
+                    :disabled="info.downloading"
                   >
-                    <span v-if="file.downloading">다운로드 중...</span>
+                    <span v-if="info.downloading">다운로드 중...</span>
                     <span v-else>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -78,8 +75,9 @@
               </div>
             </div>
 
+            <!-- ✅ s3url이 없을 때 표시 -->
             <div v-else class="no-files">
-              <p class="no-files-text">첨부된 파일이 없습니다.</p>
+              <p class="no-files-text">파일이 아직 준비되지 않았습니다.</p>
             </div>
           </div>
         </div>
@@ -98,7 +96,8 @@
 import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '' // 예: http://localhost:8080
+/** API Base URL (.env: VITE_API_BASE_URL) */
+const API_BASE_URL = import.meta.env.VITE_BASE_URL
 
 const props = defineProps({
   isVisible: { type: Boolean, default: false },
@@ -106,7 +105,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-/** UI에서 쓰는 데이터 */
+/** 화면 상태 */
 const liveInfoList = ref([])
 const loading = ref(false)
 const errorMsg = ref('')
@@ -133,72 +132,274 @@ const formatFileSize = (bytes) => {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
 }
 
-/** 파일 다운로드(예시) */
-const downloadFile = async (file) => {
+/** ✅ 커스텀 파일명 생성: {날짜}_{화상강의 제목} */
+const generateCustomFileName = (meetingInfo, backendFileName = '', contentType = '') => {
+  // 1. 날짜 추출 (startTime에서 yyyy-MM-dd 형식)
+  let date = 'unknown-date'
+  if (meetingInfo.startTime) {
+    try {
+      const dateObj = new Date(meetingInfo.startTime)
+      date = dateObj.toISOString().split('T')[0] // yyyy-MM-dd
+    } catch (e) {
+      console.warn('날짜 파싱 실패:', e)
+    }
+  }
+
+  // 2. 화상강의 제목 정리 (파일시스템 안전한 문자로)
+  const safeTitle = meetingInfo.title
+    .replace(/[<>:"/\\|?*]/g, '') // 파일시스템 금지 문자 제거
+    .replace(/\s+/g, '_') // 공백을 언더스코어로
+    .substring(0, 50) // 최대 50자
+    .trim()
+
+  // 3. 최종 파일명: {날짜}_{화상강의 제목} (확장자 없음)
+  const finalFileName = `${date}_${safeTitle}`
+
+  console.log("finalFileName: ", finalFileName)
+  
+  console.log('🎯 파일명 생성:', {
+    date,
+    originalTitle: meetingInfo.title,
+    safeTitle,
+    backendFileName,
+    contentType,
+    finalFileName
+  })
+  
+  return finalFileName
+}
+
+/** ✅ 미팅 녹화 파일 다운로드 - MeetingDownloadController 사용 */
+const downloadMeetingFile = async (meetingInfo) => {
+  console.log('🎯 다운로드 시작:', meetingInfo)
+
+  if (!meetingInfo?.id) {
+    console.error('❌ 미팅 ID 없음:', meetingInfo)
+    alert('미팅 ID가 없어 다운로드할 수 없습니다.')
+    return
+  }
+
+  if (!meetingInfo.hasRecordingFile) {
+    alert('다운로드할 녹화 파일이 없습니다.')
+    return
+  }
+
   try {
-    file.downloading = true
-    // 실제 구현 시:
-    // const { data } = await apiClient.get(`/api/v1/files/${file.id}`, { responseType: 'blob' })
-    // file-saver 등을 사용하여 저장
+    meetingInfo.downloading = true
+
+    const accessToken = localStorage.getItem('accessToken')
+    const url = `${API_BASE_URL}/api/v1/meeting/files/download/${meetingInfo.id}`
+    
+    console.log('📡 요청 URL:', url)
+    console.log('🔑 토큰 존재:', !!accessToken)
+
+    // 실제 다운로드 요청
+    console.log('⬇️ 파일 다운로드 시작...')
+    const response = await axios.get(url, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      responseType: 'blob',
+      timeout: 120000, // 2분 타임아웃
+      onDownloadProgress: (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+        console.log(`📥 다운로드 진행률: ${percentCompleted}%`)
+      }
+    })
+
+    console.log('✅ 응답 수신:', {
+      status: response.status,
+      headers: response.headers,
+      dataSize: response.data?.size || 'unknown'
+    })
+
+    // 응답 데이터 크기 확인
+    if (!response.data || response.data.size === 0) {
+      console.error('❌ 빈 파일 응답')
+      alert('다운로드된 파일이 비어있습니다.')
+      return
+    }
+
+    // 파일명 추출 및 새로운 형식으로 변경
+    const contentDisposition = response.headers?.['content-disposition'] || ''
+    let backendFileName = ''
+    
+    console.log('📝 Content-Disposition:', contentDisposition)
+    
+    // 백엔드에서 제공한 파일명 추출 (참고용)
+    const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;]+)|filename="([^"]+)"/i)
+    if (filenameMatch) {
+      const encodedFilename = filenameMatch[1] || filenameMatch[2]
+      try {
+        backendFileName = decodeURIComponent(encodedFilename)
+        console.log('🏷️ 백엔드 파일명:', backendFileName)
+      } catch (e) {
+        console.warn('파일명 디코딩 실패:', e)
+      }
+    }
+
+    // ✅ 프론트엔드에서 새로운 형식으로 파일명 생성: {날짜}_{화상강의 제목}
+    const filename = generateCustomFileName(meetingInfo, backendFileName, response.headers['content-type'] || '')
+    console.log('📄 최종 파일명:', filename)
+
+    // Blob을 이용한 파일 다운로드
+    const blob = new Blob([response.data], { 
+      type: response.headers['content-type'] || 'application/octet-stream' 
+    })
+    
+    console.log('📦 Blob 생성:', {
+      size: blob.size,
+      type: blob.type
+    })
+
+    if (blob.size === 0) {
+      console.error('❌ Blob 크기가 0')
+      alert('다운로드된 파일 크기가 0입니다.')
+      return
+    }
+
+    // 다운로드 실행
+    const downloadUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = filename
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    
+    console.log('🖱️ 다운로드 링크 클릭')
+    link.click()
+    
+    // 정리
     setTimeout(() => {
-      alert(`${file.fileName} 파일이 다운로드됩니다.`)
-      file.downloading = false
-    }, 800)
-  } catch (e) {
-    console.error(e)
-    alert('파일 다운로드에 실패했습니다.')
-    file.downloading = false
+      document.body.removeChild(link)
+      URL.revokeObjectURL(downloadUrl)
+      console.log('🧹 리소스 정리 완료')
+    }, 100)
+
+    console.log(`🎉 미팅 파일 다운로드 완료: ${filename}`)
+    
+    // ✅ 커스텀 파일명으로 성공 메시지 표시
+    alert(`파일이 다운로드되었습니다!\n파일명: ${filename}`)
+
+  } catch (error) {
+    console.error('💥 미팅 파일 다운로드 실패:', {
+      message: error.message,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      data: error?.response?.data,
+      config: error?.config
+    })
+
+    const status = error?.response?.status
+    if (status === 401) {
+      alert('로그인이 필요합니다.')
+    } else if (status === 403) {
+      alert('파일 다운로드 권한이 없습니다.')
+    } else if (status === 404) {
+      alert('녹화 파일을 찾을 수 없습니다.')
+    } else if (status === 500) {
+      alert('서버에서 파일 처리 중 오류가 발생했습니다.')
+    } else if (error.code === 'ECONNABORTED') {
+      alert('다운로드 시간이 초과되었습니다. 파일이 너무 클 수 있습니다.')
+    } else {
+      alert(`파일 다운로드에 실패했습니다: ${error.message}`)
+    }
+  } finally {
+    meetingInfo.downloading = false
+    console.log('🏁 다운로드 프로세스 종료')
   }
 }
 
 const closeModal = () => emit('close')
 
-/** 백엔드 → 프런트 매핑 함수
- * ClassMeetingInfoResponseDto[] → liveInfoList(화면 모델)
- * 백엔드 DTO 필드명이 다르면 아래에서 맞춰주세요.
- */
+/** ✅ 녹화 파일명 생성 함수: {날짜}_{화상강의 제목} */
+const generateRecordingFileName = (item, startTime) => {
+  // 1. 날짜 추출
+  let date = 'unknown-date'
+  if (startTime) {
+    try {
+      const dateObj = new Date(startTime)
+      date = dateObj.toISOString().split('T')[0] // yyyy-MM-dd
+    } catch (e) {
+      console.warn('날짜 파싱 실패:', e)
+    }
+  }
+
+  // 2. 제목 정리
+  const title = item.title ?? item.meetingTitle ?? '제목없음'
+  const safeTitle = title
+    .replace(/[<>:"/\\|?*]/g, '') // 파일시스템 금지 문자 제거
+    .replace(/\s+/g, '_') // 공백을 언더스코어로
+    .substring(0, 30) // 최대 30자 (화면 표시용)
+    .trim()
+
+  return `${date}_${safeTitle}`
+}
+
+/** ✅ 백엔드 → 프런트 매핑 (s3url 체크 로직 중심) */
 function mapToViewModel(items = []) {
   const now = new Date()
-  return items.map((it) => {
-    const id = it.id ?? it.meetingId ?? it.roomId
-    const title = it.title ?? it.meetingTitle ?? '제목 없음'
-    const description = it.description ?? it.meetingDescription ?? ''
-    const createdAt = it.createdAt ?? it.createTime ?? it.startTime ?? new Date().toISOString()
-    const startTime = it.startTime ?? it.beginTime ?? null
-    const endTime = it.endTime ?? it.finishTime ?? null
+  return items.map((item) => {
+    const id = item.id ?? item.meetingId ?? item.roomId
+    const title = item.title ?? item.meetingTitle ?? '제목 없음'
+    const description = item.description ?? item.meetingDescription ?? ''
+    const createdAt = item.createdAt ?? item.createTime ?? item.startTime ?? new Date().toISOString()
+    const startTime = item.startTime ?? item.beginTime ?? null
+    const endTime = item.endTime ?? item.finishTime ?? null
 
-    // 상태 계산: start/end 기준으로 scheduled/live/ended
+    // 상태 계산
     let status = 'scheduled'
     if (endTime) status = 'ended'
     else if (startTime && new Date(startTime) <= now) status = 'live'
 
-    // 첨부파일(백엔드가 제공하면 매핑)
-    const files = Array.isArray(it.files)
-      ? it.files.map(f => ({
-          id: f.id ?? f.fileId ?? `${id}-${f.fileName}`,
-          fileName: f.fileName ?? f.name ?? '파일',
-          size: f.size ?? 0,
-          downloadUrl: f.downloadUrl ?? '#',
-          downloading: false
-        }))
-      : []
+    // ✅ s3url 체크 - Meeting 엔티티의 s3url 필드 확인
+    const s3Url = item.s3url || item.s3Url || item.recordingUrl || item.fileUrl
+    const hasRecordingFile = Boolean(s3Url && s3Url.trim() !== '' && s3Url !== 'null')
 
-    return { id, title, description, status, createdAt, startTime, files }
+    // 녹화 파일 정보
+    const recordingFileName = generateRecordingFileName(item, startTime)
+    const fileSize = item.fileSize || item.contentLength || 0
+
+    console.log(`🔍 미팅 ${id} s3url 체크:`, {
+      original_s3url: item.s3url,
+      s3Url: s3Url,
+      hasRecordingFile: hasRecordingFile,
+      title: title
+    })
+
+    return {
+      id,
+      title,
+      description,
+      status,
+      createdAt,
+      startTime,
+      hasRecordingFile,
+      recordingFileName,
+      fileSize,
+      s3Url,
+      downloading: false
+    }
   })
 }
 
-/** API 호출 */
+/** 라이브 정보 조회 */
 async function fetchLiveInfos(classId) {
   if (!classId) return
   loading.value = true
   errorMsg.value = ''
   try {
+    console.log(`📡 라이브 정보 조회 시작 - classId: ${classId}`)
+    
     const accessToken = localStorage.getItem('accessToken')
-    const { data } = await axios.get(`${import.meta.env.VITE_BASE_URL}/api/v1/meetingroom/${classId}`, {
+    const { data } = await axios.get(`${API_BASE_URL}/api/v1/meetingroom/${classId}`, {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
     })
-    // data: ClassMeetingInfoResponseDto[]
+    
+    console.log('📋 원본 데이터:', data)
+    
     liveInfoList.value = mapToViewModel(data || [])
+    
+    console.log('🎯 매핑된 데이터:', liveInfoList.value)
+    
   } catch (e) {
     console.error('라이브 정보 조회 실패:', e)
     errorMsg.value = '라이브 정보를 불러오지 못했습니다.'
@@ -212,16 +413,21 @@ async function fetchLiveInfos(classId) {
 watch(
   () => [props.isVisible, props.classId],
   ([visible, classId]) => {
-    if (visible && classId) fetchLiveInfos(classId)
+    if (visible && classId) {
+      console.log(`👁️ 모달 열림 - classId: ${classId}`)
+      fetchLiveInfos(classId)
+    }
   },
   { immediate: true }
 )
 
 onMounted(() => {
-  if (props.isVisible && props.classId) fetchLiveInfos(props.classId)
+  if (props.isVisible && props.classId) {
+    console.log(`🚀 컴포넌트 마운트 - classId: ${props.classId}`)
+    fetchLiveInfos(props.classId)
+  }
 })
 </script>
-
 
 <style scoped>
 .modal-overlay {
