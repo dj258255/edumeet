@@ -239,12 +239,25 @@ const filteredNotices = computed(() => {
 })
 
 const filteredAssignments = computed(() => {
-    // props.classData.assignments를 직접 참조
-    const assignmentList = props.classData?.assignments || [];
+    // props.classData?.assignments 대신 로컬 상태인 assignments.value를 사용
+    const assignmentList = assignments.value || [];
+    const userEmail = authStore.currentUser.email; // 현재 로그인된 사용자 이메일
 
-    if (assignmentFilter.value === 'all') return assignmentList;
-    if (assignmentFilter.value === 'complete') return assignmentList.filter(t => t.done);
-    return assignmentList.filter(t => !t.done);
+    const processedAssignments = assignmentList.map(task => {
+        const submissionStatus = task.studentSubmissionStatuses.find(
+            status => status.studentEmail === userEmail
+        );
+        const isDone = submissionStatus && submissionStatus.status === 'SUBMITTED';
+
+        return {
+            ...task,
+            done: isDone
+        };
+    });
+
+    if (assignmentFilter.value === 'all') return processedAssignments;
+    if (assignmentFilter.value === 'complete') return processedAssignments.filter(t => t.done);
+    return processedAssignments.filter(t => !t.done);
 });
 
 
@@ -363,6 +376,7 @@ const fetchNoticesAndAssignments = async () => {
         ? assignmentRes.data
         : (assignmentRes.data?.dtoList || [])
       assignments.value = list
+      console.log('asssssssss',assignments)
     } catch (e) {
       console.warn('과제 목록 API가 없거나 실패하여 빈 목록을 유지합니다.', e)
       assignments.value = []
