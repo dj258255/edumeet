@@ -1,6 +1,11 @@
-<script setup>
-import { Room, RoomEvent } from 'livekit-client';
-import { onMounted, onUnmounted, ref, nextTick } from 'vue';
+<script setup lang="ts">
+import {
+  LocalVideoTrack,
+  Room,
+  RoomEvent,
+  DataPacket_Kind,
+} from 'livekit-client';
+import { onMounted, onUnmounted, ref, type Ref, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import VideoComponent from '@/components/VideoComponent.vue';
 import AudioComponent from '@/components/AudioComponent.vue';
@@ -11,54 +16,75 @@ import '@/styles/ClassRelated.css';
 
 const route = useRoute();
 const router = useRouter();
-const classId = String(route.params.classId ?? '');
+const classId = route.params.classId as string;
 
-const room = ref(null);
-const localTrack = ref();
-const remoteTracksMap = ref(new Map());
+const room = ref<Room | null>(null);
+const localTrack = ref<LocalVideoTrack>();
+const remoteTracksMap: Ref<Map<string, any>> = ref(new Map());
 
 const participantName = ref('Participant' + Math.floor(Math.random() * 100));
 const roomName = ref('');
 const isJoining = ref(false);
 const isUserCreator = ref(false); // 생성자 여부
 
-const activeRooms = ref([]);
+const activeRooms = ref<Array<{ name: string; participants: number }>>([]);
 
-const mainTrack = ref(null);
-const mainIdentity = ref('');
+const mainTrack = ref<any>(null);
+const mainIdentity = ref<string>('');
 const className = ref(''); // 모달에서 입력한 className을 제목으로 사용
 const isCameraOn = ref(true);
 const isMicOn = ref(true);
+// 녹화 제어 상태
+const recordingState = ref<'idle' | 'recording' | 'paused'>('idle');
+const isRecorderOpen = ref(false);
+const audioRecorderRef = ref<any | null>(null);
 
-const chatMessagesList = ref([]);
+// 퇴장 모달
+const showExitModal = ref(false);
+
+const recordButtonLabel = computed(() => {
+  if (recordingState.value === 'idle') return '⏺ 수업 녹화 시작';
+  if (recordingState.value === 'recording') return '⏸ 일시정지';
+  return '▶ 재개';
+});
+
+const chatMessagesList = ref<Array<{ sender: string; message: string }>>([]);
 const chatInput = ref('');
-const chatBoxRef = ref(null);
+const chatBoxRef = ref<HTMLElement | null>(null);
 
 // 공유 자막 관련 상태
 const sharedCaption = ref('');
 const sharedCaptionConfidence = ref(0);
 const isSharedCaptionActive = ref(false);
 const isCaptionVisible = ref(true); // 자막 표시/숨김 상태
+const isChatVisible = ref(true); // 채팅 표시/숨김 상태
+const isControlPanelOpen = ref(false); // 컨트롤 패널 열림/닫힘 상태
+const hamburgerPosition = ref({ x: 20, y: 20 }); // 햄버거 버튼 위치
+const isDragging = ref(false); // 드래그 상태
 
-const APPLICATION_SERVER_URL = import.meta.env.VITE_APPLICATION_SERVER_URL;
-const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL;
+let APPLICATION_SERVER_URL = '';
+let LIVEKIT_URL = '';
 
 function configureUrls() {
-  // 이제 아래와 같이 하드코딩된 로직이 필요 없습니다.
-  // APPLICATION_SERVER_URL과 LIVEKIT_URL 변수가 자동으로 환경에 맞게 설정됩니다.
-  console.log('Application Server URL:', APPLICATION_SERVER_URL);
-  console.log('LiveKit URL:', LIVEKIT_URL);
+  APPLICATION_SERVER_URL = 'http://localhost:8080/api/v1/meetingroom/'
+      
+  LIVEKIT_URL = 'wss://edumeet-1jz93drq.livekit.cloud'
 }
+configureUrls();
 
 onMounted(() => {
   fetchActiveRooms();
   
+  // 전역 마우스 이벤트 리스너 추가
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', stopDrag);
+  
   // URL 쿼리 파라미터에서 방 이름, 제목, 생성자 여부 확인
-  const queryRoomName = route.query.roomName;
-  const queryClassName = route.query.className;
+  const queryRoomName = route.query.roomName as string;
+  const queryClassName = route.query.className as string;
   const isCreator = route.query.isCreator === 'true';
-  const creatorName = route.query.creatorName;
-  const participantNameParam = route.query.participantName;
+  const creatorName = route.query.creatorName as string;
+  const participantNameParam = route.query.participantName as string;
   
   console.log('🔍 ClassVideoRoomView - URL 파라미터:')
   console.log('🔍 roomName:', queryRoomName)
@@ -103,7 +129,7 @@ function fetchActiveRooms() {
   ];
 }
 
-async function joinRoom(targetRoom) {
+async function joinRoom(targetRoom?: string) {
   isJoining.value = true;
   const target = targetRoom || roomName.value;
   if (!target) {
@@ -169,7 +195,7 @@ async function joinRoom(targetRoom) {
     }
 
     roomName.value = target;
-  } catch (error) {
+  } catch (error: any) {
     console.error('영상방 연결 실패:', error.message);
     await leaveRoom();
   } finally {
@@ -193,9 +219,14 @@ async function leaveRoom() {
   router.push('/class/create');
 }
 
-onUnmounted(leaveRoom);
+onUnmounted(() => {
+  // 전역 마우스 이벤트 리스너 제거
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', stopDrag);
+  leaveRoom();
+});
 
-async function getToken(roomName, participantName) {
+async function getToken(roomName: string, participantName: string) {
   const response = await fetch(APPLICATION_SERVER_URL + 'token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -205,7 +236,7 @@ async function getToken(roomName, participantName) {
   return data.token;
 }
 
-function setMainTrack(track, identity) {
+function setMainTrack(track: any, identity: string) {
   mainTrack.value = track;
   mainIdentity.value = identity;
 }
@@ -222,6 +253,90 @@ function toggleMic() {
 
 function toggleCaption() {
   isCaptionVisible.value = !isCaptionVisible.value;
+}
+
+function toggleChat() {
+  isChatVisible.value = !isChatVisible.value;
+}
+
+function toggleControlPanel() {
+  isControlPanelOpen.value = !isControlPanelOpen.value;
+}
+
+// 햄버거 버튼 드래그 관련 함수들
+let dragOffset = { x: 0, y: 0 };
+
+function startDrag(event) {
+  isDragging.value = true;
+  const rect = event.currentTarget.getBoundingClientRect();
+  dragOffset.x = event.clientX - rect.left;
+  dragOffset.y = event.clientY - rect.top;
+  event.preventDefault();
+}
+
+function onDrag(event) {
+  if (!isDragging.value) return;
+  
+  const x = event.clientX - dragOffset.x;
+  const y = event.clientY - dragOffset.y;
+  
+  // 화면 경계 내에서만 이동
+  const maxX = window.innerWidth - 50;
+  const maxY = window.innerHeight - 50;
+  
+  hamburgerPosition.value.x = Math.max(0, Math.min(x, maxX));
+  hamburgerPosition.value.y = Math.max(0, Math.min(y, maxY));
+}
+
+function stopDrag() {
+  isDragging.value = false;
+}
+
+// 녹화 토글 버튼 동작
+async function handleRecordToggle() {
+  if (!isUserCreator.value) return; // 생성자만 녹화 조작
+  if (!audioRecorderRef.value) return;
+
+  if (recordingState.value === 'idle') {
+    await audioRecorderRef.value.startRecording?.();
+    recordingState.value = 'recording';
+    return;
+  }
+  if (recordingState.value === 'recording') {
+    await audioRecorderRef.value.pauseRecording?.();
+    recordingState.value = 'paused';
+    return;
+  }
+  if (recordingState.value === 'paused') {
+    await audioRecorderRef.value.resumeRecording?.();
+    recordingState.value = 'recording';
+  }
+}
+
+// 문서 요약 버튼 동작
+async function handleGenerateSummary() {
+  if (!isUserCreator.value) return;
+  if (!audioRecorderRef.value) return;
+  try {
+    await audioRecorderRef.value.generateSummary?.();
+  } catch (e) {
+    console.error('문서 요약 실행 중 오류:', e);
+  }
+}
+
+// 퇴장 모달
+function handleLeaveClick() {
+  showExitModal.value = true;
+}
+
+async function confirmLeaveWithoutSummary() {
+  showExitModal.value = false;
+  await leaveRoom();
+}
+
+async function confirmLeaveWithSummary() {
+  showExitModal.value = false;
+  await leaveRoom();
 }
 
 function sendChatMessage() {
@@ -358,8 +473,6 @@ function getFirstRemoteParticipantIdentity() {
   return '';
 }
 
-// computed wrappers removed for plain JS
-
 // 음성 녹음 관련 이벤트 핸들러
 function handleRecordingStarted() {
   console.log('🎤 음성 녹음이 시작되었습니다.')
@@ -371,7 +484,7 @@ function handleRecordingStopped() {
   // 여기에 녹음 종료 시 필요한 로직 추가
 }
 
-function handleChunkUploaded(chunkData) {
+function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number }) {
   console.log('📤 청크 업로드 완료:', chunkData)
   // 여기에 청크 업로드 완료 시 필요한 로직 추가
 }
@@ -422,18 +535,51 @@ function handleChunkUploaded(chunkData) {
               <span v-else class="participant-badge">👤 참여자</span>
             </div>
           </div>
-          <div class="controls">
-          <button :class="{ off: !isCameraOn }" @click="toggleCamera">
-            {{ isCameraOn ? '📷 카메라 끄기' : '📷 카메라 켜기' }}
+          <!-- 드래그 가능한 햄버거 버튼 -->
+          <button 
+            class="hamburger-btn" 
+            :style="{ left: hamburgerPosition.x + 'px', top: hamburgerPosition.y + 'px' }"
+            @click="!isDragging && toggleControlPanel()" 
+            @mousedown="startDrag"
+            title="컨트롤 패널 (드래그하여 이동 가능)"
+          >
+            ☰
           </button>
-          <button :class="{ off: !isMicOn }" @click="toggleMic">
-            {{ isMicOn ? '🎤 마이크 끄기' : '🎤 마이크 켜기' }}
-          </button>
-          <button :class="{ off: !isCaptionVisible }" @click="toggleCaption">
-            {{ isCaptionVisible ? '📝 자막 숨기기' : '📝 자막 보기' }}
-          </button>
-          <button class="leave" @click="leaveRoom">🚪 퇴장하기</button>
-        </div>
+          
+          <!-- 컨트롤 패널 -->
+          <div 
+            v-if="isControlPanelOpen" 
+            class="control-panel"
+            :style="{ 
+              left: (hamburgerPosition.x + 60) + 'px', 
+              top: (hamburgerPosition.y - 200) + 'px' 
+            }"
+          >
+            <div class="control-panel-header">
+              <h3>컨트롤</h3>
+              <button class="close-btn" @click="toggleControlPanel">✕</button>
+            </div>
+            <div class="control-buttons">
+              <button v-if="isUserCreator" @click="handleRecordToggle" :title="recordButtonLabel">
+                {{ recordingState === 'idle' ? '⏺' : recordingState === 'recording' ? '⏸' : '▶' }}
+              </button>
+              <button :class="{ off: !isCameraOn }" @click="toggleCamera" title="카메라 끄기/켜기">
+                📷
+              </button>
+              <button :class="{ off: !isMicOn }" @click="toggleMic" title="마이크 끄기/켜기">
+                🎤
+              </button>
+              <button :class="{ off: !isCaptionVisible }" @click="toggleCaption" title="자막 숨기기/보기">
+                📝
+              </button>
+              <button :class="{ off: !isChatVisible }" @click="toggleChat" title="채팅 숨기기/보기">
+                💬
+              </button>
+              <button class="leave" @click="handleLeaveClick" title="퇴장하기">
+                ✕
+              </button>
+            </div>
+          </div>
       </div>
 
       <div class="video-body">
@@ -464,20 +610,22 @@ function handleChunkUploaded(chunkData) {
                 v-if="!isUserCreator && localTrack"
                 :track="localTrack"
                 :participantIdentity="participantName"
-                class="thumbnail"
+                class="thumbnail participant"
                 :local="true"
                 @click="setMainTrack(localTrack, participantName)"
               />
+              <div v-if="!isUserCreator && localTrack" class="thumbnail-label">참여자</div>
               
               <!-- 생성자인 경우 기존 로직 유지 -->
               <VideoComponent
                 v-else-if="localTrack && localTrack !== mainTrack"
                 :track="localTrack"
                 :participantIdentity="participantName"
-                class="thumbnail"
+                class="thumbnail creator"
                 :local="true"
                 @click="setMainTrack(localTrack, participantName)"
               />
+              <div v-else-if="localTrack && localTrack !== mainTrack" class="thumbnail-label">생성자</div>
 
               <template v-for="remoteTrack of remoteTracksMap.values()" :key="remoteTrack.trackPublication.trackSid">
                 <!-- 참여자인 경우 첫 번째 원격 참가자는 메인에 표시되므로 썸네일에서 제외 -->
@@ -485,14 +633,20 @@ function handleChunkUploaded(chunkData) {
                   v-if="remoteTrack.trackPublication.kind === 'video' && 
                          remoteTrack.trackPublication.videoTrack !== mainTrack &&
                          !(getFirstRemoteVideoTrack() === remoteTrack.trackPublication.videoTrack && !isUserCreator)"
-                  :track="remoteTrack.trackPublication.videoTrack"
+                  :track="remoteTrack.trackPublication.videoTrack!"
                   :participantIdentity="remoteTrack.participantIdentity"
-                  class="thumbnail"
-                  @click="setMainTrack(remoteTrack.trackPublication.videoTrack, remoteTrack.participantIdentity)"
+                  :class="['thumbnail', isUserCreator ? 'participant' : 'creator']"
+                  @click="setMainTrack(remoteTrack.trackPublication.videoTrack!, remoteTrack.participantIdentity)"
                 />
+                <div v-if="remoteTrack.trackPublication.kind === 'video' && 
+                           remoteTrack.trackPublication.videoTrack !== mainTrack &&
+                           !(getFirstRemoteVideoTrack() === remoteTrack.trackPublication.videoTrack && !isUserCreator)" 
+                     class="thumbnail-label">
+                  {{ isUserCreator ? '참여자' : '생성자' }}
+                </div>
                 <AudioComponent
                   v-else-if="remoteTrack.trackPublication.kind === 'audio'"
-                  :track="remoteTrack.trackPublication.audioTrack"
+                  :track="remoteTrack.trackPublication.audioTrack!"
                   hidden
                 />
               </template>
@@ -500,7 +654,7 @@ function handleChunkUploaded(chunkData) {
           </div>
         </div>
         
-        <div class="chat-section">
+        <div v-if="isChatVisible" class="chat-section">
           <h3>💬 채팅</h3>
           <div class="chat-box" ref="chatBoxRef">
             <div v-for="(msg, idx) in chatMessagesList" :key="idx" class="chat-message">
@@ -527,9 +681,11 @@ function handleChunkUploaded(chunkData) {
       @status="handleCaptionStatus"
     />
     
-    <!-- 음성 녹음 컴포넌트 (생성자에게만 표시) -->
-    <div v-if="isUserCreator" class="audio-recorder-container">
+    <!-- 음성 녹음 컴포넌트 (생성자에게만 표시, 모달은 항상 숨김 상태로 동작) -->
+    <div v-if="isUserCreator" class="audio-recorder-container" style="display:none;">
       <AudioRecorder
+        ref="audioRecorderRef"
+        :isOpen="false"
         :classId="classId"
         :className="className"
         :creatorName="participantName"
@@ -537,6 +693,25 @@ function handleChunkUploaded(chunkData) {
         @recording-stopped="handleRecordingStopped"
         @chunk-uploaded="handleChunkUploaded"
       />
+    </div>
+
+    <!-- 퇴장 확인 모달 -->
+    <div v-if="showExitModal" class="exit-modal" @click.self="showExitModal = false">
+      <div class="exit-modal-content">
+        <h3>수업에서 퇴장하시겠습니까?</h3>
+        <p>문서 요약을 생성하고 싶으시면 아래 버튼을 클릭하세요.</p>
+        <div class="exit-modal-buttons">
+          <button @click="confirmLeaveWithSummary" class="summary-btn">
+            📝 문서 요약 생성 후 퇴장
+          </button>
+          <button @click="confirmLeaveWithoutSummary" class="leave-btn">
+            지금 퇴장
+          </button>
+          <button @click="showExitModal = false" class="cancel-btn">
+            취소
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -549,4 +724,5 @@ function handleChunkUploaded(chunkData) {
   z-index: 1000;
   max-width: 400px;
 }
+
 </style>
