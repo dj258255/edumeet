@@ -447,6 +447,13 @@ async function confirmLeaveWithoutSummary() {
 
 async function confirmLeaveWithSummary() {
   showExitModal.value = false;
+  try {
+    // 문서 요약 생성 후 퇴장
+    await handleGenerateSummary();
+    console.log('🔍 문서 요약 생성 완료, 퇴장 진행');
+  } catch (error) {
+    console.error('🔍 문서 요약 생성 실패:', error);
+  }
   await leaveRoom();
 }
 

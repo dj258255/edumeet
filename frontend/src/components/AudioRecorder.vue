@@ -580,21 +580,26 @@ onUnmounted(async () => {
       await sendChunk()
     }
     
-    // 백엔드에 녹음 종료 알림 (문서 요약 없이)
+    // 백엔드에 일시정지 알림
     try {
-      await fetch(`${API_BASE_URL}/api/class/${props.classId}/stop-recording`, {
+      const requestBody = {
+        totalChunks: currentChunk.value,
+        endTime: Date.now(),
+        meetingId: props.meetingId // meetingId 추가
+      }
+      
+      console.log('🔍 일시정지 - 요청 본문:', requestBody)
+      console.log('🔍 일시정지 - JSON 문자열:', JSON.stringify(requestBody))
+      
+      await fetch(`${API_BASE_URL}/api/class/${props.classId}/pause-recording`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          totalChunks: currentChunk.value,
-          generateSummary: false,
-          endTime: Date.now()
-        })
+        body: JSON.stringify(requestBody)
       })
     } catch (error) {
-      console.error('녹음 종료 알림 실패:', error)
+      console.error('일시정지 알림 실패:', error)
     }
   }
   stopDrag()
