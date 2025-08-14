@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useAuthStore } from "@/stores/auth.js"
+import { useAutoLogout } from '@/composables/useAutoLogout.js'
 import './styles/App.css'
 
 import TeamModal from './components/TeamModal.vue'
@@ -12,6 +13,9 @@ const searchOpen = ref(false)
 const isDarkMode = ref(false) 
 const router = useRouter()
 const authStore = useAuthStore()
+
+// 자동 로그아웃 기능 초기화
+const autoLogout = useAutoLogout()
 
 // 로그인 상태 관리
 const isLoggedIn = computed(() => authStore.isLoggedIn)
@@ -86,6 +90,8 @@ onMounted(() => {
           authStore.isAuthenticated = true;
           
           console.log('✅ OAuth2 로그인 완료:', user.nickname);
+          // 자동 로그아웃 기능 시작
+          autoLogout.startAutoLogout();
           // 자동 네비게이션/알럿 제거: 헤더 상태만 갱신하고 페이지는 그대로 유지
         } else {
           console.error('사용자 정보 조회 실패');
@@ -100,6 +106,11 @@ onMounted(() => {
   } else {
     // 기존 인증 상태 초기화
     authStore.initialize();
+    
+    // 로그인된 상태라면 자동 로그아웃 기능 시작
+    if (authStore.isLoggedIn) {
+      autoLogout.startAutoLogout();
+    }
   }
 })
 
@@ -111,6 +122,19 @@ watch(isDarkMode, (newValue) => {
   } else {
     document.documentElement.classList.remove('dark-mode')
     localStorage.setItem('theme', 'light')
+  }
+})
+
+// 로그인 상태 변화에 따른 자동 로그아웃 제어
+watch(isLoggedIn, (newValue) => {
+  if (newValue) {
+    // 로그인 시 자동 로그아웃 기능 시작
+    console.log('로그인 감지: 자동 로그아웃 기능 시작')
+    autoLogout.startAutoLogout()
+  } else {
+    // 로그아웃 시 자동 로그아웃 기능 중지
+    console.log('로그아웃 감지: 자동 로그아웃 기능 중지')
+    autoLogout.stopAutoLogout()
   }
 })
 

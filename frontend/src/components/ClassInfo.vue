@@ -126,6 +126,13 @@
               >
                 제출
               </button>
+              <button
+                v-else
+                @click.stop="openAssignmentDetailModal(task)"
+                class="view-btn small-btn"
+              >
+                보기
+              </button>
             </div>
           </div>
         </div>

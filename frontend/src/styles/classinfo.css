@@ -323,6 +323,23 @@
   border-color: var(--brand-main);
 }
 
+.view-btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  background-color: #065f46;
+  color: #d1fae5;
+  border: 1px solid #10b981;
+  cursor: pointer;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.view-btn:hover {
+  background-color: #047857;
+  color: #ecfdf5;
+  border-color: #059669;
+}
+
 /* NoticeDetailModal.vue & AssignmentDetailModal.vue 공통 스타일 */
 .modal-overlay {
   position: fixed;

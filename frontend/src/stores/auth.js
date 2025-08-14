@@ -463,6 +463,25 @@ const useAuthStore = defineStore('auth', {
       }
     },
 
+    // 자동 로그아웃 (API 호출 없이 강제 로그아웃)
+    async forceLogout(reason = '자동 로그아웃') {
+      console.warn(`강제 로그아웃 실행: ${reason}`);
+      
+      // 토큰 및 사용자 정보 즉시 삭제
+      tokenManager.removeToken();
+      userManager.removeUser();
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("accessToken");
+      
+      this.user = null;
+      this.isAuthenticated = false;
+      this.loading = false;
+      this.error = null;
+      
+      // 즉시 로그인 페이지로 리다이렉트
+      router.push("/login");
+    },
+
     // 사용자 정보 조회
     async getProfile() {
       this.loading = true
