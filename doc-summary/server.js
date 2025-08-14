@@ -34,7 +34,15 @@ console.log("현재 __dirpath " , __dirname);
 // 수업 시작 버튼 클릭시 start-recording 호출
 app.post("/api/class/:classId/start-recording", (req, res) => {
   const { classId } = req.params;
-  console.log("classID 입니다 ", classId);
+  const { className, creatorName, startTime, meetingId } = req.body;
+  
+  console.log("📝 start-recording 받은 데이터:");
+  console.log("- classId:", classId);
+  console.log("- className:", className);
+  console.log("- creatorName:", creatorName);
+  console.log("- startTime:", startTime);
+  console.log("- meetingId:", meetingId);
+  
   const classDir = path.join(AUDIO_BASE_PATH, classId);
   console.log("classDir 입니다 : ", classDir);
   fs.mkdirSync(classDir, { recursive: true });
@@ -122,6 +130,8 @@ app.post("/api/class/:classId/stop-recording", async (req, res) => {
   try{
     console.log("백엔드 stop-recording 요청 받은 후 문서 요약 실행 시작");
     const { classId } = req.params;
+    const {mettingId} 
+
 
     //const pyPath = path.join(__dirname, "test_nodejs_api.py");
     const classDir = path.join(AUDIO_BASE_PATH, classId);
@@ -140,6 +150,9 @@ app.post("/api/class/:classId/stop-recording", async (req, res) => {
     // FastAPI로 POST
     const payload = {
       class_dir: classDir,
+      meeting_id: meetingId, // meetingId 추가
+      total_chunks: totalChunks, // totalChunks 추가
+      generate_summary: generateSummary // generateSummary 추가
     };
 
     // fast api 호출
@@ -188,4 +201,4 @@ app.post("/api/class/:classId/stop-recording", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 
-});
+}); 
