@@ -12,6 +12,7 @@ import AudioComponent from '@/components/AudioComponent.vue';
 import LiveCaption from '@/components/LiveCaption.vue';
 import SharedLiveCaption from '@/components/SharedLiveCaption.vue';
 import AudioRecorder from '@/components/AudioRecorder.vue';
+import ScreenShareComponent from '@/components/ScreenShareComponent.vue';
 import '@/styles/ClassRelated.css';
 
 const route = useRoute();
@@ -38,6 +39,7 @@ const isMicOn = ref(true);
 const recordingState = ref<'idle' | 'recording' | 'paused'>('idle');
 const isRecorderOpen = ref(false);
 const audioRecorderRef = ref<any | null>(null);
+const screenShareRef = ref<any | null>(null);
 
 // 퇴장 모달
 const showExitModal = ref(false);
@@ -58,6 +60,9 @@ const sharedCaptionConfidence = ref(0);
 const isSharedCaptionActive = ref(false);
 const isCaptionVisible = ref(true); // 자막 표시/숨김 상태
 const isChatVisible = ref(true); // 채팅 표시/숨김 상태
+const isScreenShareVisible = ref(true); // 화면 공유 패널 표시/숨김 상태
+const isScreenSharing = ref(false); // 화면 공유 중인지 상태
+const screenShareTrack = ref(null); // 화면 공유 트랙
 const isControlPanelOpen = ref(false); // 컨트롤 패널 열림/닫힘 상태
 const hamburgerPosition = ref({ x: 20, y: 20 }); // 햄버거 버튼 위치
 const isDragging = ref(false); // 드래그 상태
@@ -141,14 +146,37 @@ async function joinRoom(targetRoom?: string) {
   room.value = currentRoom;
 
   currentRoom.on(RoomEvent.TrackSubscribed, (_track, publication, participant) => {
+    console.log('📹 원격 트랙 구독:', publication.trackSid, publication.kind)
     remoteTracksMap.value.set(publication.trackSid, {
       trackPublication: publication,
       participantIdentity: participant.identity,
     });
+    
+    // 화면 공유 트랙인지 확인 (트랙의 라벨로 판단)
+    if (publication.kind === 'video' && _track.mediaStreamTrack && 
+        (_track.mediaStreamTrack.label.includes('screen') || 
+         _track.mediaStreamTrack.label.includes('display'))) {
+      console.log('🖥️ 원격 화면 공유 트랙 감지:', participant.identity, _track.mediaStreamTrack.label)
+      // 화면 공유 트랙을 메인으로 설정
+      setMainTrack(publication.videoTrack!, participant.identity + ' (화면 공유)')
+    }
   });
 
   currentRoom.on(RoomEvent.TrackUnsubscribed, (_track, publication) => {
+    console.log('📹 원격 트랙 구독 해제:', publication.trackSid, publication.kind)
     remoteTracksMap.value.delete(publication.trackSid);
+    
+    // 화면 공유 트랙이 언퍼블리시된 경우 메인 화면을 카메라로 복원
+    if (publication.kind === 'video' && _track.mediaStreamTrack && 
+        (_track.mediaStreamTrack.label.includes('screen') || 
+         _track.mediaStreamTrack.label.includes('display'))) {
+      console.log('🖥️ 원격 화면 공유 트랙 종료:', publication.trackSid, _track.mediaStreamTrack.label)
+      // 첫 번째 사용 가능한 비디오 트랙을 메인으로 설정
+      const firstVideoTrack = getFirstRemoteVideoTrack()
+      if (firstVideoTrack) {
+        setMainTrack(firstVideoTrack, getFirstRemoteParticipantIdentity())
+      }
+    }
   });
 
   currentRoom.on(RoomEvent.DataReceived, (payload, participant) => {
@@ -257,6 +285,10 @@ function toggleCaption() {
 
 function toggleChat() {
   isChatVisible.value = !isChatVisible.value;
+}
+
+function toggleScreenShare() {
+  isScreenShareVisible.value = !isScreenShareVisible.value;
 }
 
 function toggleControlPanel() {
@@ -488,6 +520,41 @@ function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number
   console.log('📤 청크 업로드 완료:', chunkData)
   // 여기에 청크 업로드 완료 시 필요한 로직 추가
 }
+
+// 화면 공유 이벤트 핸들러
+function handleScreenShareStarted(stream: MediaStream) {
+  console.log('🖥️ 화면 공유 시작됨:', stream)
+  isScreenSharing.value = true
+  
+  // 화면 공유 트랙을 메인 트랙으로 설정
+  if (room.value && room.value.localParticipant) {
+    const videoTracks = room.value.localParticipant.videoTrackPublications
+    for (const trackPub of videoTracks.values()) {
+      if (trackPub.track && trackPub.track.mediaStreamTrack === stream.getVideoTracks()[0]) {
+        screenShareTrack.value = trackPub.track
+        setMainTrack(trackPub.track, participantName.value)
+        break
+      }
+    }
+  }
+}
+
+function handleScreenShareStopped() {
+  console.log('🖥️ 화면 공유 중지됨')
+  isScreenSharing.value = false
+  screenShareTrack.value = null
+  
+  // 카메라 트랙을 메인 트랙으로 복원
+  if (localTrack.value) {
+    setMainTrack(localTrack.value, participantName.value)
+  }
+}
+
+function handleScreenShareError(error: any) {
+  console.error('🖥️ 화면 공유 오류:', error)
+  isScreenSharing.value = false
+  screenShareTrack.value = null
+}
 </script>
 
 <!-- 나머지 template 부분은 동일하므로 생략 가능. 필요시 다시 제공 가능. -->
@@ -575,6 +642,9 @@ function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number
               <button :class="{ off: !isChatVisible }" @click="toggleChat" title="채팅 숨기기/보기">
                 💬
               </button>
+              <button :class="{ off: !isScreenShareVisible }" @click="toggleScreenShare" title="화면 공유 패널 숨기기/보기">
+                🖥️
+              </button>
               <button class="leave" @click="handleLeaveClick" title="퇴장하기">
                 ✕
               </button>
@@ -586,9 +656,16 @@ function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number
         <div class="main-content">
           <div class="video-section">
             <div class="main-video">
+              <!-- 화면 공유 중인 경우 화면 공유 트랙을 메인에 표시 -->
+              <VideoComponent
+                v-if="isScreenSharing && screenShareTrack"
+                :track="screenShareTrack"
+                :participantIdentity="participantName + ' (화면 공유)'"
+                class="main-tile screen-share"
+              />
               <!-- 참여자인 경우 원격 참가자 화면을 메인에 표시 -->
               <VideoComponent
-                v-if="!isUserCreator && getFirstRemoteVideoTrack()"
+                v-else-if="!isUserCreator && getFirstRemoteVideoTrack()"
                 :track="getFirstRemoteVideoTrack()"
                 :participantIdentity="getFirstRemoteParticipantIdentity()"
                 class="main-tile"
@@ -605,16 +682,27 @@ function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number
 
 
             <div class="thumbnail-grid">
+              <!-- 화면 공유 중일 때 카메라 화면을 썸네일에 표시 -->
+              <VideoComponent
+                v-if="isScreenSharing && localTrack && localTrack !== screenShareTrack"
+                :track="localTrack"
+                :participantIdentity="participantName + ''"
+                class="thumbnail camera"
+                :local="true"
+                @click="setMainTrack(localTrack, participantName)"
+              />
+              <div v-if="isScreenSharing && localTrack && localTrack !== screenShareTrack" class="thumbnail-label">카메라</div>
+              
               <!-- 참여자인 경우 로컬 화면을 썸네일에 표시 -->
               <VideoComponent
-                v-if="!isUserCreator && localTrack"
+                v-else-if="!isUserCreator && localTrack"
                 :track="localTrack"
                 :participantIdentity="participantName"
                 class="thumbnail participant"
                 :local="true"
                 @click="setMainTrack(localTrack, participantName)"
               />
-              <div v-if="!isUserCreator && localTrack" class="thumbnail-label">참여자</div>
+              <div v-else-if="!isUserCreator && localTrack" class="thumbnail-label">참여자</div>
               
               <!-- 생성자인 경우 기존 로직 유지 -->
               <VideoComponent
@@ -652,6 +740,17 @@ function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number
               </template>
             </div>
           </div>
+        </div>
+        
+        <!-- 화면 공유 패널 -->
+        <div v-if="isScreenShareVisible" class="screen-share-section">
+          <ScreenShareComponent
+            ref="screenShareRef"
+            :room="room"
+            @screen-share-started="handleScreenShareStarted"
+            @screen-share-stopped="handleScreenShareStopped"
+            @screen-share-error="handleScreenShareError"
+          />
         </div>
         
         <div v-if="isChatVisible" class="chat-section">
@@ -725,4 +824,27 @@ function handleChunkUploaded(chunkData: { chunkNumber: number; timestamp: number
   max-width: 400px;
 }
 
+.screen-share-section {
+  width: 300px;
+  background: rgba(0, 0, 0, 0.8);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
+}
+
+.control-buttons button.openvidu-btn {
+  background: #28a745;
+}
+
+.control-buttons button.openvidu-btn:hover {
+  background: #218838;
+}
+
+.main-tile.screen-share {
+  border: 3px solid #28a745;
+  box-shadow: 0 0 20px rgba(40, 167, 69, 0.3);
+}
+
+.thumbnail.camera {
+  border: 2px solid #007bff;
+}
 </style>
