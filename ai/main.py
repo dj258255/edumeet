@@ -1,5 +1,5 @@
 # main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil
 from dotenv import load_dotenv
@@ -620,46 +620,6 @@ def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
         return {"ok": False, "detail": f"summarize_text_auto 실패: {e}"}
 
 
-def send_summary_to_api(class_id: str, md_path: str | None, pdf_path: str | None) -> dict:
-    
-    try:
-        env_path = os.path.join(os.path.dirname(__file__), "../backend/.env")
-        if os.path.exists(env_path):
-            load_dotenv(env_path)
-
-        url = os.getenv("SUMMARY_UPLOAD_URL", "").strip()
-        api_key = os.getenv("SUMMARY_UPLOAD_API_KEY", "").strip()
-        if not url:
-            return {"ok": False, "detail": "SUMMARY_UPLOAD_URL 미설정"}
-
-        headers = {"Accept": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-
-        files = {}
-        if md_path and os.path.isfile(md_path):
-            files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
-        if pdf_path and os.path.isfile(pdf_path):
-            files["summary_pdf"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
-
-        if not files:
-            return {"ok": False, "detail": "전송할 파일이 없습니다.(md/pdf 없음)"}
-
-        data = {"class_id": str(class_id)}
-        resp = requests.post(url, headers=headers, data=data, files=files, timeout=60)
-
-        # 파일 핸들 닫기
-        for f in files.values():
-            try: f[1].close()
-            except: pass
-
-        if 200 <= resp.status_code < 300:
-            return {"ok": True, "status": resp.status_code, "text": (resp.text or "")[:200]}
-        return {"ok": False, "status": resp.status_code, "text": (resp.text or "")[:200]}
-
-    except Exception as e:
-        return {"ok": False, "detail": f"업로드 실패: {e}"}
-
 def cleanup_class_dir(class_dir: str) -> dict:
     try:
         if not os.path.isdir(class_dir):
@@ -676,37 +636,32 @@ def cleanup_class_dir(class_dir: str) -> dict:
     except Exception as e:
         return {"ok": False, "detail": f"디렉토리 삭제 실패: {e}"}
 
-def send_summary_to_api(class_id: str, md_path: str | None, pdf_path: str | None) -> dict:
+def send_summary_to_api(class_id: str, meetingId : str ,md_path: str | None, pdf_path: str | None) -> dict:
 
     try:
         env_path = os.path.join(os.path.dirname(__file__), "../backend/.env")
         if os.path.exists(env_path):
             load_dotenv(env_path)
 
-        url_tpl = os.getenv("SUMMARY_UPLOAD_URL", "").strip()
-        api_key = os.getenv("SUMMARY_UPLOAD_API_KEY", "").strip()
-        if not url_tpl:
-            return {"ok": False, "detail": "SUMMARY_UPLOAD_URL 미설정"}
-
-        # 🔹 {class_id}/{classId} 템플릿 치환
-        url = (url_tpl
-               .replace("{class_id}", str(class_id))
-               .replace("{classId}", str(class_id)))
+        #url_tpl = os.getenv("SUMMARY_UPLOAD_URL", "").strip()
+        url=os.getenv("SUMMARY_UPLOAD_URL").strip()
 
         headers = {"Accept": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"  # 필요 없으면 .env에서 KEY 비워두면 됨
+
 
         files = {}
-        if md_path and os.path.isfile(md_path):
-            files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
         if pdf_path and os.path.isfile(pdf_path):
-            files["summary_pdf"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
-
-        if not files:
+            files["summaryFile"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
+        elif md_path and os.path.isfile(md_path):
+            files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
+        else:
             return {"ok": False, "detail": "전송할 파일이 없습니다.(md/pdf 없음)"}
 
-        data = {"class_id": str(class_id)}
+
+        data = {
+            "class_id": str(class_id),
+            "meetingId":str(meetingId)
+        }
         resp = requests.post(url, headers=headers, data=data, files=files, timeout=60)
 
         # 파일 핸들 닫기
@@ -723,12 +678,13 @@ def send_summary_to_api(class_id: str, md_path: str | None, pdf_path: str | None
 
 
 @app.post("/STT/{class_id}")
-def merge_audio(class_id: str):
+async def merge_audio(class_id: str, request : Request):
+    body = await request.json()
+    meeting_id = body.get("meetingId")
     print("파이썬 merge 합병 처리 -> class_id : ", class_id)
-    """
-    입력:  BASE_AUDIO_DIR/{class_id}/audio_*.wav (없으면 *.wav)
-    출력:  MERGE_OUT_DIR/Merge__{class_id}.wav
-    """
+    print("meetingId : " , meeting_id)
+
+
     in_dir = os.path.join(BASE_AUDIO_DIR, str(class_id))
     print("in_dir : ", in_dir)
     if not os.path.isdir(in_dir):
@@ -804,6 +760,7 @@ def merge_audio(class_id: str):
         if (summary_result or {}).get("ok"):
             upload_result = send_summary_to_api(
                 class_id=class_id,
+                meetingId=meeting_id,
                 md_path=(summary_result or {}).get("summary_path"),
                 pdf_path=(summary_result or {}).get("summary_pdf_path"),
             )
