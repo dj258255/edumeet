@@ -22,10 +22,11 @@ public class OpenviduController {
     private final OpenviduService openviduService;
 
     @PostMapping("/token")
-    public ResponseEntity<MeetingCreateResponseDto> createToken(
+    public ResponseEntity<Map<String, Object>> createToken(
             @AuthenticationPrincipal SecurityMember member,
             @RequestBody MeetingCreateRequestDto meetingCreateRequestDto) {
-        return ResponseEntity.ok(openviduService.create(member.getMemberId(), meetingCreateRequestDto));
+        openviduService.create(member.getMemberId(), meetingCreateRequestDto);
+        return ResponseEntity.ok(openviduService.createToken(meetingCreateRequestDto.getTitle(), member.getEmail()));
     }
 
     @PatchMapping("/{meetingId}")

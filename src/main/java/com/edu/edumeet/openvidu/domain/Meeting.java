@@ -52,6 +52,10 @@ public class Meeting {
         changeEndTime(LocalDateTime.now());
     }
 
+    public void changeS3Url(String newS3Url) {
+        this.s3url = newS3Url;
+    }
+
     @PrePersist @PreUpdate
     private void validateTimes() {
         if (endTime != null && !endTime.isAfter(startTime)) {
