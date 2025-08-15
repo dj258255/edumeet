@@ -336,6 +336,12 @@ const generateRecordingFileName = (item, startTime) => {
 
 /** ✅ 백엔드 → 프런트 매핑 (s3url 체크 로직 중심) */
 function mapToViewModel(items = []) {
+  // items가 배열이 아니면 빈 배열 반환
+  if (!Array.isArray(items)) {
+    console.warn('🔍 mapToViewModel - items가 배열이 아님:', items)
+    return []
+  }
+  
   const now = new Date()
   return items.map((item) => {
     const id = item.id ?? item.meetingId ?? item.roomId
@@ -390,13 +396,20 @@ async function fetchLiveInfos(classId) {
     console.log(`📡 라이브 정보 조회 시작 - classId: ${classId}`)
     
     const accessToken = localStorage.getItem('accessToken')
-    const { data } = await axios.get(`${API_BASE_URL}/api/v1/meetingroom/${classId}`, {
+    const response = await axios.get(`${API_BASE_URL}/api/v1/meeting/${classId}`, {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
     })
     
-    console.log('📋 원본 데이터:', data)
+    console.log('📋 전체 응답:', response)
+    console.log('📋 원본 데이터:', response.data)
+    console.log('📋 원본 데이터 타입:', typeof response.data)
+    console.log('📋 원본 데이터가 배열인가:', Array.isArray(response.data))
     
-    liveInfoList.value = mapToViewModel(data || [])
+    const data = response.data
+    
+    // API 응답이 단일 객체인 경우 배열로 변환
+    const items = Array.isArray(data) ? data : (data ? [data] : [])
+    liveInfoList.value = mapToViewModel(items)
     
     console.log('🎯 매핑된 데이터:', liveInfoList.value)
     
