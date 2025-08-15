@@ -2,7 +2,7 @@
   <div v-if="isVisible" class="modal-overlay" @click="closeModal">
     <div class="modal-container" @click.stop>
       <div class="modal-header">
-        <h2 class="modal-title">📡 라이브 정보</h2>
+        <h2 class="modal-title">📡 라이브 정보 & 요약본</h2>
         <button class="close-btn" @click="closeModal">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -12,72 +12,76 @@
       </div>
 
       <div class="modal-body">
+
         <!-- 라이브 정보 목록 -->
-        <div v-if="liveInfoList.length === 0" class="empty-state">
-          <div class="empty-icon">📺</div>
-          <p class="empty-text">등록된 라이브 정보가 없습니다.</p>
-        </div>
+        <div class="live-section">
+          <h3 class="section-title">📄 문서 요약본</h3>
+          <div v-if="liveInfoList.length === 0" class="empty-state">
+            <div class="empty-icon">📺</div>
+            <p class="empty-text">등록된 라이브 정보가 없습니다.</p>
+          </div>
 
-        <div v-else class="live-info-list">
-          <div 
-            v-for="info in liveInfoList" 
-            :key="info.id" 
-            class="live-info-item"
-          >
-            <div class="info-header">
-              <h3 class="info-title">{{ info.title }}</h3>
-              <span class="info-status" :class="info.status">
-                {{ getStatusText(info.status) }}
-              </span>
-            </div>
-            
-            <div class="info-description">
-              <p>{{ info.description }}</p>
-            </div>
-
-            <div class="info-meta">
-              <div class="meta-item">
-                <span class="meta-label">생성일:</span>
-                <span class="meta-value">{{ formatDate(info.createdAt) }}</span>
+          <div v-else class="live-info-list">
+            <div 
+              v-for="info in liveInfoList" 
+              :key="info.id" 
+              class="live-info-item"
+            >
+              <div class="info-header">
+                <h3 class="info-title">{{ info.title }}</h3>
+                <span class="info-status" :class="info.status">
+                  {{ getStatusText(info.status) }}
+                </span>
               </div>
-              <div v-if="info.startTime" class="meta-item">
-                <span class="meta-label">시작 시간:</span>
-                <span class="meta-value">{{ formatTime(info.startTime) }}</span>
+              
+              <div class="info-description">
+                <p>{{ info.description }}</p>
               </div>
-            </div>
 
-            <!-- ✅ s3url이 있을 때만 다운로드 섹션 표시 -->
-            <div v-if="info.hasRecordingFile" class="info-files">
-              <h4 class="files-title">🎥 녹화 파일</h4>
-              <div class="file-list">
-                <div class="file-item">
-                  <div class="file-info">
-                    <span class="file-icon">🎥</span>
-                    <span class="file-name">{{ info.recordingFileName }}</span>
-                    <span v-if="info.fileSize" class="file-size">{{ formatFileSize(info.fileSize) }}</span>
-                  </div>
-                  <button 
-                    class="download-btn"
-                    @click="downloadMeetingFile(info)"
-                    :disabled="info.downloading"
-                  >
-                    <span v-if="info.downloading">다운로드 중...</span>
-                    <span v-else>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7,10 12,15 17,10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg>
-                      다운로드
-                    </span>
-                  </button>
+              <div class="info-meta">
+                <div class="meta-item">
+                  <span class="meta-label">생성일:</span>
+                  <span class="meta-value">{{ formatDate(info.createdAt) }}</span>
+                </div>
+                <div v-if="info.startTime" class="meta-item">
+                  <span class="meta-label">시작 시간:</span>
+                  <span class="meta-value">{{ formatTime(info.startTime) }}</span>
                 </div>
               </div>
-            </div>
 
-            <!-- ✅ s3url이 없을 때 표시 -->
-            <div v-else class="no-files">
-              <p class="no-files-text">파일이 아직 준비되지 않았습니다.</p>
+              <!-- ✅ s3url이 있을 때만 다운로드 섹션 표시 -->
+              <div v-if="info.hasRecordingFile" class="info-files">
+                <h4 class="files-title">🎥 녹화 파일</h4>
+                <div class="file-list">
+                  <div class="file-item">
+                    <div class="file-info">
+                      <span class="file-icon">🎥</span>
+                      <span class="file-name">{{ info.recordingFileName }}</span>
+                      <span v-if="info.fileSize" class="file-size">{{ formatFileSize(info.fileSize) }}</span>
+                    </div>
+                    <button 
+                      class="download-btn"
+                      @click="downloadMeetingFile(info)"
+                      :disabled="info.downloading"
+                    >
+                      <span v-if="info.downloading">다운로드 중...</span>
+                      <span v-else>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7,10 12,15 17,10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        다운로드
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ✅ s3url이 없을 때 표시 -->
+              <div v-else class="no-files">
+                <p class="no-files-text">파일이 아직 준비되지 않았습니다.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -96,8 +100,8 @@
 import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
 
-/** API Base URL (.env: VITE_API_BASE_URL) */
-const API_BASE_URL = import.meta.env.VITE_BASE_URL
+/** API Base URL (.env: VITE_BASE_URL) */
+const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:8080'
 
 const props = defineProps({
   isVisible: { type: Boolean, default: false },
@@ -109,6 +113,8 @@ const emit = defineEmits(['close'])
 const liveInfoList = ref([])
 const loading = ref(false)
 const errorMsg = ref('')
+const summaryInfo = ref(null)
+const summaryLoading = ref(false)
 
 /** 상태 텍스트 */
 const getStatusText = (status) => {
@@ -389,14 +395,25 @@ function mapToViewModel(items = []) {
 
 /** 라이브 정보 조회 */
 async function fetchLiveInfos(classId) {
-  if (!classId) return
+  if (!classId) {
+    console.warn('❌ classId가 없어서 요청을 보내지 않습니다.')
+    return
+  }
+  
   loading.value = true
   errorMsg.value = ''
+  
   try {
     console.log(`📡 라이브 정보 조회 시작 - classId: ${classId}`)
+    console.log(`🌐 API_BASE_URL: ${API_BASE_URL}`)
     
     const accessToken = localStorage.getItem('accessToken')
-    const response = await axios.get(`${API_BASE_URL}/api/v1/meeting/${classId}`, {
+    const url = `${API_BASE_URL}/api/v1/meetingroom/${classId}`
+    
+    console.log(`🔗 요청 URL: ${url}`)
+    console.log(`🔑 토큰 존재: ${!!accessToken}`)
+    
+    const response = await axios.get(url, {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
     })
     
@@ -414,11 +431,63 @@ async function fetchLiveInfos(classId) {
     console.log('🎯 매핑된 데이터:', liveInfoList.value)
     
   } catch (e) {
-    console.error('라이브 정보 조회 실패:', e)
+    console.error('💥 라이브 정보 조회 실패:', {
+      message: e.message,
+      status: e?.response?.status,
+      statusText: e?.response?.statusText,
+      data: e?.response?.data,
+      config: e?.config
+    })
     errorMsg.value = '라이브 정보를 불러오지 못했습니다.'
     liveInfoList.value = []
   } finally {
     loading.value = false
+  }
+}
+
+/** 요약본 조회 */
+async function fetchSummary(classId) {
+  if (!classId) {
+    console.warn('❌ classId가 없어서 요약본 요청을 보내지 않습니다.')
+    return
+  }
+  
+  summaryLoading.value = true
+  
+  try {
+    console.log(`📖 요약본 조회 시작 - classId: ${classId}`)
+    
+    const accessToken = localStorage.getItem('accessToken')
+    const url = `${API_BASE_URL}/api/v1/meeting/summary/${classId}`
+    
+    console.log(`🔗 요약본 요청 URL: ${url}`)
+    console.log(`🔑 토큰 존재: ${!!accessToken}`)
+    
+    const response = await axios.get(url, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+    })
+    
+    console.log('📋 요약본 응답:', response)
+    console.log('📋 요약본 데이터:', response.data)
+    
+    if (response.data.success) {
+      summaryInfo.value = response.data.data
+      console.log('✅ 요약본 조회 성공:', summaryInfo.value)
+    } else {
+      console.warn('⚠️ 요약본 조회 실패:', response.data.message)
+      summaryInfo.value = null
+    }
+    
+  } catch (e) {
+    console.error('💥 요약본 조회 실패:', {
+      message: e.message,
+      status: e?.response?.status,
+      statusText: e?.response?.statusText,
+      data: e?.response?.data
+    })
+    summaryInfo.value = null
+  } finally {
+    summaryLoading.value = false
   }
 }
 
@@ -429,6 +498,7 @@ watch(
     if (visible && classId) {
       console.log(`👁️ 모달 열림 - classId: ${classId}`)
       fetchLiveInfos(classId)
+      fetchSummary(classId)
     }
   },
   { immediate: true }
@@ -505,6 +575,121 @@ onMounted(() => {
   padding: 1.5rem;
   overflow-y: auto;
   flex-grow: 1;
+}
+
+/* 섹션 제목 */
+.section-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+/* 요약본 섹션 */
+.summary-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.loading-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-secondary);
+}
+
+.loading-icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.summary-content {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.summary-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.summary-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.summary-label {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.summary-link {
+  text-decoration: none;
+}
+
+.view-btn {
+  padding: 0.5rem 1rem;
+  background: var(--brand-main);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.view-btn:hover {
+  background: var(--brand-accent);
+}
+
+.no-summary {
+  text-align: center;
+  padding: 2rem 1rem;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+}
+
+.no-summary-icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.no-summary-text {
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0;
+}
+
+/* 라이브 섹션 */
+.live-section {
+  margin-top: 1rem;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .empty-state {
