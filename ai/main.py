@@ -1,7 +1,7 @@
 # main.py
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil
+import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil, textwrap
 from dotenv import load_dotenv
 from openai import OpenAI
 from fpdf import FPDF
@@ -397,37 +397,83 @@ def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
         def markdown_to_pdf(md_text: str, pdf_path: str):
             font_path = pick_local_font()
             pdf = FPDF(format="A4", unit="mm")
+            pdf.set_left_margin(15)
+            pdf.set_right_margin(15) # 추가
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
+
             if font_path and os.path.exists(font_path):
+                # 동일 폰트를 굵게/모노 이름으로도 등록(실제 파일 하나여도 OK)
                 pdf.add_font("KR", "", font_path, uni=True)
                 pdf.add_font("KR-B", "", font_path, uni=True)
                 pdf.add_font("KR-Mono", "", font_path, uni=True)
                 base, bold, mono = "KR", "KR-B", "KR-Mono"
-                pdf.set_font(base, size=12)
             else:
-                base, bold, mono = "Arial", "Arial", "Courier"  # 한글 깨질 수 있음
-                pdf.set_font(base, size=12)
+                # 한글이면 깨질 수 있으니 가급적 폰트 파일 준비 권장
+                base, bold, mono = "Helvetica", "Helvetica", "Courier"
+
+            pdf.set_font(base, size=12)
+
+            usable_w = pdf.w - pdf.l_margin - pdf.r_margin  # 항상 양수인 고정 폭 추가
+            line_h = 6 # 추가
+
+            def write_line(text: str, h: float = line_h):
+                # 매 줄마다 X를 좌여백으로 되돌리고, 고정 폭으로 출력
+                pdf.set_x(pdf.l_margin)
+                pdf.multi_cell(usable_w, h, text)
+
+            def split_unbreakable(s: str, limit: int = 80) -> list[str]:
+                # 공백이 거의 없는 긴 토큰을 강제로 분할
+                if any(ch.isspace() for ch in s):
+                    return [s]
+                return [s[i:i+limit] for i in range(0, len(s), limit)]
+
             in_code = False
             for raw_line in md_text.splitlines():
                 line = raw_line.rstrip("\n")
+
+                # 코드블록 토글
                 if line.strip().startswith("```"):
                     in_code = not in_code
                     pdf.set_font(mono if in_code else base, size=10 if in_code else 12)
                     continue
+
                 if in_code:
-                    pdf.multi_cell(0, 6, txt=line); continue
+                    for seg in split_unbreakable(line, 100):
+                        write_line(seg, h=5)
+                    continue
+
+                # 헤딩
                 if line.startswith("### "):
-                    pdf.set_font(bold, size=12); pdf.multi_cell(0,7,line[4:].strip()); pdf.set_font(base,12); pdf.ln(1); continue
+                    pdf.set_font(bold, size=12); write_line(line[4:].strip())
+                    pdf.set_font(base, size=12); pdf.ln(1); continue
                 if line.startswith("## "):
-                    pdf.set_font(bold, size=14); pdf.multi_cell(0,8,line[3:].strip()); pdf.set_font(base,12); pdf.ln(1); continue
+                    pdf.set_font(bold, size=14); write_line(line[3:].strip())
+                    pdf.set_font(base, size=12); pdf.ln(1); continue
                 if line.startswith("# "):
-                    pdf.set_font(bold, size=16); pdf.multi_cell(0,9,line[2:].strip()); pdf.set_font(base,12); pdf.ln(1); continue
+                    pdf.set_font(bold, size=16); write_line(line[2:].strip())
+                    pdf.set_font(base, size=12); pdf.ln(1); continue
+
+                # 리스트
                 if line.strip().startswith("- "):
-                    pdf.multi_cell(0,6,"• "+line.strip()[2:]); continue
+                    body = line.strip()[2:]
+                    toks = []
+                    for tok in body.split(" "):
+                        toks.extend(split_unbreakable(tok, 80) if len(tok) > 120 else [tok])
+                    write_line("• " + " ".join(toks))
+                    continue
+
+                # 빈 줄
                 if not line.strip():
-                    pdf.ln(1); continue
-                pdf.multi_cell(0,6,line)
+                    pdf.ln(1)
+                    continue
+
+                # 일반 문장
+                tokens = []
+                for tok in line.split(" "):
+                    tokens.extend(split_unbreakable(tok, 80) if len(tok) > 120 else [tok])
+                write_line(" ".join(tokens))
+
             pdf.output(pdf_path)
 
         # 1) 전처리(clean) — OpenAI
@@ -587,6 +633,8 @@ def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
                 )
                 final_md = comp.choices[0].message.content.strip()
 
+
+
         # 4) 저장 & PDF
         summary_md_path  = os.path.join(out_dir, "summary.md")
         summary_pdf_path = os.path.join(out_dir, "summary.pdf")
@@ -596,14 +644,22 @@ def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
         try:
             markdown_to_pdf(final_md, summary_pdf_path)
         except Exception as pdf_err:
-            # 폰트 등으로 실패해도 PDF 파일은 만든다(내용이 일부 깨질 수 있음)
             print(f"[PDF] markdown_to_pdf 실패, fallback 실행: {pdf_err}")
             pdf = FPDF(format="A4", unit="mm")
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
-            pdf.set_font("Arial", size=12)
+            font_path = pick_local_font()
+            if font_path and os.path.exists(font_path):
+                pdf.add_font("KR", "", font_path, uni=True)
+                pdf.set_font("KR", size=12)
+            else:
+                pdf.set_font("Helvetica", size=12)
+
             for line in final_md.splitlines():
-                pdf.multi_cell(0, 6, line)
+                # 긴 라인도 끊어서 출력
+                wrapped = textwrap.wrap(line, width=100, break_long_words=True, break_on_hyphens=False) or [""]
+                for seg in wrapped:
+                    pdf.multi_cell(0, 6, seg)
             pdf.output(summary_pdf_path)
 
         print("✅ summary 저장:", summary_md_path, " / ", summary_pdf_path)
@@ -643,25 +699,39 @@ def send_summary_to_api(class_id: str, meetingId : str ,md_path: str | None, pdf
         if os.path.exists(env_path):
             load_dotenv(env_path)
 
-        #url_tpl = os.getenv("SUMMARY_UPLOAD_URL", "").strip()
-        url=os.getenv("SUMMARY_UPLOAD_URL").strip()
+        url_tpl = os.getenv("SUMMARY_UPLOAD_URL", "").strip()
+        if not url_tpl:
+            return {"ok": False, "detail": "SUMMARY_UPLOAD_URL 미설정"}
+        
+        url = url_tpl.replace("{classId}", str(class_id)).replace("{class_id}", str(class_id))
 
         headers = {"Accept": "application/json"}
 
 
         files = {}
-        if pdf_path and os.path.isfile(pdf_path):
-            files["summaryFile"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
-        elif md_path and os.path.isfile(md_path):
+        if md_path and os.path.isfile(md_path):
             files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
         else:
-            return {"ok": False, "detail": "전송할 파일이 없습니다.(md/pdf 없음)"}
+            return {"ok": False, "detail": "전송할 Markdown 파일이 없습니다.(summary.md 없음)"}
+        # if pdf_path and os.path.isfile(pdf_path):
+        #     files["summary_pdf"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
+        # elif md_path and os.path.isfile(md_path):
+        #     files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
+        # else:
+        #     return {"ok": False, "detail": "전송할 파일이 없습니다.(md/pdf 없음)"}
 
 
         data = {
             "class_id": str(class_id),
-            "meetingId":str(meetingId)
+            #"meeting_id":str(meetingId)
         }
+
+        if meetingId not in (None, "", "null", "None", "undefined"):
+            data["meeting_id"] = str(meetingId)
+        print("[upload:url]", url)
+        print("[upload:data]", data)
+        print("[upload:files]", list(files.keys()))
+
         resp = requests.post(url, headers=headers, data=data, files=files, timeout=60)
 
         # 파일 핸들 닫기
@@ -677,13 +747,29 @@ def send_summary_to_api(class_id: str, meetingId : str ,md_path: str | None, pdf
         return {"ok": False, "detail": f"업로드 실패: {e}"}
 
 
+def _normalize_meeting_id(mid):
+    """None, 'null', 'None', 'undefined', '', 공백 등을 None으로.
+       숫자/숫자문자열만 허용해서 문자열로 반환."""
+    if mid is None:
+        return None
+    if isinstance(mid, (int, float)) and not isinstance(mid, bool):
+        return str(int(mid))
+    if isinstance(mid, str):
+        s = mid.strip()
+        if s == "" or s.lower() in {"null", "none", "undefined"}:
+            return None
+        return s if s.isdigit() else None
+    return None
+
 @app.post("/STT/{class_id}")
 async def merge_audio(class_id: str, request : Request):
     body = await request.json()
-    meeting_id = body.get("meetingId")
-    print("파이썬 merge 합병 처리 -> class_id : ", class_id)
-    print("meetingId : " , meeting_id)
+    Meeting_id = body.get("meetingId")
+    #meeting_id = _normalize_base_url(raw_meeting_id)
 
+    print("파이썬 merge 합병 처리 -> class_id : ", class_id)
+    print("meetingId : " , Meeting_id)
+    #print(f"meetingId(raw)={raw_meeting_id!r} -> meeting_id(norm)={meeting_id!r}")
 
     in_dir = os.path.join(BASE_AUDIO_DIR, str(class_id))
     print("in_dir : ", in_dir)
@@ -760,16 +846,16 @@ async def merge_audio(class_id: str, request : Request):
         if (summary_result or {}).get("ok"):
             upload_result = send_summary_to_api(
                 class_id=class_id,
-                meetingId=meeting_id,
+                meetingId=Meeting_id,
                 md_path=(summary_result or {}).get("summary_path"),
                 pdf_path=(summary_result or {}).get("summary_pdf_path"),
             )
-            # 업로드가 성공했을 때만 디렉토리 통째 삭제
-            if upload_result and upload_result.get("ok"):
-                class_out_dir = os.path.join(MERGE_OUT_DIR, str(class_id))
-                cleanup_result = cleanup_class_dir(class_out_dir)
-            else:
-                cleanup_result = {"ok": False, "detail": "업로드 실패로 삭제 건너뜀"}
+            # # 업로드가 성공했을 때만 디렉토리 통째 삭제
+            # if upload_result and upload_result.get("ok"):
+            #     class_out_dir = os.path.join(MERGE_OUT_DIR, str(class_id))
+            #     cleanup_result = cleanup_class_dir(class_out_dir)
+            # else:
+            #     cleanup_result = {"ok": False, "detail": "업로드 실패로 삭제 건너뜀"}
 
 
         
