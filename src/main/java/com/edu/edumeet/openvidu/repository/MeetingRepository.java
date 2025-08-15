@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MeetingRepository extends JpaRepository<Meeting, Long> {
     @Query("""
@@ -15,4 +16,6 @@ public interface MeetingRepository extends JpaRepository<Meeting, Long> {
       order by case when m.endTime is null then 0 else 1 end, m.endTime desc
     """)
     List<Meeting> findAllSortedByNullFirst(@Param("classId") Long classId);
+    Optional<Meeting> findTopByClassRoomIdAndS3urlIsNotNullOrderByStartTimeDesc(Long classRoomId);
+    Optional<Meeting> findTopByClassRoomIdOrderByStartTimeDesc(Long classRoomId);
 }
