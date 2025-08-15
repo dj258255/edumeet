@@ -18,11 +18,7 @@ public class MeetingSummaryController {
 
     private final MeetingSummaryService meetingSummaryService;
 
-    /**
-     * 파이썬 서버에서 요약본 파일 업로드 받기
-     * URL 패턴: /api/v1/meeting/summary/{classId}/upload
-     */
-    @PostMapping("/summary/{classId}/upload")
+    @PostMapping("/summary/{classId}")
     public ResponseEntity<Map<String, Object>> uploadSummary(
             @PathVariable("classId") Long classId,
             @RequestParam("class_id") String classIdParam,
@@ -110,9 +106,6 @@ public class MeetingSummaryController {
         }
     }
 
-    /**
-     * 특정 클래스의 요약본 조회
-     */
     @GetMapping("/summary/{classId}")
     public ResponseEntity<Map<String, Object>> getSummary(@PathVariable("classId") Long classId) {
 
