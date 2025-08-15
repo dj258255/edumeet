@@ -779,6 +779,19 @@ function handleCameraRestored(newCameraTrack: any) {
             </div>
           </div>
           
+          <!-- 우측 상단 컨트롤 버튼들 -->
+          <div class="header-controls">
+            <button :class="{ off: !isCameraOn }" @click="toggleCamera" title="카메라 끄기/켜기">
+              📷
+            </button>
+            <button :class="{ off: !isMicOn }" @click="toggleMic" title="마이크 끄기/켜기">
+              🎤
+            </button>
+            <button class="leave" @click="handleLeaveClick" title="퇴장하기">
+              ✕
+            </button>
+          </div>
+          
           <!-- 컨트롤 패널 오버레이 -->
           <div 
             v-if="isControlPanelOpen" 
@@ -797,12 +810,6 @@ function handleCameraRestored(newCameraTrack: any) {
               <button v-if="isUserCreator" @click="handleRecordToggle" :title="recordButtonLabel">
                 {{ recordingState === 'idle' ? '⏺' : recordingState === 'recording' ? '⏸' : '▶' }}
               </button>
-              <button :class="{ off: !isCameraOn }" @click="toggleCamera" title="카메라 끄기/켜기">
-                📷
-              </button>
-              <button :class="{ off: !isMicOn }" @click="toggleMic" title="마이크 끄기/켜기">
-                🎤
-              </button>
               <button :class="{ off: !isCaptionVisible }" @click="toggleCaption" title="자막 숨기기/보기">
                 📝
               </button>
@@ -815,9 +822,6 @@ function handleCameraRestored(newCameraTrack: any) {
                 :title="isScreenSharing ? '화면 공유 중지' : '화면 공유 시작'"
               >
                 {{ isScreenSharing ? '🖥️⏹️' : '🖥️' }}
-              </button>
-              <button class="leave" @click="handleLeaveClick" title="퇴장하기">
-                ✕
               </button>
             </div>
           </div>
@@ -1083,6 +1087,91 @@ function handleCameraRestored(newCameraTrack: any) {
   border: 2px solid #007bff;
 }
 
+/* 헤더 컨트롤 버튼들 스타일 */
+.video-room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.header-info h2 {
+  margin: 0;
+  color: white;
+  font-size: 1.5rem;
+}
+
+.user-role {
+  display: flex;
+  gap: 10px;
+}
+
+.creator-badge, .participant-badge {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.creator-badge {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.participant-badge {
+  background: rgba(108, 117, 125, 0.2);
+  color: #6c757d;
+  border: 1px solid rgba(108, 117, 125, 0.3);
+}
+
+.header-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.header-controls button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-controls button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.header-controls button.off {
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.5;
+}
+
+.header-controls button.leave {
+  background: rgba(220, 53, 69, 0.8);
+}
+
+.header-controls button.leave:hover {
+  background: rgba(220, 53, 69, 1);
+}
+
 /* 컨트롤 패널 오버레이 */
 .control-panel-overlay {
   position: fixed;
@@ -1123,19 +1212,20 @@ function handleCameraRestored(newCameraTrack: any) {
 /* 고정된 컨트롤 패널 스타일 */
 .control-panel-fixed {
   position: fixed;
-  left: 20px;
+  left: 50%;
   top: 50%;
-  transform: translateY(-50%);
-  background: rgba(0, 0, 0, 0.9);
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
   border-radius: 12px;
   padding: 15px;
   z-index: 1001;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(15px);
   display: flex;
   flex-direction: row;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  animation: slideInFromCenter 0.3s ease-out;
 }
 
 .control-panel-fixed .control-panel-header {
@@ -1145,41 +1235,44 @@ function handleCameraRestored(newCameraTrack: any) {
 .control-panel-fixed .control-buttons {
   display: flex;
   flex-direction: row;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
 .control-panel-fixed .control-buttons button {
-  width: 50px;
-  height: 50px;
+  width: 45px;
+  height: 45px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(5px);
 }
 
 .control-panel-fixed .control-buttons button:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
 }
 
 .control-panel-fixed .control-buttons button.off {
-  background: rgba(255, 255, 255, 0.05);
-  opacity: 0.5;
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 0.6;
 }
 
 .control-panel-fixed .control-buttons button.leave {
-  background: rgba(220, 53, 69, 0.8);
+  background: rgba(220, 53, 69, 0.7);
 }
 
 .control-panel-fixed .control-buttons button.leave:hover {
-  background: rgba(220, 53, 69, 1);
+  background: rgba(220, 53, 69, 0.9);
+  box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
 }
 
 /* 햄버거 메뉴 화면 공유 버튼 스타일 */
@@ -1245,5 +1338,16 @@ function handleCameraRestored(newCameraTrack: any) {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes slideInFromCenter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 </style>

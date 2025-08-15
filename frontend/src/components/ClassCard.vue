@@ -37,6 +37,13 @@
           </div>
           <div class="right-actions">
             <button 
+              class="summary-btn" 
+              @click="handleViewSummary"
+              title="문서 요약 보기"
+            >
+              📝
+            </button>
+            <button 
               v-if="isMyCreatedClass"
               class="delete-btn" 
               @click="handleDeleteClick"
@@ -83,7 +90,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['enroll', 'createClass', 'deleteClass', 'joinClass', 'viewDetail', 'viewMembers'])
+const emit = defineEmits(['enroll', 'createClass', 'deleteClass', 'joinClass', 'viewDetail', 'viewMembers', 'viewSummary'])
 
 // 안전한 태그 배열 계산
 const safeTags = computed(() => {
@@ -275,6 +282,15 @@ const handleViewMembers = () => {
   console.log('🔍 ClassCard - 학생 목록 보기 클릭:', props.card)
   const classId = props.card.id || props.card.classId || props.card.classroomId || props.card._id
   emit('viewMembers', {
+    classId: classId,
+    className: props.card.title
+  })
+}
+
+const handleViewSummary = () => {
+  console.log('🔍 ClassCard - 문서 요약 보기 클릭:', props.card)
+  const classId = props.card.id || props.card.classId || props.card.classroomId || props.card._id
+  emit('viewSummary', {
     classId: classId,
     className: props.card.title
   })
@@ -568,6 +584,30 @@ const handleViewMembers = () => {
 }
 
 .delete-btn:active {
+  transform: translateY(0);
+}
+
+.summary-btn {
+  background: rgba(59, 130, 246, 0.8);
+  color: #ffffff !important;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.summary-btn:hover {
+  background: rgba(59, 130, 246, 1);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+.summary-btn:active {
   transform: translateY(0);
 }
 

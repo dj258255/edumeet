@@ -63,6 +63,7 @@
                   @deleteClass="handleDeleteClass"
                   @viewDetail="selectClass"
                   @viewMembers="handleViewMembers"
+                  @viewSummary="handleViewSummary"
                 />
               </div>
             </div>
@@ -140,6 +141,12 @@
       :className="selectedClassForMembers?.className || ''"
       @close="closeMembersModal"
     />
+
+    <LiveInfoModal
+      :isVisible="isLiveInfoModalOpen"
+      :classId="selectedClassForLiveInfo?.classId || ''"
+      @close="closeLiveInfoModal"
+    />
   </div>
 </template>
 
@@ -153,6 +160,7 @@ import CreateClassForm from '../components/CreateClassForm.vue'
 import CreateClassModal from '../components/CreateClassModal.vue'
 import JoinClassModal from '../components/JoinClassModal.vue'
 import MembersModal from '../components/MembersModal.vue'
+import LiveInfoModal from '../components/LiveInfoModal.vue'
 import ClassInfo from '../components/ClassInfo.vue'
 import '../styles/ClassRelated.css'
 
@@ -169,6 +177,10 @@ const selectedClassForJoin = ref(null)
 // 학생 목록 모달 관련 상태
 const isMembersModalOpen = ref(false)
 const selectedClassForMembers = ref(null)
+
+// LiveInfo 모달 관련 상태
+const isLiveInfoModalOpen = ref(false)
+const selectedClassForLiveInfo = ref(null)
 
 const router = useRouter()
 const classStore = useClassStore()
@@ -370,10 +382,23 @@ function handleViewMembers(classData) {
   isMembersModalOpen.value = true
 }
 
+// LiveInfo 모달 열기
+function handleViewSummary(classData) {
+  console.log('🔍 handleViewSummary - classData:', classData)
+  selectedClassForLiveInfo.value = classData
+  isLiveInfoModalOpen.value = true
+}
+
 // 학생 목록 모달 닫기
 function closeMembersModal() {
   isMembersModalOpen.value = false
   selectedClassForMembers.value = null
+}
+
+// LiveInfo 모달 닫기
+function closeLiveInfoModal() {
+  isLiveInfoModalOpen.value = false
+  selectedClassForLiveInfo.value = null
 }
 
 
