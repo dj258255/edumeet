@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -15,6 +17,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.io.File;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -189,6 +192,61 @@ public class S3Uploader {
             log.info("로컬 파일 삭제 성공: {}", targetFile.getName());
         } else {
             log.warn("로컬 파일 삭제 실패: {}", targetFile.getName());
+        }
+    }
+
+    public String uploadMultipartFile(MultipartFile file, String directory) throws RuntimeException {
+        try {
+            // 임시 파일 생성
+            String originalFileName = file.getOriginalFilename();
+            String uuid = UUID.randomUUID().toString();
+            String s3Key = directory + "/" + uuid + "_" + originalFileName;
+
+            // S3에 직접 업로드
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(s3Key)
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(putObjectRequest,
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+
+            return String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, s3Key);
+        } catch (Exception e) {
+            log.error("MultipartFile S3 업로드 실패: {}", e.getMessage());
+            throw new RuntimeException("S3 업로드 실패: " + e.getMessage());
+        }
+    }
+
+    /**
+     * MultipartFile을 S3의 특정 디렉토리에 지정된 파일명으로 업로드
+     * @param file 업로드할 파일
+     * @param directory S3 디렉토리 경로
+     * @param fileName 저장할 파일명
+     * @return S3 URL
+     */
+    public String uploadMultipartFile(MultipartFile file, String directory, String fileName) throws RuntimeException {
+        try {
+            String s3Key = directory + "/" + fileName;
+
+            // S3에 직접 업로드
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(s3Key)
+                    .acl(ObjectCannedACL.PUBLIC_READ)
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(putObjectRequest,
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+
+            log.info("S3 업로드 성공: {}", s3Key);
+            return String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, s3Key);
+        } catch (Exception e) {
+            log.error("MultipartFile S3 업로드 실패: {}", e.getMessage());
+            throw new RuntimeException("S3 업로드 실패: " + e.getMessage());
         }
     }
 }
