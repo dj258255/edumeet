@@ -232,23 +232,77 @@ function closeJoinModal() {
 }
 
 // 수업 참여 확인 처리
-function handleJoinClassConfirm(joinData) {
+async function handleJoinClassConfirm(joinData) {
   console.log('수업 참여 데이터:', joinData)
   
-  // 화상 수업 페이지로 이동 (참여자는 기존 meetingId가 없으므로 className을 roomName으로 사용)
-  const queryParams = {
-    roomName: joinData.roomName,
-    className: joinData.className,
-    participantName: joinData.participantName,
-    isCreator: 'false' // 참여자는 생성자가 아님
+  try {
+    // 백엔드에서 토큰 요청
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+    
+    const response = await fetch(`https://i13c205.p.ssafy.io/api/v1/meetingroom/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        title: joinData.roomName,  // 백엔드에서 title 필드를 기대함
+        participantName: joinData.participantName
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`토큰 요청 실패: ${response.status}`)
+    }
+    
+    // 응답 본문 확인
+    const responseText = await response.text()
+    console.log('🔍 백엔드 응답 본문:', responseText)
+    
+    if (!responseText || responseText.trim() === '') {
+      console.error('🔍 백엔드에서 빈 응답을 받았습니다.')
+      throw new Error('서버에서 빈 응답을 받았습니다.')
+    }
+    
+    // JSON 파싱 시도
+    let data
+    try {
+      data = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('🔍 JSON 파싱 실패:', parseError)
+      throw new Error('서버 응답을 파싱할 수 없습니다.')
+    }
+    
+    console.log('🔍 백엔드에서 받은 토큰 데이터:', data)
+    
+    if (!data.token) {
+      throw new Error('토큰이 없습니다.')
+    }
+    
+    // 화상 수업 페이지로 이동 (토큰 포함)
+    const queryParams = {
+      roomName: joinData.roomName,
+      className: joinData.className,
+      participantName: joinData.participantName,
+      isCreator: 'false', // 참여자는 생성자가 아님
+      token: data.token // 백엔드에서 받은 토큰
+    }
+    
+    // URL 쿼리 파라미터로 데이터 전달
+    const queryString = new URLSearchParams(queryParams).toString()
+    router.push(`/class/${joinData.classId}/video?${queryString}`)
+    
+    // 모달 닫기
+    closeJoinModal()
+    
+  } catch (error) {
+    console.error('토큰 요청 실패:', error)
+    alert('수업 참여에 실패했습니다. 다시 시도해주세요.')
   }
-  
-  // URL 쿼리 파라미터로 데이터 전달
-  const queryString = new URLSearchParams(queryParams).toString()
-  router.push(`/class/${joinData.classId}/video?${queryString}`)
-  
-  // 모달 닫기
-  closeJoinModal()
 }
 
 // ClassCard의 createClass 이벤트로 호출됨 (내가 만든 반의 수업 생성)
