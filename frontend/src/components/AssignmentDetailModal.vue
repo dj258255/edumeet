@@ -50,7 +50,6 @@
         </div>
         <div class="section-content">
           <div v-for="student in assignmentData.studentSubmissionStatuses" :key="student.studentId" class="student-submission-item" @click="debugStudentSubmission(student)">
-            <!-- 학생 기본 정보 -->
             <div class="student-header">
               <span class="student-name">{{ student.studentName }}</span>
               <span :class="{'submitted': student.status === 'SUBMITTED', 'not-submitted': student.status === 'NOT_SUBMITTED'}" class="status-badge">
@@ -61,9 +60,7 @@
               </span>
             </div>
             
-            <!-- 제출 내용 (제출된 경우만) -->
             <div v-if="student.status === 'SUBMITTED'" class="submission-details">
-              <!-- 제출된 파일들 -->
               <div v-if="student.submissionFiles?.length" class="submission-files">
                 <h5 class="files-title">제출 파일:</h5>
                 <ul class="files-list">
@@ -89,7 +86,6 @@
                 </ul>
               </div>
               
-              <!-- 제출된 파일이 없는 경우 -->
               <div v-if="!student.submissionFiles?.length" class="no-content">
                 <span class="no-content-text">제출된 파일이 없습니다.</span>
               </div>
@@ -98,7 +94,6 @@
         </div>
       </div>
 
-      <!-- 자신이 제출한 파일 목록 (제출 완료 상태일 때) -->
       <div v-if="!isMyCreatedClass && isSubmitted && submittedFiles?.length" class="submitted-files section">
         <div class="section-title-box">
           <h4 class="section-title">제출한 파일</h4>
@@ -128,7 +123,6 @@
         </div>
       </div>
 
-      <!-- 제출 완료 상태 메시지 -->
       <div v-if="!isMyCreatedClass && isSubmitted" class="submission-status section">
         <div class="section-title-box">
           <h4 class="section-title">제출 상태</h4>
@@ -143,7 +137,6 @@
         </div>
       </div>
 
-      <!-- 제출 폼 (미제출 상태일 때만) -->
       <div v-if="!isMyCreatedClass && !isSubmitted" class="form-group section">
         <div class="section-title-box">
           <h4 class="section-title">제출 파일</h4>
@@ -317,7 +310,51 @@ const debugStudentSubmission = (student) => {
 </script>
 
 <style scoped>
-@import '@/styles/classinfo.css';
+/*
+  classinfo.css에서 분리된 모달 관련 스타일을 이곳에 직접 삽입하여
+  다크/라이트 모드 변수가 올바르게 적용되도록 함.
+*/
+
+:root {
+  --bg-color: #f8fafc;
+  --card-bg: #ffffff;
+  --text-color: #1f2937;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --input-bg: #ffffff;
+  --primary-color: #2563eb;
+  --primary-hover: #1e3a8a;
+  --success-color: #10b981;
+  --success-hover: #047857;
+  --danger-color: #ef4444;
+  --danger-hover: #dc2626;
+  --disabled-color: #9ca3af;
+  --video-bg: #000000;
+  --shadow-color: rgba(0, 0, 0, 0.08);
+  --brand-main: #2563eb;
+  --brand-sub: #eff6ff;
+  --text-inverse: #ffffff;
+}
+
+.dark-mode {
+  --bg-color: #1f2937;
+  --card-bg: #374151;
+  --text-color: #f9fafb;
+  --text-secondary: #d1d5db;
+  --border-color: #4b5563;
+  --input-bg: #374151;
+  --primary-color: #3b82f6;
+  --primary-hover: #1d4ed8;
+  --success-color: #10b981;
+  --success-hover: #047857;
+  --danger-color: #ef4444;
+  --danger-hover: #dc2626;
+  --video-bg: #111827;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --brand-main: #3b82f6;
+  --brand-sub: #1e3a8a;
+  --text-inverse: #ffffff;
+}
 
 /* 모달 오버레이 */
 .modal-overlay {
@@ -330,14 +367,14 @@ const debugStudentSubmission = (student) => {
 
 /* 모달 컨테이너 */
 .modal-container {
-  background: #1a202c;
+  background: var(--card-bg); /* 변수 적용 */
+  color: var(--text-color); /* 변수 적용 */
   border-radius: 8px;
   width: 600px;
   max-width: 95%;
   max-height: 90%;
   overflow-y: auto;
   box-shadow: 0 8px 16px rgba(0,0,0,0.5);
-  color: #e2e8f0;
   padding: 0;
 }
 
@@ -349,14 +386,15 @@ const debugStudentSubmission = (student) => {
   padding: 1rem 1.5rem;
   font-size: 1.5rem;
   font-weight: 700;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid var(--border-color); /* 변수 적용 */
+  background: var(--bg-color); /* 변수 적용 */
 }
 .close-btn {
   background: none;
   border: none;
   font-size: 1.25rem;
   cursor: pointer;
-  color: #e2e8f0;
+  color: var(--text-color); /* 변수 적용 */
 }
 .modal-title {
   margin: 0;
@@ -366,8 +404,8 @@ const debugStudentSubmission = (student) => {
 /* 섹션 스타일 */
 .section {
   padding: 1.5rem;
-  background-color: #1a202c;
-  border-bottom: 1px solid #334155;
+  background-color: var(--card-bg); /* 변수 적용 */
+  border-bottom: 1px solid var(--border-color); /* 변수 적용 */
   max-height: 200px;
   overflow-y: hidden;
   transition: all 0.3s ease;
@@ -381,18 +419,18 @@ const debugStudentSubmission = (student) => {
 
 /* 섹션 제목 컨테이너 */
 .section-title-box {
-  background-color: #2d3748;
-  padding: 0.75rem 1.5rem; /* 패딩을 늘려 크기 키우기 */
-  border-radius: 8px; /* 모서리를 더 둥글게 */
+  background-color: var(--input-bg); /* 변수 적용 */
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
   margin-bottom: 1rem;
-  width: fit-content; /* 내용물에 맞춰 가로 폭 조절 */
+  width: fit-content;
 }
 
 /* 섹션 제목 */
 .section-title {
   margin: 0;
   font-weight: bold;
-  color: #f1f5f9;
+  color: var(--text-color); /* 변수 적용 */
   font-size: 1.2rem;
 }
 
@@ -407,7 +445,7 @@ const debugStudentSubmission = (student) => {
   padding-left: 0;
 }
 .file-btn, .file-link {
-  color: #cbd5e1;
+  color: var(--text-secondary); /* 변수 적용 */
   text-decoration: underline;
   background: none;
   border: none;
@@ -418,11 +456,11 @@ const debugStudentSubmission = (student) => {
 .file-btn::before, .file-link::before {
   content: '📄';
   margin-right: 8px;
-  color: #90cdf4;
+  color: var(--primary-color); /* 변수 적용 */
 }
 .image-btn::before {
   content: '🖼️';
-  color: #f6ad55;
+  color: var(--success-color); /* 변수 적용 */
 }
 
 /* 학생 제출 상태 */
@@ -434,9 +472,9 @@ const debugStudentSubmission = (student) => {
 .student-submission-item {
   margin-bottom: 1.5rem;
   padding: 1rem;
-  border: 1px solid #334155;
+  border: 1px solid var(--border-color); /* 변수 적용 */
   border-radius: 8px;
-  background-color: #2d3748;
+  background-color: var(--bg-color); /* 변수 적용 */
 }
 
 .student-submission-item:last-child {
@@ -449,12 +487,12 @@ const debugStudentSubmission = (student) => {
   gap: 1rem;
   margin-bottom: 0.75rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid #4a5568;
+  border-bottom: 1px solid var(--border-color); /* 변수 적용 */
 }
 
 .student-name {
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text-color); /* 변수 적용 */
   font-size: 1rem;
 }
 
@@ -467,20 +505,20 @@ const debugStudentSubmission = (student) => {
 }
 
 .status-badge.submitted {
-  background-color: #065f46;
-  color: #d1fae5;
-  border: 1px solid #10b981;
+  background-color: var(--success-color); /* 변수 적용 */
+  color: var(--text-inverse); /* 변수 적용 */
+  border: 1px solid var(--success-color); /* 변수 적용 */
 }
 
 .status-badge.not-submitted {
-  background-color: #7f1d1d;
-  color: #fecaca;
-  border: 1px solid #ef4444;
+  background-color: var(--danger-color); /* 변수 적용 */
+  color: var(--text-inverse); /* 변수 적용 */
+  border: 1px solid var(--danger-color); /* 변수 적용 */
 }
 
 .submitted-at {
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: var(--text-secondary); /* 변수 적용 */
   margin-left: auto;
 }
 
@@ -495,16 +533,16 @@ const debugStudentSubmission = (student) => {
 .content-title, .files-title {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-secondary); /* 변수 적용 */
   margin: 0 0 0.5rem 0;
 }
 
 .content-text {
-  background-color: #374151;
+  background-color: var(--input-bg); /* 변수 적용 */
   padding: 0.75rem;
   border-radius: 6px;
-  border-left: 3px solid #60a5fa;
-  color: #e5e7eb;
+  border-left: 3px solid var(--primary-color); /* 변수 적용 */
+  color: var(--text-color); /* 변수 적용 */
   font-size: 0.9rem;
   line-height: 1.5;
   margin: 0;
@@ -529,9 +567,9 @@ const debugStudentSubmission = (student) => {
 .no-content {
   padding: 0.75rem;
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-secondary); /* 변수 적용 */
   font-style: italic;
-  background-color: #374151;
+  background-color: var(--input-bg); /* 변수 적용 */
   border-radius: 6px;
 }
 
@@ -544,15 +582,15 @@ const debugStudentSubmission = (student) => {
   width: 100%; 
   padding: 0.5rem; 
   margin-top: 0.25rem; 
-  background-color: #4a5568; 
-  border: 1px solid #4a5568;
-  color: #e2e8f0;
+  background-color: var(--input-bg); /* 변수 적용 */
+  border: 1px solid var(--border-color); /* 변수 적용 */
+  color: var(--text-color); /* 변수 적용 */
 }
 
 /* 제출 버튼 */
 .submit-btn {
-  background-color: #3b82f6;
-  color: #fff;
+  background-color: var(--primary-color); /* 변수 적용 */
+  color: white;
   border: none;
   padding: 0.75rem 1.5rem;
   border-radius: 4px;
@@ -562,16 +600,16 @@ const debugStudentSubmission = (student) => {
   margin-top: 1rem;
 }
 .submit-btn:hover {
-  background-color: #2563eb;
+  background-color: var(--primary-hover); /* 변수 적용 */
 }
 
 /* 제출 상태 메시지 */
 .submission-status .status-message {
   padding: 1rem;
   border-radius: 8px;
-  background-color: #065f46;
-  border: 1px solid #10b981;
-  color: #d1fae5;
+  background-color: var(--success-color); /* 변수 적용 */
+  border: 1px solid var(--success-color); /* 변수 적용 */
+  color: var(--text-inverse); /* 변수 적용 */
   font-weight: bold;
   text-align: center;
 }
@@ -579,14 +617,14 @@ const debugStudentSubmission = (student) => {
 .submission-date {
   display: block;
   font-size: 0.9rem;
-  color: #a7f3d0;
+  color: var(--text-inverse); /* 변수 적용 */
   font-weight: normal;
   margin-top: 0.5rem;
 }
 
 /* 다운로드 버튼 스타일 */
 .download-btn {
-  color: #60a5fa !important;
+  color: var(--primary-color) !important; /* 변수 적용 */
   text-decoration: underline;
   background: none;
   border: none;
@@ -598,11 +636,11 @@ const debugStudentSubmission = (student) => {
 .download-btn::before {
   content: '📥';
   margin-right: 8px;
-  color: #60a5fa;
+  color: var(--primary-color); /* 변수 적용 */
 }
 
 .download-btn:hover {
-  color: #93c5fd !important;
+  color: var(--primary-hover) !important; /* 변수 적용 */
 }
 
 /* 파일 항목 레이아웃 */
@@ -612,13 +650,13 @@ const debugStudentSubmission = (student) => {
   align-items: center;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
-  background-color: #374151;
+  background-color: var(--input-bg); /* 변수 적용 */
   border-radius: 6px;
-  border: 1px solid #4a5568;
+  border: 1px solid var(--border-color); /* 변수 적용 */
 }
 
 .file-item-with-actions:hover {
-  background-color: #4a5568;
+  background-color: var(--bg-color); /* 변수 적용 */
 }
 
 .file-info {
@@ -628,7 +666,7 @@ const debugStudentSubmission = (student) => {
 }
 
 .file-name {
-  color: #e5e7eb;
+  color: var(--text-color); /* 변수 적용 */
   font-size: 0.9rem;
   display: flex;
   align-items: center;
@@ -642,30 +680,30 @@ const debugStudentSubmission = (student) => {
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  background-color: #3b82f6;
-  color: white;
+  background-color: var(--primary-color); /* 변수 적용 */
+  color: var(--text-inverse); /* 변수 적용 */
   text-decoration: none;
   border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 500;
   transition: background-color 0.2s ease;
-  border: 1px solid #2563eb;
+  border: 1px solid var(--primary-color); /* 변수 적용 */
   cursor: pointer;
 }
 
 .download-link-btn:hover {
-  background-color: #2563eb;
-  color: white;
+  background-color: var(--primary-hover); /* 변수 적용 */
+  color: var(--text-inverse); /* 변수 적용 */
   text-decoration: none;
 }
 
 .download-link-btn:visited {
-  color: white;
+  color: var(--text-inverse); /* 변수 적용 */
 }
 
 .download-link-btn:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 2px var(--primary-hover); /* 변수 적용 */
 }
 
 /* 파일 목록 공통 스타일 */
@@ -686,10 +724,11 @@ const debugStudentSubmission = (student) => {
   width: 8px;
 }
 .section::-webkit-scrollbar-thumb {
-  background-color: #4a5568;
+  background-color: var(--border-color); /* 변수 적용 */
   border-radius: 4px;
 }
 .section::-webkit-scrollbar-track {
-  background-color: #2d3748;
+  background-color: var(--bg-color); /* 변수 적용 */
 }
+
 </style>
