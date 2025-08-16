@@ -168,10 +168,10 @@ const handleCreate = async () => {
   isCreating.value = true
   
   try {
-    // API 요청 데이터 준비
+    // API 요청 데이터 준비 (백엔드 MeetingCreateRequestDto에 맞춤)
     const requestData = {
       title: title.value.trim(),
-      description: description.value.trim() || null,
+      participantName: creatorName.value.trim(),
       classId: Number(props.classId)
     }
     
@@ -182,17 +182,29 @@ const handleCreate = async () => {
     
     console.log('🔍 화상수업 생성 및 토큰 응답:', response.data)
     
+    // localStorage에서 사용자 정보 가져오기
+    const userStr = localStorage.getItem('user')
+    let userEmail = ''
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        userEmail = user.email || ''
+      } catch (e) {
+        console.error('사용자 정보 파싱 실패:', e)
+      }
+    }
+    
     // 성공 시 부모 컴포넌트에 데이터 전달 (백엔드 응답 구조에 맞게 수정)
     emit('create', {
-      meetingId: response.data.roomName, // roomName을 meetingId로 사용
+      meetingId: response.data.roomName || title.value.trim(), // roomName 또는 title 사용
       title: title.value.trim(), // 입력한 제목 사용
-      email: response.data.participantName, // participantName을 email로 사용
+      email: userEmail, // localStorage에서 가져온 이메일 사용
       classId: props.classId,
       creatorName: creatorName.value.trim(),
       description: description.value.trim(),
       token: response.data.token, // 백엔드에서 반환하는 토큰
-      roomName: response.data.roomName, // 원본 roomName도 전달
-      url: response.data.url // LiveKit URL도 전달
+      roomName: response.data.roomName || title.value.trim(), // 원본 roomName 또는 title
+      url: response.data.url || 'wss://edumeet-1jz93drq.livekit.cloud' // LiveKit URL
     })
     
   } catch (error) {

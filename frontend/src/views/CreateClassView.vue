@@ -243,6 +243,20 @@ async function handleJoinClassConfirm(joinData) {
       return
     }
     
+    console.log('🔍 토큰 요청 시작')
+    console.log('🔍 요청 URL:', `https://i13c205.p.ssafy.io/api/v1/meetingroom/token`)
+    console.log('🔍 요청 헤더:', {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken.substring(0, 20)}...`
+    })
+    console.log('🔍 accessToken 전체:', accessToken)
+    console.log('🔍 accessToken 길이:', accessToken.length)
+    console.log('🔍 요청 본문:', {
+      title: joinData.roomName,
+      participantName: joinData.participantName,
+      classId: joinData.classId
+    })
+    
     const response = await fetch(`https://i13c205.p.ssafy.io/api/v1/meetingroom/token`, {
       method: 'POST',
       headers: {
@@ -250,13 +264,31 @@ async function handleJoinClassConfirm(joinData) {
         'Authorization': `Bearer ${accessToken}`
       },
       body: JSON.stringify({
-        title: joinData.roomName,  // 백엔드에서 title 필드를 기대함
-        participantName: joinData.participantName
+        title: joinData.roomName,
+        participantName: joinData.participantName,
+        classId: joinData.classId
       })
     })
     
+    console.log('🔍 응답 상태:', response.status)
+    console.log('🔍 응답 헤더:', Object.fromEntries(response.headers.entries()))
+    
     if (!response.ok) {
-      throw new Error(`토큰 요청 실패: ${response.status}`)
+      // 오류 응답 본문을 확인
+      const errorText = await response.text()
+      console.log('🔍 오류 응답 본문:', errorText)
+      
+      // JSON 파싱 시도
+      let errorData
+      try {
+        errorData = JSON.parse(errorText)
+      } catch (e) {
+        errorData = { error: errorText }
+      }
+      
+      // 백엔드에서 반환하는 구체적인 에러 메시지 사용
+      const errorMessage = errorData.error || `토큰 요청 실패: ${response.status}`
+      throw new Error(errorMessage)
     }
     
     // 응답 본문 확인

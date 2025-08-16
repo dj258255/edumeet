@@ -77,7 +77,7 @@ let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
 
 function configureUrls() {
-  APPLICATION_SERVER_URL = ' https://i13c205.p.ssafy.io/api/v1/meetingroom/'
+  APPLICATION_SERVER_URL = 'https://i13c205.p.ssafy.io/api/v1/meetingroom/'
       
   LIVEKIT_URL = 'wss://edumeet-1jz93drq.livekit.cloud'
 }
@@ -200,7 +200,7 @@ async function joinRoom(targetRoom?: string, existingToken?: string) {
   room.value = currentRoom;
 
   currentRoom.on(RoomEvent.TrackSubscribed, (_track, publication, participant) => {
-    console.log('📹 원격 트랙 구독:', publication.trackSid, publication.kind)
+    console.log('📹 원격 트랙 구독:', publication.trackSid, publication.kind, '참가자:', participant.identity)
     remoteTracksMap.value.set(publication.trackSid, {
       trackPublication: publication,
       participantIdentity: participant.identity,
@@ -215,15 +215,32 @@ async function joinRoom(targetRoom?: string, existingToken?: string) {
       setMainTrack(publication.videoTrack!, participant.identity + ' (화면 공유)')
     }
     
-    // 새로운 카메라 트랙인지 확인 (화면 공유 중지 후)
+    // 새로운 카메라 트랙인지 확인
     if (publication.kind === 'video' && _track.mediaStreamTrack && 
         !_track.mediaStreamTrack.label.includes('screen') && 
-        !_track.mediaStreamTrack.label.includes('display') &&
-        participant.identity === participantName.value) {
-      console.log('🖥️ 새로운 카메라 트랙 감지:', participant.identity, _track.mediaStreamTrack.label)
+        !_track.mediaStreamTrack.label.includes('display')) {
       
-      // 새로운 카메라 트랙을 메인으로 설정
-      setMainTrack(publication.videoTrack!, participant.identity)
+      // 참가자가 아닌 경우 (다른 참가자의 카메라 트랙)
+      if (participant.identity !== participantName.value) {
+        console.log('🎯 다른 참가자의 카메라 트랙 감지:', participant.identity)
+        
+        // 생성자인지 확인하고 우선적으로 메인에 표시
+        if (participant.identity.includes('creator') || 
+            participant.identity.includes('생성자') ||
+            participant.identity.includes('teacher') ||
+            participant.identity.includes('강사')) {
+          console.log('🎯 생성자 카메라 트랙을 메인에 설정:', participant.identity)
+          setMainTrack(publication.videoTrack!, participant.identity)
+        } else if (!mainTrack.value) {
+          // 메인 트랙이 설정되지 않은 경우 첫 번째 참가자 트랙을 설정
+          console.log('🎯 첫 번째 참가자 카메라 트랙을 메인에 설정:', participant.identity)
+          setMainTrack(publication.videoTrack!, participant.identity)
+        }
+      } else {
+        // 자신의 카메라 트랙인 경우
+        console.log('🖥️ 자신의 새로운 카메라 트랙 감지:', participant.identity, _track.mediaStreamTrack.label)
+        setMainTrack(publication.videoTrack!, participant.identity)
+      }
     }
   });
 
@@ -296,7 +313,27 @@ async function joinRoom(targetRoom?: string, existingToken?: string) {
     if (firstVideoPub) {
       console.log('🖥️ 초기 카메라 트랙 발견:', firstVideoPub.track.mediaStreamTrack?.label)
       localTrack.value = firstVideoPub.videoTrack;
-      setMainTrack(firstVideoPub.videoTrack, participantName.value);
+      
+      // 참가자인 경우 생성자의 화면을 우선적으로 찾아서 메인에 표시
+      if (!isUserCreator.value) {
+        console.log('🎯 참가자 입장 - 생성자 화면 찾는 중...')
+        // 잠시 기다린 후 원격 참가자들의 트랙을 확인
+        setTimeout(() => {
+          const creatorTrack = getFirstRemoteVideoTrack();
+          const creatorIdentity = getFirstRemoteParticipantIdentity();
+          if (creatorTrack) {
+            console.log('🎯 생성자 화면을 메인에 설정:', creatorIdentity)
+            setMainTrack(creatorTrack, creatorIdentity);
+          } else {
+            console.log('🎯 생성자 화면을 찾을 수 없어 자신의 화면을 메인에 설정')
+            setMainTrack(firstVideoPub.videoTrack, participantName.value);
+          }
+        }, 2000); // 2초 후에 확인
+      } else {
+        // 생성자인 경우 자신의 화면을 메인에 표시
+        console.log('🎯 생성자 입장 - 자신의 화면을 메인에 설정')
+        setMainTrack(firstVideoPub.videoTrack, participantName.value);
+      }
     } else {
       console.log('🖥️ 초기 카메라 트랙을 찾을 수 없음')
     }
@@ -335,26 +372,62 @@ async function getToken(roomName: string, participantName: string) {
   console.log('🔍 getToken 호출 - participantName:', participantName)
   console.log('🔍 getToken 호출 - route.query.meetingId:', route.query.meetingId)
   
-  const requestBody = { roomName, participantName };
+  // 백엔드 MeetingCreateRequestDto에 맞춰 요청 본문 수정
+  const requestBody: { title: string; participantName: string; classId?: number } = { 
+    title: roomName, 
+    participantName 
+  };
   
-  // meetingId가 있으면 요청 본문에 추가
-  if (route.query.meetingId) {
-    requestBody.meetingId = route.query.meetingId as string;
-    console.log('🔍 getToken - meetingId를 요청 본문에 추가:', route.query.meetingId)
+  // classId가 있으면 요청 본문에 추가 (route.params에서 가져옴)
+  const classId = route.params.classId;
+  if (classId) {
+    requestBody.classId = Number(classId);
+    console.log('🔍 getToken - classId를 요청 본문에 추가:', classId)
   }
   
   console.log('🔍 getToken - 최종 요청 본문:', requestBody)
   console.log('🔍 getToken - 요청 URL:', APPLICATION_SERVER_URL + 'token')
   
+  // Authorization 헤더 추가
+  const accessToken = localStorage.getItem('accessToken');
+  const headers: { [key: string]: string } = { 'Content-Type': 'application/json' };
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+    console.log('🔍 getToken - Authorization 헤더 추가됨')
+  }
+  
   const response = await fetch(APPLICATION_SERVER_URL + 'token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(requestBody),
   });
   
   console.log('🔍 getToken - 응답 상태:', response.status)
+  
+  if (!response.ok) {
+    // 오류 응답 본문을 확인
+    const errorText = await response.text()
+    console.log('🔍 getToken - 오류 응답 본문:', errorText)
+    
+    // JSON 파싱 시도
+    let errorData
+    try {
+      errorData = JSON.parse(errorText)
+    } catch (e) {
+      errorData = { error: errorText }
+    }
+    
+    // 백엔드에서 반환하는 구체적인 에러 메시지 사용
+    const errorMessage = errorData.error || `토큰 요청 실패: ${response.status}`
+    throw new Error(errorMessage)
+  }
+  
   const data = await response.json();
   console.log('🔍 getToken - 응답 데이터:', data)
+  
+  if (!data.token) {
+    throw new Error('토큰이 응답에 포함되지 않았습니다.')
+  }
   
   return data.token;
 }
@@ -564,15 +637,35 @@ function handleCaptionStatus(status) {
   console.log('🎤 자막 상태:', status);
 }
 
-// 첫 번째 원격 비디오 트랙 가져오기
+// 생성자의 비디오 트랙을 우선적으로 가져오기
 function getFirstRemoteVideoTrack() {
   if (!room.value) return null;
   
   const remoteParticipants = Array.from(room.value.remoteParticipants.values());
+  
+  // 먼저 생성자(creator)를 찾아서 우선적으로 반환
+  for (const participant of remoteParticipants) {
+    // 생성자 여부를 확인 (identity에 'creator'가 포함되어 있거나 특정 패턴으로 구분)
+    if (participant.identity.includes('creator') || 
+        participant.identity.includes('생성자') ||
+        participant.identity.includes('teacher') ||
+        participant.identity.includes('강사')) {
+      if (participant.videoTrackPublications.size > 0) {
+        const videoTrack = participant.videoTrackPublications.values().next().value;
+        if (videoTrack && videoTrack.videoTrack) {
+          console.log('🎯 생성자 비디오 트랙 찾음:', participant.identity);
+          return videoTrack.videoTrack;
+        }
+      }
+    }
+  }
+  
+  // 생성자를 찾지 못한 경우 첫 번째 비디오 트랙 반환
   for (const participant of remoteParticipants) {
     if (participant.videoTrackPublications.size > 0) {
       const videoTrack = participant.videoTrackPublications.values().next().value;
       if (videoTrack && videoTrack.videoTrack) {
+        console.log('🎯 첫 번째 비디오 트랙 반환:', participant.identity);
         return videoTrack.videoTrack;
       }
     }
@@ -580,12 +673,27 @@ function getFirstRemoteVideoTrack() {
   return null;
 }
 
-// 첫 번째 원격 참가자 identity 가져오기
+// 생성자의 identity를 우선적으로 가져오기
 function getFirstRemoteParticipantIdentity() {
   if (!room.value) return '';
   
   const remoteParticipants = Array.from(room.value.remoteParticipants.values());
+  
+  // 먼저 생성자(creator)를 찾아서 우선적으로 반환
+  for (const participant of remoteParticipants) {
+    // 생성자 여부를 확인
+    if (participant.identity.includes('creator') || 
+        participant.identity.includes('생성자') ||
+        participant.identity.includes('teacher') ||
+        participant.identity.includes('강사')) {
+      console.log('🎯 생성자 identity 찾음:', participant.identity);
+      return participant.identity;
+    }
+  }
+  
+  // 생성자를 찾지 못한 경우 첫 번째 참가자 반환
   if (remoteParticipants.length > 0) {
+    console.log('🎯 첫 번째 참가자 identity 반환:', remoteParticipants[0].identity);
     return remoteParticipants[0].identity;
   }
   return '';
