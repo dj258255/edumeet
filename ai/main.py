@@ -369,112 +369,247 @@ def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
             if buf: chunks.append("".join(buf))
             return chunks
 
-        def pick_local_font() -> str | None:
-            # 0) ENV가 최우선
-            font_env = os.getenv("PDF_FONT_PATH", "").strip()
-            if font_env and os.path.exists(font_env):
-                return font_env
-
-            # 1) FastAPIProject/fonts (main.py와 같은 폴더)
-            candidates = [
+        def find_kr_font_paths() -> dict:
+            
+            candidates_dirs = [
                 os.path.join(HERE, "fonts"),
-                os.path.normpath(os.path.join(HERE, "..", "backend", "fonts")),  # 백엔드 쪽도 fallback
+                os.path.normpath(os.path.join(HERE, "..", "backend", "fonts")),
             ]
-            for d in candidates:
+            names = [
+                "NotoSansKR-Regular.ttf", "NotoSansKR-Regular.otf",
+                "NotoSansKR-Medium.ttf", "NotoSansKR-SemiBold.ttf",
+                "NotoSansKR-Bold.ttf", "NotoSansKR-Black.ttf",
+                "NotoSansKR-Light.ttf", "NotoSansKR-ExtraLight.ttf",
+                "NotoSansKR-ExtraBold.ttf", "NotoSansKR-Thin.ttf",
+            ]
+            found = {}
+            for d in candidates_dirs:
                 if not os.path.isdir(d):
                     continue
-                # 우선순위로 NotoSansKR-Regular 우선
-                for name in ("NotoSansKR-Regular.ttf", "NotoSansKR-Regular.otf"):
-                    p = os.path.join(d, name)
-                    if os.path.exists(p):
-                        return p
-                # 아무 ttf/otf 하나라도
-                for fn in os.listdir(d):
-                    if fn.lower().endswith((".ttf", ".otf")):
-                        return os.path.join(d, fn)
-            return None
-
+                lowerfiles = {fn.lower(): os.path.join(d, fn) for fn in os.listdir(d)}
+                for n in names:
+                    for k, p in lowerfiles.items():
+                        if k.endswith(n.lower()):
+                            key = n.split(".")[0]  # e.g. NotoSansKR-Bold
+                            found[key] = p
+            # 대표 regular/bold 결정
+            regular = (found.get("NotoSansKR-Regular") or
+                       next((p for k, p in found.items() if "Regular" in k), None) or
+                       next(iter(found.values()), None))
+            bold    = (found.get("NotoSansKR-Bold") or
+                       found.get("NotoSansKR-SemiBold") or
+                       found.get("NotoSansKR-ExtraBold") or
+                       regular)
+            return {"regular": regular, "bold": bold, "all": found}
+        
         def markdown_to_pdf(md_text: str, pdf_path: str):
-            font_path = pick_local_font()
-            pdf = FPDF(format="A4", unit="mm")
-            pdf.set_left_margin(15)
-            pdf.set_right_margin(15) # 추가
-            pdf.set_auto_page_break(auto=True, margin=15)
+            fonts = find_kr_font_paths()
+            regular_path = fonts.get("regular")
+            bold_path    = fonts.get("bold")
+
+            class PrettyPDF(FPDF):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.doc_title = ""
+                    self.family_base = "NotoKR" if regular_path else "Helvetica"
+                    self.family_mono = "NotoKR-Mono" if regular_path else "Courier"
+
+                def header(self):
+                    if not self.doc_title:
+                        return
+                    self.set_y(12)
+                    self.set_font(self.family_base, "B", 15)
+                    self.set_text_color(25, 25, 25)
+                    self.cell(0, 8, self.doc_title, ln=1)
+                    # 얇은 구분선
+                    self.set_draw_color(200, 200, 200)
+                    self.set_line_width(0.4)
+                    self.line(self.l_margin, self.get_y()+1, self.w - self.r_margin, self.get_y()+1)
+                    self.ln(5)
+
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font(self.family_base, "", 10)
+                    self.set_text_color(120, 120, 120)
+                    self.cell(0, 8, f"{self.page_no()}", align="C")
+
+            ACCENT = (34, 197, 94)   # 브랜드 그린
+            CODE_BG = (245, 246, 248)
+            CALL_BG = (248, 250, 246)
+
+            pdf = PrettyPDF(format="A4", unit="mm")
+            pdf.set_left_margin(18)
+            pdf.set_right_margin(18)
+            pdf.set_auto_page_break(auto=True, margin=18)
             pdf.add_page()
 
-            if font_path and os.path.exists(font_path):
-                # 동일 폰트를 굵게/모노 이름으로도 등록(실제 파일 하나여도 OK)
-                pdf.add_font("KR", "", font_path, uni=True)
-                pdf.add_font("KR-B", "", font_path, uni=True)
-                pdf.add_font("KR-Mono", "", font_path, uni=True)
-                base, bold, mono = "KR", "KR-B", "KR-Mono"
-            else:
-                # 한글이면 깨질 수 있으니 가급적 폰트 파일 준비 권장
-                base, bold, mono = "Helvetica", "Helvetica", "Courier"
+            if regular_path:
+                pdf.add_font("NotoKR", "", regular_path, uni=True)
+                pdf.add_font("NotoKR", "B", bold_path or regular_path, uni=True)
+                # 코드 블록에서도 한글 보이게 동일 폰트 사용
+                pdf.add_font("NotoKR-Mono", "", regular_path, uni=True)
+            # 기본 폰트
+            base_family = pdf.family_base
+            mono_family = pdf.family_mono
 
-            pdf.set_font(base, size=12)
+            usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+            line_h   = 6.0
+            para_gap = 1.5
+            bullet_indent = 5.5
+            # 문서 제목(H1 첫 줄) 추출 → 헤더에 사용
+            for ln in md_text.splitlines():
+                if ln.startswith("# "):
+                    pdf.doc_title = ln[2:].strip()
+                    break
 
-            usable_w = pdf.w - pdf.l_margin - pdf.r_margin  # 항상 양수인 고정 폭 추가
-            line_h = 6 # 추가
+            pdf.set_font(base_family, "", 12)
+            pdf.set_text_color(20, 20, 20)
 
-            def write_line(text: str, h: float = line_h):
-                # 매 줄마다 X를 좌여백으로 되돌리고, 고정 폭으로 출력
+            def hr(gap=2):
+                pdf.set_draw_color(230, 230, 230)
+                pdf.set_line_width(0.4)
+                pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+                pdf.ln(gap)
+
+            def para(text, h=line_h, fill=False):
                 pdf.set_x(pdf.l_margin)
-                pdf.multi_cell(usable_w, h, text)
+                pdf.multi_cell(usable_w, h, text, fill=fill)
+                pdf.ln(para_gap)
 
-            def split_unbreakable(s: str, limit: int = 80) -> list[str]:
-                # 공백이 거의 없는 긴 토큰을 강제로 분할
-                if any(ch.isspace() for ch in s):
-                    return [s]
-                return [s[i:i+limit] for i in range(0, len(s), limit)]
+            def bullet(text):
+                x = pdf.get_x()
+                pdf.set_x(pdf.l_margin)
+                pdf.cell(bullet_indent, line_h, "•")
+                pdf.set_x(pdf.l_margin + bullet_indent)
+                pdf.multi_cell(usable_w - bullet_indent, line_h, text)
 
+            # 코드/수식 박스
             in_code = False
-            for raw_line in md_text.splitlines():
-                line = raw_line.rstrip("\n")
+            code_is_math = False
+            def open_code(is_math=False):
+                # 배경 박스 느낌으로 줄마다 fill True
+                pdf.ln(0.5)
+                pdf.set_fill_color(*CODE_BG if not is_math else (240, 245, 255))
+                pdf.set_draw_color(220, 220, 220)
+                pdf.set_line_width(0.2)
+                pdf.set_font(mono_family, "", 10)
+                pdf.set_text_color(40, 40, 40 if not is_math else 0)
 
-                # 코드블록 토글
+            def close_code():
+                pdf.set_text_color(20, 20, 20)
+                pdf.set_font(base_family, "", 12)
+                pdf.ln(1.0)
+
+            # 요약(Callout) 박스 모드
+            callout = False
+            def open_callout():
+                pdf.ln(0.5)
+                pdf.set_fill_color(*CALL_BG)
+            def close_callout():
+                pdf.ln(1.0)
+
+            # 본문 렌더링
+            lines = md_text.splitlines()
+            i = 0
+            while i < len(lines):
+                raw = lines[i]
+                line = raw.rstrip("\n")
+
+                # 코드/수식 토글
                 if line.strip().startswith("```"):
-                    in_code = not in_code
-                    pdf.set_font(mono if in_code else base, size=10 if in_code else 12)
+                    if not in_code:
+                        tag = line.strip()[3:].strip().lower()
+                        code_is_math = (tag == "math")
+                        in_code = True
+                        open_code(code_is_math)
+                    else:
+                        in_code = False
+                        close_code()
+                    i += 1
                     continue
-
+                    
                 if in_code:
-                    for seg in split_unbreakable(line, 100):
-                        write_line(seg, h=5)
+                    # 줄 단위로 채워진 박스
+                    pdf.set_x(pdf.l_margin + 2)
+                    pdf.multi_cell(usable_w - 4, 5, line, fill=True)
+                    i += 1
                     continue
 
-                # 헤딩
+                 # 섹션 헤딩
                 if line.startswith("### "):
-                    pdf.set_font(bold, size=12); write_line(line[4:].strip())
-                    pdf.set_font(base, size=12); pdf.ln(1); continue
-                if line.startswith("## "):
-                    pdf.set_font(bold, size=14); write_line(line[3:].strip())
-                    pdf.set_font(base, size=12); pdf.ln(1); continue
-                if line.startswith("# "):
-                    pdf.set_font(bold, size=16); write_line(line[2:].strip())
-                    pdf.set_font(base, size=12); pdf.ln(1); continue
+                    pdf.set_font(base_family, "B", 13)
+                    para(line[4:].strip())
+                    pdf.set_font(base_family, "", 12)
+                    i += 1
+                    continue
 
-                # 리스트
+                if line.startswith("## "):
+                    # 요약 헤딩은 Accent 라벨 + Callout 박스 시작
+                    title = line[3:].strip()
+                    pdf.set_font(base_family, "B", 16)
+                    # 액센트 라벨
+                    pdf.set_text_color(*ACCENT)
+                    para(title)
+                    pdf.set_text_color(20, 20, 20)
+                    hr(gap=2)
+
+                    # "요약" 섹션이면 배경 박스 모드
+                    if title.replace(" ", "") in ("요약", "Summary"):
+                        callout = True
+                        open_callout()
+                    else:
+                        if callout:
+                            callout = False
+                            close_callout()
+                    pdf.set_font(base_family, "", 12)
+                    i += 1
+                    continue
+
+                if line.startswith("# "):
+                    pdf.set_font(base_family, "B", 20)
+                    # 큰 타이틀은 아래 여백 조금 더
+                    para(line[2:].strip())
+                    hr(gap=3)
+                    pdf.set_font(base_family, "", 12)
+                    i += 1
+                    continue
+
+                # 불릿
                 if line.strip().startswith("- "):
                     body = line.strip()[2:]
-                    toks = []
-                    for tok in body.split(" "):
-                        toks.extend(split_unbreakable(tok, 80) if len(tok) > 120 else [tok])
-                    write_line("• " + " ".join(toks))
+                    if callout:
+                        # 콜아웃 내부 불릿은 약간 더 촘촘히 + 배경
+                        pdf.set_fill_color(*CALL_BG)
+                        x = pdf.get_x()
+                        pdf.set_x(pdf.l_margin)
+                        pdf.cell(bullet_indent, line_h, "•", fill=True)
+                        pdf.set_x(pdf.l_margin + bullet_indent)
+                        pdf.multi_cell(usable_w - bullet_indent, line_h, body, fill=True)
+                    else:
+                        bullet(body)
+                    i += 1
                     continue
 
                 # 빈 줄
                 if not line.strip():
-                    pdf.ln(1)
+                    pdf.ln(2 if callout else 1)
+                    i += 1
                     continue
 
-                # 일반 문장
-                tokens = []
-                for tok in line.split(" "):
-                    tokens.extend(split_unbreakable(tok, 80) if len(tok) > 120 else [tok])
-                write_line(" ".join(tokens))
+                # ✅ 일반 문단
+                if callout:
+                    pdf.set_fill_color(*CALL_BG)
+                    para(line, fill=True)
+                else:
+                    para(line)
+                i += 1
+
+            # 마지막에 열어둔 callout 닫기
+            if callout:
+                close_callout()
 
             pdf.output(pdf_path)
+
 
         # 1) 전처리(clean) — OpenAI
         system_clean = (
@@ -648,10 +783,11 @@ def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
             pdf = FPDF(format="A4", unit="mm")
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
-            font_path = pick_local_font()
-            if font_path and os.path.exists(font_path):
-                pdf.add_font("KR", "", font_path, uni=True)
-                pdf.set_font("KR", size=12)
+            fonts = find_kr_font_paths()
+            regular_path = fonts.get("regular")
+            if regular_path and os.path.exists(regular_path):
+                pdf.add_font("NotoKR", "", regular_path, uni=True)
+                pdf.set_font("NotoKR", size=12)
             else:
                 pdf.set_font("Helvetica", size=12)
 
@@ -709,16 +845,16 @@ def send_summary_to_api(class_id: str, meetingId : str ,md_path: str | None, pdf
 
 
         files = {}
-        if md_path and os.path.isfile(md_path):
-            files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
-        else:
-            return {"ok": False, "detail": "전송할 Markdown 파일이 없습니다.(summary.md 없음)"}
-        # if pdf_path and os.path.isfile(pdf_path):
-        #     files["summary_pdf"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
-        # elif md_path and os.path.isfile(md_path):
+        # if md_path and os.path.isfile(md_path):
         #     files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
         # else:
-        #     return {"ok": False, "detail": "전송할 파일이 없습니다.(md/pdf 없음)"}
+        #     return {"ok": False, "detail": "전송할 Markdown 파일이 없습니다.(summary.md 없음)"}
+        if pdf_path and os.path.isfile(pdf_path):
+            files["summary_pdf"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
+        elif md_path and os.path.isfile(md_path):
+            files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
+        else:
+            return {"ok": False, "detail": "전송할 파일이 없습니다.(md/pdf 없음)"}
 
 
         data = {
@@ -850,12 +986,12 @@ async def merge_audio(class_id: str, request : Request):
                 md_path=(summary_result or {}).get("summary_path"),
                 pdf_path=(summary_result or {}).get("summary_pdf_path"),
             )
-            # # 업로드가 성공했을 때만 디렉토리 통째 삭제
-            # if upload_result and upload_result.get("ok"):
-            #     class_out_dir = os.path.join(MERGE_OUT_DIR, str(class_id))
-            #     cleanup_result = cleanup_class_dir(class_out_dir)
-            # else:
-            #     cleanup_result = {"ok": False, "detail": "업로드 실패로 삭제 건너뜀"}
+        #업로드가 성공했을 때만 디렉토리 통째 삭제
+        if upload_result and upload_result.get("ok"):
+            class_out_dir = os.path.join(MERGE_OUT_DIR, str(class_id))
+            cleanup_result = cleanup_class_dir(class_out_dir)
+        else:
+            cleanup_result = {"ok": False, "detail": "업로드 실패로 삭제 건너뜀"}
 
 
         
