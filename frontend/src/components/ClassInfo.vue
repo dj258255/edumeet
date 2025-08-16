@@ -8,7 +8,6 @@
     </div>
 
     <div class="info-content">
-      <button @click="classww">정보보기</button>
       <div class="info-section">
         <h4 class="section-title">과제 제출률</h4>
         <div class="assignment-info">
