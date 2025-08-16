@@ -6,10 +6,12 @@ import com.edu.edumeet.openvidu.dto.response.ClassMeetingInfoResponseDto;
 import com.edu.edumeet.openvidu.dto.response.MeetingCreateResponseDto;
 import com.edu.edumeet.openvidu.service.OpenviduService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -17,6 +19,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/meetingroom")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
+@Log4j2
 public class OpenviduController {
 
     private final OpenviduService openviduService;
@@ -25,8 +28,50 @@ public class OpenviduController {
     public ResponseEntity<Map<String, Object>> createToken(
             @AuthenticationPrincipal SecurityMember member,
             @RequestBody MeetingCreateRequestDto meetingCreateRequestDto) {
-        openviduService.create(member.getMemberId(), meetingCreateRequestDto);
-        return ResponseEntity.ok(openviduService.createToken(meetingCreateRequestDto.getTitle(), member.getEmail()));
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        // 인증 확인
+        if (member == null) {
+            log.error("❌ 인증 실패 - SecurityMember가 null입니다");
+            response.put("success", false);
+            response.put("error", "인증이 필요합니다. 로그인 후 다시 시도해주세요.");
+            return ResponseEntity.status(401).body(response);
+        }
+        
+        // SecurityMember 객체 상세 정보 로깅
+        log.info("🔍 SecurityMember 상세 정보:");
+        log.info("  - memberId: {}", member.getMemberId());
+        log.info("  - email: {}", member.getEmail());
+        log.info("  - member 객체: {}", member.getMember());
+        log.info("  - member.getId(): {}", member.getMember().getId());
+        
+        log.info("🔑 토큰 생성 요청 - member: {}, title: {}, classId: {}", 
+                member.getEmail(), meetingCreateRequestDto.getTitle(), meetingCreateRequestDto.getClassId());
+        
+        try {
+            // 미팅 생성
+            openviduService.create(member.getMemberId(), meetingCreateRequestDto);
+            log.info("✅ 미팅 생성 완료");
+            
+            // 토큰 생성
+            Map<String, Object> tokenResult = openviduService.createToken(meetingCreateRequestDto.getTitle(), member.getEmail());
+            log.info("✅ 토큰 생성 완료 - roomName: {}", meetingCreateRequestDto.getTitle());
+            
+            return ResponseEntity.ok(tokenResult);
+            
+        } catch (IllegalArgumentException e) {
+            log.error("❌ 토큰 생성 실패 - 잘못된 요청: {}", e.getMessage());
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+            
+        } catch (Exception e) {
+            log.error("❌ 토큰 생성 실패 - 서버 오류: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", "토큰 생성 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
     }
 
     @PatchMapping("/{meetingId}")

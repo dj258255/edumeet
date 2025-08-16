@@ -3,6 +3,7 @@ package com.edu.edumeet.openvidu.service;
 import com.edu.edumeet.classroom.domain.ClassRoom;
 import com.edu.edumeet.classroom.repository.ClassRepository;
 import com.edu.edumeet.member.domain.Member;
+import com.edu.edumeet.member.repository.MemberRepository;
 import com.edu.edumeet.openvidu.domain.Meeting;
 import com.edu.edumeet.openvidu.dto.request.MeetingCreateRequestDto;
 import com.edu.edumeet.openvidu.dto.response.ClassMeetingInfoResponseDto;
@@ -28,6 +29,7 @@ import java.util.Optional;
 import io.livekit.server.AccessToken;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
+import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 
 @Slf4j
 @Service
@@ -36,6 +38,8 @@ public class OpenviduService {
 
     private final MeetingRepository meetingRepository;
     private final ClassRepository classRepository;
+    private final ClassMemberRepository classMemberRepository;
+    private final MemberRepository memberRepository;
 
     // OpenVidu 인증 정보 (application.properties에 추가)
     @Value("${openvidu.livekit.api.key}")
@@ -118,11 +122,29 @@ public class OpenviduService {
     }
 
     public MeetingCreateResponseDto create(Long memberId, MeetingCreateRequestDto meetingCreateRequestDto) {
+        log.info("📝 미팅 생성 시작 - memberId: {}, classId: {}, title: {}", 
+                memberId, meetingCreateRequestDto.getClassId(), meetingCreateRequestDto.getTitle());
+        
         ClassRoom classRoom = classRepository.findById(meetingCreateRequestDto.getClassId())
-                .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
+                .orElseThrow(() -> {
+                    log.error("❌ 클래스를 찾을 수 없습니다 - classId: {}", meetingCreateRequestDto.getClassId());
+                    return new IllegalArgumentException("클래스를 찾을 수 없습니다.");
+                });
 
-        if (!classRoom.getMember().getId().equals(memberId)) {
-            throw new IllegalArgumentException("해당 클래스의 생성자가 아닙니다.");
+        log.info("✅ 클래스 조회 완료 - classId: {}, classOwnerId: {}", 
+                classRoom.getId(), classRoom.getMember().getId());
+
+        // 수업 생성자 또는 참여자인지 확인
+        boolean isCreator = classRoom.getMember().getId().equals(memberId);
+        boolean isParticipant = classMemberRepository.existsByClassRoomIdAndMemberId(
+                meetingCreateRequestDto.getClassId(), memberId);
+        
+        log.info("🔍 권한 확인 - isCreator: {}, isParticipant: {}", isCreator, isParticipant);
+
+        if (!isCreator && !isParticipant) {
+            log.error("❌ 권한 없음 - 요청자: {}, 클래스 소유자: {}, 참여자 여부: {}", 
+                    memberId, classRoom.getMember().getId(), isParticipant);
+            throw new IllegalArgumentException("해당 클래스의 생성자 또는 참여자가 아닙니다.");
         }
 
         Meeting meeting = Meeting.builder()
@@ -133,6 +155,8 @@ public class OpenviduService {
                 .build();
 
         meetingRepository.save(meeting);
+        log.info("✅ 미팅 생성 완료 - meetingId: {}, title: {}", meeting.getId(), meeting.getTitle());
+        
         return MeetingCreateResponseDto.builder()
                 .title(meeting.getTitle())
                 .email(classRoom.getMember().getEmail())
@@ -149,14 +173,34 @@ public class OpenviduService {
     }
 
     public List<ClassMeetingInfoResponseDto> getMeetingList(String email, Long classId) {
+        log.info("📋 미팅 목록 조회 시작 - email: {}, classId: {}", email, classId);
+        
         ClassRoom classRoom = classRepository.findById(classId)
-                .orElseThrow(() -> new IllegalArgumentException("클래스를 찾을 수 없습니다."));
+                .orElseThrow(() -> {
+                    log.error("❌ 클래스를 찾을 수 없습니다 - classId: {}", classId);
+                    return new IllegalArgumentException("클래스를 찾을 수 없습니다.");
+                });
 
-        if (!classRoom.getMember().getEmail().equals(email)) {
-            throw new IllegalArgumentException("해당 클래스의 생성자가 아닙니다.");
+        // 사용자 ID 조회
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.error("❌ 사용자를 찾을 수 없습니다 - email: {}", email);
+                    return new IllegalArgumentException("사용자를 찾을 수 없습니다.");
+                });
+
+        // 수업 생성자 또는 참여자인지 확인
+        boolean isCreator = classRoom.getMember().getEmail().equals(email);
+        boolean isParticipant = classMemberRepository.existsByClassRoomIdAndMemberId(classId, member.getId());
+        
+        log.info("🔍 권한 확인 - isCreator: {}, isParticipant: {}", isCreator, isParticipant);
+
+        if (!isCreator && !isParticipant) {
+            log.error("❌ 권한 없음 - 요청자: {}, 클래스 소유자: {}, 참여자 여부: {}", 
+                    email, classRoom.getMember().getEmail(), isParticipant);
+            throw new IllegalArgumentException("해당 클래스의 생성자 또는 참여자가 아닙니다.");
         }
 
-        return meetingRepository.findAllSortedByNullFirst(classId)
+        List<ClassMeetingInfoResponseDto> meetings = meetingRepository.findAllSortedByNullFirst(classId)
                 .stream()
                 .map(m -> ClassMeetingInfoResponseDto.builder()
                         .meetingId(m.getId())
@@ -167,5 +211,8 @@ public class OpenviduService {
                         .s3url(m.getS3url())
                         .build())
                 .toList();
+        
+        log.info("✅ 미팅 목록 조회 완료 - 미팅 수: {}", meetings.size());
+        return meetings;
     }
 }
