@@ -131,19 +131,15 @@
                     <span class="btn-icon">🎥</span>
                     <span class="btn-text">수업 참여</span>
                   </button>
-                  <button class="view-details-btn" @click.stop="goToClass(cls.classId || cls.id)">
-                    <span class="btn-icon">📋</span>
-                    <span class="btn-text">상세보기</span>
-                  </button>
                 </div>
               </div>
             </div>
             <div class="card-right">
               <div class="live-info-section">
                 <h4 class="live-info-title">📄 문서 요약본</h4>
-                <div v-if="cls.liveInfoList && cls.liveInfoList.length > 0" class="live-info-list">
+                <div v-if="cls.liveInfoList && cls.liveInfoList.length > 0" class="live-info-list" :class="{ 'scrollable': cls.liveInfoList.length > 2 }">
                   <div 
-                    v-for="info in cls.liveInfoList.slice(0, 2)" 
+                    v-for="info in cls.liveInfoList" 
                     :key="info.id" 
                     class="live-info-item"
                   >
@@ -220,19 +216,15 @@
                     <span class="btn-icon">🎬</span>
                     <span class="btn-text">수업 시작</span>
                   </button>
-                  <button class="view-details-btn" @click.stop="goToClass(cls.classId || cls.id)">
-                    <span class="btn-icon">📋</span>
-                    <span class="btn-text">상세보기</span>
-                  </button>
                 </div>
               </div>
             </div>
             <div class="card-right">
               <div class="live-info-section">
                 <h4 class="live-info-title">📄 문서 요약본</h4>
-                <div v-if="cls.liveInfoList && cls.liveInfoList.length > 0" class="live-info-list">
+                <div v-if="cls.liveInfoList && cls.liveInfoList.length > 0" class="live-info-list" :class="{ 'scrollable': cls.liveInfoList.length > 2 }">
                   <div 
-                    v-for="info in cls.liveInfoList.slice(0, 2)" 
+                    v-for="info in cls.liveInfoList" 
                     :key="info.id" 
                     class="live-info-item"
                   >
@@ -1141,8 +1133,9 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
   min-width: 0;
+  justify-content: space-between;
 }
 
 .card-title {
@@ -1160,16 +1153,18 @@ export default {
   margin: 0;
   line-height: 1.6;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  flex: 1;
 }
 
 .card-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 0.25rem;
+  margin-top: auto;
+  margin-bottom: 0.5rem;
 }
 
 .card-time {
@@ -1196,7 +1191,7 @@ export default {
 .card-actions {
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
 }
 
 .card-right {
@@ -1228,25 +1223,29 @@ export default {
   flex-direction: column;
   gap: 0.75rem;
   flex: 1;
-  overflow-y: auto;
   padding-right: 0.5rem;
 }
 
-.live-info-list::-webkit-scrollbar {
+.live-info-list.scrollable {
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.live-info-list.scrollable::-webkit-scrollbar {
   width: 4px;
 }
 
-.live-info-list::-webkit-scrollbar-track {
+.live-info-list.scrollable::-webkit-scrollbar-track {
   background: var(--bg-secondary);
   border-radius: 2px;
 }
 
-.live-info-list::-webkit-scrollbar-thumb {
+.live-info-list.scrollable::-webkit-scrollbar-thumb {
   background: var(--border-color);
   border-radius: 2px;
 }
 
-.live-info-list::-webkit-scrollbar-thumb:hover {
+.live-info-list.scrollable::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }
 
@@ -1634,9 +1633,9 @@ export default {
   background: linear-gradient(135deg, var(--brand-main), var(--brand-sub));
   color: white;
   border: none;
-  padding: 0.875rem 1.25rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1812,11 +1811,11 @@ export default {
 
   .live-info-section {
     padding: 0.75rem;
-    max-height: 300px;
+    max-height: 250px;
   }
   
   .live-info-list {
-    max-height: 200px;
+    max-height: 150px;
   }
 
   .stats-grid {
