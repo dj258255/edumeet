@@ -77,7 +77,7 @@ let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
 
 function configureUrls() {
-  APPLICATION_SERVER_URL = 'httpa://i13c205.p.ssafy.io/api/v1/meetingroom/'
+  APPLICATION_SERVER_URL = 'https://i13c205.p.ssafy.io/api/v1/meetingroom/'
       
   LIVEKIT_URL = 'wss://edumeet-1jz93drq.livekit.cloud'
 }
