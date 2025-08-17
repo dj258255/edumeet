@@ -36,11 +36,11 @@
 
     <!-- 초대받은 수업 섹션 -->
     <section class="my-classes-section">
-      <div class="section-container">
-        <div class="section-header">
-          <h2 class="section-title">초대 받은 수업</h2>
-          <p class="section-subtitle">초대 받은 수업 목록을 확인하고 관리하세요.</p>
-        </div>
+        <div class="section-container">
+          <div class="section-header">
+            <h2 class="section-title">초대 받은 수업</h2>
+            <p class="section-subtitle">초대 받은 수업 목록을 확인하고 관리하세요.</p>
+          </div>
         <div v-if="classStore.isLoading" class="loading-state">
           <div class="loading-spinner">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -50,49 +50,49 @@
           <p>초대 목록을 불러오는 중...</p>
         </div>
         <div v-else-if="inviteClasses && inviteClasses.length > 0" class="activity-list">
-          <div 
-            v-for="cls in inviteClasses" 
-            :key="cls.classId || cls.id" 
+             <div 
+               v-for="cls in inviteClasses" 
+               :key="cls.classId || cls.id" 
             class="activity-card"
-          >
+             >
             <div class="activity-icon">
               <img :src="cls.thumbnailUrl || '@/assets/class_default_image.png'" :alt="cls.title + ' 썸네일'" class="class-thumbnail" />
-            </div>
+              </div>
             <div class="activity-content">
               <h3 class="activity-title">{{ cls.title }}</h3>
               <p class="activity-description">{{ cls.description }}</p>
               <div class="activity-meta">
                 <span class="activity-time">방금 전</span>
                 <span class="activity-status pending">대기중</span>
-              </div>
+                </div>
               <div class="activity-actions">
                 <div class="invite-buttons">
-                  <button 
+                   <button 
                     class="accept-invite-btn"
-                    @click="handleAcceptInvite(cls.classId || cls.id)"
-                    :disabled="isResponding"
-                  >
+                     @click="handleAcceptInvite(cls.classId || cls.id)"
+                     :disabled="isResponding"
+                   >
                     <span class="btn-icon">✓</span>
                     <span class="btn-text">수락</span>
-                  </button>
-                  <button 
+                   </button>
+                   <button 
                     class="reject-invite-btn"
-                    @click="handleRejectInvite(cls.classId || cls.id)"
-                    :disabled="isResponding"
-                  >
+                     @click="handleRejectInvite(cls.classId || cls.id)"
+                     :disabled="isResponding"
+                   >
                     <span class="btn-icon">✕</span>
                     <span class="btn-text">거절</span>
-                  </button>
+                   </button>
                 </div>
+                 </div>
               </div>
             </div>
           </div>
+          <div v-else class="no-classes">
+            <p>아직 초대 받은 수업이 없습니다.</p>
+          </div>
         </div>
-        <div v-else class="no-classes">
-          <p>아직 초대 받은 수업이 없습니다.</p>
-        </div>
-      </div>
-    </section>
+      </section>
 
     <!-- 내가 속한 수업 섹션 -->
     <section class="my-joined-classes-section">
@@ -106,9 +106,9 @@
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 2V6M12 18V22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12H6M18 12H22M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"/>
             </svg>
-          </div>
+            </div>
           <p>수업 목록을 불러오는 중...</p>
-        </div>
+          </div>
         <div v-else-if="classStore.getMyJoinedClasses && classStore.getMyJoinedClasses.length > 0" class="horizontal-cards">
           <div 
             v-for="cls in classStore.getMyJoinedClasses" 
@@ -118,21 +118,21 @@
             <div class="card-left">
               <div class="card-icon">
                 <img :src="cls.thumbnailUrl || '@/assets/class_default_image.png'" :alt="cls.title + ' 썸네일'" class="class-thumbnail" />
-              </div>
+            </div>
               <div class="card-content">
                 <h3 class="card-title">{{ cls.title }}</h3>
                 <p class="card-description">{{ cls.description }}</p>
                 <div class="card-meta">
                   <span class="card-time">2시간 전</span>
                   <span class="card-status completed">완료</span>
-                </div>
+          </div>
                 <div class="card-actions">
                   <button class="join-class-btn" @click.stop="joinClass(cls)">
                     <span class="btn-icon">🎥</span>
                     <span class="btn-text">수업 참여</span>
                   </button>
-                </div>
-              </div>
+            </div>
+          </div>
             </div>
             <div class="card-right">
               <div class="live-info-section">
@@ -148,7 +148,7 @@
                       <span class="info-status" :class="info.status">
                         {{ getStatusText(info.status) }}
                       </span>
-                    </div>
+          </div>
                     <div class="info-description">
                       <p>{{ info.description }}</p>
                     </div>
@@ -203,7 +203,7 @@
             <div class="card-left">
               <div class="card-icon">
                 <img :src="cls.thumbnailUrl || '@/assets/class_default_image.png'" :alt="cls.title + ' 썸네일'" class="class-thumbnail" />
-              </div>
+            </div>
               <div class="card-content">
                 <h3 class="card-title">{{ cls.title }}</h3>
                 <p class="card-description">{{ cls.description }}</p>
@@ -232,15 +232,15 @@
                       <h5 class="info-title">{{ info.title }}</h5>
                       <span class="info-status" :class="info.status">
                         {{ getStatusText(info.status) }}
-                      </span>
-                    </div>
+                </span>
+              </div>
                     <div class="info-description">
                       <p>{{ info.description }}</p>
-                    </div>
+            </div>
                     <div class="info-meta">
                       <span class="meta-date">{{ formatDate(info.createdAt) }}</span>
                       <span v-if="info.startTime" class="meta-time">{{ formatTime(info.startTime) }}</span>
-                    </div>
+          </div>
                     <div v-if="info.hasRecordingFile" class="info-files">
                       <button class="download-btn" @click.stop="downloadMeetingFile(info)">
                         <span class="btn-icon">📥</span>
@@ -291,13 +291,6 @@
             <div class="stat-content">
               <div class="stat-number">{{ learningStats.joinedClasses }}</div>
               <div class="stat-label">참여 중인 수업</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">⏱️</div>
-            <div class="stat-content">
-              <div class="stat-number">{{ learningStats.totalStudyHours }}h</div>
-              <div class="stat-label">총 학습 시간</div>
             </div>
           </div>
         </div>
@@ -376,7 +369,7 @@ export default {
      const pendingClassData = ref(null)
 
      // LiveInfo 관련 함수들
-     const getStatusText = (status) => {
+    const getStatusText = (status) => {
        const statusMap = { live: '진행중', scheduled: '예정', ended: '종료' }
        return statusMap[status] || '알 수 없음'
      }
@@ -453,26 +446,26 @@ export default {
      }
 
     // API에서 초대 목록을 가져오는 함수
-    const fetchMyClasses = async () => {
-      console.log('🔍 초대 목록 로드 시작...');
-      console.log('🔍 현재 토큰:', localStorage.getItem('token') ? '있음' : '없음');
+  const fetchMyClasses = async () => {
+    console.log('🔍 초대 목록 로드 시작...');
+    console.log('🔍 현재 토큰:', localStorage.getItem('token') ? '있음' : '없음');
+    
+    try {
+      console.log('🔍 classStore.fetchInviteList() 호출...');
+      const data = await classStore.fetchInviteList();
+      console.log('🔍 받은 데이터:', data);
       
-      try {
-        console.log('🔍 classStore.fetchInviteList() 호출...');
-        const data = await classStore.fetchInviteList();
-        console.log('🔍 받은 데이터:', data);
-        
-        inviteClasses.value = data;
-        
-        if (inviteClasses.value && !Array.isArray(inviteClasses.value)) {
-          console.log('🔍 배열이 아닌 데이터 수신, 빈 배열로 설정');
-          inviteClasses.value = [];
-        }
-      } catch (error) {
-        console.error('🔍 초대 목록 로드 실패:', error);
+      inviteClasses.value = data;
+      
+      if (inviteClasses.value && !Array.isArray(inviteClasses.value)) {
+        console.log('🔍 배열이 아닌 데이터 수신, 빈 배열로 설정');
         inviteClasses.value = [];
       }
-    };
+    } catch (error) {
+      console.error('🔍 초대 목록 로드 실패:', error);
+      inviteClasses.value = [];
+    }
+  };
 
          // LiveInfo 데이터를 매핑하는 함수
      const mapLiveInfoToViewModel = (items = []) => {
@@ -593,71 +586,71 @@ export default {
       };
     };
 
-    // 초대 수락 함수
-    const handleAcceptInvite = async (classId) => {
-      if (isResponding.value) return;
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('로그인이 필요합니다.');
+  // 초대 수락 함수
+  const handleAcceptInvite = async (classId) => {
+    if (isResponding.value) return;
+    
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('로그인이 필요합니다.');
         router.push('/login');
-        return;
-      }
-      
-      try {
-        isResponding.value = true;
-        
-        const requestData = {
-          classId: classId,
-          status: 'ACCEPTED'
-        };
-        
-        await classStore.respondToInvite(requestData);
-        alert('초대를 수락했습니다.');
-        
-        await fetchMyClasses();
+      return;
+    }
+    
+         try {
+       isResponding.value = true;
+       
+       const requestData = {
+         classId: classId,
+         status: 'ACCEPTED'
+       };
+       
+       await classStore.respondToInvite(requestData);
+       alert('초대를 수락했습니다.');
+       
+       await fetchMyClasses();
         await loadClasses(); // 전체 목록 새로고침
-      } catch (error) {
-        alert('초대 수락에 실패했습니다. 다시 시도해주세요.');
-      } finally {
-        isResponding.value = false;
-      }
-    };
+     } catch (error) {
+       alert('초대 수락에 실패했습니다. 다시 시도해주세요.');
+     } finally {
+       isResponding.value = false;
+     }
+  };
 
-    // 초대 거절 함수
-    const handleRejectInvite = async (classId) => {
-      if (isResponding.value) return;
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('로그인이 필요합니다.');
+  // 초대 거절 함수
+  const handleRejectInvite = async (classId) => {
+    if (isResponding.value) return;
+    
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('로그인이 필요합니다.');
         router.push('/login');
-        return;
-      }
-      
-      if (!confirm('정말로 이 초대를 거절하시겠습니까?')) {
-        return;
-      }
-      
-      try {
-        isResponding.value = true;
-        
-        const requestData = {
-          classId: classId,
-          status: 'DENIED'
-        };
-        
-        await classStore.respondToInvite(requestData);
-        alert('초대를 거절했습니다.');
-        
-        await fetchMyClasses();
-      } catch (error) {
-        console.error('초대 거절 실패:', error);
-        alert('초대 거절에 실패했습니다. 다시 시도해주세요.');
-      } finally {
-        isResponding.value = false;
-      }
-    };
+      return;
+    }
+    
+    if (!confirm('정말로 이 초대를 거절하시겠습니까?')) {
+      return;
+    }
+    
+         try {
+       isResponding.value = true;
+       
+       const requestData = {
+         classId: classId,
+         status: 'DENIED'
+       };
+       
+       await classStore.respondToInvite(requestData);
+       alert('초대를 거절했습니다.');
+       
+       await fetchMyClasses();
+     } catch (error) {
+       console.error('초대 거절 실패:', error);
+       alert('초대 거절에 실패했습니다. 다시 시도해주세요.');
+     } finally {
+       isResponding.value = false;
+     }
+  };
 
     // 수업 참여하기 (내가 속한 반의 수업 참여)
     const joinClass = (cls) => {
@@ -818,19 +811,19 @@ export default {
           }
         });
       }
-    });
+  });
 
-         return {
-       userInfo,
-       inviteClasses,
+    return {
+      userInfo,
+      inviteClasses,
        learningStats,
-       isResponding,
+      isResponding,
        isJoinModalOpen,
        selectedClassForJoin,
        showCreateClassModal,
        pendingClassData,
        classStore,
-       handleAcceptInvite,
+      handleAcceptInvite,
        handleRejectInvite,
        joinClass,
        createClass,
@@ -845,7 +838,7 @@ export default {
        downloadMeetingFile,
        mapLiveInfoToViewModel,
        fetchLiveInfoForClass
-     }
+    }
   }
 }
 </script>
@@ -1340,7 +1333,7 @@ export default {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  justify-content: center;
+    justify-content: center;
   gap: 0.25rem;
 }
 
@@ -1390,11 +1383,11 @@ export default {
 }
 
 .activity-card {
-  background: var(--bg-card);
+background: var(--bg-card);
   border-radius: 16px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid var(--border-color);
+border: 1px solid var(--border-color);
   cursor: pointer;
   display: flex;
   align-items: flex-start;
@@ -1417,7 +1410,7 @@ export default {
 }
 
 .activity-card:hover {
-  transform: translateY(-4px);
+transform: translateY(-4px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
@@ -1430,20 +1423,20 @@ export default {
   width: 80px;
   height: 80px;
   border-radius: 12px;
-  overflow: hidden;
+overflow: hidden;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   position: relative;
 }
 
 .class-thumbnail {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+width: 100%;
+height: 100%;
+object-fit: cover;
   transition: transform 0.3s ease;
 }
 
 .activity-card:hover .class-thumbnail {
-  transform: scale(1.05);
+transform: scale(1.05);
 }
 
 .activity-content {
@@ -1457,7 +1450,7 @@ export default {
 .activity-title {
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--text-primary);
+color: var(--text-primary);
   margin: 0;
   line-height: 1.4;
   letter-spacing: -0.025em;
@@ -1465,19 +1458,19 @@ export default {
 
 .activity-description {
   font-size: 0.875rem;
-  color: var(--text-secondary);
+color: var(--text-secondary);
   margin: 0;
   line-height: 1.6;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+display: -webkit-box;
+-webkit-line-clamp: 2;
+-webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 .activity-meta {
-  display: flex;
+display: flex;
   justify-content: space-between;
-  align-items: center;
+align-items: center;
   margin-top: 0.5rem;
 }
 
@@ -1515,10 +1508,10 @@ export default {
 }
 
 .no-classes {
-  text-align: center;
-  padding: var(--spacing-xl);
-  color: var(--text-tertiary);
-  font-style: italic;
+text-align: center;
+padding: var(--spacing-xl);
+color: var(--text-tertiary);
+font-style: italic;
 }
 
 /* 버튼 스타일 */

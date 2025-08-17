@@ -171,22 +171,18 @@
         <!-- 왼쪽 팀원 상세 정보 -->
         <div class="team-detail-panel">
           <transition name="slide-fade" mode="out-in">
-            <div class="team-member-detail" v-if="selectedMember" :key="selectedMember.name">
-              <div class="member-photo-container">
-                <img class="member-photo animate-photo" :src="selectedMember.image" :alt="selectedMember.name" />
-                <div class="photo-overlay"></div>
-              </div>
-              <div class="member-info">
-                <div class="member-badge">{{ selectedMember.role }}</div>
-                <h3 class="member-name animate-text">{{ selectedMember.name }}</h3>
-                <p class="member-quote animate-text">"{{ selectedMember.quote }}"</p>
-                <p class="member-description animate-text">{{ selectedMember.description }}</p>
-                <div class="member-social">
-                  <button class="social-btn">LinkedIn</button>
-                  <button class="social-btn">GitHub</button>
-                </div>
-              </div>
-            </div>
+                         <div class="team-member-detail" v-if="selectedMember" :key="selectedMember.name">
+               <div class="member-info">
+                 <div class="member-badge">{{ selectedMember.role }}</div>
+                 <h3 class="member-name animate-text">{{ selectedMember.name }}</h3>
+                 <p class="member-quote animate-text">"{{ selectedMember.quote }}"</p>
+                 <p class="member-description animate-text">{{ selectedMember.description }}</p>
+                 <div class="member-social">
+                   <button class="social-btn">LinkedIn</button>
+                   <button class="social-btn">GitHub</button>
+                 </div>
+               </div>
+             </div>
             <div class="team-overview" v-else key="overview">
               <div class="overview-badge">우리 팀</div>
               <h2 class="team-title">함께 만들어가는 멤버들입니다</h2>
@@ -276,50 +272,51 @@ const members = [
   {
     name: "권시온",
     role: "백엔드 개발",
-    quote: "코드를 통해 세상을 연결합니다",
-    image: "https://via.placeholder.com/300x400",
-    icon: "fas fa-code",
-    description: "Vue.js와 React를 활용한 사용자 친화적인 웹 인터페이스를 개발합니다. 사용자 경험을 최우선으로 생각하며, 깔끔하고 직관적인 UI/UX를 구현하는 것을 전문으로 합니다."
+    quote: "AI로 교육의 미래를 만듭니다",
+    image: "",
+    icon: "fas fa-brain",
+    description: "머신러닝과 딥러닝 기술을 활용하여 개인화된 학습 경험을 제공하는 AI 시스템을 개발합니다. 자연어 처리와 음성 인식을 전문으로 하며, 교육 분야에 특화된 AI 솔루션을 연구합니다."
   },
   {
     name: "이승민",
     role: "프론트엔드 개발",
-    quote: "데이터 흐름을 설계합니다",
-    image: "https://via.placeholder.com/300x400",
+    quote: "사용자 경험을 최우선으로",
+    image: "",
     icon: "fas fa-server",
-    description: "Node.js와 Python을 기반으로 안정적이고 확장 가능한 서버 아키텍처를 구축합니다. 데이터베이스 설계와 API 개발을 담당하며, 시스템의 성능과 보안을 최적화합니다."
+    description: "Vue.js와 React를 활용한 사용자 친화적인 웹 인터페이스를 개발합니다. 사용자 경험을 최우선으로 생각하며, 깔끔하고 직관적인 UI/UX를 구현하는 것을 전문으로 합니다."
   },
   {
     name: "박시은",
-    role: "백앤드개발",
-    quote: "감각을 담은 UI/UX",
-    image: "https://via.placeholder.com/300x400",
+    role: "풀스택 개발",
+    quote: "안정적인 서비스를 보장합니다",
+    image: "",
     icon: "fas fa-palette",
-    description: "사용자 중심의 디자인 철학을 바탕으로 직관적이고 아름다운 인터페이스를 설계합니다. Figma와 Adobe Creative Suite를 활용하여 브랜드 아이덴티티와 일관된 디자인 시스템을 구축합니다."
+    description: "Spring Boot와 Java를 기반으로 안정적이고 확장 가능한 서버 아키텍처를 구축합니다. 데이터베이스 설계와 API 개발을 담당하며, 시스템의 성능과 보안을 최적화합니다."
   },
   {
     name: "전준영",
     role: "백엔드 개발",
-    quote: "학습하는 알고리즘에 생명을",
-    image: "https://via.placeholder.com/300x400",
-    icon: "fas fa-brain",
-    description: "머신러닝과 딥러닝 기술을 활용하여 개인화된 학습 경험을 제공하는 AI 시스템을 개발합니다. 자연어 처리와 추천 시스템을 전문으로 하며, 교육 분야에 특화된 AI 솔루션을 연구합니다."
+    quote: "코드를 통해 세상을 연결합니다",
+    image: "",
+    icon: "fas fa-cloud",
+    description: "Spring Boot와 AWS를 활용한 클라우드 인프라를 구축하고 관리합니다. 데이터베이스 설계와 API 개발을 담당하며, 시스템의 안정성과 확장성을 보장합니다."
   },
+
   {
     name: "권민환",
     role: "프론트엔드 개발",
-    quote: "데이터로 인사이트를 발견합니다",
-    image: "https://via.placeholder.com/300x400",
+    quote: "사용자 중심의 인터페이스",
+    image: "",
     icon: "fas fa-chart-bar",
-    description: "교육 데이터를 분석하여 학습 패턴과 효과를 측정합니다. 통계적 분석과 시각화를 통해 교육 과정의 개선점을 발견하고, 데이터 기반의 의사결정을 지원합니다."
+    description: "반응형 웹 디자인과 모바일 최적화를 전문으로 합니다. Vue.js와 JavaScript를 활용하여 다양한 디바이스에서 일관된 사용자 경험을 제공하는 인터페이스를 개발합니다."
   },
   {
     name: "범수",
     role: "백엔드 개발",
-    quote: "안정적인 서비스를 보장합니다",
-    image: "https://via.placeholder.com/300x400",
-    icon: "fas fa-cloud",
-    description: "AWS와 Docker를 활용한 클라우드 인프라를 구축하고 관리합니다. CI/CD 파이프라인을 구축하여 개발과 배포 과정을 자동화하고, 시스템의 안정성과 확장성을 보장합니다."
+    quote: "안정적인 서버 아키텍처 구축",
+    image: "",
+    icon: "fas fa-code",
+    description: "Spring Boot와 Java를 기반으로 안정적이고 확장 가능한 서버 아키텍처를 구축합니다. 데이터베이스 설계와 API 개발을 담당하며, 시스템의 성능과 보안을 최적화합니다."
   },
 ]
 

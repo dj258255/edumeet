@@ -3,6 +3,12 @@
   min-height: 100vh;
   background: #f8fafc;
   color: #1e293b;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .about-view {
+  background: #0f172a;
+  color: #f1f5f9;
 }
 
 .container {
@@ -335,6 +341,11 @@
   font-weight: 800;
   color: #1e293b;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .section-header h2 {
+  color: #f1f5f9;
 }
 
 .section-header p {
@@ -343,12 +354,22 @@
   max-width: 600px;
   margin: 0 auto;
   line-height: 1.6;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .section-header p {
+  color: #cbd5e0;
 }
 
 /* Features Section */
 .features {
   padding: 6rem 0;
   background: white;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .features {
+  background: #1e293b;
 }
 
 .features-grid {
@@ -366,6 +387,12 @@
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+}
+
+.dark-mode .feature-card {
+  background: #334155;
+  border: 1px solid #475569;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .feature-card::before {
@@ -400,12 +427,22 @@
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .feature-card h3 {
+  color: #f1f5f9;
 }
 
 .feature-card p {
   color: #64748b;
   line-height: 1.6;
   margin-bottom: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .feature-card p {
+  color: #cbd5e0;
 }
 
 .feature-metrics {
@@ -421,6 +458,12 @@
   background: #f8fafc;
   border-radius: 0.5rem;
   border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .metric {
+  background: #475569;
+  border: 1px solid #64748b;
 }
 
 .metric-value {
@@ -429,17 +472,28 @@
   font-weight: 700;
   color: #22c55e;
   margin-bottom: 0.25rem;
+  transition: all 0.3s ease;
 }
 
 .metric-label {
   font-size: 0.875rem;
   color: #64748b;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .metric-label {
+  color: #9ca3af;
 }
 
 /* How It Works Section */
 .how-it-works {
   padding: 6rem 0;
   background: #f8fafc;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .how-it-works {
+  background: #0f172a;
 }
 
 .steps {
@@ -460,6 +514,12 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid #e2e8f0;
   transition: all 0.3s ease;
+}
+
+.dark-mode .step {
+  background: #334155;
+  border: 1px solid #475569;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .step:hover {
@@ -491,12 +551,22 @@
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .step-content h3 {
+  color: #f1f5f9;
 }
 
 .step-content p {
   color: #64748b;
   line-height: 1.6;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .step-content p {
+  color: #cbd5e0;
 }
 
 .step-button {
@@ -521,6 +591,11 @@
 .technology {
   padding: 6rem 0;
   background: white;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .technology {
+  background: #1e293b;
 }
 
 .tech-grid {
@@ -538,6 +613,12 @@
   transition: all 0.3s ease;
 }
 
+.dark-mode .tech-category {
+  background: #334155;
+  border: 1px solid #475569;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
 .tech-category:hover {
   transform: translateY(-8px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
@@ -550,6 +631,11 @@
   margin-bottom: 1.5rem;
   text-align: center;
   position: relative;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .tech-category h3 {
+  color: #f1f5f9;
 }
 
 .tech-category h3::after {
@@ -583,10 +669,20 @@
   cursor: pointer;
 }
 
+.dark-mode .tech-item {
+  background: #475569;
+  border: 1px solid #64748b;
+}
+
 .tech-item:hover {
   background: #f1f5f9;
   border-color: #22c55e;
   transform: translateY(-4px);
+}
+
+.dark-mode .tech-item:hover {
+  background: #64748b;
+  border-color: #22c55e;
 }
 
 .tech-icon {
@@ -598,6 +694,11 @@
   font-weight: 600;
   color: #1e293b;
   text-align: center;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .tech-name {
+  color: #f1f5f9;
 }
 
 /* CTA Section */

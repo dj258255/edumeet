@@ -16,11 +16,8 @@
             추가 비용 없이 미래의 학습을 경험해보세요.
           </p>
           <div class="hero-actions">
-            <router-link to="/create-room" class="btn btn-primary">
+            <router-link to="/class/create" class="btn btn-primary">
               시작하기
-            </router-link>
-            <router-link to="/about" class="btn btn-secondary">
-              EduMeet 알아보기
             </router-link>
           </div>
         </div>
@@ -138,7 +135,7 @@
         <p>EduMeet와 함께 새로운 교육 경험을 만들어보세요</p>
         <div class="cta-buttons">
           <router-link to="/" class="btn btn-primary">홈으로 돌아가기</router-link>
-          <router-link to="/create-room" class="btn btn-secondary">방 만들기</router-link>
+          <router-link to="/class/create" class="btn btn-secondary">방 만들기</router-link>
         </div>
       </div>
     </section>
@@ -152,13 +149,13 @@ import '../styles/AboutView.css'
 const features = ref([
   {
     id: 1,
-    icon: '🎥',
-    title: '고품질 화상회의',
-    description: '4K 해상도와 고음질을 지원하는 최고 수준의 화상회의 시스템',
+    icon: '🎓',
+    title: '통합 학습 관리',
+    description: '수업 생성부터 진행, 평가까지 모든 교육 과정을 한 곳에서 관리',
     metrics: [
-      { value: '4K', label: '해상도' },
-      { value: '100명', label: '동시 참여' },
-      { value: '99.9%', label: '안정성' }
+      { value: '무제한', label: '수업 생성' },
+      { value: '실시간', label: '진행 관리' },
+      { value: '100%', label: '자동화' }
     ]
   },
   {
@@ -198,7 +195,7 @@ const steps = ref([
     title: '방 생성',
     description: '새로운 수업 방을 만들고 설정을 구성하세요',
     buttonText: '방 만들기',
-    link: '/create-room'
+    link: '/class/create'
   },
   {
     id: 3,
@@ -223,18 +220,9 @@ const techStack = ref([
     name: '백엔드',
     items: [
       { name: 'Node.js', icon: '🟢' },
-      { name: 'Express.js', icon: '🚀' },
+      { name: 'JAVA', icon: '🚀' },
       { name: 'Python', icon: '🐍' },
-      { name: 'Django', icon: '⚙️' }
-    ]
-  },
-  {
-    name: 'AI/ML',
-    items: [
-      { name: 'TensorFlow', icon: '🧠' },
-      { name: 'OpenAI API', icon: '🤖' },
-      { name: 'NLP', icon: '📝' },
-      { name: 'Speech Recognition', icon: '🎤' }
+      { name: 'Spring Boot', icon: '⚙️' }
     ]
   },
   {
