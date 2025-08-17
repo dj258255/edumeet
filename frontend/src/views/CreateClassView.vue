@@ -633,7 +633,7 @@ onBeforeUnmount(() => {
   padding: 0.75rem 1rem;
   border: none;
   background: transparent;
-  color: var(--text-secondary);
+  color: #000000 !important; /* 라이트 모드에서 검정색으로 고정 */
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
@@ -642,9 +642,18 @@ onBeforeUnmount(() => {
 }
 
 .tab-btn.active {
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: #ffffff !important; /* 활성 상태에서 배경색을 흰색으로 */
+  color: #000000 !important; /* 활성 상태에서 텍스트는 검정색으로 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 다크 모드에서만 색상 변경 */
+.dark-mode .tab-btn {
+  color: var(--text-secondary);
+}
+
+.dark-mode .tab-btn.active {
+  color: var(--text-primary);
 }
 
 /* 반 카드 그리드 */
