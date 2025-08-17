@@ -138,7 +138,7 @@
         <p>EduMeet와 함께 새로운 교육 경험을 만들어보세요</p>
         <div class="cta-buttons">
           <router-link to="/" class="btn btn-primary">홈으로 돌아가기</router-link>
-          <router-link to="/create-room" class="btn btn-secondary">방 만들기</router-link>
+          <router-link to="/class/create" class="btn btn-secondary">방 만들기</router-link>
         </div>
       </div>
     </section>
@@ -152,33 +152,20 @@ import '../styles/AboutView.css'
 const features = ref([
   {
     id: 1,
-    icon: '🎥',
-    title: '고품질 화상회의',
-    description: '4K 해상도와 고음질을 지원하는 최고 수준의 화상회의 시스템',
-    metrics: [
-      { value: '4K', label: '해상도' },
-      { value: '100명', label: '동시 참여' },
-      { value: '99.9%', label: '안정성' }
-    ]
-  },
-  {
-    id: 2,
     icon: '🤖',
     title: 'AI 수업 요약',
     description: '수업 내용을 자동으로 요약하여 학습 효율성 극대화',
     metrics: [
       { value: '95%', label: '정확도' },
       { value: '실시간', label: '처리' },
-      { value: '10개', label: '언어 지원' }
     ]
   },
   {
-    id: 3,
+    id: 2,
     icon: '📝',
     title: '실시간 자막',
     description: '언어 장벽 없는 교육 환경을 위한 실시간 자막 서비스',
     metrics: [
-      { value: '20개', label: '언어 지원' },
       { value: '0.5초', label: '지연시간' },
       { value: '98%', label: '인식률' }
     ]
@@ -195,18 +182,11 @@ const steps = ref([
   },
   {
     id: 2,
-    title: '방 생성',
+    title: '반 입장 및 생성',
     description: '새로운 수업 방을 만들고 설정을 구성하세요',
     buttonText: '방 만들기',
-    link: '/create-room'
+    link: '/class/create'
   },
-  {
-    id: 3,
-    title: '수업 시작',
-    description: '모든 준비가 완료되면 수업을 시작하세요',
-    buttonText: '수업 시작',
-    link: '/'
-  }
 ])
 
 const techStack = ref([
@@ -223,18 +203,19 @@ const techStack = ref([
     name: '백엔드',
     items: [
       { name: 'Node.js', icon: '🟢' },
-      { name: 'Express.js', icon: '🚀' },
+      { name: 'Java', icon: '☕' }, // Express.js 대신 Java 추가
+      { name: 'Spring', icon: '🌸' }, // Spring 추가
       { name: 'Python', icon: '🐍' },
-      { name: 'Django', icon: '⚙️' }
     ]
   },
+// 기존 'AI/ML' 섹션을 아래 '개발 툴' 섹션으로 대체
   {
-    name: 'AI/ML',
+    name: '개발 툴',
     items: [
-      { name: 'TensorFlow', icon: '🧠' },
-      { name: 'OpenAI API', icon: '🤖' },
-      { name: 'NLP', icon: '📝' },
-      { name: 'Speech Recognition', icon: '🎤' }
+      { name: 'GitHub', icon: '🐙' }, // GitHub 아이콘
+      { name: 'Notion', icon: '📋' }, // Notion 아이콘
+      { name: 'Jira', icon: '⚙️' }, // Jira 아이콘
+      { name: 'IntelliJ', icon: '💻' }, // IntelliJ 아이콘
     ]
   },
   {
