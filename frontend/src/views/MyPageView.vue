@@ -584,7 +584,7 @@ export default {
         joinedClasses: classStore.getMyJoinedClasses?.length || 0,
         totalStudyHours: Math.floor(Math.random() * 50) + 10 // 임시 데이터
       };
-    };
+  };
 
   // 초대 수락 함수
   const handleAcceptInvite = async (classId) => {

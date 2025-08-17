@@ -77,7 +77,7 @@ let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
 
 function configureUrls() {
-  APPLICATION_SERVER_URL = 'https://i13c205.p.ssafy.io/api/v1/meetingroom/'
+  APPLICATION_SERVER_URL = 'http://localhost:8080/api/v1/meetingroom/'
       
   LIVEKIT_URL = 'wss://edumeet-1jz93drq.livekit.cloud'
 }
@@ -1512,5 +1512,105 @@ function handleCameraRestored(newCameraTrack: any) {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
   }
+}
+
+/* 퇴장 모달 스타일 */
+.exit-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(5px);
+}
+
+.exit-modal-content {
+  background: var(--bg-primary);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+  animation: slideInFromCenter 0.3s ease-out;
+}
+
+.exit-modal-content h3 {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+}
+
+.exit-modal-content p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0 0 2rem 0;
+  line-height: 1.5;
+}
+
+.exit-modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.exit-modal-buttons button {
+  width: 100%;
+  max-width: 300px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.summary-btn {
+  background: linear-gradient(135deg, #477856, #5a8a6b);
+  color: white;
+  box-shadow: 0 4px 15px rgba(71, 120, 86, 0.3);
+}
+
+.summary-btn:hover {
+  background: linear-gradient(135deg, #5a8a6b, #477856);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(71, 120, 86, 0.4);
+}
+
+.leave-btn {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+  box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+.leave-btn:hover {
+  background: linear-gradient(135deg, #c82333, #dc3545);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+}
+
+.cancel-btn {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.cancel-btn:hover {
+  background: var(--bg-tertiary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 </style>
