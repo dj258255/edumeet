@@ -166,16 +166,14 @@ const features = ref([
     metrics: [
       { value: '95%', label: '정확도' },
       { value: '실시간', label: '처리' },
-      { value: '10개', label: '언어 지원' }
     ]
   },
   {
-    id: 3,
+    id: 2,
     icon: '📝',
     title: '실시간 자막',
     description: '언어 장벽 없는 교육 환경을 위한 실시간 자막 서비스',
     metrics: [
-      { value: '20개', label: '언어 지원' },
       { value: '0.5초', label: '지연시간' },
       { value: '98%', label: '인식률' }
     ]
@@ -192,18 +190,11 @@ const steps = ref([
   },
   {
     id: 2,
-    title: '방 생성',
+    title: '반 입장 및 생성',
     description: '새로운 수업 방을 만들고 설정을 구성하세요',
     buttonText: '방 만들기',
     link: '/class/create'
   },
-  {
-    id: 3,
-    title: '수업 시작',
-    description: '모든 준비가 완료되면 수업을 시작하세요',
-    buttonText: '수업 시작',
-    link: '/'
-  }
 ])
 
 const techStack = ref([
@@ -220,9 +211,19 @@ const techStack = ref([
     name: '백엔드',
     items: [
       { name: 'Node.js', icon: '🟢' },
-      { name: 'JAVA', icon: '🚀' },
+      { name: 'Java', icon: '☕' }, // Express.js 대신 Java 추가
+      { name: 'Spring', icon: '🌸' }, // Spring 추가
       { name: 'Python', icon: '🐍' },
-      { name: 'Spring Boot', icon: '⚙️' }
+    ]
+  },
+// 기존 'AI/ML' 섹션을 아래 '개발 툴' 섹션으로 대체
+  {
+    name: '개발 툴',
+    items: [
+      { name: 'GitHub', icon: '🐙' }, // GitHub 아이콘
+      { name: 'Notion', icon: '📋' }, // Notion 아이콘
+      { name: 'Jira', icon: '⚙️' }, // Jira 아이콘
+      { name: 'IntelliJ', icon: '💻' }, // IntelliJ 아이콘
     ]
   },
   {

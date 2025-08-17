@@ -21,9 +21,10 @@ export function useAutoLogout() {
   const lastHeartbeatTime = ref(Date.now())
   
   // 설정값 (밀리초)
+// 설정값 (밀리초)
   const TIMEOUTS = {
     USER_INACTIVITY: 60 * 60 * 1000,    // 1시간
-    PAGE_VISIBILITY: 30 * 60 * 1000,    // 30분
+    PAGE_VISIBILITY: 2 * 60 * 60 * 1000,    // 2시간으로 변경
     SERVER_HEARTBEAT: 5 * 60 * 1000,    // 5분
     HEARTBEAT_INTERVAL: 2 * 60 * 1000   // 2분마다 heartbeat 체크
   }
@@ -109,25 +110,37 @@ export function useAutoLogout() {
   /**
    * 서버 연결 상태 확인 (Heartbeat)
    */
+/**
+ * 서버 연결 상태 확인 (Heartbeat)
+ */
   const checkServerConnection = async () => {
-    if (!isLoggedIn()) return
-    
+    if (!isLoggedIn()) return;
+
     try {
-      // 간단한 API 호출로 서버 상태 확인
-      await apiClient.get('/members/profile')
-      lastHeartbeatTime.value = Date.now()
-      console.log('서버 연결 정상')
+      // API 호출을 프로필 조회 대신 더 가벼운 상태 체크 API로 변경
+      // 예를 들어, 서버의 상태를 확인하는 헬스 체크 엔드포인트가 있다면 그것을 사용
+      // 예시: await apiClient.get('/api/v1/health-check');
+      // 현재 프로젝트에 적합한 다른 엔드포인트를 사용해야 합니다.
+
+      // 만약 그런 엔드포인트가 없다면, API 호출 자체를 제거하고 네트워크 상태만 확인
+      // 네트워크가 오프라인 상태인지 확인
+      if (!navigator.onLine) {
+          throw new Error('네트워크 연결 끊김');
+      }
+
+      lastHeartbeatTime.value = Date.now();
+      console.log('네트워크 연결 정상');
     } catch (error) {
-      console.error('서버 연결 확인 실패:', error)
+      console.error('서버 연결 확인 실패:', error);
       
       // 마지막 성공적인 heartbeat로부터 5분이 지났는지 확인
-      const timeSinceLastHeartbeat = Date.now() - lastHeartbeatTime.value
+      const timeSinceLastHeartbeat = Date.now() - lastHeartbeatTime.value;
       
       if (timeSinceLastHeartbeat > TIMEOUTS.SERVER_HEARTBEAT) {
-        performAutoLogout('서버와의 연결이 끊어졌습니다.')
+        performAutoLogout('서버와의 연결이 끊어졌습니다.');
       }
     }
-  }
+  };
   
   /**
    * Heartbeat 타이머 설정

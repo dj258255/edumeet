@@ -171,18 +171,18 @@
         <!-- 왼쪽 팀원 상세 정보 -->
         <div class="team-detail-panel">
           <transition name="slide-fade" mode="out-in">
-                         <div class="team-member-detail" v-if="selectedMember" :key="selectedMember.name">
-               <div class="member-info">
-                 <div class="member-badge">{{ selectedMember.role }}</div>
-                 <h3 class="member-name animate-text">{{ selectedMember.name }}</h3>
-                 <p class="member-quote animate-text">"{{ selectedMember.quote }}"</p>
-                 <p class="member-description animate-text">{{ selectedMember.description }}</p>
-                 <div class="member-social">
-                   <button class="social-btn">LinkedIn</button>
-                   <button class="social-btn">GitHub</button>
-                 </div>
-               </div>
-             </div>
+            <div class="team-member-detail" v-if="selectedMember" :key="selectedMember.name">
+              <div class="member-info">
+                <div class="member-badge">{{ selectedMember.role }}</div>
+                <h3 class="member-name animate-text">{{ selectedMember.name }}</h3>
+                <p class="member-quote animate-text">"{{ selectedMember.quote }}"</p>
+                <p class="member-description animate-text">{{ selectedMember.description }}</p>
+                <div class="member-social">
+                  <button class="social-btn">LinkedIn</button>
+                  <button class="social-btn">GitHub</button>
+                </div>
+              </div>
+            </div>
             <div class="team-overview" v-else key="overview">
               <div class="overview-badge">우리 팀</div>
               <h2 class="team-title">함께 만들어가는 멤버들입니다</h2>
