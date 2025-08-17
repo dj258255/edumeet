@@ -27,9 +27,6 @@
             <div class="profile-info">
               <h3 class="profile-name">{{ userInfo.nickname }}</h3>
               <p class="profile-email">{{ userInfo.email }}</p>
-              <div class="profile-role">
-                <span class="role-badge">{{ userInfo.role === 'tutor' ? '튜터' : '학생' }}</span>
-              </div>
             </div>
           </div>
         </div>
@@ -81,12 +78,6 @@
           </div>
           <div v-else class="no-classes">
             <p>아직 초대 받은 수업이 없습니다.</p>
-            <!-- 디버깅용 정보 -->
-            <div style="margin-top: 10px; font-size: 12px; color: #666;">
-              디버깅: inviteClasses = {{ inviteClasses }}<br>
-              길이: {{ inviteClasses ? inviteClasses.length : 'null/undefined' }}<br>
-              타입: {{ typeof inviteClasses }}
-            </div>
           </div>
         </div>
       </section>

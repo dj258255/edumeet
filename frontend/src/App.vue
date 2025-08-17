@@ -255,19 +255,19 @@ const cancelPress = () => {
       </div>
       <div class="sidebar-content">
         <RouterLink to="/class/create" @click="toggleSidebar">Class</RouterLink>
-        <RouterLink to="/solutions" @click="toggleSidebar">Solutions</RouterLink>
+        <!-- <RouterLink to="/solutions" @click="toggleSidebar">Solutions</RouterLink>
         <RouterLink to="/community" @click="toggleSidebar">Community</RouterLink>
         <RouterLink to="/articles" @click="toggleSidebar">Articles</RouterLink>
         <RouterLink to="/pricing" @click="toggleSidebar">Pricing</RouterLink>
         <RouterLink to="/contact" @click="toggleSidebar">Contact</RouterLink>
-        <RouterLink to="/link" @click="toggleSidebar">Link</RouterLink>
-        <button class="search-button sidebar-search" @click="() => { toggleSidebar(); toggleSearch(); }" aria-label="검색">
+        <RouterLink to="/link" @click="toggleSidebar">Link</RouterLink> -->
+        <!-- <button class="search-button sidebar-search" @click="() => { toggleSidebar(); toggleSearch(); }" aria-label="검색">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
           <span>검색</span>
-        </button>
+        </button> -->
         <button class="dark-mode-button sidebar-dark-mode" @click="toggleDarkMode" :aria-label="isDarkMode ? '라이트모드로 전환' : '다크모드로 전환'">
           <svg v-if="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
