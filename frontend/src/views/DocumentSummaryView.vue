@@ -91,7 +91,7 @@ async function startSummary() {
     // 1단계: 키워드/문장 추출
     loadingMessage.value = '분석 중...'
     
-    const extractResponse = await fetch('http://localhost:3001/api/extract-key-sentences', {
+    const extractResponse = await fetch('https://i13c205.p.ssafy.io/api/extract-key-sentences', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -113,7 +113,7 @@ async function startSummary() {
       ? keySentences.join(' ') 
       : inputText.value
 
-    const summaryResponse = await fetch('http://localhost:3001/api/llm-summarize', {
+    const summaryResponse = await fetch('https://i13c205.p.ssafy.io/api/llm-summarize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: textToSummarize })
