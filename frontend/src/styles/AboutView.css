@@ -1,8 +1,14 @@
 /* AboutView Styles */
 .about-view {
   min-height: 100vh;
-  background: #f8fafc;
-  color: #1e293b;
+  background: #f8fafc; /* 라이트 모드 배경색 */
+  color: #1e293b; /* 라이트 모드 기본 글자색 */
+  transition: all 0.3s ease;
+}
+
+.dark-mode .about-view {
+  background: #0f172a; /* 다크 모드 배경색 */
+  color: #e2e8f0; /* 다크 모드 기본 글자색 */
 }
 
 .container {
@@ -313,7 +319,8 @@
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px) rotate(0deg);
   }
   33% {
@@ -335,6 +342,11 @@
   font-weight: 800;
   color: #1e293b;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .section-header h2 {
+  color: #f1f5f9;
 }
 
 .section-header p {
@@ -343,12 +355,22 @@
   max-width: 600px;
   margin: 0 auto;
   line-height: 1.6;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .section-header p {
+  color: #a0aec0;
 }
 
 /* Features Section */
 .features {
   padding: 6rem 0;
   background: white;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .features {
+  background: #1a202c;
 }
 
 .features-grid {
@@ -366,6 +388,12 @@
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+}
+
+.dark-mode .feature-card {
+  background: #2d3748;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid #4a5568;
 }
 
 .feature-card::before {
@@ -400,12 +428,22 @@
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .feature-card h3 {
+  color: #f1f5f9;
 }
 
 .feature-card p {
   color: #64748b;
   line-height: 1.6;
   margin-bottom: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .feature-card p {
+  color: #a0aec0;
 }
 
 .feature-metrics {
@@ -421,6 +459,12 @@
   background: #f8fafc;
   border-radius: 0.5rem;
   border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .metric {
+  background: #1a202c;
+  border: 1px solid #2d3748;
 }
 
 .metric-value {
@@ -429,17 +473,32 @@
   font-weight: 700;
   color: #22c55e;
   margin-bottom: 0.25rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .metric-value {
+  color: #4ade80;
 }
 
 .metric-label {
   font-size: 0.875rem;
   color: #64748b;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .metric-label {
+  color: #a0aec0;
 }
 
 /* How It Works Section */
 .how-it-works {
   padding: 6rem 0;
   background: #f8fafc;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .how-it-works {
+  background: #1a202c;
 }
 
 .steps {
@@ -460,6 +519,12 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid #e2e8f0;
   transition: all 0.3s ease;
+}
+
+.dark-mode .step {
+  background: #2d3748;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid #4a5568;
 }
 
 .step:hover {
@@ -491,12 +556,22 @@
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .step-content h3 {
+  color: #f1f5f9;
 }
 
 .step-content p {
   color: #64748b;
   line-height: 1.6;
   margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .step-content p {
+  color: #a0aec0;
 }
 
 .step-button {
@@ -521,6 +596,11 @@
 .technology {
   padding: 6rem 0;
   background: white;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .technology {
+  background: #1a202c;
 }
 
 .tech-grid {
@@ -538,6 +618,12 @@
   transition: all 0.3s ease;
 }
 
+.dark-mode .tech-category {
+  background: #2d3748;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid #4a5568;
+}
+
 .tech-category:hover {
   transform: translateY(-8px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
@@ -550,6 +636,11 @@
   margin-bottom: 1.5rem;
   text-align: center;
   position: relative;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .tech-category h3 {
+  color: #f1f5f9;
 }
 
 .tech-category h3::after {
@@ -583,10 +674,20 @@
   cursor: pointer;
 }
 
+.dark-mode .tech-item {
+  background: #1a202c;
+  border: 1px solid #2d3748;
+}
+
 .tech-item:hover {
   background: #f1f5f9;
   border-color: #22c55e;
   transform: translateY(-4px);
+}
+
+.dark-mode .tech-item:hover {
+  background: #2d3748;
+  border-color: #4ade80;
 }
 
 .tech-icon {
@@ -598,14 +699,25 @@
   font-weight: 600;
   color: #1e293b;
   text-align: center;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .tech-name {
+  color: #f1f5f9;
 }
 
 /* CTA Section */
 .cta {
   padding: 6rem 0;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-  color: white;
+  background: #f8fafc;
+  color: #1e293b;
   text-align: center;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .cta {
+  background: #1a202c;
+  color: white;
 }
 
 .cta h2 {
@@ -642,28 +754,53 @@
   justify-content: center;
 }
 
-.btn-primary {
-  background: white;
-  color: #22c55e;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-.btn-primary:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-}
-
-.btn-secondary {
-  background: transparent;
+/* CTA Buttons in Light Mode */
+.cta .btn-primary {
+  background: #22c55e;
   color: white;
-  border: 2px solid white;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
 }
 
-.btn-secondary:hover {
-  background: white;
-  color: #22c55e;
+.cta .btn-primary:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+  background: #16a34a;
+  box-shadow: 0 8px 25px rgba(34, 197, 94, 0.4);
+}
+
+.cta .btn-secondary {
+  background: transparent;
+  color: #22c55e;
+  border: 2px solid #22c55e;
+}
+
+.cta .btn-secondary:hover {
+  background: #22c55e;
+  color: white;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(34, 197, 94, 0.2);
+}
+
+/* CTA Buttons in Dark Mode */
+.dark-mode .cta .btn-primary {
+  background: #4ade80;
+  color: #1e293b;
+  box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
+}
+
+.dark-mode .cta .btn-primary:hover {
+  background: #22c55e;
+  color: white;
+}
+
+.dark-mode .cta .btn-secondary {
+  background: transparent;
+  color: #4ade80;
+  border: 2px solid #4ade80;
+}
+
+.dark-mode .cta .btn-secondary:hover {
+  background: #4ade80;
+  color: #1e293b;
 }
 
 /* Responsive Design */
@@ -673,62 +810,62 @@
     text-align: center;
     gap: 3rem;
   }
-  
+
   .hero-content {
     max-width: 100%;
   }
-  
+
   .hero-visual {
     height: 400px;
   }
-  
+
   .hero-images {
     flex-direction: column;
     gap: 1.5rem;
   }
-  
+
   .image-container {
     flex-direction: row;
     gap: 1rem;
   }
-  
+
   .hero-image {
     width: 200px;
     height: 140px;
   }
-  
+
   .bubble-1 {
     width: 200px;
     padding: 0.75rem;
   }
-  
+
   .bubble-2 {
     width: 160px;
     padding: 0.5rem;
   }
-  
+
   .features-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .step {
     flex-direction: column;
     text-align: center;
   }
-  
+
   .tech-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .tech-items {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .cta-buttons {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .btn {
     width: 100%;
     max-width: 300px;
@@ -739,62 +876,62 @@
   .container {
     padding: 0 1rem;
   }
-  
+
   .hero {
     padding: 4rem 0;
   }
-  
+
   .hero-actions {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .btn {
     width: 100%;
     max-width: 280px;
   }
-  
+
   .hero-visual {
     height: 300px;
   }
-  
+
   .hero-images {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .image-container {
     flex-direction: row;
     gap: 0.75rem;
   }
-  
+
   .hero-image {
     width: 150px;
     height: 100px;
   }
-  
+
   .bubble-1 {
     width: 160px;
     padding: 0.5rem;
   }
-  
+
   .bubble-2 {
     width: 120px;
     padding: 0.5rem;
   }
-  
+
   .features,
   .how-it-works,
   .technology,
   .cta {
     padding: 4rem 0;
   }
-  
+
   .feature-metrics {
     grid-template-columns: 1fr;
   }
-  
+
   .tech-items {
     grid-template-columns: 1fr;
   }
-} 
+}
