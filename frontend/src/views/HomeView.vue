@@ -172,10 +172,6 @@
         <div class="team-detail-panel">
           <transition name="slide-fade" mode="out-in">
             <div class="team-member-detail" v-if="selectedMember" :key="selectedMember.name">
-              <div class="member-photo-container">
-                <img class="member-photo animate-photo" :src="selectedMember.image" :alt="selectedMember.name" />
-                <div class="photo-overlay"></div>
-              </div>
               <div class="member-info">
                 <div class="member-badge">{{ selectedMember.role }}</div>
                 <h3 class="member-name animate-text">{{ selectedMember.name }}</h3>

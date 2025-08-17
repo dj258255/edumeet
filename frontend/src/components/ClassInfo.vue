@@ -8,7 +8,7 @@
     </div>
 
     <div class="info-content">
-      <div class="info-section">
+      <!-- <div class="info-section">
         <h4 class="section-title">과제 제출률</h4>
         <div class="assignment-info">
           <div class="assignment-circle">
@@ -37,7 +37,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <div class="info-section">
         <h4 class="section-title">게시판</h4>
