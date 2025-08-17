@@ -890,13 +890,24 @@ function handleCameraRestored(newCameraTrack: any) {
           <!-- 우측 상단 컨트롤 버튼들 -->
           <div class="header-controls">
             <button :class="{ off: !isCameraOn }" @click="toggleCamera" title="카메라 끄기/켜기">
-              📷
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M23 7a2 2 0 0 0-1-1.9l-4-2.87A2 2 0 0 0 15 3H9a2 2 0 0 0-1.5.69L3.5 5.1A2 2 0 0 0 2 7v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
             </button>
             <button :class="{ off: !isMicOn }" @click="toggleMic" title="마이크 끄기/켜기">
-              🎤
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
             </button>
             <button class="leave" @click="handleLeaveClick" title="퇴장하기">
-              ✕
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
             </button>
           </div>
           
@@ -916,20 +927,47 @@ function handleCameraRestored(newCameraTrack: any) {
           >
             <div class="control-buttons">
               <button v-if="isUserCreator" @click="handleRecordToggle" :title="recordButtonLabel">
-                {{ recordingState === 'idle' ? '⏺' : recordingState === 'recording' ? '⏸' : '▶' }}
+                <svg v-if="recordingState === 'idle'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"/>
+                  <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                </svg>
+                <svg v-else-if="recordingState === 'recording'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <rect x="6" y="4" width="4" height="16"/>
+                  <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+                <svg v-else width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <polygon points="5,3 19,12 5,21"/>
+                </svg>
               </button>
               <button :class="{ off: !isCaptionVisible }" @click="toggleCaption" title="자막 숨기기/보기">
-                📝
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10,9 9,9 8,9"/>
+                </svg>
               </button>
               <button :class="{ off: !isChatVisible }" @click="toggleChat" title="채팅 숨기기/보기">
-                💬
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
               </button>
               <button 
                 :class="{ active: isScreenSharing }" 
                 @click="handleScreenShareToggle" 
                 :title="isScreenSharing ? '화면 공유 중지' : '화면 공유 시작'"
               >
-                {{ isScreenSharing ? '🖥️⏹️' : '🖥️' }}
+                <svg v-if="isScreenSharing" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="9" y1="9" x2="15" y2="15"/>
+                  <line x1="15" y1="9" x2="9" y2="15"/>
+                </svg>
+                <svg v-else width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
               </button>
             </div>
           </div>
@@ -953,7 +991,11 @@ function handleCameraRestored(newCameraTrack: any) {
                   @click="toggleControlPanel()" 
                   title="컨트롤 패널"
                 >
-                  ☰
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                  </svg>
                 </button>
               </div>
               <!-- 생성자인 경우 직접 video 엘리먼트 사용 -->
@@ -973,7 +1015,11 @@ function handleCameraRestored(newCameraTrack: any) {
                   @click="toggleControlPanel()" 
                   title="컨트롤 패널"
                 >
-                  ☰
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                  </svg>
                 </button>
               </div>
               <!-- 참여자인 경우 원격 참가자 화면을 메인에 표시 -->
@@ -988,7 +1034,11 @@ function handleCameraRestored(newCameraTrack: any) {
                   @click="toggleControlPanel()" 
                   title="컨트롤 패널"
                 >
-                  ☰
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                  </svg>
                 </button>
               </div>
               <!-- 직접 video 엘리먼트로 카메라 표시 (fallback) -->
@@ -1008,7 +1058,11 @@ function handleCameraRestored(newCameraTrack: any) {
                   @click="toggleControlPanel()" 
                   title="컨트롤 패널"
                 >
-                  ☰
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                  </svg>
                 </button>
               </div>
               <!-- fallback: 아무것도 표시되지 않을 때 -->
@@ -1201,8 +1255,9 @@ function handleCameraRestored(newCameraTrack: any) {
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  background: rgba(0, 0, 0, 0.8);
+  background: #477856fc;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
 }
 
 .header-info {
