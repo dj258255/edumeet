@@ -153,11 +153,6 @@ const authAPI = {
     return apiClient.post("/members/logout")
   },
 
-  // 사용자 정보 조회
-  getProfile: () => {
-    return apiClient.get("/members/profile")
-  },
-
   // 비밀번호 변경
   changePassword: (passwordData) => {
     return apiClient.put("/members/password", passwordData)
@@ -340,11 +335,6 @@ const useAuthStore = defineStore('auth', {
         this.user = tempUser
         this.isAuthenticated = !!tokenManager.getToken()
 
-        // 4) 프로필 동기화는 선택 (사용자 화면 이동은 컴포넌트에서 제어)
-        try {
-          await this.getProfile()
-        } catch (_) {}
-
         return responseData
       } catch (error) {
         this.error = error.response?.data?.message || '로그인에 실패했습니다.'
@@ -480,27 +470,6 @@ const useAuthStore = defineStore('auth', {
       
       // 즉시 로그인 페이지로 리다이렉트
       router.push("/login");
-    },
-
-    // 사용자 정보 조회
-    async getProfile() {
-      this.loading = true
-      this.error = null
-      
-      try {
-        const response = await authAPI.getProfile()
-        const user = response.data
-        
-        userManager.setUser(user)
-        this.user = user
-        
-        return user
-      } catch (error) {
-        this.error = error.response?.data?.message || '사용자 정보 조회에 실패했습니다.'
-        throw error
-      } finally {
-        this.loading = false
-      }
     },
 
     // 비밀번호 변경
