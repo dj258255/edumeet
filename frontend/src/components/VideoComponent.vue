@@ -42,11 +42,14 @@ onUnmounted(() => {
     aspect-ratio: 16/9;
     border-radius: 6px;
     overflow: hidden;
+    z-index: 1;
 }
 
 .video-container video {
     width: 100%;
     height: 100%;
+    position: relative;
+    z-index: 1;
 }
 
 .video-container .participant-data {

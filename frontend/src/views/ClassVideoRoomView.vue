@@ -77,7 +77,7 @@ let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
 
 function configureUrls() {
-  APPLICATION_SERVER_URL = 'http://localhost:8080/api/v1/meetingroom/'
+  APPLICATION_SERVER_URL = 'httpa://i13c205.p.ssafy.io/api/v1/meetingroom/'
       
   LIVEKIT_URL = 'wss://edumeet-1jz93drq.livekit.cloud'
 }
@@ -1081,54 +1081,30 @@ function handleCameraRestored(newCameraTrack: any) {
 
 
             <div class="thumbnail-grid">
-              <!-- 화면 공유 중일 때 카메라 화면을 썸네일에 표시 -->
+              <!-- 로컬 카메라 화면 (화면 공유 중이 아닐 때만) -->
               <VideoComponent
-                v-if="isScreenSharing && localTrack && localTrack !== screenShareTrack"
-                :track="localTrack"
-                :participantIdentity="participantName + ''"
-                class="thumbnail camera"
-                :local="true"
-                @click="setMainTrack(localTrack, participantName)"
-              />
-              <div v-if="isScreenSharing && localTrack && localTrack !== screenShareTrack" class="thumbnail-label">카메라</div>
-              
-              <!-- 참여자인 경우 로컬 화면을 썸네일에 표시 -->
-              <VideoComponent
-                v-else-if="!isUserCreator && localTrack"
+                v-if="localTrack && !isScreenSharing"
                 :track="localTrack"
                 :participantIdentity="participantName"
-                class="thumbnail participant"
+                class="thumbnail"
+                :class="isUserCreator ? 'creator' : 'participant'"
                 :local="true"
                 @click="setMainTrack(localTrack, participantName)"
               />
-              <div v-else-if="!isUserCreator && localTrack" class="thumbnail-label">참여자</div>
-              
-              <!-- 생성자인 경우 기존 로직 유지 -->
-              <VideoComponent
-                v-else-if="localTrack && localTrack !== mainTrack"
-                :track="localTrack"
-                :participantIdentity="participantName"
-                class="thumbnail creator"
-                :local="true"
-                @click="setMainTrack(localTrack, participantName)"
-              />
-              <div v-else-if="localTrack && localTrack !== mainTrack" class="thumbnail-label">생성자</div>
+              <div v-if="localTrack && !isScreenSharing" class="thumbnail-label">
+                {{ isUserCreator ? '생성자' : '참여자' }}
+              </div>
 
+              <!-- 원격 참가자들의 화면 -->
               <template v-for="remoteTrack of remoteTracksMap.values()" :key="remoteTrack.trackPublication.trackSid">
-                <!-- 참여자인 경우 첫 번째 원격 참가자는 메인에 표시되므로 썸네일에서 제외 -->
                 <VideoComponent
-                  v-if="remoteTrack.trackPublication.kind === 'video' && 
-                         remoteTrack.trackPublication.videoTrack !== mainTrack &&
-                         !(getFirstRemoteVideoTrack() === remoteTrack.trackPublication.videoTrack && !isUserCreator)"
+                  v-if="remoteTrack.trackPublication.kind === 'video'"
                   :track="remoteTrack.trackPublication.videoTrack!"
                   :participantIdentity="remoteTrack.participantIdentity"
                   :class="['thumbnail', isUserCreator ? 'participant' : 'creator']"
                   @click="setMainTrack(remoteTrack.trackPublication.videoTrack!, remoteTrack.participantIdentity)"
                 />
-                <div v-if="remoteTrack.trackPublication.kind === 'video' && 
-                           remoteTrack.trackPublication.videoTrack !== mainTrack &&
-                           !(getFirstRemoteVideoTrack() === remoteTrack.trackPublication.videoTrack && !isUserCreator)" 
-                     class="thumbnail-label">
+                <div v-if="remoteTrack.trackPublication.kind === 'video'" class="thumbnail-label">
                   {{ isUserCreator ? '참여자' : '생성자' }}
                 </div>
                 <AudioComponent
@@ -1243,6 +1219,7 @@ function handleCameraRestored(newCameraTrack: any) {
 .main-tile.screen-share {
   border: 3px solid #28a745;
   box-shadow: 0 0 20px rgba(40, 167, 69, 0.3);
+  margin-bottom: 0.5rem;
 }
 
 .thumbnail.camera {
