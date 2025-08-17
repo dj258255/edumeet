@@ -164,9 +164,7 @@ Back-End
 
 ### ⚒️ Front-End
 
-- React
-- Visual Studio
-- TailwindCSS
+- Vue
 - OpenVidu
 
 ### ⚒️ CI/CD
