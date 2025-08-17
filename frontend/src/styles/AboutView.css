@@ -1,14 +1,14 @@
 /* AboutView Styles */
 .about-view {
   min-height: 100vh;
-  background: #f8fafc; /* 라이트 모드 배경색 */
-  color: #1e293b; /* 라이트 모드 기본 글자색 */
+  background: #f8fafc;
+  color: #1e293b;
   transition: all 0.3s ease;
 }
 
 .dark-mode .about-view {
-  background: #0f172a; /* 다크 모드 배경색 */
-  color: #e2e8f0; /* 다크 모드 기본 글자색 */
+  background: #0f172a;
+  color: #f1f5f9;
 }
 
 .container {
@@ -359,7 +359,7 @@
 }
 
 .dark-mode .section-header p {
-  color: #a0aec0;
+  color: #cbd5e0;
 }
 
 /* Features Section */
@@ -370,7 +370,7 @@
 }
 
 .dark-mode .features {
-  background: #1a202c;
+  background: #1e293b;
 }
 
 .features-grid {
@@ -391,9 +391,9 @@
 }
 
 .dark-mode .feature-card {
-  background: #2d3748;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid #4a5568;
+  background: #334155;
+  border: 1px solid #475569;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .feature-card::before {
@@ -443,7 +443,7 @@
 }
 
 .dark-mode .feature-card p {
-  color: #a0aec0;
+  color: #cbd5e0;
 }
 
 .feature-metrics {
@@ -463,8 +463,8 @@
 }
 
 .dark-mode .metric {
-  background: #1a202c;
-  border: 1px solid #2d3748;
+  background: #475569;
+  border: 1px solid #64748b;
 }
 
 .metric-value {
@@ -476,10 +476,6 @@
   transition: all 0.3s ease;
 }
 
-.dark-mode .metric-value {
-  color: #4ade80;
-}
-
 .metric-label {
   font-size: 0.875rem;
   color: #64748b;
@@ -487,7 +483,7 @@
 }
 
 .dark-mode .metric-label {
-  color: #a0aec0;
+  color: #9ca3af;
 }
 
 /* How It Works Section */
@@ -498,7 +494,7 @@
 }
 
 .dark-mode .how-it-works {
-  background: #1a202c;
+  background: #0f172a;
 }
 
 .steps {
@@ -522,9 +518,9 @@
 }
 
 .dark-mode .step {
-  background: #2d3748;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid #4a5568;
+  background: #334155;
+  border: 1px solid #475569;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .step:hover {
@@ -571,7 +567,7 @@
 }
 
 .dark-mode .step-content p {
-  color: #a0aec0;
+  color: #cbd5e0;
 }
 
 .step-button {
@@ -600,7 +596,7 @@
 }
 
 .dark-mode .technology {
-  background: #1a202c;
+  background: #1e293b;
 }
 
 .tech-grid {
@@ -619,9 +615,9 @@
 }
 
 .dark-mode .tech-category {
-  background: #2d3748;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid #4a5568;
+  background: #334155;
+  border: 1px solid #475569;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .tech-category:hover {
@@ -675,8 +671,8 @@
 }
 
 .dark-mode .tech-item {
-  background: #1a202c;
-  border: 1px solid #2d3748;
+  background: #475569;
+  border: 1px solid #64748b;
 }
 
 .tech-item:hover {
@@ -686,8 +682,8 @@
 }
 
 .dark-mode .tech-item:hover {
-  background: #2d3748;
-  border-color: #4ade80;
+  background: #64748b;
+  border-color: #22c55e;
 }
 
 .tech-icon {

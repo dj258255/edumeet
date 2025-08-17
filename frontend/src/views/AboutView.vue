@@ -16,11 +16,8 @@
             추가 비용 없이 미래의 학습을 경험해보세요.
           </p>
           <div class="hero-actions">
-            <router-link to="/create-room" class="btn btn-primary">
+            <router-link to="/class/create" class="btn btn-primary">
               시작하기
-            </router-link>
-            <router-link to="/about" class="btn btn-secondary">
-              EduMeet 알아보기
             </router-link>
           </div>
         </div>
@@ -152,6 +149,17 @@ import '../styles/AboutView.css'
 const features = ref([
   {
     id: 1,
+    icon: '🎓',
+    title: '통합 학습 관리',
+    description: '수업 생성부터 진행, 평가까지 모든 교육 과정을 한 곳에서 관리',
+    metrics: [
+      { value: '무제한', label: '수업 생성' },
+      { value: '실시간', label: '진행 관리' },
+      { value: '100%', label: '자동화' }
+    ]
+  },
+  {
+    id: 2,
     icon: '🤖',
     title: 'AI 수업 요약',
     description: '수업 내용을 자동으로 요약하여 학습 효율성 극대화',

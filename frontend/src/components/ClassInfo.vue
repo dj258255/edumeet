@@ -139,9 +139,6 @@
     </div>
 
     <div class="info-actions">
-      <button class="action-btn primary" @click="$emit('enter-class', classData.id)">
-        수업 참여
-      </button>
       <button v-if="isMyCreatedClass" class="action-btn secondary" @click="openInviteModal">
         초대 하기
       </button>

@@ -190,21 +190,17 @@ const cancelPress = () => {
       </RouterLink>
     </div>
     <nav class="navbar-center desktop-only">
-      <RouterLink to="/class/create">Class</RouterLink>
-      <!-- <RouterLink to="/solutions">Solutions</RouterLink>
-      <RouterLink to="/community">Community</RouterLink>
-      <RouterLink to="/articles">Articles</RouterLink>
-      <RouterLink to="/pricing">Pricing</RouterLink>
-      <RouterLink to="/contact">Contact</RouterLink>
-      <RouterLink to="/link">Link</RouterLink> -->
+      <!-- 텍스트 링크 제거 -->
     </nav>
     <div class="navbar-right desktop-only">
-      <button class="search-button" @click="toggleSearch" aria-label="검색">
+      <RouterLink to="/class/create" class="class-button" aria-label="수업 생성">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="9" y1="9" x2="15" y2="9"></line>
+          <line x1="9" y1="12" x2="15" y2="12"></line>
+          <line x1="9" y1="15" x2="13" y2="15"></line>
         </svg>
-      </button>
+      </RouterLink>
       <button class="dark-mode-button" @click="toggleDarkMode" :aria-label="isDarkMode ? '라이트모드로 전환' : '다크모드로 전환'">
         <svg v-if="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
@@ -254,20 +250,16 @@ const cancelPress = () => {
         <button class="close-btn" @click="toggleSidebar">×</button>
       </div>
       <div class="sidebar-content">
-        <RouterLink to="/class/create" @click="toggleSidebar">Class</RouterLink>
-        <!-- <RouterLink to="/solutions" @click="toggleSidebar">Solutions</RouterLink>
-        <RouterLink to="/community" @click="toggleSidebar">Community</RouterLink>
-        <RouterLink to="/articles" @click="toggleSidebar">Articles</RouterLink>
-        <RouterLink to="/pricing" @click="toggleSidebar">Pricing</RouterLink>
-        <RouterLink to="/contact" @click="toggleSidebar">Contact</RouterLink>
-        <RouterLink to="/link" @click="toggleSidebar">Link</RouterLink> -->
-        <!-- <button class="search-button sidebar-search" @click="() => { toggleSidebar(); toggleSearch(); }" aria-label="검색">
+                 <RouterLink to="/class/create" @click="toggleSidebar" class="sidebar-class">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+             <line x1="9" y1="9" x2="15" y2="9"></line>
+             <line x1="9" y1="12" x2="15" y2="12"></line>
+             <line x1="9" y1="15" x2="13" y2="15"></line>
           </svg>
-          <span>검색</span>
-        </button> -->
+           <span>CLASS</span>
+         </RouterLink>
+
         <button class="dark-mode-button sidebar-dark-mode" @click="toggleDarkMode" :aria-label="isDarkMode ? '라이트모드로 전환' : '다크모드로 전환'">
           <svg v-if="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>

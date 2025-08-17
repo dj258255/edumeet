@@ -25,10 +25,6 @@
       </div>
       
              <div class="modal-footer">
-         <button class="try-btn" @click="navigateToCreateClass">
-           바로 시작하기
-           <span class="arrow">→</span>
-         </button>
        </div>
     </div>
   </div>
