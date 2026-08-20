@@ -29,16 +29,21 @@
 
 ## 📌 커밋 컨벤션
 
+Conventional Commits 형식(`type: 설명`)을 따릅니다.
+
 ```
-[Feat]     : 기능 개발
-[Modify]   : 코드 수정
-[fix]      : 긴급 수정
-[Docs]     : 문서 작업
-[Test]     : 테스트 코드
-[Design]   : CSS, UI 수정
-[Remove]   : 파일 삭제
-[Refactor] : 리팩토링
+feat:     기능 추가
+fix:      버그 수정
+refactor: 리팩토링 (동작 변경 없음)
+perf:     성능 개선
+test:     테스트 추가/수정
+docs:     문서
+chore:    빌드·설정
 ```
+
+`perf`를 별도 타입으로 둡니다. 성능 개선 이력을 `git log --grep="^perf:"` 로 추적하기 위함입니다.
+
+자세한 브랜치 전략과 PR 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
 ## 📌 코드 컨벤션
 
