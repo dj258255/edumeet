@@ -27,6 +27,30 @@
 
 <br/>
 
+## 🚀 실행 방법
+
+```bash
+git clone https://github.com/dj258255/edumeet.git
+cd edumeet
+
+# 테스트는 추가 설정 없이 바로 실행됩니다 (H2 인메모리 사용)
+./gradlew test
+
+# 애플리케이션 실행에는 로컬 설정이 필요합니다
+cp src/main/resources/application-local.yml.example src/main/resources/application-local.yml
+# application-local.yml 의 빈 값을 채운 뒤
+./gradlew bootRun
+```
+
+### 설정 파일 구조
+
+| 파일 | 내용 | 커밋 |
+|---|---|---|
+| `application.yml` | 공통 설정 (시크릿 없음) | O |
+| `application-test.yml` | 테스트 전용 (H2, 시크릿 없음) | O |
+| `application-local.yml.example` | 로컬 설정 템플릿 | O |
+| `application-local.yml` | 실제 시크릿 | **X (git 무시)** |
+
 ## 📌 커밋 컨벤션
 
 ```
