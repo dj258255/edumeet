@@ -18,7 +18,7 @@
 
 ## 체크리스트
 
-- [ ] 커밋 컨벤션을 지켰다 ([CONVENTIONS.md](../docs/CONVENTIONS.md) 0.2)
+- [ ] 커밋 컨벤션을 지켰다 ([team-convention.md](../docs/team-convention.md) 1.2)
 - [ ] 셀프 리뷰를 완료했다
 - [ ] 테스트를 작성/통과했다
 - [ ] 불필요한 주석·로그를 제거했다
@@ -32,7 +32,7 @@
 | 읽는 행 수 | | |
 
 측정 환경:
-<!-- 데이터 규모, DB, 워밍업/반복 횟수. CONVENTIONS.md 0.5 참조 -->
+<!-- 데이터 규모, DB, 워밍업/반복 횟수. team-convention.md 1.6 참조 -->
 
 ## 관련 이슈
 

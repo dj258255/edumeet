@@ -1,22 +1,30 @@
 # 개발 컨벤션
 
-> 각 항목은 **[필수] / [권장] / [선택]** 으로 구분한다.
-> 원본 팀 컨벤션(GitLab 기준)을 이 저장소(GitHub) 환경에 맞게 확정한 문서다.
-> 원본에서 미확정이던 항목은 **[확정]** 표시와 함께 근거를 남겼다.
+| | |
+| --- | --- |
+| **대상** | 팀 전원 |
+| **최종 수정** | 2026-08-21 |
+| **변경 절차** | 회고에서 합의 → 이 문서 수정 → 팀 채널 공지 |
+| **부속 문서** | 팀이 일하는 방식 → [`team-rules.md`](./team-rules.md) |
 
 **목차**
 
-- [Part 0. 공통 (Git / 협업)](#part-0-공통-git--협업)
-- [Part 1. 백엔드 (Java / Spring Boot)](#part-1-백엔드-java--spring-boot)
-- [Part 2. 프론트엔드 (Vue)](#part-2-프론트엔드-vue)
-- [부록 A. 원본 대비 변경 사항](#부록-a-원본-대비-변경-사항)
+- [Part 1. 공통 (Git / 협업)](#part-1-공통-git--협업)
+- [Part 2. 백엔드 (Java / Spring Boot)](#part-2-백엔드-java--spring-boot)
+- [Part 3. 프론트엔드 (Vue)](#part-3-프론트엔드-vue)
+- [부록 A. 원본 컨벤션 대비 변경 사항](#부록-a-원본-컨벤션-대비-변경-사항)
 - [부록 B. 참고 링크](#부록-b-참고-링크)
+- [부록 C. 문서 관리](#부록-c-문서-관리)
 
 ---
 
-# Part 0. 공통 (Git / 협업)
+# Part 1. 공통 (Git / 협업)
 
-## 0.1 브랜치 전략 — GitHub Flow [필수]
+> 각 항목은 **[필수] / [권장] / [선택]** 으로 구분한다.
+> 원본 팀 컨벤션(GitLab 기준)을 이 저장소(GitHub) 환경에 맞게 확정한 내용이다.
+> 원본에서 미확정이던 항목은 **[확정]** 표시와 함께 근거를 남겼다.
+
+## 1.1 브랜치 전략 — GitHub Flow [필수]
 
 > **[확정]** 원본은 GitLab/MR 기준이었다. 이 저장소는 GitHub이므로
 > **MR → PR**, **`main` → `master`** 로 용어와 대상을 맞춘다.
@@ -50,7 +58,7 @@
 - 소문자 + 하이픈(`-`). 언더스코어 사용 금지.
 - **이슈 번호 앞에 `#` 를 붙이지 않는다.**
   `#` 는 셸에서 주석 시작 문자라 `git push origin feat/#12-...` 가 따옴표 없이는 동작하지 않는다.
-- **브랜치 type 은 커밋 type 과 동일한 목록을 쓴다.** (0.2 참고)
+- **브랜치 type 은 커밋 type 과 동일한 목록을 쓴다.** (1.2 참고)
 
 > **[확정]** 원본 TODO — "브랜치 type 을 커밋 type 7종과 동일하게 갈지, 4종으로 줄일지"
 > → **동일한 목록(8종)을 쓴다.** 종류를 줄이면 `perf` 작업이 `refactor` 로 섞여
@@ -58,7 +66,7 @@
 
 ---
 
-## 0.2 커밋 컨벤션 [필수]
+## 1.2 커밋 컨벤션 [필수]
 
 **형식**
 
@@ -117,7 +125,7 @@ perf: 과제 목록 조회의 N+1 제거
 목록 조회가 과제마다 제출물 쿼리를 반복 호출하고 있었다.
 페치 조인 쿼리는 이미 정의되어 있었으나 사용되지 않는 상태였다.
 
-쿼리 수 101 -> 2 (과제 100건 기준)
+쿼리 수 83 -> 5 (과제 20건 기준)
 측정: H2 인메모리, Hibernate Statistics
 
 Resolves: #4
@@ -128,40 +136,83 @@ Resolves: #4
 ```
 수정
 update
-fix : 버그       ← 콜론 앞 공백
+fix : 버그               ← 콜론 앞 공백
 refactor:리팩            ← 콜론 뒤 공백 없음, 내용 없음
 ```
 
 ---
 
-## 0.3 PR (Pull Request) [필수]
+## 1.3 머지 방식 — Squash and merge [필수]
 
-### 리뷰 규칙
+> **[확정]** 원본 컨벤션에 병합 방식 규정이 없었다. 팀 논의 결과 **Squash and merge** 로 확정한다.
+> GitHub 저장소 설정에서 **Squash merging 만 남기고 나머지 두 개는 비활성화**한다.
+> (Settings → General → Pull Requests)
 
-- PR 은 **작게, 자주** 올린다. (변경 파일 10개 / 300줄 이내 권장)
-- 리뷰 요청 후 **24시간 이내** 1차 응답.
-- 리뷰 코멘트에 **의도 수준**을 표시한다.
+### 규칙
 
-| 접두사 | 의미 |
-|---|---|
-| `P1:` | 반드시 반영 (머지 차단) |
-| `P2:` | 반영 권장, 논의 필요 |
-| `P3:` | 사소한 제안, 반영은 자유 |
-| `Q:` | 단순 질문 |
+- `master` 로의 머지는 **전부 Squash and merge** 로 한다.
+- **PR 하나 = `master` 커밋 하나 = 이슈 하나.**
+- Squash 커밋 메시지는 **자동 생성된 것을 그대로 쓰지 않고 직접 정리한다.**
 
-- 코드를 지적하되 사람을 지적하지 않는다.
-- 반영했으면 코멘트에 답글을 달고 resolve 한다.
+```
+feat: 세션 타입(화상강의/라이브방송) 도입 - 정원 동시성 제어 (#12)
 
-### PR 템플릿
+Meeting 에 SessionType 을 두어 세션 형태를 나눈다.
+정원 검증 구간을 비관적 잠금으로 직렬화했다.
 
-`.github/pull_request_template.md` 로 관리한다. (GitLab 의 `.gitlab/merge_request_templates/` 에 대응)
+Closes #2
+```
+
+- 작업 브랜치 안에서는 커밋을 자유롭게 쌓아도 된다. **어차피 하나로 합쳐진다.**
+  `wip`, `오타 수정` 같은 커밋이 `master` 에 남지 않는다.
+
+### 왜 Squash 인가
+
+| | Merge commit | **Squash and merge** | Rebase and merge |
+|---|---|---|---|
+| `master` 히스토리 | 브랜치가 갈라진 그래프 | **선형, PR 단위 1커밋** | 선형, 커밋 전부 유지 |
+| 작업 브랜치 커밋 | 전부 보존 | **사라짐** (PR에 남음) | 전부 보존 |
+| 충돌 해결 | 1회 | **1회** | **커밋마다 반복** |
+| 롤백 | 머지 커밋 revert | **커밋 1개 revert** | 여러 커밋 revert |
+| 이분 탐색(`git bisect`) | 중간 커밋이 빌드 안 될 수 있음 | **커밋 단위가 기능 단위라 유리** | 커밋 수만큼 탐색 |
+
+- 우리 팀 규모에서 `master` 에 필요한 정보는 **"어떤 기능이 언제 들어왔나"** 이지
+  "그 기능을 만드는 도중에 오타를 몇 번 고쳤나"가 아니다.
+- 롤백 단위가 **PR 단위와 정확히 일치**한다. 장애 시 커밋 하나만 revert 하면 된다.
+- Rebase는 충돌이 나면 **커밋마다** 해결해야 하고 force push 가 필요해 사고 위험이 크다.
+
+### 대가로 잃는 것 (알고 쓰자)
+
+- **작업 중간 커밋 이력이 `master` 에 남지 않는다.** "어느 시점에 어떤 판단을 했는지"는
+  Git 이 아니라 **PR 본문과 리뷰 코멘트**에 남는다. → 그래서 PR 본문을 성실히 쓰는 게 규칙이다.
+- 그래서 **PR 은 작아야 한다.** 큰 PR을 squash 하면 거대한 커밋 하나가 남아 추적이 어려워진다.
+  (변경 파일 10개 / 300줄 이내 권장 — 팀 규칙 3 참고)
+
+참고: [PR 병합 방식 비교](https://maily.so/gitminam/posts/32z8w9p8zn4) · [Merge / Squash / Rebase 정리](https://hudi.blog/git-merge-squash-rebase/)
 
 ---
 
-## 0.4 Issue [필수]
+## 1.4 PR (Pull Request) [필수]
+
+> 리뷰 기준·코멘트 규칙·의견 충돌 처리는 **[팀 규칙 3. 코드 리뷰](./team-rules.md#3-코드-리뷰-필수)** 에 있다.
+> 여기서는 형식만 다룬다.
+
+- PR 은 **작게, 자주** 올린다. (변경 파일 10개 / 300줄 이내 권장)
+- 리뷰 요청 후 **24시간 이내** 1차 응답.
+- 승인 1인 이상 후 **Squash and merge**.
+- 머지 후 브랜치를 삭제한다.
+
+### PR 템플릿
+
+`.github/pull_request_template.md` 로 관리한다.
+
+---
+
+## 1.5 Issue [필수]
 
 - 모든 작업은 **이슈 등록 → 브랜치 생성 → PR** 순서로 진행한다.
 - 이슈에는 **Label** 을 지정한다. (Assignee / Milestone 은 [선택])
+- **논의 끝에 내린 결정은 해당 이슈에 기록한다** — 결정 / 이유 / 폐기한 대안.
 
 ### 템플릿
 
@@ -192,7 +243,7 @@ refactor:리팩            ← 콜론 뒤 공백 없음, 내용 없음
 
 ---
 
-## 0.5 성능 측정 원칙 [필수]
+## 1.6 성능 측정 원칙 [필수]
 
 > **[확정]** 원본에 없던 절이다. 이 저장소는 성능 개선을 주요 작업으로 다루므로 규칙을 명문화한다.
 
@@ -220,11 +271,22 @@ refactor:리팩            ← 콜론 뒤 공백 없음, 내용 없음
 - 쿼리 수: Hibernate `Statistics` (`spring.jpa.properties.hibernate.generate_statistics: true`)
 - 실행계획: `EXPLAIN` (MySQL) — 개선 전/후 캡처를 PR에 첨부
 
+### 측정 기록은 문서로 남긴다 [권장]
+
+성능·리팩터링 작업은 결과를 `docs/` 에 남긴다.
+문제 → 측정 → 시도(실패한 시도 포함) → 결과 → **한계** 순으로 쓴다.
+
+| 위치 | 내용 |
+|---|---|
+| `docs/performance/` | 성능 개선 기록 + 비교 차트 |
+| `docs/refactoring/` | 구조 변경 기록 + 규모 변화 차트 |
+| `scripts/make_perf_chart.py` | 차트 재생성 (의존성 없이 SVG 생성) |
+
 ---
 
-# Part 1. 백엔드 (Java / Spring Boot)
+# Part 2. 백엔드 (Java / Spring Boot)
 
-## 1.1 코드 컨벤션
+## 2.1 코드 컨벤션
 
 **[필수] 기준 문서:** [NAVER Hackday Java Conventions](https://github.com/naver/hackday-conventions-java)
 
@@ -265,7 +327,7 @@ AssignmentService assignmentService;
 
 ---
 
-## 1.2 아키텍처
+## 2.2 아키텍처
 
 ### 레이어드 아키텍처 [필수]
 
@@ -298,57 +360,68 @@ com.edu.edumeet
 
 > 도메인으로 먼저 나누고, 그 안에서 레이어로 나눈다.
 
-### ⚠️ 현재 상태 — 두 가지 구조가 섞여 있다
+### 구조 통일 현황
 
-| 도메인 | 현재 구조 | 담당 |
+| 도메인 | 구조 | 상태 |
 |---|---|---|
-| `board`, `homework`, `reply`, `attachment` | `application` / `domain` / `infrastructure` / `presentation` | 헥사고날 계열 |
-| `classroom`, `member`, `openvidu` | `controller` / `domain` / `dto` / `repository` / `service` | 전통 레이어드 |
+| `homework` | `controller` / `service` / `repository` / `domain` / `dto` | ✅ 적용 완료 (#3) |
+| `classroom`, `member`, `openvidu` | 동일 | ✅ 원래부터 준수 |
+| `board`, `reply`, `attachment` | `application` / `domain` / `infrastructure` / `presentation` | ⬜ 미적용 |
 
-**위 [필수] 규칙은 후자다.** 전자를 후자로 통일하는 작업은 별도 이슈로 진행한다.
+`board` · `reply` · `attachment` 는 아직 헥사고날 계열 구조다. 순차 적용이 남아 있다.
 
 ---
 
-### Repository 구조 — ⚠️ 팀 결정 필요
+### Repository 구조 [필수] — 분리하지 않는다
 
-원본 컨벤션은 인터페이스와 구현체 분리를 **[권장]** 하되
-*"적용하면 좋지만 필수는 아니다. 팀 내에서 적용/미적용을 통일한다"* 고 열어두었다.
+> **[확정]** 원본은 인터페이스와 구현체 분리를 [권장] 하되 *"팀 내에서 통일한다"* 고 열어두었다.
+> `homework` 도메인에 **먼저 적용해보고 판단**하는 실험을 거쳐 **분리하지 않는 것**으로 확정했다. (#3)
 
-**분리안**
-
-```
-member/repository
-├── MemberRepository.java        // interface — Service 가 의존하는 대상
-├── MemberRepositoryImpl.java    // implements MemberRepository
-└── MemberJpaRepository.java     // interface extends JpaRepository<Member, Long>
-```
-
-| | 분리한다 | 분리하지 않는다 |
-|---|---|---|
-| Service의 JPA 의존 | 없음 | 있음 |
-| 파일 수 | 테이블당 **3개** | 테이블당 1개 |
-| 구현체 교체 | 가능 (실제로 교체하는 경우는 드묾) | 불가 |
-| **DTO 프로젝션** | 도메인 모델 매핑을 거쳐 **어려움** | 바로 가능 |
-| 신입 포트폴리오에서 읽히는 인상 | *"구현체가 하나뿐인데 왜 인터페이스인가"* 질문을 받음 | 단순 |
-
-**현재 상태**: `homework` 8개 / `board` 7개의 인터페이스가 있고 **모든 구현체가 하나뿐**이다.
-그리고 도메인 모델과 JPA 엔티티가 분리되어 있어 **목록 조회에서 DTO 프로젝션을 쓸 수 없다.**
-
-> 결론이 나면 이 절을 [필수]로 바꾸고, 반대쪽 도메인을 통일한다.
-> 관련 이슈에서 논의한다.
-
-**필드명 규칙 [필수]** — 분리 여부와 무관하게 적용한다.
+**Service 는 Spring Data 리포지토리를 직접 주입받는다.**
 
 ```java
-private final MemberRepository memberRepository;   // O
-private final MemberRepository memberRepositoryImpl; // X
+@Service
+@RequiredArgsConstructor
+public class AssignmentService {
+    private final AssignmentRepository assignmentRepository;   // extends JpaRepository
+}
 ```
 
-필드 타입이 인터페이스이므로 구현체 이름을 필드명에 넣지 않는다.
+### 왜 분리하지 않는가 — 실측 근거
+
+프로젝트에서 직접 정의한 인터페이스(Spring Data 제외) **15개 중 14개(93%)가 구현체 1개뿐**이었다.
+`homework` 에 실제로 적용해본 결과 분리 비용이 다음과 같이 드러났다.
+
+| 항목 | 결과 |
+|---|---|
+| 파일·코드 | 28파일 2,634줄 → **19파일 1,642줄** (코드 38% 감소) |
+| Adapter | 422줄 제거 |
+| **최적화 쿼리** | Port 가 노출하지 않아 **페치 조인 쿼리 2개가 죽은 코드**였다 |
+| **DTO 프로젝션** | 도메인 모델 ↔ 엔티티 매핑 때문에 **쓸 수 없었다** |
+| 도메인 행위 | 7개 중 5개가 호출되지 않는 죽은 코드였다 |
+
+### ⚠ 분리를 걷어낼 때 주의할 점
+
+Port 계층이 **표준 이름 뒤에 다른 의미를 숨기고 있을 수 있다.** 실제로 두 건이 있었다.
+
+| 메서드 | Port 의 의미 | Spring Data 의 의미 |
+|---|---|---|
+| `deleteById` | **소프트 삭제** (`deletedAt` 설정) | **물리 삭제** |
+| `findById` | `findByIdAndDeletedAtIsNull` (**삭제 행 제외**) | 삭제된 행도 반환 |
+
+**두 경우 모두 컴파일은 통과한다.** 이름과 시그니처가 같기 때문이다.
+Port 를 제거할 때는 **구현체가 실제로 무엇을 하고 있었는지** 반드시 확인한다.
+
+**필드명 규칙 [필수]**
+
+```java
+private final MemberRepository memberRepository;      // O
+private final MemberRepository memberRepositoryImpl;  // X
+```
 
 ---
 
-## 1.3 기술 스택 (Persistence)
+## 2.3 기술 스택 (Persistence)
 
 | 기술 | 사용 여부 |
 |---|---|
@@ -363,14 +436,44 @@ private final MemberRepository memberRepositoryImpl; // X
 
 - **컬렉션 두 개 이상을 동시에 `LEFT JOIN FETCH` 하지 않는다.**
   `Set` 이라 예외는 나지 않지만 **카테시안 곱(M×N 행)** 이 발생한다.
-  하나만 페치 조인하고 나머지는 `@BatchSize` 또는 별도 조회로 분리한다.
+  (첨부 5 × 제출현황 20 = **100행**, 나눠 조회하면 26행)
+  하나만 페치 조인하고 나머지는 배치 로딩으로 분리한다.
+- **`@BatchSize` 를 컬렉션마다 붙이지 않는다.**
+  새 컬렉션이 추가될 때 조용히 누락된다. 전역 설정을 기본으로 둔다.
+
+  ```yaml
+  spring.jpa.properties.hibernate.default_batch_fetch_size: 100
+  ```
+
 - **`@BatchSize` 는 지연 로딩 컬렉션에만 적용된다.**
   Service 루프 안에서 `repository.findByXxx(id)` 를 반복 호출하는 코드에는 효과가 없다.
+- **Hibernate 6 는 엔티티 쿼리 결과를 자동으로 중복 제거한다.**
+  JPQL 결과만 보면 행 폭발이 드러나지 않는다. 실제 행 수는 **네이티브 SQL** 로 확인한다.
 - N+1 해소 여부는 **쿼리 수를 단언하는 테스트**로 검증한다. 시간 측정으로 대체하지 않는다.
+
+### 소프트 삭제 [필수]
+
+- 조회는 삭제 행을 제외한다. (`findByIdAndDeletedAtIsNull`)
+- **복원 경로만 삭제 행을 포함해 조회한다.**
+- Spring Data 의 `deleteById` 를 쓰지 않는다. **물리 삭제**다. 엔티티의 `delete()` 를 호출한다.
+
+### 동시성 [필수]
+
+- **개수 상한은 DB 제약으로 표현할 수 없다.** 유니크 제약은 중복만 막는다.
+- "센다 → 비교한다 → 기록한다"가 원자적이어야 하면 **비관적 쓰기 잠금**으로 직렬화한다.
+
+  ```java
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT m FROM Meeting m WHERE m.id = :id")
+  Optional<Meeting> findByIdForUpdate(@Param("id") Long id);
+  ```
+
+- 동시성 테스트에는 **`@Transactional` 을 쓰지 않는다.**
+  모든 스레드가 같은 커넥션을 공유해 **경쟁이 재현되지 않는다.**
 
 ---
 
-## 1.4 테스트
+## 2.4 테스트
 
 ### 커버리지 [권장] — ⚠️ 원본의 [필수] 90% 에서 완화
 
@@ -407,29 +510,33 @@ assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
 
 **"검증하지 않는 테스트"는 거짓 안전감을 준다.** 개수를 채우는 것보다 나쁘다.
 
+### 검증력을 확인하는 방법 [권장]
+
+**고친 코드를 되돌려보고 테스트가 실패하는지 확인한다.**
+통과만 보면 그 테스트가 진짜 검증인지 알 수 없다.
+
+```
+비관적 잠금 적용 → 동시 요청 20건, 성공 3건   (정원 3과 일치)
+비관적 잠금 제거 → 동시 요청 20건, 성공 10건  (테스트 실패)
+```
+
 ### 커버리지 측정 [선택]
 
 측정은 하되 **게이트로 쓰지 않는다.** README 에 커버리지 배지를 달지 않는다.
 
-```gradle
-plugins {
-    id 'jacoco'
-}
-```
-
 ---
 
-## 1.5 ERD 설계
+## 2.5 ERD 설계
 
 - **[필수]** 테이블/컬럼명은 `snake_case`
 - **[필수]** PK 는 `{테이블명}_id` 형태로 통일 (예: `member_id`, `class_room_id`)
 - **[권장]** 공통 컬럼 `created_at`, `updated_at` 은 `BaseEntity` 로 분리
-- **[권장]** 삭제는 소프트 삭제(`is_deleted`)를 기본으로 하고, 정책을 도메인마다 통일한다
+- **[권장]** 삭제는 소프트 삭제(`deleted_at`)를 기본으로 하고, 정책을 도메인마다 통일한다
 - ERD 변경 시 팀 채널에 공유 후 반영한다
 
 ---
 
-## 1.6 DB / 환경 설정 [필수]
+## 2.6 DB / 환경 설정 [필수]
 
 > **[확정]** 원본 TODO — "배포 환경 계정 관리 방식 확정"
 > → **프로파일 파일 분리 + `.gitignore` + `.example` 템플릿** 으로 확정한다.
@@ -451,6 +558,7 @@ plugins {
 3. `git clone` 직후 **추가 설정 없이 `./gradlew test` 가 통과해야 한다.**
 4. `.gitignore` 에 `*.properties` 같은 광범위 패턴을 쓰지 않는다.
    설정 구조 자체가 사라져 저장소를 받은 사람이 아무것도 실행할 수 없게 된다.
+   실제로 이 패턴 때문에 **clone 직후 테스트 109건이 실패**한 적이 있다. (#6)
 
 ### 로컬 DB 계정 [필수]
 
@@ -458,7 +566,7 @@ plugins {
 
 ---
 
-## 1.7 API 문서화 — Swagger (springdoc-openapi) [필수]
+## 2.7 API 문서화 — Swagger (springdoc-openapi) [필수]
 
 ```gradle
 implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
@@ -489,7 +597,7 @@ implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
 ---
 
-## 1.8 예외 처리 [필수]
+## 2.8 예외 처리 [필수]
 
 > **[확정]** 원본에 없던 절이다. 레이어드 아키텍처에서 예외 경계가 정해지지 않으면
 > Controller 마다 `try-catch` 가 흩어진다.
@@ -505,9 +613,9 @@ implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
 ---
 
-# Part 2. 프론트엔드 (Vue)
+# Part 3. 프론트엔드 (Vue)
 
-## 2.1 네이밍 [필수]
+## 3.1 네이밍 [필수]
 
 | 대상 | 규칙 | 예시 |
 |---|---|---|
@@ -528,7 +636,7 @@ implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
 
 ---
 
-## 2.2 코드 스타일 [필수]
+## 3.2 코드 스타일 [필수]
 
 ### 중괄호 안쪽 양쪽 공백
 
@@ -600,7 +708,7 @@ count.value += 1;
 
 ---
 
-## 2.3 Vue 규칙 [필수]
+## 3.3 Vue 규칙 [필수]
 
 ### 디렉티브는 약어 사용
 
@@ -661,7 +769,7 @@ stores/
 
 ---
 
-# 부록 A. 원본 대비 변경 사항
+# 부록 A. 원본 컨벤션 대비 변경 사항
 
 | # | 항목 | 원본 | 확정 | 이유 |
 |---|---|---|---|---|
@@ -670,17 +778,23 @@ stores/
 | 3 | 브랜치 type 종류 | TODO (7종 vs 4종) | **커밋 type 과 동일 8종** | 종류를 줄이면 `perf` 이력 추적이 깨짐 |
 | 4 | 커밋 type | Udacity 7종 | **+`perf` = 8종** | `git log --grep="^perf:"` 로 성능 이력 추적 |
 | 5 | 커밋 subject 언어 | 영어 명령형·대문자 | **한국어** | 기존 이력이 전부 한국어. 섞으면 일관성이 더 깨짐 |
-| 6 | 테스트 커버리지 | **90% [필수]** | **[권장], 게이트 아님** | Fowler·Google 모범사례. 숫자는 저품질 테스트로 부풀려짐 |
-| 7 | ESLint/Prettier | [권장] | **[필수]** | 포맷팅은 사람이 아니라 도구가 강제할 항목 |
-| 8 | Vue 파일명 | TODO | **컴포넌트만 Pascal** | Vue 공식 스타일 가이드 관례 |
-| 9 | CSS 네이밍 | "스네이크" (예시는 케밥) | **케밥** | 예시가 맞고 CSS 관례에 부합 |
-| 10 | `<style scoped>` | "scope 1단" (모호) | **scoped 필수 + 중첩 1단** | 두 가지로 분해해 명문화 |
-| 11 | 배포 계정 관리 | TODO | **프로파일 분리 + `.example`** | 시크릿과 설정 구조를 분리 |
-| 12 | 성능 측정 원칙 | 없음 | **신설 (0.5)** | 쿼리 수·실행계획을 1차 지표로 |
-| 13 | 예외 처리 | 없음 | **신설 (1.8)** | 전역 핸들러·트랜잭션 경계 명문화 |
-| 14 | N+1 대응 | 없음 | **신설 (1.3)** | 컬렉션 다중 페치 조인 금지 등 |
-| 15 | 성능 이슈 템플릿 | 없음 | **신설 (0.4)** | 성능 이슈는 재현이 아니라 측정을 요구 |
-| 16 | Repository 분리 | [권장], 팀 결정 | **미결 (이슈로 이관)** | 현재 인터페이스 구현체가 전부 1개뿐이라 논의 필요 |
+| 6 | **머지 방식** | 없음 | **Squash and merge (1.3)** | PR 1개 = 커밋 1개. 롤백 단위가 PR과 일치 |
+| 7 | 테스트 커버리지 | **90% [필수]** | **[권장], 게이트 아님** | Fowler·Google 모범사례. 숫자는 저품질 테스트로 부풀려짐 |
+| 8 | ESLint/Prettier | [권장] | **[필수]** | 포맷팅은 사람이 아니라 도구가 강제할 항목 |
+| 9 | Vue 파일명 | TODO | **컴포넌트만 Pascal** | Vue 공식 스타일 가이드 관례 |
+| 10 | CSS 네이밍 | "스네이크" (예시는 케밥) | **케밥** | 예시가 맞고 CSS 관례에 부합 |
+| 11 | `<style scoped>` | "scope 1단" (모호) | **scoped 필수 + 중첩 1단** | 두 가지로 분해해 명문화 |
+| 12 | 배포 계정 관리 | TODO | **프로파일 분리 + `.example`** | 시크릿과 설정 구조를 분리 |
+| 13 | 성능 측정 원칙 | 없음 | **신설 (1.6)** | 쿼리 수·실행계획을 1차 지표로 |
+| 14 | 예외 처리 | 없음 | **신설 (2.8)** | 전역 핸들러·트랜잭션 경계 명문화 |
+| 15 | N+1 대응 | 없음 | **신설 (2.3)** | 컬렉션 다중 페치 조인 금지 등 |
+| 16 | 성능 이슈 템플릿 | 없음 | **신설 (1.5)** | 성능 이슈는 재현이 아니라 측정을 요구 |
+| 17 | **코드 리뷰 기준** | 접두사 규칙만 | **리뷰 관점 7항목 신설** (팀 규칙 3) | 무엇을 볼지 정해두지 않으면 스타일 지적만 남음 |
+| 18 | **데일리 스크럼** | 없음 | **신설** (팀 규칙 1) | 진행 규칙 없이 하면 보고회가 되고 시간이 늘어짐 |
+| 19 | **Repository 분리** | [권장], 팀 결정 | **분리하지 않음으로 확정 (2.2)** | `homework` 에 적용 실험 → 코드 38% 감소, 최적화 쿼리가 죽어 있었음 (#3) |
+| 20 | **소프트 삭제 규칙** | 없음 | **신설 (2.3)** | Port 제거 시 `deleteById`·`findById` 의미가 조용히 바뀜 |
+| 21 | **동시성 규칙** | 없음 | **신설 (2.3)** | 개수 상한은 DB 제약으로 표현 불가 |
+| 22 | **검증력 확인** | 없음 | **신설 (2.4)** | 고친 것을 되돌려 실패를 확인해야 검증인지 알 수 있음 |
 
 ---
 
@@ -688,11 +802,36 @@ stores/
 
 | 항목 | 링크 |
 |---|---|
+| 팀 워킹 어그리먼트 | https://www.scrum.org/resources/creating-team-working-agreement |
+| 코드 리뷰 (Google) | https://google.github.io/eng-practices/review/ |
+| 코드 리뷰 (한국어 요약) | https://soojin.ro/review/ |
+| 코드 리뷰 문화 | https://techblog.woowahan.com/7152/ |
+| 데일리 스크럼 | https://helloworld.kurly.com/blog/daily-scrum-thinking/ |
+| 머지 방식 비교 | https://hudi.blog/git-merge-squash-rebase/ |
 | Java 코드 컨벤션 | https://github.com/naver/hackday-conventions-java |
 | 브랜치 전략 | https://inpa.tistory.com/entry/GIT-%E2%9A%A1%EF%B8%8F-github-flow-git-flow-%F0%9F%93%88-%EB%B8%8C%EB%9E%9C%EC%B9%98-%EC%A0%84%EB%9E%B5 |
 | 커밋 컨벤션 | https://udacity.github.io/git-styleguide/ |
-| 코드 리뷰 문화 | https://techblog.woowahan.com/7152/ |
 | ERD 설계 | https://sabarada.tistory.com/49 |
 | 테스트 커버리지 | https://martinfowler.com/bliki/TestCoverage.html |
 | Google 커버리지 모범사례 | https://edykim.com/ko/post/code-coverage-best-practices/ |
 | Vue 스타일 가이드 | https://vuejs.org/style-guide/ |
+
+---
+
+# 부록 C. 문서 관리
+
+- 이 문서는 **코드·협업 규칙**의 단일 기준이다. 팀 운영 방식은 [`team-rules.md`](./team-rules.md) 에 있다.
+- 규칙이 현실과 어긋나면 몰래 어기지 말고 **회고 안건으로 올려 이 문서를 고친다.**
+
+### 변경 이력
+
+| 날짜 | 내용 | 작성자 |
+|---|---|---|
+| 2026-08-21 | GitHub 환경 반영 · Squash merge · 성능 측정 · 예외 처리 신설 | |
+| 2026-08-21 | Repository 분리 여부 확정(분리하지 않음) · 소프트 삭제 · 동시성 · 검증력 확인 신설 | |
+
+### 미확정 항목
+
+| 항목 | 위치 | 상태 |
+|---|---|---|
+| `board` · `reply` · `attachment` 구조 통일 | 2.2 | 미착수 |

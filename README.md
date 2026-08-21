@@ -53,8 +53,11 @@ cp src/main/resources/application-local.yml.example src/main/resources/applicati
 
 ## 📌 개발 컨벤션
 
-전체 컨벤션은 **[docs/CONVENTIONS.md](docs/CONVENTIONS.md)** 에 있습니다.
-기여 절차 요약은 [CONTRIBUTING.md](CONTRIBUTING.md) 를 참조하세요.
+| 문서 | 내용 |
+|---|---|
+| **[docs/team-rules.md](docs/team-rules.md)** | 팀이 일하는 방식 (스크럼·토론·코드 리뷰·소통) |
+| **[docs/team-convention.md](docs/team-convention.md)** | 코드·협업 컨벤션 (Git·백엔드·프론트엔드) |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 기여 절차 요약 |
 
 ```
 브랜치   <type>/<이슈번호>-<설명>      예: perf/4-n-plus-one
