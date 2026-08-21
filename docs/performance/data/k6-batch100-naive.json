@@ -1,0 +1,24 @@
+{
+  "label": "batch100-naive",
+  "strategy": "naive",
+  "vus": 50,
+  "duration": "60s",
+  "batch_fetch_size": "100",
+  "requests": 3073,
+  "rps": 38.36789348703198,
+  "failed_rate": 0,
+  "latency_ms": {
+    "avg": 1143.939869183211,
+    "med": 1071.323,
+    "p90": 1583.9412,
+    "p95": 1892.2091999999993,
+    "p99": null,
+    "max": 2667.398
+  },
+  "sql_per_request": {
+    "avg": 40,
+    "med": 40,
+    "max": 40
+  },
+  "sql_total": 122920
+}

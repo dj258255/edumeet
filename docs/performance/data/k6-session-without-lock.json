@@ -1,0 +1,14 @@
+{
+  "label": "without-lock",
+  "lock": false,
+  "attempts": 150,
+  "capacity": 30,
+  "join_success": 34,
+  "join_rejected": 116,
+  "join_error": 0,
+  "latency_p95_ms": 174.9822,
+  "final_active": 34,
+  "final_limit": 30,
+  "overflow": 4,
+  "verdict": "정원 초과"
+}

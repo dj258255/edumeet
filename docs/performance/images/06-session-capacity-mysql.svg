@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="244" viewBox="0 0 880 244" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="880" height="244" fill="#ffffff"/>
+<text x="28" y="32" font-size="18" font-weight="700" fill="#111827">세션 정원 제어 — 동시 입장 시 실제 입장자 수</text>
+<text x="28" y="53" font-size="12.5" fill="#6b7280">MySQL 8.0 InnoDB · k6 · 동시 시도 150명 · 정원 30명</text>
+<text x="218" y="93" text-anchor="end" font-size="13" font-weight="600" fill="#111827">잠금 없음</text>
+<text x="218" y="108" text-anchor="end" font-size="11" fill="#6b7280">정원 30명 · 초과 4명</text>
+<rect x="232" y="78" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="78" width="441.6" height="26" rx="4" fill="#dc2626"/>
+<text x="683.6" y="97" font-size="13.5" font-weight="700" fill="#dc2626">34명</text>
+<text x="218" y="139" text-anchor="end" font-size="13" font-weight="600" fill="#111827">비관적 잠금</text>
+<text x="218" y="154" text-anchor="end" font-size="11" fill="#6b7280">정원 30명 · 초과 0명</text>
+<rect x="232" y="124" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="124" width="389.6" height="26" rx="4" fill="#2563eb"/>
+<text x="631.6" y="143" font-size="13.5" font-weight="700" fill="#2563eb">30명</text>
+<text x="28" y="220" font-size="11.5" fill="#6b7280">정원(30)을 넘은 만큼이 초과 입장이다. 잠금이 없으면 검사와 기록 사이에 다른 요청이 끼어든다.</text>
+</svg>

@@ -1,0 +1,24 @@
+{
+  "label": "nobatch-batch",
+  "strategy": "batch",
+  "vus": 50,
+  "duration": "60s",
+  "batch_fetch_size": "-1",
+  "requests": 3262,
+  "rps": 40.7234853001389,
+  "failed_rate": 0,
+  "latency_ms": {
+    "avg": 1078.7386180257522,
+    "med": 1023.6005,
+    "p90": 1585.3830000000003,
+    "p95": 1790.012,
+    "p99": null,
+    "max": 3260.263
+  },
+  "sql_per_request": {
+    "avg": 155,
+    "med": 155,
+    "max": 155
+  },
+  "sql_total": 505610
+}

@@ -258,6 +258,39 @@ Closes #2
 
 반면 **쿼리 수와 실행계획은 환경과 무관하게 재현된다.**
 
+### 다만 쿼리 수는 대리 지표다 [필수]
+
+쿼리 수는 *"구조가 고쳐졌다"* 를 증명하지 *"빨라졌다"* 를 증명하지 않는다.
+**둘은 단조 관계가 아니다.** 실측 사례:
+
+| 조합 | 요청당 SQL | 처리량 |
+|---|---:|---:|
+| 앱 IN절만 | 155 | 40.7 req/s |
+| 배치페치만 | **40** | **38.4 req/s** |
+
+**SQL 이 1/4 인데 더 느리다.** 개수가 아니라 *쿼리가 하는 일의 총량* 이 비용이기
+때문이다. 한 건이 카테시안 곱 행을 만들어내면 개수가 적어도 총합은 줄지 않는다.
+
+그래서 규칙은 이렇다.
+
+- **구조 개선의 증거로는 쿼리 수를 쓴다.** 재현 가능하고 환경에 안 흔들린다.
+- **"빨라졌다"고 주장하려면 부하 도구로 지연시간·처리량을 재야 한다.**
+  쿼리 수만 근거로 성능 개선을 주장하지 않는다.
+- **개선하면 병목이 옮겨간다.** 쿼리를 줄이면 다음 병목은 대개 직렬화·응답 크기다.
+  다음에 어디를 손댈지는 측정으로 정한다. ([03 문서](performance/03-mysql-load-test.md))
+
+### 부하 측정 [필수]
+
+부하로 시간을 잴 때는 다음을 지킨다.
+
+- **운영과 같은 DB 로 잰다.** H2 로 잰 지연시간은 MySQL 의 지연시간이 아니다.
+- **워밍업을 측정과 분리한다.** JVM 의 JIT 컴파일과 InnoDB 버퍼 풀이 덥혀진
+  뒤부터 잰다. 워밍업 없이 재면 *먼저 돌았다는 이유만으로* 느리게 나온다.
+- **커넥션 풀을 VU 수보다 크게 잡는다.** 풀이 병목이면 쿼리 개선 효과가 묻힌다.
+- **비교군은 같은 프로세스에서 번갈아 잰다.** 전역 설정처럼 그럴 수 없는 것만
+  프로세스를 나누고, 나눴다는 사실을 문서에 적는다.
+- **개선 전 코드는 추측으로 재현하지 않는다.** git 이력에서 실제 코드를 가져온다.
+
 ### 시간을 함께 기록할 경우 반드시 병기할 것 [필수]
 
 - 측정 환경 (CPU, 메모리, DB 버전)
@@ -268,7 +301,11 @@ Closes #2
 
 ### 측정 도구
 
-- 쿼리 수: Hibernate `Statistics` (`spring.jpa.properties.hibernate.generate_statistics: true`)
+- 쿼리 수(테스트): Hibernate `Statistics` (`spring.jpa.properties.hibernate.generate_statistics: true`)
+- 쿼리 수(부하 중): `StatementInspector` + ThreadLocal.
+  `Statistics` 는 SessionFactory 누적값이라 **동시 요청에서 요청별 델타를 못 낸다.**
+  (`perf/QueryCountInspector`)
+- 지연시간·처리량: k6. 결과 JSON 을 `docs/performance/data/` 에 커밋해 차트를 재생성 가능하게 둔다
 - 실행계획: `EXPLAIN` (MySQL) — 개선 전/후 캡처를 PR에 첨부
 
 ### 측정 기록은 문서로 남긴다 [권장]
@@ -281,6 +318,9 @@ Closes #2
 | `docs/performance/` | 성능 개선 기록 + 비교 차트 |
 | `docs/refactoring/` | 구조 변경 기록 + 규모 변화 차트 |
 | `scripts/make_perf_chart.py` | 차트 재생성 (의존성 없이 SVG 생성) |
+| `scripts/make_k6_chart.py` | k6 결과 JSON → 차트. **수치를 손으로 옮기지 않는다** |
+| `scripts/run-benchmark.sh` | 과제 목록 조회 부하 측정 (2×2) |
+| `scripts/run-session-benchmark.sh` | 세션 정원 동시성 검증 |
 
 ---
 
@@ -470,6 +510,50 @@ private final MemberRepository memberRepositoryImpl;  // X
 
 - 동시성 테스트에는 **`@Transactional` 을 쓰지 않는다.**
   모든 스레드가 같은 커넥션을 공유해 **경쟁이 재현되지 않는다.**
+
+### 트랜잭션 [필수] — 같은 클래스 안에서 부르면 걸리지 않는다
+
+Spring 의 `@Transactional` 은 **프록시**로 동작한다. 빈을 주입받아 호출할 때
+프록시가 트랜잭션을 열어준다. 그런데 **같은 객체 안에서 `this.method()` 로 부르면
+프록시를 거치지 않으므로 애노테이션이 무시된다.** `@Async`, `@Cacheable`,
+`@Retryable` 도 모두 같다.
+
+```java
+// ✗ transactional 이 걸리지 않는다
+@RestController
+class SomeController {
+    public Response handle() {
+        return doWork();          // this.doWork() — 프록시를 안 거친다
+    }
+
+    @Transactional
+    public Response doWork() { ... }
+}
+
+// ✓ 다른 빈으로 분리해 주입받는다
+@RestController
+@RequiredArgsConstructor
+class SomeController {
+    private final SomeService someService;
+
+    public Response handle() {
+        return someService.doWork();   // 프록시를 거친다
+    }
+}
+```
+
+**컴파일도 되고 테스트도 통과하는 경우가 많아 눈에 띄지 않는다.**
+Spring Data 리포지토리 메서드가 각자 트랜잭션을 열기 때문에 저장·조회는 그대로
+동작하고, 원자성만 조용히 사라진다.
+
+실제 사례 — 정원 제어의 대조군(잠금 없는 참가)을 컨트롤러 안에
+`@Transactional` 메서드로 두었는데, 자기 호출이라 트랜잭션이 걸리지 않았다.
+그대로 뒀다면 *"잠금만 뺀 같은 코드"* 가 아니라 *"잠금도 없고 트랜잭션도 없는 코드"* 를
+대조군으로 쓸 뻔했다. 비교 자체가 무의미해진다.
+(`perf/UnsafeJoinService`)
+
+**판별법** — `@Transactional`(그리고 `@Async`·`@Cacheable`)이 붙은 메서드를
+같은 클래스에서 호출하는 곳이 있는지 본다. 있으면 빈을 분리한다.
 
 ---
 

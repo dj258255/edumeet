@@ -186,7 +186,7 @@ public class AssignmentService {
     /**
      * Assignment 도메인 객체를 AssignmentDTO로 변환 (제출 파일 정보 포함)
      */
-    private AssignmentDTO domainToDtoWithSubmissionFiles(Assignment assignment, List<Submission> submissions, AttachmentAdapter attachmentAdapter) {
+    public AssignmentDTO domainToDtoWithSubmissionFiles(Assignment assignment, List<Submission> submissions, AttachmentAdapter attachmentAdapter) {
         // 학생 Email별로 제출물 매핑 (성능 최적화를 위한 Map 사용)
         Map<String, Submission> submissionMap = submissions.stream()
                 .collect(Collectors.toMap(Submission::getClassMemberEmail, submission -> submission));
