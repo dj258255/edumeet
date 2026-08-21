@@ -1,6 +1,8 @@
 package com.edu.edumeet.exception;
 
 
+import com.edu.edumeet.openvidu.exception.LiveKitUnavailableException;
+import com.edu.edumeet.openvidu.exception.SessionCapacityExceededException;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -71,7 +73,32 @@ public class CustomRestAdvice {
         return ResponseEntity.badRequest().body(errorMap);
     }
 
+    /**
+     * LiveKit 에 닿지 못했다. 우리 잘못이 아니라 의존 시스템의 장애이므로 503 이다.
+     *
+     * <p>"방이 없다"(404)와 반드시 구분한다. 404 로 뭉뚱그리면 클라이언트는
+     * "삭제됐구나"로 오해하고, 운영에서는 LiveKit 장애가 보이지 않는다.
+     */
+    @ExceptionHandler(LiveKitUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ResponseEntity<Map<String, String>> handleLiveKitUnavailable(LiveKitUnavailableException e) {
+        log.error("LiveKit 사용 불가", e);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("error", "LIVEKIT_UNAVAILABLE",
+                             "message", "화상 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."));
+    }
 
-
-
+    /**
+     * 정원이 찼다. 클라이언트 요청 자체는 올바르므로 500 이 아니라 409 다.
+     *
+     * <p>핸들러가 없어 500 으로 나가고 있었다. 부하 측정에서 정원 초과와 진짜 오류를
+     * 구분할 수 없어 드러났다. (#17)
+     */
+    @ExceptionHandler(SessionCapacityExceededException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ResponseEntity<Map<String, String>> handleSessionCapacity(SessionCapacityExceededException e) {
+        log.info("정원 초과 입장 시도: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "SESSION_CAPACITY_EXCEEDED", "message", e.getMessage()));
+    }
 }
