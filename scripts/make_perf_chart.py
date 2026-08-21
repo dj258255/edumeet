@@ -77,6 +77,48 @@ def line_chart(*, title, subtitle, x_label, y_label,
     return out_path
 
 
+def hbar_chart(*, title, subtitle, bars, out_path, value_fmt="{:.0f}",
+               unit="", note=None, x_max=None):
+    """가로 막대 차트. bars: [(라벨, 값, 색, 보조설명), ...]
+
+    2x2 조합처럼 항목 이름이 긴 비교에는 세로 막대보다 가로가 읽힌다.
+    """
+    n = len(bars)
+    W = 880
+    ROW, TOP, BOT = 46, 74, 56 + (22 if note else 0)
+    H = TOP + ROW * n + BOT
+    PAD_L, PAD_R = 232, 96
+    PW = W - PAD_L - PAD_R
+    vmax = x_max or max(v for _, v, _, _ in bars) * 1.18 or 1
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
+        f'viewBox="0 0 {W} {H}" font-family="{FONT}">',
+        f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
+        f'<text x="28" y="32" font-size="18" font-weight="700" fill="{DARK}">{title}</text>',
+        f'<text x="28" y="53" font-size="12.5" fill="{MUTED}">{subtitle}</text>',
+    ]
+
+    for i, (label, value, color, sub) in enumerate(bars):
+        y = TOP + i * ROW
+        bw = max(2.0, value / vmax * PW)
+        parts.append(f'<text x="{PAD_L-14}" y="{y+19}" text-anchor="end" font-size="13" '
+                     f'font-weight="600" fill="{DARK}">{label}</text>')
+        if sub:
+            parts.append(f'<text x="{PAD_L-14}" y="{y+34}" text-anchor="end" font-size="11" '
+                         f'fill="{MUTED}">{sub}</text>')
+        parts.append(f'<rect x="{PAD_L}" y="{y+4}" width="{PW}" height="26" rx="4" fill="#f3f4f6"/>')
+        parts.append(f'<rect x="{PAD_L}" y="{y+4}" width="{bw:.1f}" height="26" rx="4" fill="{color}"/>')
+        parts.append(f'<text x="{PAD_L+bw+10:.1f}" y="{y+23}" font-size="13.5" '
+                     f'font-weight="700" fill="{color}">{value_fmt.format(value)}{unit}</text>')
+
+    if note:
+        parts.append(f'<text x="28" y="{H-24}" font-size="11.5" fill="{MUTED}">{note}</text>')
+    parts.append('</svg>')
+    Path(out_path).write_text("\n".join(parts), encoding="utf-8")
+    return out_path
+
+
 if __name__ == "__main__":
     out = Path("docs/performance/images")
     out.mkdir(parents=True, exist_ok=True)

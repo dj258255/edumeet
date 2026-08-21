@@ -2,6 +2,12 @@
 
 > 관련 이슈 [#2](https://github.com/dj258255/edumeet/issues/2)
 
+> **⚠ 이 문서의 동시성 테스트는 H2 위에서 JUnit 스레드로 돈다.**
+> H2 의 잠금과 MySQL InnoDB 의 `SELECT ... FOR UPDATE` 는 동작이 다르고,
+> JUnit 스레드는 HTTP 계층·커넥션 풀을 건너뛴다.
+> MySQL 에서 k6 로 재검증한 결과는
+> [04. 세션 정원 제어 — MySQL InnoDB 재검증](04-session-capacity-mysql.md)에 있다.
+
 ## 한 줄 요약
 
 정원 3명짜리 화상강의에 **동시 입장 20건**이 몰릴 때 10명이 들어가고 있었다.

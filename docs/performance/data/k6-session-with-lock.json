@@ -1,0 +1,14 @@
+{
+  "label": "with-lock",
+  "lock": true,
+  "attempts": 150,
+  "capacity": 30,
+  "join_success": 30,
+  "join_rejected": 120,
+  "join_error": 0,
+  "latency_p95_ms": 437.751,
+  "final_active": 30,
+  "final_limit": 30,
+  "overflow": 0,
+  "verdict": "정원 준수"
+}

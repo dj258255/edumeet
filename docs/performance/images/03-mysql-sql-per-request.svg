@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="336" viewBox="0 0 880 336" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="880" height="336" fill="#ffffff"/>
+<text x="28" y="32" font-size="18" font-weight="700" fill="#111827">과제 목록 조회 — 요청당 실행 SQL</text>
+<text x="28" y="53" font-size="12.5" fill="#6b7280">MySQL 8.0 (Docker) · k6 · VU 50 · 과제 30건/클래스 · 응답 약 404KB</text>
+<text x="218" y="93" text-anchor="end" font-size="13" font-weight="600" fill="#111827">개선 전</text>
+<text x="218" y="108" text-anchor="end" font-size="11" fill="#6b7280">앱 N+1 · 배치페치 없음</text>
+<rect x="232" y="78" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="78" width="467.8" height="26" rx="4" fill="#dc2626"/>
+<text x="709.8" y="97" font-size="13.5" font-weight="700" fill="#dc2626">184개</text>
+<text x="218" y="139" text-anchor="end" font-size="13" font-weight="600" fill="#111827">앱 IN절만</text>
+<text x="218" y="154" text-anchor="end" font-size="11" fill="#6b7280">IN 절 · 배치페치 없음</text>
+<rect x="232" y="124" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="124" width="394.1" height="26" rx="4" fill="#ea580c"/>
+<text x="636.1" y="143" font-size="13.5" font-weight="700" fill="#ea580c">155개</text>
+<text x="218" y="185" text-anchor="end" font-size="13" font-weight="600" fill="#111827">배치페치만</text>
+<text x="218" y="200" text-anchor="end" font-size="11" fill="#6b7280">앱 N+1 · 배치페치 100</text>
+<rect x="232" y="170" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="170" width="101.7" height="26" rx="4" fill="#7c3aed"/>
+<text x="343.7" y="189" font-size="13.5" font-weight="700" fill="#7c3aed">40개</text>
+<text x="218" y="231" text-anchor="end" font-size="13" font-weight="600" fill="#111827">개선 후</text>
+<text x="218" y="246" text-anchor="end" font-size="11" fill="#6b7280">IN 절 · 배치페치 100</text>
+<rect x="232" y="216" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="216" width="28.0" height="26" rx="4" fill="#2563eb"/>
+<text x="270.0" y="235" font-size="13.5" font-weight="700" fill="#2563eb">11개</text>
+<text x="28" y="312" font-size="11.5" fill="#6b7280">앱 레벨 IN 절보다 Hibernate default_batch_fetch_size 의 기여가 컸다.</text>
+</svg>
