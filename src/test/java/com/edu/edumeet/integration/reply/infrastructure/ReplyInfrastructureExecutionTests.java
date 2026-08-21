@@ -1,4 +1,4 @@
-package com.edu.edumeet.reply.infrastructure;
+package com.edu.edumeet.reply.repository;
 
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class ReplyInfrastructureExecutionTests {
 
     @Autowired
-    private ReplyJpaRepository replyJpaRepository;
+    private ReplyRepository replyJpaRepository;
 
     @Autowired
     private BoardJpaRepository boardJpaRepository;
@@ -62,10 +62,10 @@ public class ReplyInfrastructureExecutionTests {
         Reply reply = Reply.builder()
                 .replyText("테스트 댓글")
                 .replayer("tester")
-                .boardId(testBoardId)
+                .board(BoardJpaEntity.builder().id(testBoardId).build())
                 .build();
         
-        ReplyJpaEntity savedReply = replyJpaRepository.save(ReplyJpaEntity.fromDomain(reply));
+        Reply savedReply = replyJpaRepository.save(reply);
         testReplyId = savedReply.getId();
         
         log.info("테스트 준비 완료: 게시글 ID={}, 댓글 ID={}", testBoardId, testReplyId);
@@ -78,13 +78,13 @@ public class ReplyInfrastructureExecutionTests {
         Reply reply = Reply.builder()
                 .replyText("새 댓글")
                 .replayer("newUser")
-                .boardId(testBoardId)
+                .board(BoardJpaEntity.builder().id(testBoardId).build())
                 .build();
         
-        ReplyJpaEntity entity = ReplyJpaEntity.fromDomain(reply);
+        Reply entity = reply;
         
         // when
-        ReplyJpaEntity savedEntity = replyJpaRepository.save(entity);
+        Reply savedEntity = replyJpaRepository.save(entity);
         
         // then
         assertThat(savedEntity).isNotNull();
@@ -98,11 +98,11 @@ public class ReplyInfrastructureExecutionTests {
     @DisplayName("JPA 엔티티 조회 실행 테스트")
     void findReplyJpaEntityByIdTest() {
         // when
-        Optional<ReplyJpaEntity> result = replyJpaRepository.findById(testReplyId);
+        Optional<Reply> result = replyJpaRepository.findById(testReplyId);
         
         // then
         assertThat(result).isPresent();
-        ReplyJpaEntity entity = result.get();
+        Reply entity = result.get();
         assertThat(entity.getReplyText()).isEqualTo("테스트 댓글");
         
         log.info("댓글 JPA 엔티티 조회 성공: ID={}, 내용={}", entity.getId(), entity.getReplyText());
@@ -112,11 +112,11 @@ public class ReplyInfrastructureExecutionTests {
     @DisplayName("삭제되지 않은 JPA 엔티티 조회 실행 테스트")
     void findByIdNotDeletedTest() {
         // when
-        Optional<ReplyJpaEntity> result = replyJpaRepository.findByIdNotDeleted(testReplyId);
+        Optional<Reply> result = replyJpaRepository.findByIdNotDeleted(testReplyId);
         
         // then
         assertThat(result).isPresent();
-        ReplyJpaEntity entity = result.get();
+        Reply entity = result.get();
         assertThat(entity.getReplyText()).isEqualTo("테스트 댓글");
         
         log.info("삭제되지 않은 댓글 JPA 엔티티 조회 성공: ID={}", entity.getId());
@@ -131,15 +131,15 @@ public class ReplyInfrastructureExecutionTests {
             Reply reply = Reply.builder()
                     .replyText("목록 테스트 댓글 " + i)
                     .replayer("listTester")
-                    .boardId(testBoardId)
+                    .board(BoardJpaEntity.builder().id(testBoardId).build())
                     .build();
             
-            replyJpaRepository.save(ReplyJpaEntity.fromDomain(reply));
+            replyJpaRepository.save(reply);
         }
         
         // when
         Pageable pageable = PageRequest.of(0, 10, Sort.by("id").descending());
-        Page<ReplyJpaEntity> result = replyJpaRepository.listOfBoard(testBoardId, pageable);
+        Page<Reply> result = replyJpaRepository.listOfBoard(testBoardId, pageable);
         
         // then
         assertThat(result.getContent()).isNotEmpty();
@@ -157,27 +157,27 @@ public class ReplyInfrastructureExecutionTests {
         Reply childReply = Reply.builder()
                 .replyText("대댓글")
                 .replayer("childReplyer")
-                .boardId(testBoardId)
-                .parentReplyId(testReplyId)
+                .board(BoardJpaEntity.builder().id(testBoardId).build())
+                .parentReply(Reply.builder().id(testReplyId).build())
                 .depth(1)
                 .build();
         
-        replyJpaRepository.save(ReplyJpaEntity.fromDomain(childReply));
+        replyJpaRepository.save(childReply);
         
         // 추가 최상위 댓글 생성
         for (int i = 0; i < 3; i++) {
             Reply reply = Reply.builder()
                     .replyText("최상위 댓글 " + i)
                     .replayer("rootReplyer")
-                    .boardId(testBoardId)
+                    .board(BoardJpaEntity.builder().id(testBoardId).build())
                     .build();
             
-            replyJpaRepository.save(ReplyJpaEntity.fromDomain(reply));
+            replyJpaRepository.save(reply);
         }
         
         // when
         Pageable pageable = PageRequest.of(0, 10, Sort.by("id").descending());
-        Page<ReplyJpaEntity> result = replyJpaRepository.listOfBoardRootReplies(testBoardId, pageable);
+        Page<Reply> result = replyJpaRepository.listOfBoardRootReplies(testBoardId, pageable);
         
         // then
         assertThat(result.getContent()).isNotEmpty();
@@ -198,16 +198,16 @@ public class ReplyInfrastructureExecutionTests {
             Reply childReply = Reply.builder()
                     .replyText("대댓글 " + i)
                     .replayer("childReplyer")
-                    .boardId(testBoardId)
-                    .parentReplyId(testReplyId)
+                    .board(BoardJpaEntity.builder().id(testBoardId).build())
+                    .parentReply(Reply.builder().id(testReplyId).build())
                     .depth(1)
                     .build();
             
-            replyJpaRepository.save(ReplyJpaEntity.fromDomain(childReply));
+            replyJpaRepository.save(childReply);
         }
         
         // when
-        List<ReplyJpaEntity> childReplies = replyJpaRepository.findByParentReplyId(testReplyId);
+        List<Reply> childReplies = replyJpaRepository.findByParentReplyId(testReplyId);
         
         // then
         assertThat(childReplies).isNotEmpty();
@@ -228,12 +228,12 @@ public class ReplyInfrastructureExecutionTests {
         Reply childReply = Reply.builder()
                 .replyText("대댓글")
                 .replayer("childReplyer")
-                .boardId(testBoardId)
-                .parentReplyId(testReplyId)
+                .board(BoardJpaEntity.builder().id(testBoardId).build())
+                .parentReply(Reply.builder().id(testReplyId).build())
                 .depth(1)
                 .build();
         
-        replyJpaRepository.save(ReplyJpaEntity.fromDomain(childReply));
+        replyJpaRepository.save(childReply);
         
         // when
         boolean hasChildren = replyJpaRepository.hasChildReplies(testReplyId);
@@ -248,11 +248,11 @@ public class ReplyInfrastructureExecutionTests {
     @DisplayName("도메인 변환 실행 테스트")
     void domainConversionTest() {
         // given
-        ReplyJpaEntity entity = replyJpaRepository.findById(testReplyId).orElseThrow();
+        Reply entity = replyJpaRepository.findById(testReplyId).orElseThrow();
         
         // when
-        Reply reply = entity.toDomain();
-        ReplyJpaEntity convertedEntity = ReplyJpaEntity.fromDomain(reply);
+        Reply reply = entity;
+        Reply convertedEntity = reply;
         
         // then
         assertThat(convertedEntity.getId()).isEqualTo(entity.getId());

@@ -1,10 +1,11 @@
-package com.edu.edumeet.reply.presentation;
+package com.edu.edumeet.reply.controller;
 
+import com.edu.edumeet.reply.service.ReplyService;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
-import com.edu.edumeet.reply.infrastructure.ReplyJpaRepository;
-import com.edu.edumeet.reply.presentation.dto.ReplyDTO;
+import com.edu.edumeet.reply.repository.ReplyRepository;
+import com.edu.edumeet.reply.dto.ReplyDTO;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +36,7 @@ public class ReplyEdgeTests {
     private BoardJpaRepository boardJpaRepository;
     
     @Autowired
-    private ReplyJpaRepository replyJpaRepository;
+    private ReplyRepository replyJpaRepository;
 
     private Long testBoardId;
     private Long testReplyId;

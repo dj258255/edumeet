@@ -1,12 +1,13 @@
 package com.edu.edumeet.reply.application;
 
+import com.edu.edumeet.reply.repository.ReplyRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
 import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
 import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
-import com.edu.edumeet.reply.infrastructure.ReplyJpaRepository;
-import com.edu.edumeet.reply.presentation.dto.ReplyDTO;
+import com.edu.edumeet.reply.service.ReplyService;
+import com.edu.edumeet.reply.dto.ReplyDTO;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,13 +32,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class ReplyApplicationExecutionTests {
 
     @Autowired
-    private ReplyRepository replyRepository;
+    private ReplyService replyService;
 
     @Autowired
     private BoardJpaRepository boardJpaRepository;
     
     @Autowired
-    private ReplyJpaRepository replyJpaRepository;
+    private ReplyRepository replyJpaRepository;
 
     private Long testBoardId;
     private Long testReplyId;
@@ -66,7 +67,7 @@ public class ReplyApplicationExecutionTests {
                 .boardId(testBoardId)
                 .build();
         
-        testReplyId = replyRepository.register(replyDTO);
+        testReplyId = replyService.register(replyDTO);
         
         log.info("테스트 준비 완료: 게시글 ID={}, 댓글 ID={}", testBoardId, testReplyId);
     }
@@ -82,10 +83,10 @@ public class ReplyApplicationExecutionTests {
                 .build();
         
         // when
-        Long newReplyId = replyRepository.register(replyDTO);
+        Long newReplyId = replyService.register(replyDTO);
         
         // then
-        ReplyDTO savedReply = replyRepository.read(newReplyId);
+        ReplyDTO savedReply = replyService.read(newReplyId);
         assertThat(savedReply).isNotNull();
         assertThat(savedReply.getReplyText()).isEqualTo("새 댓글");
         assertThat(savedReply.getReplayer()).isEqualTo("newUser");
@@ -97,7 +98,7 @@ public class ReplyApplicationExecutionTests {
     @DisplayName("댓글 조회 실행 테스트")
     void readReplyTest() {
         // when
-        ReplyDTO reply = replyRepository.read(testReplyId);
+        ReplyDTO reply = replyService.read(testReplyId);
         
         // then
         assertThat(reply).isNotNull();
@@ -117,7 +118,7 @@ public class ReplyApplicationExecutionTests {
                     .replayer("listTester")
                     .boardId(testBoardId)
                     .build();
-            replyRepository.register(replyDTO);
+            replyService.register(replyDTO);
         }
         
         // when
@@ -126,7 +127,7 @@ public class ReplyApplicationExecutionTests {
                 .size(10)
                 .build();
         
-        PageResponseDTO<ReplyDTO> responseDTO = replyRepository.getListOfBoard(testBoardId, pageRequestDTO);
+        PageResponseDTO<ReplyDTO> responseDTO = replyService.getListOfBoard(testBoardId, pageRequestDTO);
         
         // then
         assertThat(responseDTO.getDtoList()).isNotEmpty();
@@ -148,10 +149,10 @@ public class ReplyApplicationExecutionTests {
                 .build();
         
         // when
-        Long childReplyId = replyRepository.register(childReply);
+        Long childReplyId = replyService.register(childReply);
         
         // then
-        ReplyDTO savedChildReply = replyRepository.read(childReplyId);
+        ReplyDTO savedChildReply = replyService.read(childReplyId);
         assertThat(savedChildReply).isNotNull();
         assertThat(savedChildReply.getParentReplyId()).isEqualTo(testReplyId);
         
@@ -162,12 +163,12 @@ public class ReplyApplicationExecutionTests {
                 .build();
         
         PageResponseDTO<ReplyDTO> hierarchicalReplies = 
-                replyRepository.getHierarchicalListOfBoard(testBoardId, pageRequestDTO);
+                replyService.getHierarchicalListOfBoard(testBoardId, pageRequestDTO);
         
         assertThat(hierarchicalReplies.getDtoList()).isNotEmpty();
         
         // 자식 댓글 목록 조회
-        List<ReplyDTO> childReplies = replyRepository.getChildReplies(testReplyId);
+        List<ReplyDTO> childReplies = replyService.getChildReplies(testReplyId);
         assertThat(childReplies).isNotEmpty();
         assertThat(childReplies.get(0).getId()).isEqualTo(childReplyId);
         
@@ -179,14 +180,14 @@ public class ReplyApplicationExecutionTests {
     @DisplayName("댓글 수정 실행 테스트")
     void modifyReplyTest() {
         // given
-        ReplyDTO replyDTO = replyRepository.read(testReplyId);
+        ReplyDTO replyDTO = replyService.read(testReplyId);
         replyDTO.setReplyText("수정된 댓글");
         
         // when
-        replyRepository.modify(replyDTO);
+        replyService.modify(replyDTO);
         
         // then
-        ReplyDTO modifiedReply = replyRepository.read(testReplyId);
+        ReplyDTO modifiedReply = replyService.read(testReplyId);
         assertThat(modifiedReply.getReplyText()).isEqualTo("수정된 댓글");
         
         log.info("댓글 수정 성공: ID={}, 수정된 내용={}", modifiedReply.getId(), modifiedReply.getReplyText());
@@ -196,12 +197,12 @@ public class ReplyApplicationExecutionTests {
     @DisplayName("댓글 삭제 실행 테스트")
     void removeReplyTest() {
         // when
-        replyRepository.remove(testReplyId);
+        replyService.remove(testReplyId);
         
         // then
         // 삭제 후 조회 시 예외가 발생하거나 null이 반환되어야 함
         try {
-            ReplyDTO deletedReply = replyRepository.read(testReplyId);
+            ReplyDTO deletedReply = replyService.read(testReplyId);
             assertThat(deletedReply).isNull();
         } catch (Exception e) {
             // 예외가 발생해도 테스트 성공
@@ -223,10 +224,10 @@ public class ReplyApplicationExecutionTests {
                 .parentReplyId(testReplyId)
                 .build();
         
-        replyRepository.register(childReply);
+        replyService.register(childReply);
         
         // when
-        boolean hasChildren = replyRepository.hasChildReplies(testReplyId);
+        boolean hasChildren = replyService.hasChildReplies(testReplyId);
         
         // then
         assertThat(hasChildren).isTrue();

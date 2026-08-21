@@ -4,7 +4,7 @@ import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.presentation.BoardService;
 import com.edu.edumeet.board.presentation.dto.*;
-import com.edu.edumeet.reply.application.ReplyRepository;
+import com.edu.edumeet.reply.repository.ReplyRepository;
 import com.edu.edumeet.s3.util.S3Uploader;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.attachment.dto.AttachmentAdapter;

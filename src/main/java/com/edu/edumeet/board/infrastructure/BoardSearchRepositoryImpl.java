@@ -7,7 +7,7 @@ import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
 import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
-import com.edu.edumeet.reply.infrastructure.QReplyJpaEntity;
+import com.edu.edumeet.reply.domain.QReply;
 import com.edu.edumeet.s3.util.S3Uploader;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
@@ -123,7 +123,7 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
     @Override
     public Page<BoardListReplyCountDTO> searchWithReplyCount(String[] types, String keyword, Pageable pageable) {
         QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
-        QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
+        QReply replyJpaEntity = QReply.reply;
 
         // 기본 쿼리 생성
         JPQLQuery<BoardJpaEntity> query = from(boardJpaEntity);
@@ -172,7 +172,7 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
     @Override
     public Page<BoardListReplyCountDTO> searchDeletedWithReplyCount(String[] types, String keyword, Pageable pageable) {
         QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
-        QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
+        QReply replyJpaEntity = QReply.reply;
 
         // 기본 쿼리 생성
         JPQLQuery<BoardJpaEntity> query = from(boardJpaEntity);
@@ -245,7 +245,7 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
     public Page<BoardListAllDTO> searchWithAll(String[] types, String keyword, Long classId, Long categoryId, String boardType, Pageable pageable){
 
         QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
-        QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
+        QReply replyJpaEntity = QReply.reply;
 
         JPQLQuery<BoardJpaEntity> query = from(boardJpaEntity);
         query.leftJoin(replyJpaEntity).on(replyJpaEntity.board.eq(boardJpaEntity));
@@ -363,7 +363,7 @@ public class BoardSearchRepositoryImpl extends QuerydslRepositorySupport impleme
 public Page<BoardListAllDTO> searchDeletedWithAll(String[] types, String keyword, Long classId, Long categoryId, String boardType, Pageable pageable){
 
     QBoardJpaEntity boardJpaEntity = QBoardJpaEntity.boardJpaEntity;
-    QReplyJpaEntity replyJpaEntity = QReplyJpaEntity.replyJpaEntity;
+    QReply replyJpaEntity = QReply.reply;
 
     JPQLQuery<BoardJpaEntity> query = from(boardJpaEntity);
     query.leftJoin(replyJpaEntity).on(replyJpaEntity.board.eq(boardJpaEntity));

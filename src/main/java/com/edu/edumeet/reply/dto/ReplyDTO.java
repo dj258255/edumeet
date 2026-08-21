@@ -1,4 +1,4 @@
-package com.edu.edumeet.reply.presentation.dto;
+package com.edu.edumeet.reply.dto;
 
 
 import com.fasterxml.jackson.annotation.JsonFormat;
