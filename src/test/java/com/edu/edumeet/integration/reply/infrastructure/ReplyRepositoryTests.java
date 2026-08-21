@@ -1,8 +1,8 @@
-package com.edu.edumeet.reply.infrastructure;
+package com.edu.edumeet.reply.repository;
 
 import com.edu.edumeet.board.domain.Board;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
-import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
+import com.edu.edumeet.board.repository.BoardJpaRepository;
 import com.edu.edumeet.reply.domain.Reply;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeAll;
@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class ReplyRepositoryTests {
 
     @Autowired
-    private ReplyJpaRepository replyJpaRepository;
+    private ReplyRepository replyJpaRepository;
 
     @Autowired
     private BoardJpaRepository boardJpaRepository;
@@ -70,12 +70,12 @@ public class ReplyRepositoryTests {
     public void 테스트_댓글_삽입_및_조회() {
         // 실제 DB에 있는 board_id
         Reply reply = Reply.builder()
-                .boardId(testBoardId)
+                .board(BoardJpaEntity.builder().id(testBoardId).build())
                 .replyText("댓글.....")
                 .replayer("replyer1")
                 .build();
 
-        ReplyJpaEntity savedReply = replyJpaRepository.save(ReplyJpaEntity.fromDomain(reply));
+        Reply savedReply = replyJpaRepository.save(reply);
 
         log.info("저장된 댓글 ID: " + savedReply.getId());
         log.info("댓글 내용: " + savedReply.getReplyText());

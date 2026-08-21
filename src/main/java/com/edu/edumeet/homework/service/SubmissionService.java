@@ -13,7 +13,7 @@ import com.edu.edumeet.homework.repository.SubmissionFileUploadRepository;
 import com.edu.edumeet.homework.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.dto.SubmissionDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.dto.AttachmentAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;

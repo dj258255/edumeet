@@ -1,13 +1,14 @@
 package com.edu.edumeet.integration.board.infrastructure;
 
-import com.edu.edumeet.board.application.BoardSearchRepository;
+import com.edu.edumeet.board.repository.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.domain.BoardType;
-import com.edu.edumeet.board.infrastructure.*;
-import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
-import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
-import com.edu.edumeet.reply.infrastructure.ReplyJpaRepository;
+import com.edu.edumeet.board.domain.*;
+import com.edu.edumeet.board.repository.*;
+import com.edu.edumeet.board.dto.BoardListAllDTO;
+import com.edu.edumeet.board.dto.BoardListReplyCountDTO;
+import com.edu.edumeet.reply.repository.ReplyRepository;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +49,7 @@ public class BoardInfrastructureExecutionTests {
     private BoardSearchRepository boardSearchRepository;
     
     @Autowired
-    private ReplyJpaRepository replyJpaRepository;
+    private ReplyRepository replyJpaRepository;
 
     private Long testCategoryId;
     private Long testBoardId;

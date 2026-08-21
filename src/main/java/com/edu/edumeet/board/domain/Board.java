@@ -1,7 +1,7 @@
 package com.edu.edumeet.board.domain;
 
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
+import com.edu.edumeet.attachment.dto.AttachmentDTO;
 import lombok.*;
 
 import java.time.LocalDateTime;

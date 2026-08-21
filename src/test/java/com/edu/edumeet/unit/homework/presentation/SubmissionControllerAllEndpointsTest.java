@@ -8,7 +8,7 @@ import com.edu.edumeet.homework.controller.SubmissionController;
 import com.edu.edumeet.homework.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.dto.SubmissionDTO;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.dto.AttachmentAdapter;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
