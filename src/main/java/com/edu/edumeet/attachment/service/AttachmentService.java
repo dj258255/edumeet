@@ -1,10 +1,10 @@
-package com.edu.edumeet.attachment.application;
+package com.edu.edumeet.attachment.service;
 
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentResultDTO;
+import com.edu.edumeet.attachment.dto.AttachmentResultDTO;
 import com.edu.edumeet.s3.util.LocalUploader;
 import com.edu.edumeet.s3.util.S3Uploader;
-import com.edu.edumeet.attachment.presentation.AttachmentService;
+import com.edu.edumeet.attachment.service.AttachmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 
@@ -19,14 +19,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Log4j2
-public class AttachmentServiceImpl implements AttachmentService {
+public class AttachmentService {
     
     // ... 기존 필드들
     
     private final LocalUploader localUploader;
     private final S3Uploader s3Uploader;
-    
-    @Override
     public List<Attachment> uploadFiles(List<MultipartFile> files, String domain, Long referenceId) {
         // ... 기존 업로드 로직 유지
         
@@ -119,7 +117,6 @@ public class AttachmentServiceImpl implements AttachmentService {
     }
     
     // ... 기존 메서드들
-    @Override
     public Map<String, Object> getFileInfo(String fileName) {
         try {
             // S3 URL 생성
@@ -136,8 +133,6 @@ public class AttachmentServiceImpl implements AttachmentService {
             throw new RuntimeException("파일 정보 조회 실패", e);
         }
     }
-
-    @Override
     public boolean removeFile(String fileName) {
         try {
             // S3에서 파일 삭제
@@ -164,8 +159,6 @@ public class AttachmentServiceImpl implements AttachmentService {
             return false;
         }
     }
-
-    @Override
     public List<Attachment> getFilesByReference(String domain, Long referenceId) {
         // 이 메서드는 실제 구현에서는 데이터베이스에서 조회해야 함
         // 현재는 스켈레톤 코드만 제공

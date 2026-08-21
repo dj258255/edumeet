@@ -1,4 +1,4 @@
-package com.edu.edumeet.attachment.presentation.dto;
+package com.edu.edumeet.attachment.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;

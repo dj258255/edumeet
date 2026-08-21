@@ -1,4 +1,4 @@
-package com.edu.edumeet.attachment.presentation.dto;
+package com.edu.edumeet.attachment.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

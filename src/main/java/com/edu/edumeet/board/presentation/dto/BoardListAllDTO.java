@@ -1,6 +1,6 @@
 package com.edu.edumeet.board.presentation.dto;
 
-import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
+import com.edu.edumeet.attachment.dto.AttachmentDTO;
 import com.edu.edumeet.board.domain.BoardType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

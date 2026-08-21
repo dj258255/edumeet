@@ -1,4 +1,4 @@
-package com.edu.edumeet.attachment.presentation.dto;
+package com.edu.edumeet.attachment.dto;
 
 import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;

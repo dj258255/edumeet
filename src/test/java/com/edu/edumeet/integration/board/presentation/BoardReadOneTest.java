@@ -1,7 +1,7 @@
 package com.edu.edumeet.integration.board.presentation;
 
 
-import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
+import com.edu.edumeet.attachment.dto.AttachmentDTO;
 import com.edu.edumeet.board.domain.BoardCategory;
 import com.edu.edumeet.board.infrastructure.BoardCategoryJpaEntity;
 import com.edu.edumeet.board.infrastructure.BoardCategoryJpaRepository;

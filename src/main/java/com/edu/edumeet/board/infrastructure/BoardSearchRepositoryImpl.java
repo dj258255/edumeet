@@ -1,7 +1,7 @@
 package com.edu.edumeet.board.infrastructure;
 
-import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.dto.AttachmentDTO;
+import com.edu.edumeet.attachment.dto.AttachmentAdapter;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.board.application.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;

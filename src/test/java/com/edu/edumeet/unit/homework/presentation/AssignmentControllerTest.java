@@ -6,7 +6,7 @@ import com.edu.edumeet.homework.repository.AssignmentRepository;
 import com.edu.edumeet.homework.controller.AssignmentController;
 import com.edu.edumeet.homework.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.dto.AssignmentDTO;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.dto.AttachmentAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeEach;

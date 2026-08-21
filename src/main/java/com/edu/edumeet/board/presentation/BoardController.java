@@ -2,7 +2,7 @@ package com.edu.edumeet.board.presentation;
 
 
 import com.edu.edumeet.board.presentation.dto.*;
-import com.edu.edumeet.attachment.presentation.AttachmentService;
+import com.edu.edumeet.attachment.service.AttachmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

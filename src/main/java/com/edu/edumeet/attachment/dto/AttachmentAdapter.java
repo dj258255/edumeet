@@ -1,4 +1,4 @@
-package com.edu.edumeet.attachment.presentation.dto;
+package com.edu.edumeet.attachment.dto;
 
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.s3.util.S3Uploader;

@@ -1,10 +1,11 @@
-package com.edu.edumeet.attachment.presentation;
+package com.edu.edumeet.attachment.controller;
 
+import com.edu.edumeet.attachment.service.AttachmentService;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.s3.util.S3Uploader;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentUploadDTO;
-import com.edu.edumeet.attachment.presentation.dto.AttachmentResultDTO;
+import com.edu.edumeet.attachment.dto.AttachmentAdapter;
+import com.edu.edumeet.attachment.dto.AttachmentUploadDTO;
+import com.edu.edumeet.attachment.dto.AttachmentResultDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

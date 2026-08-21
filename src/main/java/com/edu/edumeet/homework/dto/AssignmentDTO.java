@@ -1,6 +1,6 @@
 package com.edu.edumeet.homework.dto;
 
-import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
+import com.edu.edumeet.attachment.dto.AttachmentDTO;
 import com.edu.edumeet.homework.dto.StudentSubmissionStatusDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
