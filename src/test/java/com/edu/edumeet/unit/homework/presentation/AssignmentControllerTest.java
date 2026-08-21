@@ -1,11 +1,11 @@
 package com.edu.edumeet.unit.homework.presentation;
 
+import com.edu.edumeet.homework.service.AssignmentService;
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
-import com.edu.edumeet.homework.presentation.AssignmentController;
-import com.edu.edumeet.homework.presentation.AssignmentService;
-import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.controller.AssignmentController;
+import com.edu.edumeet.homework.dto.AssignmentCreateDTO;
+import com.edu.edumeet.homework.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
@@ -52,7 +52,7 @@ class AssignmentControllerTest {
     private AssignmentService assignmentService;
 
     @Autowired
-    private AssignmentJpaRepository assignmentJpaRepository;
+    private AssignmentRepository assignmentJpaRepository;
 
     @Autowired
     private AttachmentAdapter attachmentAdapter;

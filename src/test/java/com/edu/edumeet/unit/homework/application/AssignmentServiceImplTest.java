@@ -1,14 +1,16 @@
 package com.edu.edumeet.unit.homework.application;
 
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.repository.SubmissionRepository;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.classroom.domain.ClassMember;
-import com.edu.edumeet.homework.application.AssignmentRepository;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import com.edu.edumeet.homework.domain.Assignment;
-import com.edu.edumeet.homework.application.AssignmentServiceImpl;
-import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.homework.service.AssignmentService;
+import com.edu.edumeet.homework.dto.AssignmentCreateDTO;
+import com.edu.edumeet.homework.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentDTO;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,11 +34,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AssignmentServiceImpl 테스트")
-class AssignmentServiceImplTest {
+@DisplayName("AssignmentService 테스트")
+class AssignmentServiceTest {
 
     @InjectMocks
-    private AssignmentServiceImpl assignmentService;
+    private AssignmentService assignmentService;
 
     @Mock
     private AssignmentRepository assignmentRepository;
@@ -48,7 +50,7 @@ class AssignmentServiceImplTest {
     private AttachmentAdapter attachmentAdapter;
     
     @Mock
-    private com.edu.edumeet.homework.application.SubmissionRepository submissionRepository;
+    private com.edu.edumeet.homework.repository.SubmissionRepository submissionRepository;
 
     private AssignmentCreateDTO createDTOWithFiles;
     private AssignmentCreateDTO createDTOWithoutFiles;
@@ -107,9 +109,6 @@ class AssignmentServiceImplTest {
                 .classId(1L)
                 .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList(testFile))
-                .regDate(LocalDateTime.now())
-                .modDate(LocalDateTime.now())
                 .build();
 
         // 클래스 멤버들
@@ -131,14 +130,12 @@ class AssignmentServiceImplTest {
                 .email("student2@example.com")
                 .build();
 
-
         classMembers = Arrays.asList(
                 ClassMember.builder().member(teacher).build(),
                 ClassMember.builder().member(student1).build(),
                 ClassMember.builder().member(student2).build()
         );
-        
-        
+
         System.out.println("[DEBUG_LOG] 테스트 데이터 초기화 완료");
     }
 
@@ -180,9 +177,6 @@ class AssignmentServiceImplTest {
                 .classId(1L)
                 .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList()) // 빈 리스트
-                .regDate(LocalDateTime.now())
-                .modDate(LocalDateTime.now())
                 .build();
 
         when(assignmentRepository.save(any(Assignment.class)))
@@ -222,7 +216,7 @@ class AssignmentServiceImplTest {
         when(attachmentAdapter.toFileUploadDTOList(any()))
                 .thenReturn(Arrays.asList(testFileDTO));
         
-        when(assignmentRepository.findById(eq(1234L)))
+        when(assignmentRepository.findByIdAndDeletedAtIsNull(eq(1234L)))
                 .thenReturn(Optional.of(savedAssignment));
 
         // When
@@ -236,7 +230,7 @@ class AssignmentServiceImplTest {
         assertThat(result.getAttachmentFiles().get(0).getFileName()).isEqualTo("guide.pdf");
         assertThat(result.getAttachmentFiles().get(0).getUuid()).isEqualTo("test-uuid-123");
         
-        verify(assignmentRepository).findById(eq(1234L));
+        verify(assignmentRepository).findByIdAndDeletedAtIsNull(eq(1234L));
         
         System.out.println("[DEBUG_LOG] 첨부파일 포함 과제 조회 성공, 첨부파일 개수: " + result.getAttachmentFiles().size());
     }
@@ -259,12 +253,12 @@ class AssignmentServiceImplTest {
                 .uploadedAt(LocalDateTime.now())
                 .build();
 
-        Assignment updatedAssignment = savedAssignment.addAttachmentFile(newFile);
+        savedAssignment.addAttachmentFile(newFile);
 
-        when(assignmentRepository.findById(eq(1234L)))
+        when(assignmentRepository.findByIdAndDeletedAtIsNull(eq(1234L)))
                 .thenReturn(Optional.of(savedAssignment));
         when(assignmentRepository.save(any(Assignment.class)))
-                .thenReturn(updatedAssignment);
+                .thenReturn(savedAssignment);
 
         System.out.println("[DEBUG_LOG] 추가할 파일명: " + newFile.getFileName());
 
@@ -272,7 +266,7 @@ class AssignmentServiceImplTest {
         assignmentService.addAttachmentFile(1234L, newFile);
 
         // Then
-        verify(assignmentRepository).findById(eq(1234L));
+        verify(assignmentRepository).findByIdAndDeletedAtIsNull(eq(1234L));
         verify(assignmentRepository).save(any(Assignment.class));
         
         System.out.println("[DEBUG_LOG] 첨부파일 추가 성공");
@@ -298,8 +292,6 @@ class AssignmentServiceImplTest {
                 .classId(1L)
                 .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList())
-                .regDate(LocalDateTime.now())
                 .build();
 
         Assignment assignment2 = Assignment.builder()
@@ -308,8 +300,6 @@ class AssignmentServiceImplTest {
                 .classId(1L)
                 .createdByEmail("teacher@example.com")
                 .createdByName("김선생")
-                .attachmentFiles(Arrays.asList())
-                .regDate(LocalDateTime.now())
                 .build();
 
         List<Assignment> assignments = Arrays.asList(assignment1, assignment2);

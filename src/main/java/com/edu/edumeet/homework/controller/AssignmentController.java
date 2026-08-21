@@ -1,7 +1,8 @@
-package com.edu.edumeet.homework.presentation;
+package com.edu.edumeet.homework.controller;
 
-import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.homework.service.AssignmentService;
+import com.edu.edumeet.homework.dto.AssignmentCreateDTO;
+import com.edu.edumeet.homework.dto.AssignmentDTO;
 import com.edu.edumeet.member.domain.SecurityMember;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

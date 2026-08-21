@@ -1,15 +1,15 @@
 package com.edu.edumeet.integration.homework;
 
-import com.edu.edumeet.homework.application.AssignmentRepository;
-import com.edu.edumeet.homework.application.AssignmentServiceImpl;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.service.AssignmentService;
 import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaEntity;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
-import com.edu.edumeet.homework.infrastructure.AssignmentFileUploadJpaEntity;
-import com.edu.edumeet.homework.infrastructure.StudentSubmissionStatusJpaEntity;
-import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.domain.AssignmentFileUpload;
+import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
+import com.edu.edumeet.homework.dto.AssignmentDTO;
 import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import lombok.extern.log4j.Log4j2;
@@ -45,13 +45,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class N1QueryOptimizationTest {
 
     @Autowired
-    private AssignmentServiceImpl assignmentService;
+    private AssignmentService assignmentService;
 
     @Autowired
     private AssignmentRepository assignmentRepository;
 
     @Autowired
-    private AssignmentJpaRepository assignmentJpaRepository;
+    private AssignmentRepository assignmentJpaRepository;
 
     @Autowired
     private ClassMemberRepository classMemberRepository;
@@ -144,12 +144,12 @@ class N1QueryOptimizationTest {
         log.info("[DEBUG_LOG] =========================");
 
         // When: DISTINCT 포함된 최적화 쿼리 실행
-        Optional<AssignmentJpaEntity> result = assignmentJpaRepository.findByIdWithAllDetails(testAssignmentId);
+        Optional<Assignment> result = assignmentJpaRepository.findByIdWithAllDetails(testAssignmentId);
 
         // Then: 중복 제거 확인
         assertThat(result).isPresent();
         
-        AssignmentJpaEntity assignment = result.get();
+        Assignment assignment = result.get();
         
         // 첨부파일 중복 제거 확인
         Set<Long> attachmentFileIds = new HashSet<>();
@@ -196,7 +196,7 @@ class N1QueryOptimizationTest {
 
     private void createTestData() {
         // 과제 생성
-        AssignmentJpaEntity assignment = AssignmentJpaEntity.builder()
+        Assignment assignment = Assignment.builder()
                 .title("테스트 과제")
                 .description("N+1 테스트를 위한 과제")
                 .classId(testClassId)
@@ -211,7 +211,7 @@ class N1QueryOptimizationTest {
 
         // 첨부파일 생성 (2개)
         for (int i = 1; i <= 2; i++) {
-            AssignmentFileUploadJpaEntity file = AssignmentFileUploadJpaEntity.builder()
+            AssignmentFileUpload file = AssignmentFileUpload.builder()
                     .assignment(assignment)
                     .uuid("test-uuid-" + i)
                     .fileName("테스트파일" + i + ".pdf")
@@ -227,7 +227,7 @@ class N1QueryOptimizationTest {
 
         // 학생 제출 현황 생성 (3개)
         for (int i = 1; i <= 3; i++) {
-            StudentSubmissionStatusJpaEntity status = StudentSubmissionStatusJpaEntity.builder()
+            StudentSubmissionStatus status = StudentSubmissionStatus.builder()
                     .assignment(assignment)
                     .studentEmail( i + "@example.com")
                     .studentName("학생" + i)

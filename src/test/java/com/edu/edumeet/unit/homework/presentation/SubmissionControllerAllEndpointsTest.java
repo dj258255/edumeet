@@ -1,13 +1,13 @@
 package com.edu.edumeet.unit.homework.presentation;
 
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
-import com.edu.edumeet.homework.infrastructure.SubmissionJpaRepository;
-import com.edu.edumeet.homework.presentation.AssignmentService;
-import com.edu.edumeet.homework.presentation.SubmissionController;
-import com.edu.edumeet.homework.presentation.SubmissionService;
-import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
+import com.edu.edumeet.homework.service.AssignmentService;
+import com.edu.edumeet.homework.service.SubmissionService;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.repository.SubmissionRepository;
+import com.edu.edumeet.homework.controller.SubmissionController;
+import com.edu.edumeet.homework.dto.AssignmentCreateDTO;
+import com.edu.edumeet.homework.dto.SubmissionCreateDTO;
+import com.edu.edumeet.homework.dto.SubmissionDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -57,10 +57,10 @@ public class SubmissionControllerAllEndpointsTest {
     private AssignmentService assignmentService;
 
     @Autowired
-    private SubmissionJpaRepository submissionJpaRepository;
+    private SubmissionRepository submissionJpaRepository;
 
     @Autowired
-    private AssignmentJpaRepository assignmentJpaRepository;
+    private AssignmentRepository assignmentJpaRepository;
 
     @Autowired
     private AttachmentAdapter attachmentAdapter;
