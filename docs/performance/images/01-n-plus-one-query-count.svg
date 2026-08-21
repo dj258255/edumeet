@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="440" viewBox="0 0 880 440" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="880" height="440" fill="#ffffff"/>
+<text x="78" y="32" font-size="18" font-weight="700" fill="#111827">과제 목록 조회 — 실행 쿼리 수</text>
+<text x="78" y="52" font-size="12.5" fill="#6b7280">Hibernate Statistics · H2 인메모리 · 과제당 첨부 2건, 제출현황 3건</text>
+<line x1="78" y1="366.0" x2="846" y2="366.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="370.0" text-anchor="end" font-size="12" fill="#6b7280">0</text>
+<line x1="78" y1="306.0" x2="846" y2="306.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="310.0" text-anchor="end" font-size="12" fill="#6b7280">20</text>
+<line x1="78" y1="246.0" x2="846" y2="246.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="250.0" text-anchor="end" font-size="12" fill="#6b7280">40</text>
+<line x1="78" y1="186.0" x2="846" y2="186.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="190.0" text-anchor="end" font-size="12" fill="#6b7280">60</text>
+<line x1="78" y1="126.0" x2="846" y2="126.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="130.0" text-anchor="end" font-size="12" fill="#6b7280">80</text>
+<line x1="78" y1="66.0" x2="846" y2="66.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="70.0" text-anchor="end" font-size="12" fill="#6b7280">100</text>
+<line x1="78" y1="66" x2="78" y2="366" stroke="#9ca3af" stroke-width="1.5"/>
+<line x1="78" y1="366" x2="846" y2="366" stroke="#9ca3af" stroke-width="1.5"/>
+<text x="238.0" y="390" text-anchor="middle" font-size="12.5" fill="#6b7280">5건</text>
+<text x="718.0" y="390" text-anchor="middle" font-size="12.5" fill="#6b7280">20건</text>
+<text x="462" y="420" text-anchor="middle" font-size="12.5" fill="#374151">조회한 과제 건수</text>
+<text x="20" y="216" text-anchor="middle" font-size="12.5" fill="#374151" transform="rotate(-90 20 216)">실행 쿼리 수</text>
+<path d="M238.0,297.0 L718.0,117.0" fill="none" stroke="#dc2626" stroke-width="2.6"/>
+<path d="M238.0,351.0 L718.0,351.0" fill="none" stroke="#2563eb" stroke-width="2.6"/>
+<circle cx="238.0" cy="297.0" r="5.5" fill="#dc2626"/>
+<text x="238.0" y="283.0" text-anchor="middle" font-size="14" font-weight="700" fill="#dc2626">23</text>
+<circle cx="718.0" cy="117.0" r="5.5" fill="#dc2626"/>
+<text x="718.0" y="103.0" text-anchor="middle" font-size="14" font-weight="700" fill="#dc2626">83</text>
+<circle cx="238.0" cy="351.0" r="5.5" fill="#2563eb"/>
+<text x="238.0" y="337.0" text-anchor="middle" font-size="14" font-weight="700" fill="#2563eb">5</text>
+<circle cx="718.0" cy="351.0" r="5.5" fill="#2563eb"/>
+<text x="718.0" y="337.0" text-anchor="middle" font-size="14" font-weight="700" fill="#2563eb">5</text>
+<g transform="translate(96,80)">
+<rect width="260" height="68" rx="7" fill="#ffffff" fill-opacity="0.94" stroke="#e5e7eb"/>
+<line x1="14" y1="20" x2="38" y2="20" stroke="#dc2626" stroke-width="2.6"/>
+<text x="46" y="24" font-size="12.5" fill="#374151">개선 전 — 건수에 비례 (4배 늘 때 3.6배)</text>
+<line x1="14" y1="46" x2="38" y2="46" stroke="#2563eb" stroke-width="2.6"/>
+<text x="46" y="50" font-size="12.5" fill="#374151">개선 후 — 상수 (4배 늘 때 1.0배)</text>
+</g></svg>

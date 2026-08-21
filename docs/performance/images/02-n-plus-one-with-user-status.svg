@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="440" viewBox="0 0 880 440" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="880" height="440" fill="#ffffff"/>
+<text x="78" y="32" font-size="18" font-weight="700" fill="#111827">사용자 제출상태 포함 목록 조회 — 실행 쿼리 수</text>
+<text x="78" y="52" font-size="12.5" fill="#6b7280">Hibernate Statistics · H2 인메모리 · 동일 조건</text>
+<line x1="78" y1="366.0" x2="846" y2="366.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="370.0" text-anchor="end" font-size="12" fill="#6b7280">0</text>
+<line x1="78" y1="291.0" x2="846" y2="291.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="295.0" text-anchor="end" font-size="12" fill="#6b7280">20</text>
+<line x1="78" y1="216.0" x2="846" y2="216.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="220.0" text-anchor="end" font-size="12" fill="#6b7280">40</text>
+<line x1="78" y1="141.0" x2="846" y2="141.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="145.0" text-anchor="end" font-size="12" fill="#6b7280">60</text>
+<line x1="78" y1="66.0" x2="846" y2="66.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="67" y="70.0" text-anchor="end" font-size="12" fill="#6b7280">80</text>
+<line x1="78" y1="66" x2="78" y2="366" stroke="#9ca3af" stroke-width="1.5"/>
+<line x1="78" y1="366" x2="846" y2="366" stroke="#9ca3af" stroke-width="1.5"/>
+<text x="238.0" y="390" text-anchor="middle" font-size="12.5" fill="#6b7280">5건</text>
+<text x="718.0" y="390" text-anchor="middle" font-size="12.5" fill="#6b7280">20건</text>
+<text x="462" y="420" text-anchor="middle" font-size="12.5" fill="#374151">조회한 과제 건수</text>
+<text x="20" y="216" text-anchor="middle" font-size="12.5" fill="#374151" transform="rotate(-90 20 216)">실행 쿼리 수</text>
+<path d="M238.0,298.5 L718.0,129.8" fill="none" stroke="#dc2626" stroke-width="2.6"/>
+<path d="M238.0,351.0 L718.0,351.0" fill="none" stroke="#2563eb" stroke-width="2.6"/>
+<circle cx="238.0" cy="298.5" r="5.5" fill="#dc2626"/>
+<text x="238.0" y="284.5" text-anchor="middle" font-size="14" font-weight="700" fill="#dc2626">18</text>
+<circle cx="718.0" cy="129.8" r="5.5" fill="#dc2626"/>
+<text x="718.0" y="115.8" text-anchor="middle" font-size="14" font-weight="700" fill="#dc2626">63</text>
+<circle cx="238.0" cy="351.0" r="5.5" fill="#2563eb"/>
+<text x="238.0" y="337.0" text-anchor="middle" font-size="14" font-weight="700" fill="#2563eb">4</text>
+<circle cx="718.0" cy="351.0" r="5.5" fill="#2563eb"/>
+<text x="718.0" y="337.0" text-anchor="middle" font-size="14" font-weight="700" fill="#2563eb">4</text>
+<g transform="translate(96,80)">
+<rect width="260" height="68" rx="7" fill="#ffffff" fill-opacity="0.94" stroke="#e5e7eb"/>
+<line x1="14" y1="20" x2="38" y2="20" stroke="#dc2626" stroke-width="2.6"/>
+<text x="46" y="24" font-size="12.5" fill="#374151">개선 전</text>
+<line x1="14" y1="46" x2="38" y2="46" stroke="#2563eb" stroke-width="2.6"/>
+<text x="46" y="50" font-size="12.5" fill="#374151">개선 후</text>
+</g></svg>
