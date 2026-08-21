@@ -57,8 +57,12 @@ services:
     ports:
       - "8474:8474"
       - "7881:7881"
+      # MySQL 앞에도 둔다. DB 응답에 지연을 넣으면 "센다 -> 비교한다 -> 기록한다"
+      # 사이의 창이 넓어져 정원 경합이 우연이 아니라 필연이 된다.
+      - "13307:13307"
     depends_on:
       - livekit
+      - mysql
 
   redis:
     image: redis:7-alpine
