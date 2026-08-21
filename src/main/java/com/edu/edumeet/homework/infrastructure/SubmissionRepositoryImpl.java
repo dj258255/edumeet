@@ -111,6 +111,19 @@ public class SubmissionRepositoryImpl implements SubmissionRepository {
     }
 
     @Override
+    public List<Submission> findByAssignmentIdsWithSubmissionFiles(List<Long> assignmentIds) {
+        if (assignmentIds == null || assignmentIds.isEmpty()) {
+            return List.of();
+        }
+        log.debug("과제 목록의 제출물 일괄 조회: assignmentIds={}건", assignmentIds.size());
+
+        return submissionJpaRepository.findByAssignmentIdsWithSubmissionFiles(assignmentIds)
+                .stream()
+                .map(SubmissionJpaEntity::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Submission> findByClassMemberEmailOrderByRegDateDesc(String classMemberEmail) {
         log.debug("학생별 제출물 조회 시작: classMemberEmail={}", classMemberEmail);
         

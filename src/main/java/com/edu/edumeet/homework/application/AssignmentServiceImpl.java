@@ -79,14 +79,26 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         List<Assignment> assignments = assignmentRepository.findByClassIdOrderByRegDateDesc(classId);
 
+        if (assignments.isEmpty()) {
+            return List.of();
+        }
+
+        // 과제마다 제출물을 조회하면 쿼리가 과제 수에 비례해 늘어난다(N+1).
+        // 전체 과제의 제출물을 IN 절로 한 번에 가져온 뒤 메모리에서 과제별로 묶는다.
+        List<Long> assignmentIds = assignments.stream()
+                .map(Assignment::getId)
+                .collect(Collectors.toList());
+
+        Map<Long, List<Submission>> submissionsByAssignmentId =
+                submissionRepository.findByAssignmentIdsWithSubmissionFiles(assignmentIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(Submission::getAssignmentId));
+
         return assignments.stream()
-                .map(assignment -> {
-                    // 각 과제의 제출물 조회 (제출 파일 포함)
-                    List<Submission> submissions = submissionRepository.findByAssignmentIdWithSubmissionFiles(assignment.getId());
-                    
-                    // 제출 파일 정보를 포함한 DTO 생성
-                    return domainToDtoWithSubmissionFiles(assignment, submissions, attachmentAdapter);
-                })
+                .map(assignment -> domainToDtoWithSubmissionFiles(
+                        assignment,
+                        submissionsByAssignmentId.getOrDefault(assignment.getId(), List.of()),
+                        attachmentAdapter))
                 .collect(Collectors.toList());
     }
 

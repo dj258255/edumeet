@@ -15,6 +15,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # 지연 로딩 컬렉션을 IN 절로 묶어서 가져온다.
+        # @BatchSize 를 컬렉션마다 붙이는 방식은 새 컬렉션이 추가될 때 누락되기 쉽다.
+        # 실제로 이 프로젝트에 @BatchSize 가 없는 @OneToMany 가 8곳 있었다.
+        # 전역 기본값을 두고, 특별히 다른 크기가 필요한 곳만 @BatchSize 로 재정의한다.
+        default_batch_fetch_size: 100
         # 통계 수집. 성능 측정 시 쿼리 수를 세기 위해 필요하다. (CONTRIBUTING.md 참조)
         generate_statistics: false
 

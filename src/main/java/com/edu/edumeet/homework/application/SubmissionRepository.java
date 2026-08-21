@@ -14,6 +14,8 @@ public interface SubmissionRepository {
     List<Submission> findByAssignmentId(Long assignmentId);
     // 과제별 제출물 조회 (제출 파일 포함)
     List<Submission> findByAssignmentIdWithSubmissionFiles(Long assignmentId);
+    // 여러 과제의 제출물을 한 번에 조회 (목록 조회의 N+1 방지)
+    List<Submission> findByAssignmentIdsWithSubmissionFiles(List<Long> assignmentIds);
     // 학생별 제출물 조회 (최신순)
     List<Submission> findByClassMemberEmailOrderByRegDateDesc(String classMemberEmail);
     // 특정 과제의 특정 학생 제출물 조회
