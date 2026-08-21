@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="290" viewBox="0 0 880 290" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="880" height="290" fill="#ffffff"/>
+<text x="28" y="32" font-size="18" font-weight="700" fill="#111827">잠금 없는 구현의 정원 초과 — DB 지연이 검출을 돕는가</text>
+<text x="28" y="53" font-size="12.5" fill="#6b7280">MySQL 8.0 + Toxiproxy · 동시 시도 35명 · 정원 30명 · 6회 반복 (최대 초과 5)</text>
+<text x="218" y="93" text-anchor="end" font-size="13" font-weight="600" fill="#111827">지연없음 · 잠금없음</text>
+<text x="218" y="108" text-anchor="end" font-size="11" fill="#6b7280">회차별 [5, 5, 3, 2, 5, 5] · 검출 6/6회</text>
+<rect x="232" y="78" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="78" width="383.3" height="26" rx="4" fill="#dc2626"/>
+<text x="625.3" y="97" font-size="13.5" font-weight="700" fill="#dc2626">4.2명</text>
+<text x="218" y="139" text-anchor="end" font-size="13" font-weight="600" fill="#111827">지연30ms · 잠금없음</text>
+<text x="218" y="154" text-anchor="end" font-size="11" fill="#6b7280">회차별 [5, 5, 5, 5, 5, 5] · 검출 6/6회</text>
+<rect x="232" y="124" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="124" width="460.0" height="26" rx="4" fill="#dc2626"/>
+<text x="702.0" y="143" font-size="13.5" font-weight="700" fill="#dc2626">5.0명</text>
+<text x="218" y="185" text-anchor="end" font-size="13" font-weight="600" fill="#111827">지연30ms · 잠금있음</text>
+<text x="218" y="200" text-anchor="end" font-size="11" fill="#6b7280">회차별 [0, 0, 0, 0, 0, 0] · 검출 0/6회</text>
+<rect x="232" y="170" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="170" width="2.0" height="26" rx="4" fill="#2563eb"/>
+<text x="244.0" y="189" font-size="13.5" font-weight="700" fill="#2563eb">0.0명</text>
+<text x="28" y="266" font-size="11.5" fill="#6b7280">지연은 검출률을 높이지 않았다. 결과값을 고정할 뿐이다. 그래서 도입하지 않는다.</text>
+</svg>
