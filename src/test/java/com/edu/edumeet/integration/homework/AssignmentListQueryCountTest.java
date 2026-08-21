@@ -86,6 +86,12 @@ class AssignmentListQueryCountTest {
         entityManager.clear();
         statistics.clear();
         action.run();
+        log.debug("statement={} entityLoad={} collectionLoad={} collectionFetch={} queryExec={}",
+                statistics.getPrepareStatementCount(),
+                statistics.getEntityLoadCount(),
+                statistics.getCollectionLoadCount(),
+                statistics.getCollectionFetchCount(),
+                statistics.getQueryExecutionCount());
         return statistics.getPrepareStatementCount();
     }
 
