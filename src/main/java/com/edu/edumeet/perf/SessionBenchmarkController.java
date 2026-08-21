@@ -52,8 +52,8 @@ public class SessionBenchmarkController {
                     : unsafeJoinService.join(meetingId, email);
             return ResponseEntity.ok(token);
         } catch (SessionCapacityExceededException e) {
-            // 운영에는 이 예외의 핸들러가 없어 500 이 나간다. 부하 도구가 정원 초과와
-            // 진짜 오류를 구분할 수 있어야 하므로 여기서 409 로 바꾼다.
+            // 전역 핸들러(CustomRestAdvice)도 409 로 바꿔주지만, 이 엔드포인트는
+            // 측정 대상이므로 전역 설정 변경에 결과가 흔들리지 않게 직접 처리한다.
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "capacity", "message", e.getMessage()));
         }

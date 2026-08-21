@@ -36,6 +36,30 @@ services:
       timeout: 5s
       retries: 20
 
+  # 실제 LiveKit 서버. --dev 모드의 기본 자격증명이 devkey/devsecret 이라
+  # application-perf.yml 의 설정과 그대로 맞는다.
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: edumeet-perf-livekit
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7880:7880"
+
+  # LiveKit 앞에 두고 지연·단절을 주입한다.
+  # 앱은 toxiproxy(7881)를 보고, toxiproxy 가 livekit(7880)으로 넘긴다.
+  #
+  #   앱 --> toxiproxy:7881 --[toxic]--> livekit:7880
+  #
+  # 8474 는 toxic 을 켜고 끄는 제어 API 다.
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.11.0
+    container_name: edumeet-perf-toxiproxy
+    ports:
+      - "8474:8474"
+      - "7881:7881"
+    depends_on:
+      - livekit
+
   redis:
     image: redis:7-alpine
     container_name: edumeet-perf-redis

@@ -321,6 +321,7 @@ Closes #2
 | `scripts/make_k6_chart.py` | k6 결과 JSON → 차트. **수치를 손으로 옮기지 않는다** |
 | `scripts/run-benchmark.sh` | 과제 목록 조회 부하 측정 (2×2) |
 | `scripts/run-session-benchmark.sh` | 세션 정원 동시성 검증 |
+| `scripts/run-fault-injection.sh` | Toxiproxy 장애 주입 검증 |
 
 ---
 
@@ -554,6 +555,70 @@ Spring Data 리포지토리 메서드가 각자 트랜잭션을 열기 때문에
 
 **판별법** — `@Transactional`(그리고 `@Async`·`@Cacheable`)이 붙은 메서드를
 같은 클래스에서 호출하는 곳이 있는지 본다. 있으면 빈을 분리한다.
+
+### 외부 호출 [필수] — 타임아웃 없는 호출을 만들지 않는다
+
+**모든 외부 시스템 호출에 타임아웃을 건다.** 상대가 응답하지 않으면 요청 스레드가
+무한정 잡히고, 톰캣 스레드 풀이 마르면 **그 외부 시스템과 무관한 요청까지 같이 죽는다.**
+
+특히 위험한 기본값:
+
+| | 기본 타임아웃 |
+|---|---|
+| `new RestTemplate()` | **connect·read 둘 다 무한(-1)** |
+| OkHttp | 10초 |
+| AWS SDK v2 | 소켓 30초. 단 `apiCallTimeout`(재시도 포함 전체)은 **없음** |
+| Lettuce(Redis) | 설정하지 않으면 무한 대기 가능 |
+
+```java
+// ✗ 타임아웃 무한
+RestTemplate rt = new RestTemplate();
+
+// ✓ 타임아웃을 명시한 빈을 주입받는다
+@Bean
+RestTemplate restTemplate(RestTemplateBuilder b) {
+    return b.connectTimeout(Duration.ofSeconds(2))
+            .readTimeout(Duration.ofSeconds(3))
+            .build();
+}
+```
+
+**멈춤(stall) 타임아웃과 총량(total) 타임아웃을 구분한다.**
+소켓 타임아웃은 "N초간 한 바이트도 안 오면 끊기"라 큰 전송을 깨지 않는다.
+전체 호출 타임아웃은 **전송 시간까지 포함**하므로 짧게 걸면 정상적인 대용량
+업로드를 죽인다. 파일을 주고받는 클라이언트에는 총량 타임아웃을 넉넉히 잡는다.
+
+### 실패를 구분한다 [필수]
+
+**"상대가 없다"와 "찾는 것이 없다"는 다른 상태다.**
+
+```java
+catch (HttpClientErrorException.NotFound e) {
+    return null;                                  // 정상적인 조회 결과 -> 404
+} catch (IOException e) {
+    throw new LiveKitUnavailableException(...);   // 의존 시스템 장애 -> 503
+}
+```
+
+둘을 404 로 뭉뚱그리면 클라이언트는 *"삭제됐구나"* 로 오해하고,
+**운영에서는 장애가 보이지 않는다.**
+
+실제로 이 구분을 넣자마자 `getRoomInfo` 가 **실제 LiveKit 에서 한 번도 동작한 적이
+없다**는 것이 드러났다. 인증 방식이 틀려 항상 401 이었는데, 모든 실패가 똑같이
+500 이라 아무도 몰랐다. ([05 문서](performance/05-fault-injection.md))
+
+> 관측 가능성의 실질은 로그를 늘리는 것이 아니라
+> **실패를 구분해서 다르게 처리하는 것**이다.
+
+### 검증 [권장]
+
+타임아웃·폴백을 넣었으면 **장애를 주입해 실제로 동작하는지 확인한다.**
+Toxiproxy 로 지연·단절·무응답을 넣고, **수정 전 코드를 대조군으로 함께 잰다.**
+막지 않았을 때를 재지 않으면 무엇을 막았는지 말할 수 없다.
+(`scripts/run-fault-injection.sh`)
+
+**순서를 지킨다** — 막을 장치를 먼저 만들고, 그 장치가 동작함을 증명하는 데
+장애 주입을 쓴다. 장치 없이 넣으면 앱이 죽는 것을 증명할 뿐이다.
 
 ---
 

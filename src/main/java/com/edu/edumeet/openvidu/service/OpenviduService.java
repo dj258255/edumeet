@@ -2,6 +2,12 @@ package com.edu.edumeet.openvidu.service;
 
 import io.livekit.server.CanSubscribe;
 import io.livekit.server.CanPublish;
+import com.edu.edumeet.openvidu.exception.LiveKitUnavailableException;
+import io.livekit.server.RoomServiceClient;
+import livekit.LivekitModels;
+import retrofit2.Response;
+
+import java.io.IOException;
 import com.edu.edumeet.openvidu.exception.SessionCapacityExceededException;
 import com.edu.edumeet.openvidu.repository.MeetingParticipantRepository;
 import com.edu.edumeet.openvidu.domain.MeetingParticipant;
@@ -19,8 +25,6 @@ import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.client.HttpClientErrorException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,6 +50,7 @@ public class OpenviduService {
     private final ClassRepository classRepository;
     private final ClassMemberRepository classMemberRepository;
     private final MemberRepository memberRepository;
+    private final RoomServiceClient roomServiceClient;
 
     // OpenVidu 인증 정보 (application.properties에 추가)
     @Value("${openvidu.livekit.api.key}")
@@ -95,36 +100,56 @@ public class OpenviduService {
     }
 
     /**
-     * 룸 정보 조회 (OpenVidu Admin API 사용)
+     * 룸 정보 조회.
+     *
+     * <p>이전 구현은 {@code GET /api/v1/rooms/{name}} 을 Basic Auth 로 불렀는데,
+     * <b>그 주소도 그 인증 방식도 LiveKit 에는 없다.</b> OpenVidu 시절 코드가 남아 있었고
+     * 실제 LiveKit 서버는 401 로 답한다. 이 메서드는 한 번도 동작한 적이 없다.
+     * 공식 SDK 의 {@code RoomServiceClient} 로 바꿨다. ({@code LiveKitConfig})
+     *
+     * <p>타임아웃도 없었다. {@code new RestTemplate()} 의 기본값이 무한이라
+     * LiveKit 이 응답하지 않으면 요청 스레드가 영원히 잡힌다.
+     *
+     * @return 룸 정보. 룸이 없으면 {@code null}
+     * @throws LiveKitUnavailableException LiveKit 에 닿지 못했거나 제한 시간을 넘겼을 때
      */
     public Map<String, Object> getRoomInfo(String roomName) {
-        RestTemplate restTemplate = new RestTemplate();
-
-        String url = "http://localhost:7880/api/v1/rooms/" + roomName;
-
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBasicAuth(LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    entity,
-                    Map.class
-            );
-            return response.getBody();
+            Response<List<LivekitModels.Room>> response =
+                    roomServiceClient.listRooms(List.of(roomName)).execute();
 
-        } catch (HttpClientErrorException.NotFound e) {
-            log.info("Room not found: {}", roomName);
-            return null;
-        } catch (Exception e) {
-            log.error("Failed to get room info", e);
-            throw new RuntimeException("Failed to get room info: " + e.getMessage());
+            if (!response.isSuccessful()) {
+                // 인증 실패·서버 오류. 룸이 없는 것과 다르다.
+                throw new LiveKitUnavailableException(
+                        "LiveKit 이 오류로 응답했습니다: HTTP " + response.code(), null);
+            }
+
+            List<LivekitModels.Room> rooms = response.body();
+            if (rooms == null || rooms.isEmpty()) {
+                // 룸이 없는 것은 정상적인 조회 결과다. 장애가 아니다.
+                log.info("룸 없음: {}", roomName);
+                return null;
+            }
+            return toMap(rooms.get(0));
+
+        } catch (IOException e) {
+            // 연결 실패·타임아웃. 404 로 뭉뚱그리면 클라이언트는 "삭제됐구나"로
+            // 오해하고 운영에서는 LiveKit 장애가 보이지 않는다.
+            log.error("LiveKit 응답 없음 - room={}", roomName, e);
+            throw new LiveKitUnavailableException("LiveKit 에 연결할 수 없습니다.", e);
         }
+    }
+
+    private static Map<String, Object> toMap(LivekitModels.Room room) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("sid", room.getSid());
+        result.put("name", room.getName());
+        result.put("numParticipants", room.getNumParticipants());
+        result.put("numPublishers", room.getNumPublishers());
+        result.put("creationTime", room.getCreationTime());
+        result.put("emptyTimeout", room.getEmptyTimeout());
+        result.put("maxParticipants", room.getMaxParticipants());
+        return result;
     }
 
     public MeetingCreateResponseDto create(Long memberId, MeetingCreateRequestDto meetingCreateRequestDto) {
