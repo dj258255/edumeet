@@ -1,5 +1,6 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.board.repository;
 
+import com.edu.edumeet.board.domain.BoardCategoryJpaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

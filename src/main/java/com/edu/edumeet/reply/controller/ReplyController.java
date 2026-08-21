@@ -1,8 +1,8 @@
 package com.edu.edumeet.reply.controller;
 
 import com.edu.edumeet.reply.service.ReplyService;
-import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
-import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
+import com.edu.edumeet.board.dto.PageRequestDTO;
+import com.edu.edumeet.board.dto.PageResponseDTO;
 import com.edu.edumeet.reply.dto.ReplyDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

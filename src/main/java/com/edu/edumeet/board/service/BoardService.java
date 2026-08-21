@@ -1,9 +1,19 @@
-package com.edu.edumeet.board.application;
+package com.edu.edumeet.board.service;
 
+import com.edu.edumeet.board.repository.BoardCategoryRepository;
+import com.edu.edumeet.board.dto.BoardDTO;
+import com.edu.edumeet.board.dto.BoardListAllDTO;
+import com.edu.edumeet.board.dto.BoardListReplyCountDTO;
+import com.edu.edumeet.board.repository.BoardRepository;
+import com.edu.edumeet.board.repository.BoardRepositoryImpl;
+import com.edu.edumeet.board.dto.PageRequestDTO;
+import com.edu.edumeet.board.dto.PageResponseDTO;
+import com.edu.edumeet.attachment.dto.AttachmentDTO;
+import com.edu.edumeet.board.domain.BoardType;
 import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.domain.BoardCategory;
-import com.edu.edumeet.board.presentation.BoardService;
-import com.edu.edumeet.board.presentation.dto.*;
+import com.edu.edumeet.board.service.BoardService;
+import com.edu.edumeet.board.dto.*;
 import com.edu.edumeet.reply.repository.ReplyRepository;
 import com.edu.edumeet.s3.util.S3Uploader;
 import com.edu.edumeet.attachment.domain.Attachment;
@@ -29,7 +39,7 @@ import java.util.stream.Collectors;
 @Log4j2
 @RequiredArgsConstructor
 @Transactional
-public class BoardServiceImpl implements BoardService {
+public class BoardService {
 
     private final ModelMapper modelMapper;
     private final BoardRepository boardRepository;
@@ -56,8 +66,6 @@ public class BoardServiceImpl implements BoardService {
         
         return boardDTO;
     }
-
-    @Override
     public Long register(BoardDTO boardDTO) {
         validateBoardData(boardDTO);
         validateCategoryExists(boardDTO.getCategoryId());
@@ -72,8 +80,6 @@ public class BoardServiceImpl implements BoardService {
         
         return savedId;
     }
-
-    @Override
     public void addImageToBoard(Long boardId, String uuid, String fileName){
         Board board = findBoardByIdOrThrow(boardId);
         board.addImage(uuid, fileName);
@@ -96,8 +102,6 @@ public class BoardServiceImpl implements BoardService {
         
         log.info("게시글 {}에 이미지 추가 완료: UUID={}, fileName={}", boardId, uuid, fileName);
     }
-
-    @Override
     @Transactional
     public BoardDTO readOne(Long id){
         Board board = findBoardByIdOrThrow(id);
@@ -109,8 +113,6 @@ public class BoardServiceImpl implements BoardService {
 
         return domainToDto(updatedBoard, s3Uploader);
     }
-
-    @Override
     public void modify(BoardDTO boardDTO) {
         Board board = findBoardByIdOrThrow(boardDTO.getId());
 
@@ -136,8 +138,6 @@ public class BoardServiceImpl implements BoardService {
         // 파일 업로드 처리
         handleFileOperations(boardDTO);
     }
-
-    @Override
     public void remove(Long id) {
         // 게시글 존재 여부 확인
         findBoardByIdOrThrow(id);
@@ -149,8 +149,6 @@ public class BoardServiceImpl implements BoardService {
         // 실제 S3 파일은 삭제하지 않음 (다른 곳에서 참조할 수 있음)
         log.info("게시글 {} 삭제 완료 (관련 파일 정보는 유지)", id);
     }
-    
-    @Override
     @Transactional
     public void restore(Long id) {
         // 삭제된 게시글 포함하여 조회
@@ -167,8 +165,6 @@ public class BoardServiceImpl implements BoardService {
             throw new IllegalArgumentException("게시글 복원에 실패했습니다: " + id);
         }
     }
-
-    @Override
     public PageResponseDTO<BoardDTO> list(PageRequestDTO pageRequestDTO) {
         String[] types = pageRequestDTO.getTypes();
         String keyword = pageRequestDTO.getKeyword();
@@ -185,8 +181,6 @@ public class BoardServiceImpl implements BoardService {
         
         return buildPageResponse(pageRequestDTO, dtoList, (int)allResult.getTotalElements());
     }
-
-    @Override
     public PageResponseDTO<BoardListReplyCountDTO> listWithReplyCount(PageRequestDTO pageRequestDTO) {
         String[] types = pageRequestDTO.getTypes();
         String keyword = pageRequestDTO.getKeyword();
@@ -196,8 +190,6 @@ public class BoardServiceImpl implements BoardService {
 
         return buildPageResponse(pageRequestDTO, result.getContent(), (int)result.getTotalElements());
     }
-
-    @Override
     public PageResponseDTO<BoardListAllDTO> listWithAll(PageRequestDTO pageRequestDTO){
         String[] types = pageRequestDTO.getTypes();
         String keyword = pageRequestDTO.getKeyword();
@@ -210,8 +202,6 @@ public class BoardServiceImpl implements BoardService {
 
         return buildPageResponseWithAll(pageRequestDTO, result.getContent(), (int)result.getTotalElements());
     }
-
-    @Override
     @Transactional
     public long toggleFavorite(Long id) {
         Board board = findBoardByIdOrThrow(id);
@@ -223,9 +213,6 @@ public class BoardServiceImpl implements BoardService {
 
         return updatedBoard.getFavorite();
     }
-
-
-    @Override
     @Transactional
     public long toggleDislike(Long id) {
         Board board = findBoardByIdOrThrow(id);
@@ -318,5 +305,97 @@ public class BoardServiceImpl implements BoardService {
         if (boardDTO.getTitle().length() > 50){
             throw new IllegalArgumentException("제목이 50자를 초과합니다");
         }
+    }
+
+    // ---- 이전에 서비스 인터페이스의 default 메서드였던 변환 ----
+    // 인터페이스의 default 메서드였으므로 가시성(public)을 그대로 유지한다.
+
+    public Board dtoToDomain(BoardDTO boardDTO){
+        // BoardType 설정
+        BoardType boardTypeEnum = BoardType.NORMAL; // 기본값
+        if (boardDTO.getBoardType() != null && !boardDTO.getBoardType().isEmpty()) {
+            try {
+                boardTypeEnum = BoardType.valueOf(boardDTO.getBoardType());
+            } catch (IllegalArgumentException e) {
+                // 잘못된 boardType이면 기본값 사용
+                // 로그 추가 가능
+            }
+        }
+        
+        // 기본 Board 객체 생성
+        Board board = Board.builder()
+                .id(boardDTO.getId())
+                .title(boardDTO.getTitle())
+                .content(boardDTO.getContent())
+                .writer(boardDTO.getWriter())
+                .classId(boardDTO.getClassId())
+                .categoryId(boardDTO.getCategoryId())
+                .boardType(boardTypeEnum)
+                .regDate(boardDTO.getRegDate())
+                .modDate(boardDTO.getModDate())
+                .view(boardDTO.getView())
+                .favorite(boardDTO.getFavorite())
+                .dislike(boardDTO.getDislike())
+                .build();
+
+        // AttchmentDTO 정보를 도메인 이미지로 변환
+        if(boardDTO.getBoardImages() != null){
+            for (AttachmentDTO imageDTO : boardDTO.getBoardImages()) {
+                board.addImage(imageDTO.getUuid(), imageDTO.getFileName());
+            }
+        }
+        
+        return board;
+    }
+    /**
+     * Board 도메인 객체를 BoardDTO로 변환
+     * @param board 변환할 Board 도메인 객체
+     * @param s3Uploader S3 URL 생성을 위한 S3Uploader
+     * @return 변환된 BoardDTO 객체
+     */
+    public BoardDTO domainToDto(Board board, S3Uploader s3Uploader){
+        BoardDTO boardDTO = BoardDTO.builder()
+                .id(board.getId())
+                .title(board.getTitle())
+                .content(board.getContent())
+                .writer(board.getWriter())
+                .classId(board.getClassId())
+                .categoryId(board.getCategoryId())
+                .boardType(board.getBoardType() != null ? board.getBoardType().name() : null)
+                .regDate(board.getRegDate())
+                .modDate(board.getModDate())
+                .view(board.getView())
+                .favorite(board.getFavorite())
+                .dislike(board.getDislike())
+                .build();
+
+        // 도메인 이미지를 FileUploadDTO로 변환
+        if (board.getImages() != null && !board.getImages().isEmpty()) {
+            List<AttachmentDTO> boardImages = board.getImages().stream()
+                    .sorted()
+                    .map(img -> {
+                        String uuid = img.getUuid();
+                        String fileName = img.getFileName();
+                        
+                        // S3Uploader를 사용하여 도메인 경로 포함된 URL 생성
+                        String s3Url = s3Uploader.getDomainOriginalUrl(img.getDomain(), uuid, fileName);
+                        String s3ThumbnailUrl = s3Uploader.getDomainThumbnailUrl(img.getDomain(), uuid, fileName);
+                        
+                        return AttachmentDTO.builder()
+                                .uuid(uuid)
+                                .fileName(fileName)
+                                .ord(img.getOrd())
+                                .s3Url(s3Url)
+                                .s3ThumbnailUrl(s3ThumbnailUrl)
+                                .img(true)
+                                .domain("board")
+                                .referenceId(img.getReferenceId())
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+            boardDTO.setBoardImages(boardImages);
+        }
+
+        return boardDTO;
     }
 }

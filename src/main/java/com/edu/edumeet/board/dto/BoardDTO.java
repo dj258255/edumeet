@@ -1,4 +1,4 @@
-package com.edu.edumeet.board.presentation.dto;
+package com.edu.edumeet.board.dto;
 
 import com.edu.edumeet.attachment.dto.AttachmentDTO;
 import io.swagger.v3.oas.annotations.media.Schema;

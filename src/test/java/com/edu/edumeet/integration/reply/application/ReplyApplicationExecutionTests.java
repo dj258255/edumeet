@@ -2,10 +2,10 @@ package com.edu.edumeet.reply.application;
 
 import com.edu.edumeet.reply.repository.ReplyRepository;
 import com.edu.edumeet.board.domain.Board;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
-import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
-import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
-import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
+import com.edu.edumeet.board.repository.BoardJpaRepository;
+import com.edu.edumeet.board.dto.PageRequestDTO;
+import com.edu.edumeet.board.dto.PageResponseDTO;
 import com.edu.edumeet.reply.service.ReplyService;
 import com.edu.edumeet.reply.dto.ReplyDTO;
 import lombok.extern.log4j.Log4j2;

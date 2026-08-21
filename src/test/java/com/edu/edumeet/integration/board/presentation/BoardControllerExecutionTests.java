@@ -1,10 +1,10 @@
 package com.edu.edumeet.integration.board.presentation;
 
-import com.edu.edumeet.board.presentation.BoardController;
-import com.edu.edumeet.board.presentation.BoardService;
-import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
-import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
-import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
+import com.edu.edumeet.board.controller.BoardController;
+import com.edu.edumeet.board.service.BoardService;
+import com.edu.edumeet.board.dto.BoardListAllDTO;
+import com.edu.edumeet.board.dto.PageRequestDTO;
+import com.edu.edumeet.board.dto.PageResponseDTO;
 import com.edu.edumeet.config.jwt.JwtService;
 import com.edu.edumeet.s3.util.S3Uploader;
 import com.fasterxml.jackson.databind.ObjectMapper;

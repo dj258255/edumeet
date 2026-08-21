@@ -1,12 +1,15 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.board.repository;
 
+import com.edu.edumeet.board.domain.QBoardJpaEntity;
+import com.edu.edumeet.board.domain.BoardFileUploadJpaEntity;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
 import com.edu.edumeet.attachment.dto.AttachmentDTO;
 import com.edu.edumeet.attachment.dto.AttachmentAdapter;
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.board.application.BoardSearchRepository;
+import com.edu.edumeet.board.repository.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
-import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
-import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
+import com.edu.edumeet.board.dto.BoardListAllDTO;
+import com.edu.edumeet.board.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.domain.QReply;
 import com.edu.edumeet.s3.util.S3Uploader;
 import com.querydsl.core.BooleanBuilder;

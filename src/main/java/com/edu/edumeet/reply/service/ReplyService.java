@@ -1,11 +1,11 @@
 package com.edu.edumeet.reply.service;
 
-import com.edu.edumeet.board.presentation.dto.PageRequestDTO;
-import com.edu.edumeet.board.presentation.dto.PageResponseDTO;
+import com.edu.edumeet.board.dto.PageRequestDTO;
+import com.edu.edumeet.board.dto.PageResponseDTO;
 import com.edu.edumeet.reply.domain.Reply;
 import com.edu.edumeet.reply.dto.ReplyDTO;
 import com.edu.edumeet.reply.repository.ReplyRepository;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;

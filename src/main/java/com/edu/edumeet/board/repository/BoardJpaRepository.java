@@ -1,5 +1,6 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.board.repository;
 
+import com.edu.edumeet.board.domain.BoardJpaEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;

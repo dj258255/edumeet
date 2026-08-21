@@ -1,10 +1,12 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.board.repository;
 
-import com.edu.edumeet.board.application.BoardRepository;
-import com.edu.edumeet.board.application.BoardSearchRepository;
+import com.edu.edumeet.board.domain.BoardFileUploadJpaEntity;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
+import com.edu.edumeet.board.repository.BoardRepository;
+import com.edu.edumeet.board.repository.BoardSearchRepository;
 import com.edu.edumeet.board.domain.Board;
-import com.edu.edumeet.board.presentation.dto.BoardListAllDTO;
-import com.edu.edumeet.board.presentation.dto.BoardListReplyCountDTO;
+import com.edu.edumeet.board.dto.BoardListAllDTO;
+import com.edu.edumeet.board.dto.BoardListReplyCountDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;

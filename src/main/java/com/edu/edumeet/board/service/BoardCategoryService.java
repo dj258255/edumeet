@@ -1,8 +1,9 @@
-package com.edu.edumeet.board.application;
+package com.edu.edumeet.board.service;
 
+import com.edu.edumeet.board.repository.BoardCategoryRepository;
 import com.edu.edumeet.board.domain.BoardCategory;
-import com.edu.edumeet.board.presentation.BoardCategoryService;
-import com.edu.edumeet.board.presentation.dto.BoardCategoryDTO;
+import com.edu.edumeet.board.service.BoardCategoryService;
+import com.edu.edumeet.board.dto.BoardCategoryDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
@@ -20,7 +21,7 @@ import java.util.stream.Collectors;
 @Log4j2
 @RequiredArgsConstructor
 @Transactional
-public class BoardCategoryServiceImpl implements BoardCategoryService {
+public class BoardCategoryService {
 
     private final BoardCategoryRepository boardCategoryRepository;
 
@@ -29,7 +30,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param categoryDTO 등록할 카테고리 정보
      * @return 등록된 카테고리의 ID
      */
-    @Override
     public Long register(BoardCategoryDTO categoryDTO) {
         BoardCategory category = dtoToDomain(categoryDTO);
         return boardCategoryRepository.save(category);
@@ -40,7 +40,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param id 조회할 카테고리 ID
      * @return 조회된 카테고리 정보
      */
-    @Override
     @Transactional(readOnly = true)
     public BoardCategoryDTO readOne(Long id) {
         Optional<BoardCategory> result = boardCategoryRepository.findById(id);
@@ -53,7 +52,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * 카테고리 수정
      * @param categoryDTO 수정할 카테고리 정보
      */
-    @Override
     public void modify(BoardCategoryDTO categoryDTO) {
         Optional<BoardCategory> result = boardCategoryRepository.findById(categoryDTO.getId());
         BoardCategory category = result.orElseThrow(() -> 
@@ -99,7 +97,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * 카테고리 삭제
      * @param id 삭제할 카테고리 ID
      */
-    @Override
     public void remove(Long id) {
         // 하위 카테고리가 있는지 확인
         List<BoardCategory> subCategories = boardCategoryRepository.findByParentId(id);
@@ -115,7 +112,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param classId 클래스 ID
      * @return 해당 클래스의 카테고리 목록
      */
-    @Override
     @Transactional(readOnly = true)
     public List<BoardCategoryDTO> getListByClassId(Long classId) {
         List<BoardCategory> categories = boardCategoryRepository.findByClassId(classId);
@@ -129,7 +125,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param classId 클래스 ID
      * @return 루트 카테고리 목록
      */
-    @Override
     @Transactional(readOnly = true)
     public List<BoardCategoryDTO> getRootCategories(Long classId) {
         List<BoardCategory> rootCategories = boardCategoryRepository.findRootCategories(classId);
@@ -143,7 +138,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param parentId 부모 카테고리 ID
      * @return 하위 카테고리 목록
      */
-    @Override
     @Transactional(readOnly = true)
     public List<BoardCategoryDTO> getSubCategories(Long parentId) {
         List<BoardCategory> subCategories = boardCategoryRepository.findByParentId(parentId);
@@ -157,7 +151,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param id 이동할 카테고리 ID
      * @param newParentId 새 부모 카테고리 ID
      */
-    @Override
     public void moveCategory(Long id, Long newParentId) {
         // 자기 자신을 부모로 설정하는 것 방지
         if (id.equals(newParentId)) {
@@ -192,7 +185,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param id 카테고리 ID
      * @param isActive 활성화 여부
      */
-    @Override
     public void setActive(Long id, boolean isActive) {
         Optional<BoardCategory> result = boardCategoryRepository.findById(id);
         BoardCategory category = result.orElseThrow(() -> 
@@ -228,7 +220,6 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
      * @param id 카테고리 ID
      * @param threshold 새 추천 게시글 기준값
      */
-    @Override
     public void changeRecommendThreshold(Long id, int threshold) {
         Optional<BoardCategory> result = boardCategoryRepository.findById(id);
         BoardCategory category = result.orElseThrow(() -> 
@@ -238,5 +229,43 @@ public class BoardCategoryServiceImpl implements BoardCategoryService {
             BoardCategory updatedCategory = category.changeRecommendThreshold(threshold);
             boardCategoryRepository.save(updatedCategory);
         }
+    }
+
+    // ---- 이전에 서비스 인터페이스의 default 메서드였던 변환 ----
+    // 인터페이스의 default 메서드였으므로 가시성(public)을 그대로 유지한다.
+
+    /**
+     * BoardCategory 도메인 객체를 BoardCategoryDTO로 변환
+     */
+    public BoardCategoryDTO domainToDto(BoardCategory category) {
+        return BoardCategoryDTO.builder()
+                .id(category.getId())
+                .categoryName(category.getCategoryName())
+                .description(category.getDescription())
+                .classId(category.getClassId())
+                .createdBy(category.getCreatedBy())
+                .parentId(category.getParentId())
+                .isActive(category.isActive())
+                .sortOrder(category.getSortOrder())
+                .recommendThreshold(category.getRecommendThreshold())
+                .regDate(category.getRegDate())
+                .build();
+    }
+    /**
+     * BoardCategoryDTO를 BoardCategory 도메인 객체로 변환
+     */
+    public BoardCategory dtoToDomain(BoardCategoryDTO dto) {
+        return BoardCategory.builder()
+                .id(dto.getId())
+                .categoryName(dto.getCategoryName())
+                .description(dto.getDescription())
+                .classId(dto.getClassId())
+                .createdBy(dto.getCreatedBy())
+                .parentId(dto.getParentId())
+                .isActive(dto.isActive())
+                .sortOrder(dto.getSortOrder())
+                .recommendThreshold(dto.getRecommendThreshold())
+                .regDate(dto.getRegDate())
+                .build();
     }
 }

@@ -1,6 +1,7 @@
-package com.edu.edumeet.board.presentation;
+package com.edu.edumeet.board.controller;
 
-import com.edu.edumeet.board.presentation.dto.BoardCategoryDTO;
+import com.edu.edumeet.board.service.BoardCategoryService;
+import com.edu.edumeet.board.dto.BoardCategoryDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

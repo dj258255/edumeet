@@ -1,12 +1,12 @@
 package com.edu.edumeet.integration.board.presentation;
 
 import com.edu.edumeet.board.domain.BoardType;
-import com.edu.edumeet.board.infrastructure.BoardCategoryJpaEntity;
-import com.edu.edumeet.board.infrastructure.BoardCategoryJpaRepository;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
-import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
-import com.edu.edumeet.board.presentation.BoardService;
-import com.edu.edumeet.board.presentation.dto.BoardDTO;
+import com.edu.edumeet.board.domain.BoardCategoryJpaEntity;
+import com.edu.edumeet.board.repository.BoardCategoryJpaRepository;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
+import com.edu.edumeet.board.repository.BoardJpaRepository;
+import com.edu.edumeet.board.service.BoardService;
+import com.edu.edumeet.board.dto.BoardDTO;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;

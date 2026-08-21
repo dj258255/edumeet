@@ -1,4 +1,4 @@
-package com.edu.edumeet.board.application;
+package com.edu.edumeet.board.repository;
 
 import com.edu.edumeet.board.domain.BoardCategory;
 

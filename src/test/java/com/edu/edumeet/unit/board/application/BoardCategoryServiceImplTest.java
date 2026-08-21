@@ -1,9 +1,9 @@
 package com.edu.edumeet.unit.board.application;
 
-import com.edu.edumeet.board.application.BoardCategoryRepository;
-import com.edu.edumeet.board.application.BoardCategoryServiceImpl;
+import com.edu.edumeet.board.repository.BoardCategoryRepository;
+import com.edu.edumeet.board.service.BoardCategoryService;
 import com.edu.edumeet.board.domain.BoardCategory;
-import com.edu.edumeet.board.presentation.dto.BoardCategoryDTO;
+import com.edu.edumeet.board.dto.BoardCategoryDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ class BoardCategoryServiceImplTest {
     private BoardCategoryRepository boardCategoryRepository;
 
     @InjectMocks
-    private BoardCategoryServiceImpl boardCategoryService;
+    private BoardCategoryService boardCategoryService;
 
     private BoardCategory rootCategory;
     private BoardCategory subCategory;

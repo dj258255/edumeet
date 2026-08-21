@@ -1,6 +1,7 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.board.repository;
 
-import com.edu.edumeet.board.application.BoardCategoryRepository;
+import com.edu.edumeet.board.domain.BoardCategoryJpaEntity;
+import com.edu.edumeet.board.repository.BoardCategoryRepository;
 import com.edu.edumeet.board.domain.BoardCategory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;

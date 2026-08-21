@@ -1,7 +1,7 @@
 package com.edu.edumeet.reply.domain;
 
 import com.edu.edumeet.base.BaseEntity;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
 import jakarta.persistence.*;
 import lombok.*;
 

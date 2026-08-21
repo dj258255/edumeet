@@ -1,7 +1,13 @@
-package com.edu.edumeet.board.presentation;
+package com.edu.edumeet.board.controller;
 
 
-import com.edu.edumeet.board.presentation.dto.*;
+import com.edu.edumeet.board.dto.BoardDTO;
+import com.edu.edumeet.board.dto.BoardListAllDTO;
+import com.edu.edumeet.board.dto.BoardListReplyCountDTO;
+import com.edu.edumeet.board.service.BoardService;
+import com.edu.edumeet.board.dto.PageRequestDTO;
+import com.edu.edumeet.board.dto.PageResponseDTO;
+import com.edu.edumeet.board.dto.*;
 import com.edu.edumeet.attachment.service.AttachmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

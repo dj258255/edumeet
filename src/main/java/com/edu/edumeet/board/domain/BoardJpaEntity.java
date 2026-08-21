@@ -1,4 +1,4 @@
-package com.edu.edumeet.board.infrastructure;
+package com.edu.edumeet.board.domain;
 
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.base.BaseEntity;

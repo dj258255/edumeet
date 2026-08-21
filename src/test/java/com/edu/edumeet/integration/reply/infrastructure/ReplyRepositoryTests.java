@@ -1,8 +1,8 @@
 package com.edu.edumeet.reply.repository;
 
 import com.edu.edumeet.board.domain.Board;
-import com.edu.edumeet.board.infrastructure.BoardJpaEntity;
-import com.edu.edumeet.board.infrastructure.BoardJpaRepository;
+import com.edu.edumeet.board.domain.BoardJpaEntity;
+import com.edu.edumeet.board.repository.BoardJpaRepository;
 import com.edu.edumeet.reply.domain.Reply;
 import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeAll;
