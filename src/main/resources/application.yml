@@ -1,0 +1,35 @@
+# 공통 설정 — 시크릿을 담지 않는다. 이 파일은 저장소에 커밋된다.
+# 환경별 시크릿은 application-local.yml (git 무시) 에 둔다.
+# 최초 실행: cp application-local.yml.example application-local.yml
+
+spring:
+  application:
+    name: edumeet
+  profiles:
+    active: local
+
+  jpa:
+    # 영속성 컨텍스트를 뷰 렌더링까지 열어두지 않는다.
+    # 커넥션 점유 시간이 길어지고 지연 로딩 위치가 불명확해지는 것을 막는다.
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        # 통계 수집. 성능 측정 시 쿼리 수를 세기 위해 필요하다. (CONTRIBUTING.md 참조)
+        generate_statistics: false
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+server:
+  port: 8080
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.edu.edumeet: INFO
