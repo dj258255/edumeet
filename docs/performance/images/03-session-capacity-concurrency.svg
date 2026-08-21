@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif">
+<rect width="900" height="430" fill="#fff"/>
+<text x="78" y="34" font-size="18" font-weight="700" fill="#111827">화상강의 세션 정원 — 동시 입장 20건</text>
+<text x="78" y="54" font-size="12.5" fill="#6b7280">정원 3명 · 20개 스레드를 CountDownLatch 로 동시 출발 · H2</text>
+<line x1="78" y1="346.0" x2="720" y2="346.0" stroke="#e5e7eb"/>
+<text x="67" y="350.0" text-anchor="end" font-size="12" fill="#6b7280">0</text>
+<line x1="78" y1="283.7" x2="720" y2="283.7" stroke="#e5e7eb"/>
+<text x="67" y="287.7" text-anchor="end" font-size="12" fill="#6b7280">5</text>
+<line x1="78" y1="221.5" x2="720" y2="221.5" stroke="#e5e7eb"/>
+<text x="67" y="225.5" text-anchor="end" font-size="12" fill="#6b7280">10</text>
+<line x1="78" y1="159.2" x2="720" y2="159.2" stroke="#e5e7eb"/>
+<text x="67" y="163.2" text-anchor="end" font-size="12" fill="#6b7280">15</text>
+<line x1="78" y1="96.9" x2="720" y2="96.9" stroke="#e5e7eb"/>
+<text x="67" y="100.9" text-anchor="end" font-size="12" fill="#6b7280">20</text>
+<line x1="78" y1="308.6" x2="720" y2="308.6" stroke="#f59e0b" stroke-width="2" stroke-dasharray="7,5"/>
+<text x="714" y="300.6" text-anchor="end" font-size="12" font-weight="700" fill="#b45309">정원 3명</text>
+<rect x="138.2" y="221.5" width="96.3" height="124.5" fill="#dc2626" rx="3"/>
+<text x="186.3" y="211.5" text-anchor="middle" font-size="16" font-weight="700" fill="#dc2626">10</text>
+<rect x="242.5" y="221.5" width="96.3" height="124.5" fill="#cbd5e1" rx="3"/>
+<text x="290.6" y="211.5" text-anchor="middle" font-size="16" font-weight="700" fill="#64748b">10</text>
+<text x="238.5" y="372" text-anchor="middle" font-size="13" font-weight="700" fill="#374151">비관적 잠금 없음</text>
+<text x="238.5" y="392" text-anchor="middle" font-size="12" fill="#dc2626">정원 3배 초과 입장</text>
+<rect x="459.2" y="308.6" width="96.3" height="37.4" fill="#2563eb" rx="3"/>
+<text x="507.3" y="298.6" text-anchor="middle" font-size="16" font-weight="700" fill="#2563eb">3</text>
+<rect x="563.5" y="134.3" width="96.3" height="211.7" fill="#cbd5e1" rx="3"/>
+<text x="611.6" y="124.3" text-anchor="middle" font-size="16" font-weight="700" fill="#64748b">17</text>
+<text x="559.5" y="372" text-anchor="middle" font-size="13" font-weight="700" fill="#374151">비관적 잠금 적용</text>
+<text x="559.5" y="392" text-anchor="middle" font-size="12" fill="#059669">정원과 정확히 일치</text>
+<g transform="translate(746,82)">
+<rect width="14" height="14" fill="#2563eb" rx="3"/><text x="21" y="12" font-size="12.5" fill="#374151">입장 성공</text>
+<rect y="26" width="14" height="14" fill="#cbd5e1" rx="3"/><text x="21" y="38" font-size="12.5" fill="#374151">정원 초과로 거절</text>
+<line x1="0" y1="62" x2="140" y2="62" stroke="#e5e7eb"/>
+<text y="84" font-size="12.5" font-weight="700" fill="#111827">테스트 검증</text>
+<text y="104" font-size="12" fill="#6b7280">잠금을 제거하면</text>
+<text y="121" font-size="12" fill="#6b7280">테스트가 실패한다</text>
+<text y="145" font-size="12" fill="#6b7280">= 통과 여부만 보는</text>
+<text y="162" font-size="12" fill="#6b7280">테스트가 아니다</text>
+</g></svg>
