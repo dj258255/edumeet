@@ -51,27 +51,15 @@ cp src/main/resources/application-local.yml.example src/main/resources/applicati
 | `application-local.yml.example` | 로컬 설정 템플릿 | O |
 | `application-local.yml` | 실제 시크릿 | **X (git 무시)** |
 
-## 📌 커밋 컨벤션
+## 📌 개발 컨벤션
+
+전체 컨벤션은 **[docs/CONVENTIONS.md](docs/CONVENTIONS.md)** 에 있습니다.
+기여 절차 요약은 [CONTRIBUTING.md](CONTRIBUTING.md) 를 참조하세요.
 
 ```
-[Feat]     : 기능 개발
-[Modify]   : 코드 수정
-[fix]      : 긴급 수정
-[Docs]     : 문서 작업
-[Test]     : 테스트 코드
-[Design]   : CSS, UI 수정
-[Remove]   : 파일 삭제
-[Refactor] : 리팩토링
-```
-
-## 📌 코드 컨벤션
-
-```
-Back-End
-- 함수명을 작성할 때는 동사+명사 형태로 구성
-- 함수명은 Camel-Case로 작성
-- Endpoint는 해당 리소스를 나타낼 수 있도록 작성
-- 한줄 주석은 //, 여러 줄 주석은 /** */으로 작성
+브랜치   <type>/<이슈번호>-<설명>      예: perf/4-n-plus-one
+커밋     <type>: <한국어 subject>
+type     feat · fix · refactor · perf · test · docs · style · chore
 ```
 
 ## 📃 개발 환경
@@ -113,22 +101,6 @@ https://charm-custard-27a.notion.site/API-2328d31b258e80acb086cd7b8f40c9e5
 
 ![ERD](asset/img/erd.png)
 
-
-## 📌 브랜치 
-
-
-### Git-Flow 전략 및 Github-Flow을 기반으로 한 커스텀 전략 채택
-
-- 사용 브랜치
-
-    - feature : 기능개발
-    - fix : 긴급 수정
-    - develop : CI/CD Hook 브랜치
-
-- 브랜치 명명 규칙
-    - feature/#이슈번호-기능 명시
-        - FE Example : feature/#1-login
-        - BE Example : fix/#24-login
 
 ## ⚙ 서비스 아키텍쳐
 
