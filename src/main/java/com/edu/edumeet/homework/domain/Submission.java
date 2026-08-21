@@ -1,65 +1,87 @@
 package com.edu.edumeet.homework.domain;
 
 import com.edu.edumeet.attachment.domain.Attachment;
-import lombok.Builder;
-import lombok.Getter;
+import com.edu.edumeet.base.BaseEntity;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
+/**
+ * 과제 제출물.
+ * 이전 domain.Submission(불변) + infrastructure.Submission 를 통합한 것이다. (#3)
+ */
+@Entity
+@Table(name = "submission")
 @Getter
-@Builder(toBuilder = true)
-public class Submission {
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@ToString(exclude = {"submissionFiles"})
+public class Submission extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "assignment_id", nullable = false)
     private Long assignmentId;
+
+    @Column(name = "class_member_email")
     private String classMemberEmail;
+
+    @Column(name = "class_member_name")
     private String classMemberName;
+
+    @Column(columnDefinition = "TEXT")
     private String content;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
     @Builder.Default
     private SubmissionStatus status = SubmissionStatus.NOT_SUBMITTED;
-    @Builder.Default
-    private List<Attachment> submissionFiles = new ArrayList<>();
-    private LocalDateTime regDate;
-    private LocalDateTime modDate;
+
+    @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // 제출
-    public Submission submit(String content) {
-        return this.toBuilder()
-                .content(content)
-                .status(SubmissionStatus.SUBMITTED)
-                .modDate(LocalDateTime.now())
-                .build();
+    @OneToMany(mappedBy = "submission", cascade = CascadeType.ALL,
+               orphanRemoval = true, fetch = FetchType.LAZY)
+    @BatchSize(size = 10)
+    @Builder.Default
+    private Set<SubmissionFileUpload> submissionFiles = new HashSet<>();
+
+    // ---- 행위 ----
+
+    /** 제출한다. */
+    public void submit(String content) {
+        this.content = content;
+        this.status = SubmissionStatus.SUBMITTED;
     }
 
-    // 제출물 수정
-    public Submission update(String content) {
-        return this.toBuilder()
-                .content(content)
-                .modDate(LocalDateTime.now())
-                .build();
+    /** 내용을 수정한다. */
+    public void update(String content) {
+        this.content = content;
     }
 
-    // 제출파일 추가
-    public Submission addSubmissionFile(Attachment file) {
-        List<Attachment> newFiles = new ArrayList<>(this.submissionFiles);
-        newFiles.add(file);
-
-        return this.toBuilder()
-                .submissionFiles(newFiles)
-                .modDate(LocalDateTime.now())
-                .build();
+    public void addSubmissionFile(Attachment file) {
+        this.submissionFiles.add(SubmissionFileUpload.from(file, this));
     }
 
-    // 제출파일 업데이트 (기존 파일들을 새로운 파일 목록으로 대체)
-    // 제출자인지 확인 (이메일 기준)
-    // 제출 여부 확인
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    public void restore() {
+        this.deletedAt = null;
+    }
+
     public boolean isSubmitted() {
-        return status == SubmissionStatus.SUBMITTED;
+        return this.status == SubmissionStatus.SUBMITTED;
     }
 
-    // 삭제 여부
     public boolean isDeleted() {
         return this.deletedAt != null;
     }

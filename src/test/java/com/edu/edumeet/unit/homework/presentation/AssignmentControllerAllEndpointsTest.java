@@ -2,7 +2,7 @@ package com.edu.edumeet.unit.homework.presentation;
 
 import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
 import com.edu.edumeet.homework.presentation.AssignmentController;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
@@ -52,7 +52,7 @@ public class AssignmentControllerAllEndpointsTest {
     private AssignmentService assignmentService;
 
     @Autowired
-    private AssignmentJpaRepository assignmentJpaRepository;
+    private AssignmentRepository assignmentJpaRepository;
 
     @Autowired
     private AttachmentAdapter attachmentAdapter;

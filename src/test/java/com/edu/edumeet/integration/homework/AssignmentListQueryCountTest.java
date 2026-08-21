@@ -2,10 +2,10 @@ package com.edu.edumeet.integration.homework;
 
 import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
-import com.edu.edumeet.homework.infrastructure.AssignmentFileUploadJpaEntity;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaEntity;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
-import com.edu.edumeet.homework.infrastructure.StudentSubmissionStatusJpaEntity;
+import com.edu.edumeet.homework.domain.AssignmentFileUpload;
+import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -64,7 +64,7 @@ class AssignmentListQueryCountTest {
     private AssignmentService assignmentService;
 
     @Autowired
-    private AssignmentJpaRepository assignmentJpaRepository;
+    private AssignmentRepository assignmentJpaRepository;
 
     @Autowired
     private EntityManagerFactory entityManagerFactory;
@@ -139,7 +139,7 @@ class AssignmentListQueryCountTest {
 
     private void createAssignments(int count, Long classId) {
         for (int a = 1; a <= count; a++) {
-            AssignmentJpaEntity assignment = AssignmentJpaEntity.builder()
+            Assignment assignment = Assignment.builder()
                     .title("과제 " + a)
                     .description("쿼리 수 측정용 과제")
                     .classId(classId)
@@ -153,7 +153,7 @@ class AssignmentListQueryCountTest {
 
             for (int f = 1; f <= ATTACHMENTS_PER_ASSIGNMENT; f++) {
                 assignment.getAttachmentFiles().add(
-                        AssignmentFileUploadJpaEntity.builder()
+                        AssignmentFileUpload.builder()
                                 .assignment(assignment)
                                 .uuid("uuid-" + classId + "-" + a + "-" + f)
                                 .fileName("file" + a + "-" + f + ".pdf")
@@ -168,7 +168,7 @@ class AssignmentListQueryCountTest {
 
             for (int s = 1; s <= STATUSES_PER_ASSIGNMENT; s++) {
                 assignment.getStudentSubmissionStatuses().add(
-                        StudentSubmissionStatusJpaEntity.builder()
+                        StudentSubmissionStatus.builder()
                                 .assignment(assignment)
                                 .studentEmail(s + "@example.com")
                                 .studentName("학생" + s)

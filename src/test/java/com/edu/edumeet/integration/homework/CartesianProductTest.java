@@ -3,10 +3,10 @@ package com.edu.edumeet.integration.homework;
 import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.infrastructure.AssignmentFileUploadJpaEntity;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaEntity;
-import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
-import com.edu.edumeet.homework.infrastructure.StudentSubmissionStatusJpaEntity;
+import com.edu.edumeet.homework.domain.AssignmentFileUpload;
+import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
@@ -46,7 +46,7 @@ class CartesianProductTest {
     private static final Long CLASS_ID = 7001L;
 
     @Autowired
-    private AssignmentJpaRepository assignmentJpaRepository;
+    private AssignmentRepository assignmentJpaRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -61,7 +61,7 @@ class CartesianProductTest {
 
     @BeforeEach
     void setUp() {
-        AssignmentJpaEntity assignment = AssignmentJpaEntity.builder()
+        Assignment assignment = Assignment.builder()
                 .title("카테시안 곱 측정용 과제")
                 .description("첨부 " + ATTACHMENTS + "건, 제출현황 " + STATUSES + "건")
                 .classId(CLASS_ID)
@@ -74,13 +74,13 @@ class CartesianProductTest {
         assignmentId = assignment.getId();
 
         for (int f = 1; f <= ATTACHMENTS; f++) {
-            assignment.getAttachmentFiles().add(AssignmentFileUploadJpaEntity.builder()
+            assignment.getAttachmentFiles().add(AssignmentFileUpload.builder()
                     .assignment(assignment).uuid("uuid-" + f).fileName("file" + f + ".pdf")
                     .ord(f).img(false).fileSize(1024L).contentType("application/pdf")
                     .uploadedBy("선생님").referenceId(1L).build());
         }
         for (int s = 1; s <= STATUSES; s++) {
-            assignment.getStudentSubmissionStatuses().add(StudentSubmissionStatusJpaEntity.builder()
+            assignment.getStudentSubmissionStatuses().add(StudentSubmissionStatus.builder()
                     .assignment(assignment).studentEmail(s + "@example.com").studentName("학생" + s)
                     .status(SubmissionStatus.NOT_SUBMITTED).submittedAt(null).build());
         }

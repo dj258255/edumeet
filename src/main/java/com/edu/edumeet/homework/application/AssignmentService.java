@@ -3,10 +3,13 @@ package com.edu.edumeet.homework.application;
 import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import com.edu.edumeet.homework.domain.Assignment;
+import com.edu.edumeet.homework.domain.SubmissionStatus;
+import com.edu.edumeet.homework.domain.SubmissionFileUpload;
+import com.edu.edumeet.homework.domain.AssignmentFileUpload;
 import com.edu.edumeet.homework.domain.Submission;
 import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
-import com.edu.edumeet.homework.application.AssignmentRepository;
-import com.edu.edumeet.homework.application.SubmissionRepository;
+import com.edu.edumeet.homework.repository.AssignmentRepository;
+import com.edu.edumeet.homework.repository.SubmissionRepository;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
@@ -44,8 +47,8 @@ public class AssignmentService {
         Assignment assignment = createDtoToDomain(assignmentCreateDTO, classId, attachmentAdapter);
         
         // 3. 제출 현황 초기화 후 한 번에 저장 (성능 최적화: 중복 save() 제거)
-        Assignment assignmentWithStatuses = assignment.initializeStudentStatuses(classMembers);
-        Assignment savedAssignment = assignmentRepository.save(assignmentWithStatuses);
+        assignment.initializeStudentStatuses(classMembers);
+        Assignment savedAssignment = assignmentRepository.save(assignment);
 
         log.info("과제 생성 완료: ID={}", savedAssignment.getId());
         return savedAssignment.getId();
@@ -54,7 +57,7 @@ public class AssignmentService {
     public AssignmentDTO getAssignment(Long id) {
         log.debug("과제 조회: ID={}", id);
 
-        Assignment assignment = assignmentRepository.findById(id)
+        Assignment assignment = assignmentRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + id));
 
         return domainToDto(assignment, attachmentAdapter);
@@ -65,8 +68,13 @@ public class AssignmentService {
     public void deleteAssignment(Long id) {
         log.info("과제 삭제 시작: ID={}", id);
 
-        // 성능 최적화: 불필요한 조회 제거 (deleteById는 존재하지 않는 ID에도 안전)
-        assignmentRepository.deleteById(id);
+        // 소프트 삭제다. Spring Data 의 deleteById 는 물리 삭제이므로 쓰지 않는다.
+        // 통합 전에는 Port 의 deleteById 가 소프트 삭제를 의미했고,
+        // 통합하면서 이름은 같지만 의미가 다른 메서드로 바뀌는 지점이었다.
+        assignmentRepository.findByIdAndDeletedAtIsNull(id).ifPresent(assignment -> {
+            assignment.delete();
+            assignmentRepository.save(assignment);
+        });
         log.info("과제 삭제 완료: ID={}", id);
     }
 
@@ -135,11 +143,11 @@ public class AssignmentService {
     public void addAttachmentFile(Long assignmentId, Attachment attachment) {
         log.info("과제 첨부파일 추가: assignmentId={}, fileName={}", assignmentId, attachment.getFileName());
 
-        Assignment assignment = assignmentRepository.findById(assignmentId)
+        Assignment assignment = assignmentRepository.findByIdAndDeletedAtIsNull(assignmentId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 과제를 찾을 수 없습니다: " + assignmentId));
 
-        Assignment assignmentWithFile = assignment.addAttachmentFile(attachment);
-        assignmentRepository.save(assignmentWithFile);
+        assignment.addAttachmentFile(attachment);
+        assignmentRepository.save(assignment);
 
         log.info("과제 첨부파일 추가 완료: assignmentId={}", assignmentId);
     }
@@ -184,28 +192,30 @@ public class AssignmentService {
                 .collect(Collectors.toMap(Submission::getClassMemberEmail, submission -> submission));
         
         // StudentSubmissionStatus 리스트에 제출 파일 정보 포함하고 DTO로 변환
-        List<com.edu.edumeet.homework.presentation.dto.StudentSubmissionStatusDTO> enrichedStatuses = assignment.getStudentSubmissionStatuses().stream()
+        // 제출 여부에 따라 DTO 를 직접 구성한다.
+        // 이전에는 DTO 를 만들기 위해 StudentSubmissionStatus 를 새로 생성했으나,
+        // 통합 후 이 타입은 JPA 엔티티이므로 영속 컨텍스트에 속하지 않는 인스턴스를
+        // 만들어 쓰는 것은 위험하다. 표현 계층 변환은 DTO 에서 끝낸다. (#3)
+        List<StudentSubmissionStatusDTO> enrichedStatuses = assignment.getStudentSubmissionStatuses().stream()
                 .map(status -> {
                     Submission submission = submissionMap.get(status.getStudentEmail());
-                    StudentSubmissionStatus enrichedStatus;
-                    if (submission != null && submission.isSubmitted()) {
-                        // 제출 완료 상태이면 제출 파일 정보 포함하여 새로운 Status 생성
-                        enrichedStatus = StudentSubmissionStatus.submitted(
-                                status.getAssignmentId(),
-                                status.getStudentEmail(),
-                                status.getStudentName(),
-                                submission.getSubmissionFiles(),
-                                submission.getModDate() // 제출 시간은 수정일시 사용
-                        );
-                    } else {
-                        // 미제출 상태이면 기존 상태 그대로 반환
-                        enrichedStatus = status;
-                    }
-                    // StudentSubmissionStatus를 DTO로 변환
-                    return statusToDto(enrichedStatus, attachmentAdapter);
+                    boolean submitted = submission != null && submission.isSubmitted();
+
+                    List<Attachment> files = submitted
+                            ? toSubmissionAttachments(submission.getSubmissionFiles())
+                            : toSubmissionAttachments(status.getSubmissionFiles());
+
+                    return StudentSubmissionStatusDTO.builder()
+                            .assignmentId(status.getAssignmentId())
+                            .studentEmail(status.getStudentEmail())
+                            .studentName(status.getStudentName())
+                            .status(submitted ? SubmissionStatus.SUBMITTED : status.getStatus())
+                            .submittedAt(submitted ? submission.getModDate() : status.getSubmittedAt())
+                            .submissionFiles(attachmentAdapter.toFileUploadDTOList(files))
+                            .build();
                 })
                 .collect(Collectors.toList());
-        
+
         // 제출 파일 정보가 포함된 AssignmentDTO 생성
         return AssignmentDTO.builder()
                 .id(assignment.getId())
@@ -214,9 +224,8 @@ public class AssignmentService {
                 .classId(assignment.getClassId())
                 .createdByEmail(assignment.getCreatedByEmail())
                 .createdByName(assignment.getCreatedByName())
-                .attachmentFiles(assignment.getAttachmentFiles() != null ? 
-                    attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()) : 
-                    new ArrayList<>())
+                .attachmentFiles(attachmentAdapter.toFileUploadDTOList(
+                        toAttachments(assignment.getAttachmentFiles())))
                 .studentSubmissionStatuses(enrichedStatuses)
                 .regDate(assignment.getRegDate())
                 .modDate(assignment.getModDate())
@@ -227,10 +236,12 @@ public class AssignmentService {
     public void restoreAssignment(Long id) {
         log.info("과제 복원 시작: ID={}", id);
 
-        boolean restored = assignmentRepository.restoreById(id);
-        if (!restored) {
-            throw new IllegalArgumentException("복원할 수 없는 과제입니다: " + id);
-        }
+        // 복원 대상은 소프트 삭제된 행이므로 필터링하지 않는다
+        Assignment assignment = assignmentRepository.findById(id)
+                .filter(Assignment::isDeleted)
+                .orElseThrow(() -> new IllegalArgumentException("복원할 수 없는 과제입니다: " + id));
+        assignment.restore();
+        assignmentRepository.save(assignment);
 
         log.info("과제 복원 완료: ID={}", id);
     }
@@ -252,7 +263,7 @@ public class AssignmentService {
                 .status(status.getStatus())
                 .submittedAt(status.getSubmittedAt())
                 .submissionFiles(status.getSubmissionFiles() != null ? 
-                    attachmentAdapter.toFileUploadDTOList(status.getSubmissionFiles()) : 
+                    attachmentAdapter.toFileUploadDTOList(toSubmissionAttachments(status.getSubmissionFiles())) :
                     new ArrayList<>())
                 .build();
     }
@@ -267,9 +278,8 @@ public class AssignmentService {
                 .classId(assignment.getClassId())
                 .createdByEmail(assignment.getCreatedByEmail())
                 .createdByName(assignment.getCreatedByName())
-                .attachmentFiles(assignment.getAttachmentFiles() != null ? 
-                    attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()) : 
-                    new ArrayList<>())
+                .attachmentFiles(attachmentAdapter.toFileUploadDTOList(
+                        toAttachments(assignment.getAttachmentFiles())))
                 .studentSubmissionStatuses(assignment.getStudentSubmissionStatuses().stream()
                     .map(status -> statusToDto(status, attachmentAdapter))
                     .collect(Collectors.toList()))
@@ -281,15 +291,34 @@ public class AssignmentService {
      * AssignmentCreateDTO를 Assignment 도메인 객체로 변환
      */
     public Assignment createDtoToDomain(AssignmentCreateDTO dto, Long classId, AttachmentAdapter attachmentAdapter) {
-        return Assignment.builder()
+        Assignment assignment = Assignment.builder()
             .title(dto.getTitle())
             .description(dto.getDescription())
             .classId(classId)
             .createdByEmail(dto.getCreatedByEmail())
             .createdByName(dto.getCreatedByName())
-            .attachmentFiles(dto.getAttachmentFiles() != null ? 
-                attachmentAdapter.fromFileUploadDTOList(dto.getAttachmentFiles()) : // ✅ 어댑터 사용
-                new ArrayList<>())
             .build();
+
+        // 첨부는 연관 엔티티이므로 과제를 만든 뒤 엔티티의 행위로 붙인다.
+        // (통합 전에는 도메인 모델이 List<Attachment> 를 그대로 들고 있었다)
+        if (dto.getAttachmentFiles() != null) {
+            attachmentAdapter.fromFileUploadDTOList(dto.getAttachmentFiles())
+                    .forEach(assignment::addAttachmentFile);
+        }
+        return assignment;
 }
+
+    // ---- 엔티티 컬렉션 -> 첨부 도메인 타입 변환 ----
+    // 통합 전에는 도메인 모델이 List<Attachment> 를 직접 들고 있었다.
+    // 통합 후에는 JPA 연관(Set<...FileUpload>)이므로 표현 계층으로 넘길 때 변환한다.
+
+    private static List<Attachment> toAttachments(java.util.Set<AssignmentFileUpload> files) {
+        if (files == null) return new ArrayList<>();
+        return files.stream().map(AssignmentFileUpload::toAttachment).collect(Collectors.toList());
+    }
+
+    private static List<Attachment> toSubmissionAttachments(java.util.Set<SubmissionFileUpload> files) {
+        if (files == null) return new ArrayList<>();
+        return files.stream().map(SubmissionFileUpload::toAttachment).collect(Collectors.toList());
+    }
 }
