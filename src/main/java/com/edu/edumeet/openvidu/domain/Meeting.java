@@ -27,6 +27,15 @@ public class Meeting {
     @Column(length = 500)
     private String description;
 
+    /**
+     * 세션 형태. 이 값에 따라 정원 제한과 참가 권한이 갈린다. (#2)
+     * 기존 세션은 전부 화상강의였으므로 기본값은 INTERACTIVE 다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "session_type", nullable = false, length = 20)
+    @Builder.Default
+    private SessionType sessionType = SessionType.INTERACTIVE;
+
     @Column(nullable = false)
     private LocalDateTime startTime;
 
@@ -46,6 +55,16 @@ public class Meeting {
             throw new IllegalArgumentException("endTime must be after startTime");
         }
         this.endTime = newEndTime;
+    }
+
+    /** 정원 제한을 적용하는 세션인가. */
+    public boolean hasParticipantLimit() {
+        return this.sessionType.hasParticipantLimit();
+    }
+
+    /** 이 세션의 정원. 라이브방송은 제한이 없다. */
+    public int participantLimit() {
+        return hasParticipantLimit() ? this.classRoom.getParticipantLimit() : Integer.MAX_VALUE;
     }
 
     public void endNow() {
