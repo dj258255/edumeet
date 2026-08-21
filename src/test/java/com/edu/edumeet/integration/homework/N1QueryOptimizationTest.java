@@ -1,7 +1,7 @@
 package com.edu.edumeet.integration.homework;
 
 import com.edu.edumeet.homework.repository.AssignmentRepository;
-import com.edu.edumeet.homework.application.AssignmentService;
+import com.edu.edumeet.homework.service.AssignmentService;
 import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
@@ -9,7 +9,7 @@ import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.repository.AssignmentRepository;
 import com.edu.edumeet.homework.domain.AssignmentFileUpload;
 import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
-import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
+import com.edu.edumeet.homework.dto.AssignmentDTO;
 import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import lombok.extern.log4j.Log4j2;

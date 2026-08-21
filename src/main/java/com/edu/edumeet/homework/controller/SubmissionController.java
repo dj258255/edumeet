@@ -1,11 +1,11 @@
-package com.edu.edumeet.homework.presentation;
+package com.edu.edumeet.homework.controller;
 
-import com.edu.edumeet.homework.application.AssignmentService;
-import com.edu.edumeet.homework.application.SubmissionService;
-import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
-import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
-import com.edu.edumeet.homework.presentation.dto.StudentSubmissionStatusDTO;
+import com.edu.edumeet.homework.service.AssignmentService;
+import com.edu.edumeet.homework.service.SubmissionService;
+import com.edu.edumeet.homework.dto.SubmissionCreateDTO;
+import com.edu.edumeet.homework.dto.SubmissionDTO;
+import com.edu.edumeet.homework.dto.AssignmentDTO;
+import com.edu.edumeet.homework.dto.StudentSubmissionStatusDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

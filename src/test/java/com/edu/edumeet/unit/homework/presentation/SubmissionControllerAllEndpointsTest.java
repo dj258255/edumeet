@@ -1,13 +1,13 @@
 package com.edu.edumeet.unit.homework.presentation;
 
-import com.edu.edumeet.homework.application.AssignmentService;
-import com.edu.edumeet.homework.application.SubmissionService;
+import com.edu.edumeet.homework.service.AssignmentService;
+import com.edu.edumeet.homework.service.SubmissionService;
 import com.edu.edumeet.homework.repository.AssignmentRepository;
 import com.edu.edumeet.homework.repository.SubmissionRepository;
-import com.edu.edumeet.homework.presentation.SubmissionController;
-import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
+import com.edu.edumeet.homework.controller.SubmissionController;
+import com.edu.edumeet.homework.dto.AssignmentCreateDTO;
+import com.edu.edumeet.homework.dto.SubmissionCreateDTO;
+import com.edu.edumeet.homework.dto.SubmissionDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.fasterxml.jackson.databind.ObjectMapper;

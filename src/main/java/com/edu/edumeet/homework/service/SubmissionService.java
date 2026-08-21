@@ -1,4 +1,4 @@
-package com.edu.edumeet.homework.application;
+package com.edu.edumeet.homework.service;
 
 import java.util.ArrayList;
 import com.edu.edumeet.homework.repository.AssignmentRepository;
@@ -10,8 +10,8 @@ import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.repository.StudentSubmissionStatusRepository;
 import com.edu.edumeet.homework.domain.SubmissionFileUpload;
 import com.edu.edumeet.homework.repository.SubmissionFileUploadRepository;
-import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
-import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
+import com.edu.edumeet.homework.dto.SubmissionCreateDTO;
+import com.edu.edumeet.homework.dto.SubmissionDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
 import lombok.RequiredArgsConstructor;
