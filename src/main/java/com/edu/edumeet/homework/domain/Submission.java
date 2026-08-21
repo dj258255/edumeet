@@ -53,18 +53,7 @@ public class Submission {
     }
 
     // 제출파일 업데이트 (기존 파일들을 새로운 파일 목록으로 대체)
-    public Submission updateSubmissionFiles(List<Attachment> newFiles) {
-        return this.toBuilder()
-                .submissionFiles(new ArrayList<>(newFiles))
-                .modDate(LocalDateTime.now())
-                .build();
-    }
-
     // 제출자인지 확인 (이메일 기준)
-    public boolean isSubmittedBy(String memberEmail) {
-        return this.classMemberEmail != null && this.classMemberEmail.equals(memberEmail);
-    }
-
     // 제출 여부 확인
     public boolean isSubmitted() {
         return status == SubmissionStatus.SUBMITTED;

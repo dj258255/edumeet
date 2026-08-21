@@ -67,22 +67,6 @@ public class Assignment {
     }
 
     // 첨부파일 업데이트 (기존 파일들을 새로운 파일 목록으로 대체)
-    public Assignment updateAttachmentFiles(List<Attachment> newFiles) {
-        return Assignment.builder()
-                .id(this.id)
-                .title(this.title)
-                .description(this.description)
-                .classId(this.classId)
-                .createdByEmail(this.createdByEmail)
-                .createdByName(this.createdByName)
-                .attachmentFiles(new ArrayList<>(newFiles))
-                .studentSubmissionStatuses(this.studentSubmissionStatuses)
-                .regDate(this.regDate)
-                .modDate(LocalDateTime.now())
-                .deletedAt(this.deletedAt)
-                .build();
-    }
-
     // 클래스 멤버들의 제출 현황 초기화 (과제 생성 시점에 호출)
     public Assignment initializeStudentStatuses(List<ClassMember> classMembers) {
         List<StudentSubmissionStatus> statuses = new ArrayList<>();
@@ -115,35 +99,7 @@ public class Assignment {
 
 
     // 클래스 멤버 제출 시 상태 업데이트 (email 기준)
-    public Assignment updateSubmissionStatus(String classMemberEmail) {
-        List<StudentSubmissionStatus> updatedStatuses = this.studentSubmissionStatuses.stream()
-                .map(status -> status.getStudentEmail().equals(classMemberEmail) ?
-                        status.markAsSubmitted() : status)
-                .toList();
-
-        return Assignment.builder()
-                .id(this.id)
-                .title(this.title)
-                .description(this.description)
-                .classId(this.classId)
-                .createdByEmail(this.createdByEmail)
-                .createdByName(this.createdByName)
-                .attachmentFiles(this.attachmentFiles)
-                .studentSubmissionStatuses(updatedStatuses)
-                .regDate(this.regDate)
-                .modDate(LocalDateTime.now())
-                .deletedAt(this.deletedAt)
-                .build();
-    }
-
-
-
     // 생성자인지 확인 (이메일로 확인)
-    public boolean isCreatedBy(String email) {
-        // createdByEmail이 null인 경우 항상 false 반환
-        return this.createdByEmail != null && this.createdByEmail.equals(email);
-    }
-
     // 삭제 여부
     public boolean isDeleted() {
         return this.deletedAt != null;
