@@ -288,8 +288,8 @@ class AssignmentServiceImplTest {
         when(attachmentAdapter.toFileUploadDTOList(any()))
                 .thenReturn(Arrays.asList());
         
-        // SubmissionRepository mock 설정 (빈 리스트 처리)
-        when(submissionRepository.findByAssignmentIdWithSubmissionFiles(any()))
+        // 목록 조회는 과제별 반복 호출이 아니라 IN 절 배치 조회를 사용한다 (#4)
+        when(submissionRepository.findByAssignmentIdsWithSubmissionFiles(any()))
                 .thenReturn(Arrays.asList());
         
         Assignment assignment1 = Assignment.builder()
