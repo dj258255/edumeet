@@ -1,6 +1,6 @@
 package com.edu.edumeet.integration.homework;
 
-import com.edu.edumeet.homework.application.AssignmentServiceImpl;
+import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
 import com.edu.edumeet.homework.infrastructure.AssignmentFileUploadJpaEntity;
 import com.edu.edumeet.homework.infrastructure.AssignmentJpaEntity;
@@ -61,7 +61,7 @@ class AssignmentListQueryCountTest {
     private static final int STATUSES_PER_ASSIGNMENT = 3;
 
     @Autowired
-    private AssignmentServiceImpl assignmentService;
+    private AssignmentService assignmentService;
 
     @Autowired
     private AssignmentJpaRepository assignmentJpaRepository;

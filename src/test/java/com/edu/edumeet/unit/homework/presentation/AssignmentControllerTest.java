@@ -1,9 +1,9 @@
 package com.edu.edumeet.unit.homework.presentation;
 
+import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
 import com.edu.edumeet.homework.presentation.AssignmentController;
-import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;

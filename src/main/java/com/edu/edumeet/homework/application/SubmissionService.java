@@ -7,7 +7,6 @@ import com.edu.edumeet.homework.infrastructure.StudentSubmissionStatusJpaEntity;
 import com.edu.edumeet.homework.infrastructure.StudentSubmissionStatusJpaRepository;
 import com.edu.edumeet.homework.infrastructure.SubmissionFileUploadJpaEntity;
 import com.edu.edumeet.homework.infrastructure.SubmissionFileUploadJpaRepository;
-import com.edu.edumeet.homework.presentation.SubmissionService;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
@@ -25,7 +24,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 @Log4j2
-public class SubmissionServiceImpl implements SubmissionService {
+public class SubmissionService {
 
     private final SubmissionRepository submissionRepository;
     private final AssignmentRepository assignmentRepository;
@@ -33,7 +32,6 @@ public class SubmissionServiceImpl implements SubmissionService {
     private final StudentSubmissionStatusJpaRepository studentSubmissionStatusJpaRepository;
     private final SubmissionFileUploadJpaRepository submissionFileUploadJpaRepository;
 
-    @Override
     @Transactional
     public Long submitAssignment(SubmissionCreateDTO submissionCreateDTO) {
         log.info("과제 제출 시작: assignmentId={}, classMemberEmail={}", 
@@ -79,7 +77,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         return savedSubmission.getId();
     }
 
-    @Override
     public SubmissionDTO getSubmission(Long id) {
         log.debug("제출물 조회: ID={}", id);
 
@@ -90,7 +87,6 @@ public class SubmissionServiceImpl implements SubmissionService {
     }
 
 
-    @Override
     @Transactional
     public void deleteSubmission(Long id) {
         log.info("제출물 삭제 시작: ID={}", id);
@@ -102,7 +98,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         log.info("제출물 삭제 완료: ID={}", id);
     }
 
-    @Override
     public List<SubmissionDTO> getSubmissionsByAssignmentId(Long assignmentId) {
         log.debug("과제별 제출물 목록 조회: assignmentId={}", assignmentId);
 
@@ -113,7 +108,6 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public List<SubmissionDTO> getSubmissionsByClassMemberEmail(String classMemberEmail) {
         log.debug("학생별 제출물 목록 조회 (과제 제목 포함): classMemberEmail={}", classMemberEmail);
 
@@ -130,7 +124,6 @@ public class SubmissionServiceImpl implements SubmissionService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public SubmissionDTO getSubmissionByAssignmentAndClassMember(Long assignmentId, String classMemberEmail) {
         log.debug("특정 과제의 특정 학생 제출물 조회: assignmentId={}, classMemberEmail={}", assignmentId, classMemberEmail);
 
@@ -140,7 +133,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         return domainToDto(submission, attachmentAdapter);
     }
 
-    @Override
     @Transactional
     public void addSubmissionFile(Long submissionId, Attachment attachment) {
         log.info("제출물 파일 추가: submissionId={}, fileName={}", submissionId, attachment.getFileName());
@@ -154,7 +146,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         log.info("제출물 파일 추가 완료: submissionId={}", submissionId);
     }
 
-    @Override
     public SubmissionDTO getSubmissionWithFiles(Long id) {
         log.debug("첨부파일 포함 제출물 조회: ID={}", id);
 
@@ -164,7 +155,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         return domainToDto(submission, attachmentAdapter);
     }
 
-    @Override
     @Transactional
     public void restoreSubmission(Long id) {
         log.info("제출물 복원 시작: ID={}", id);
@@ -220,5 +210,57 @@ public class SubmissionServiceImpl implements SubmissionService {
         log.debug("StudentSubmissionStatus 파일 연결 완료: 총 파일 수={}, 연결된 파일 수={}", 
                 submissionFiles.size(), 
                 submissionFiles.stream().filter(f -> f.getDomain() != null && !f.getDomain().isEmpty()).count());
+    }
+
+    // ---- 이전에 서비스 인터페이스의 default 메서드였던 DTO 매핑 ----
+    //
+    // 인터페이스의 default 메서드였으므로 가시성(public)을 그대로 유지한다.
+    // 매핑 로직을 서비스가 들고 있는 것은 그 자체로 별개의 문제이며,
+    // 전용 매퍼 또는 DTO 정적 팩토리로 분리하는 것은 후속 작업으로 다룬다.
+
+    /**
+     * Submission 도메인 객체를 SubmissionDTO로 변환
+     */
+    public SubmissionDTO domainToDto(Submission submission, AttachmentAdapter attachmentAdapter) {
+        return SubmissionDTO.builder()
+                .id(submission.getId())
+                .assignmentId(submission.getAssignmentId())
+                .classMemberEmail(submission.getClassMemberEmail())
+                .classMemberName(submission.getClassMemberName())
+                .content(submission.getContent())
+                .status(submission.getStatus())
+                .submissionFiles(attachmentAdapter.toFileUploadDTOList(submission.getSubmissionFiles()))
+                .regDate(submission.getRegDate())
+                .modDate(submission.getModDate())
+                .build();
+    }
+    /**
+     * Submission 도메인 객체를 SubmissionDTO로 변환 (과제 제목 포함)
+     */
+    public SubmissionDTO domainToDtoWithAssignmentTitle(Submission submission, String assignmentTitle, AttachmentAdapter attachmentAdapter) {
+        return SubmissionDTO.builder()
+                .id(submission.getId())
+                .assignmentId(submission.getAssignmentId())
+                .assignmentTitle(assignmentTitle)
+                .classMemberEmail(submission.getClassMemberEmail())
+                .classMemberName(submission.getClassMemberName())
+                .content(submission.getContent())
+                .status(submission.getStatus())
+                .submissionFiles(attachmentAdapter.toFileUploadDTOList(submission.getSubmissionFiles()))
+                .regDate(submission.getRegDate())
+                .modDate(submission.getModDate())
+                .build();
+    }
+    /**
+     * SubmissionCreateDTO를 Submission 도메인 객체로 변환
+     */
+    public Submission createDtoToDomain(SubmissionCreateDTO dto) {
+        return Submission.builder()
+                .assignmentId(dto.getAssignmentId())
+                .classMemberEmail(dto.getClassMemberEmail())
+                .classMemberName(dto.getClassMemberName())
+                .content(dto.getContent())
+                .submissionFiles(dto.getAttachmentFiles() != null ? dto.getAttachmentFiles() : new java.util.ArrayList<>())
+                .build();
     }
 }

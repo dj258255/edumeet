@@ -7,7 +7,6 @@ import com.edu.edumeet.homework.domain.Submission;
 import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.application.AssignmentRepository;
 import com.edu.edumeet.homework.application.SubmissionRepository;
-import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.domain.Attachment;
@@ -21,19 +20,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.edu.edumeet.homework.presentation.dto.StudentSubmissionStatusDTO;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 @Log4j2
-public class AssignmentServiceImpl implements AssignmentService {
+public class AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
     private final SubmissionRepository submissionRepository;
     private final ClassMemberRepository classMemberRepository;
     private final AttachmentAdapter attachmentAdapter;
 
-    @Override
     @Transactional
     public Long createAssignment(AssignmentCreateDTO assignmentCreateDTO, Long classId) {
         log.info("과제 생성 시작: {}", assignmentCreateDTO.getTitle());
@@ -52,7 +51,6 @@ public class AssignmentServiceImpl implements AssignmentService {
         return savedAssignment.getId();
     }
 
-    @Override
     public AssignmentDTO getAssignment(Long id) {
         log.debug("과제 조회: ID={}", id);
 
@@ -63,7 +61,6 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
 
-    @Override
     @Transactional
     public void deleteAssignment(Long id) {
         log.info("과제 삭제 시작: ID={}", id);
@@ -73,7 +70,6 @@ public class AssignmentServiceImpl implements AssignmentService {
         log.info("과제 삭제 완료: ID={}", id);
     }
 
-    @Override
     public List<AssignmentDTO> getAssignmentsByClassId(Long classId) {
         log.debug("클래스별 과제 목록 조회 (제출 파일 포함): classId={}", classId);
 
@@ -102,7 +98,6 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public List<AssignmentDTO> getAssignmentsByClassIdWithUserStatus(Long classId, String userEmail) {
         log.debug("클래스별 과제 목록 조회 (사용자 제출 상태 포함): classId={}, userEmail={}", classId, userEmail);
 
@@ -136,7 +131,6 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     @Transactional
     public void addAttachmentFile(Long assignmentId, Attachment attachment) {
         log.info("과제 첨부파일 추가: assignmentId={}, fileName={}", assignmentId, attachment.getFileName());
@@ -150,7 +144,6 @@ public class AssignmentServiceImpl implements AssignmentService {
         log.info("과제 첨부파일 추가 완료: assignmentId={}", assignmentId);
     }
 
-    @Override
     public AssignmentDTO getAssignmentWithAttachmentFiles(Long id) {
         log.debug("첨부파일 포함 과제 조회: ID={}", id);
 
@@ -160,7 +153,6 @@ public class AssignmentServiceImpl implements AssignmentService {
         return domainToDto(assignment, attachmentAdapter);
     }
 
-    @Override
     public AssignmentDTO getAssignmentWithSubmissionStatuses(Long id) {
         log.debug("제출 현황 포함 과제 조회: ID={}", id);
 
@@ -170,7 +162,6 @@ public class AssignmentServiceImpl implements AssignmentService {
         return domainToDto(assignment, attachmentAdapter);
     }
 
-    @Override
     public AssignmentDTO getAssignmentWithAllDetails(Long id) {
         log.debug("모든 세부사항 포함 과제 조회: ID={}", id);
 
@@ -232,7 +223,6 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .build();
     }
 
-    @Override
     @Transactional
     public void restoreAssignment(Long id) {
         log.info("과제 복원 시작: ID={}", id);
@@ -244,4 +234,62 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         log.info("과제 복원 완료: ID={}", id);
     }
+
+    // ---- 이전에 서비스 인터페이스의 default 메서드였던 DTO 매핑 ----
+    //
+    // 인터페이스의 default 메서드였으므로 가시성(public)을 그대로 유지한다.
+    // 매핑 로직을 서비스가 들고 있는 것은 그 자체로 별개의 문제이며,
+    // 전용 매퍼 또는 DTO 정적 팩토리로 분리하는 것은 후속 작업으로 다룬다.
+
+    /**
+     * StudentSubmissionStatus를 StudentSubmissionStatusDTO로 변환
+     */
+    public StudentSubmissionStatusDTO statusToDto(StudentSubmissionStatus status, AttachmentAdapter attachmentAdapter) {
+        return StudentSubmissionStatusDTO.builder()
+                .assignmentId(status.getAssignmentId())
+                .studentEmail(status.getStudentEmail())
+                .studentName(status.getStudentName())
+                .status(status.getStatus())
+                .submittedAt(status.getSubmittedAt())
+                .submissionFiles(status.getSubmissionFiles() != null ? 
+                    attachmentAdapter.toFileUploadDTOList(status.getSubmissionFiles()) : 
+                    new ArrayList<>())
+                .build();
+    }
+    /**
+     * Assignment 도메인 객체를 AssignmentDTO로 변환
+     */
+    public AssignmentDTO domainToDto(Assignment assignment, AttachmentAdapter attachmentAdapter) {
+        return AssignmentDTO.builder()
+                .id(assignment.getId())
+                .title(assignment.getTitle())
+                .description(assignment.getDescription())
+                .classId(assignment.getClassId())
+                .createdByEmail(assignment.getCreatedByEmail())
+                .createdByName(assignment.getCreatedByName())
+                .attachmentFiles(assignment.getAttachmentFiles() != null ? 
+                    attachmentAdapter.toFileUploadDTOList(assignment.getAttachmentFiles()) : 
+                    new ArrayList<>())
+                .studentSubmissionStatuses(assignment.getStudentSubmissionStatuses().stream()
+                    .map(status -> statusToDto(status, attachmentAdapter))
+                    .collect(Collectors.toList()))
+                .regDate(assignment.getRegDate())
+                .modDate(assignment.getModDate())
+                .build();
+    }
+    /**
+     * AssignmentCreateDTO를 Assignment 도메인 객체로 변환
+     */
+    public Assignment createDtoToDomain(AssignmentCreateDTO dto, Long classId, AttachmentAdapter attachmentAdapter) {
+        return Assignment.builder()
+            .title(dto.getTitle())
+            .description(dto.getDescription())
+            .classId(classId)
+            .createdByEmail(dto.getCreatedByEmail())
+            .createdByName(dto.getCreatedByName())
+            .attachmentFiles(dto.getAttachmentFiles() != null ? 
+                attachmentAdapter.fromFileUploadDTOList(dto.getAttachmentFiles()) : // ✅ 어댑터 사용
+                new ArrayList<>())
+            .build();
+}
 }

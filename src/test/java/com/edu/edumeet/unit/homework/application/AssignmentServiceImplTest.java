@@ -6,7 +6,7 @@ import com.edu.edumeet.homework.application.AssignmentRepository;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import com.edu.edumeet.homework.domain.Assignment;
-import com.edu.edumeet.homework.application.AssignmentServiceImpl;
+import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.attachment.presentation.dto.AttachmentAdapter;
@@ -32,11 +32,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AssignmentServiceImpl 테스트")
-class AssignmentServiceImplTest {
+@DisplayName("AssignmentService 테스트")
+class AssignmentServiceTest {
 
     @InjectMocks
-    private AssignmentServiceImpl assignmentService;
+    private AssignmentService assignmentService;
 
     @Mock
     private AssignmentRepository assignmentRepository;

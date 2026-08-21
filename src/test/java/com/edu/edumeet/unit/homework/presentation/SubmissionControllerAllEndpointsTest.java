@@ -1,10 +1,10 @@
 package com.edu.edumeet.unit.homework.presentation;
 
+import com.edu.edumeet.homework.application.AssignmentService;
+import com.edu.edumeet.homework.application.SubmissionService;
 import com.edu.edumeet.homework.infrastructure.AssignmentJpaRepository;
 import com.edu.edumeet.homework.infrastructure.SubmissionJpaRepository;
-import com.edu.edumeet.homework.presentation.AssignmentService;
 import com.edu.edumeet.homework.presentation.SubmissionController;
-import com.edu.edumeet.homework.presentation.SubmissionService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.SubmissionDTO;

@@ -1,7 +1,7 @@
 package com.edu.edumeet.integration.homework;
 
 import com.edu.edumeet.homework.application.AssignmentRepository;
-import com.edu.edumeet.homework.application.AssignmentServiceImpl;
+import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.homework.domain.Assignment;
 import com.edu.edumeet.homework.domain.StudentSubmissionStatus;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class N1QueryOptimizationTest {
 
     @Autowired
-    private AssignmentServiceImpl assignmentService;
+    private AssignmentService assignmentService;
 
     @Autowired
     private AssignmentRepository assignmentRepository;

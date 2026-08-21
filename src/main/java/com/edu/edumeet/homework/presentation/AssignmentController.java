@@ -1,5 +1,6 @@
 package com.edu.edumeet.homework.presentation;
 
+import com.edu.edumeet.homework.application.AssignmentService;
 import com.edu.edumeet.homework.presentation.dto.AssignmentCreateDTO;
 import com.edu.edumeet.homework.presentation.dto.AssignmentDTO;
 import com.edu.edumeet.member.domain.SecurityMember;
