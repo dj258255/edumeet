@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 이 테스트는 Hibernate Statistics 로 실제 실행된 쿼리 수를 세어
  * N+1 이 존재하는지를 환경과 무관하게 검증한다.
  *
- * 측정 지표로 시간을 쓰지 않는 이유는 CONVENTIONS.md 0.5 참조.
+ * 측정 지표로 시간을 쓰지 않는 이유는 team-convention.md 1.6 참조.
  */
 @SpringBootTest
 @ActiveProfiles("test")

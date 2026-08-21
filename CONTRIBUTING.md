@@ -1,6 +1,6 @@
 # 기여 가이드
 
-전체 개발 컨벤션은 **[docs/CONVENTIONS.md](docs/CONVENTIONS.md)** 를 따릅니다.
+전체 개발 컨벤션은 **[docs/team-convention.md](docs/team-convention.md)** 를 따릅니다.
 
 ## 빠른 참조
 
@@ -33,4 +33,4 @@
 ### 성능 측정
 
 **1차 지표는 쿼리 수와 실행계획입니다. 응답 시간(ms)이 아닙니다.**
-자세한 근거와 규칙은 [CONVENTIONS.md 0.5](docs/CONVENTIONS.md#05-성능-측정-원칙-필수) 를 참조하세요.
+자세한 근거와 규칙은 [team-convention.md 1.6](docs/team-convention.md#16-성능-측정-원칙-필수) 를 참조하세요.
