@@ -2,6 +2,9 @@
 
 > 개정 2026-08-22 · 상태: 계획
 > v1 대비 변경: 사전 조사 결과를 반영해 **Phase 순서·Java 버전 전략·팬아웃 판단 기준**을 바꿨다.
+> **근거와 출처는 [`docs/research/`](../research/00-index.md) 에 있다.**
+> 이 문서는 **실행 계획**이고, 조사 아카이브는 따로 있다.
+>
 > 선행 작업: [#2 세션 타입](https://github.com/dj258255/edumeet/issues/2) ·
 > [#17 부하 측정](https://github.com/dj258255/edumeet/issues/17) ·
 > [#19 외부 호출 타임아웃](https://github.com/dj258255/edumeet/issues/19)
@@ -1251,6 +1254,8 @@ FROM livekit/gstreamer:1.24.12-dev            ← C 라이브러리
 ---
 
 ## 14. 조사에서 확인된 주요 근거
+
+> 전체 근거와 출처는 [`docs/research/`](../research/00-index.md) 참조.
 
 | 항목 | 출처 |
 |---|---|
