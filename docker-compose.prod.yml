@@ -49,13 +49,15 @@ services:
     container_name: edumeet-app
     env_file: .env
     restart: unless-stopped
+    # ★ 관리 포트(9090)는 공인 IP 에 열지 않는다.
+    #   지표는 URI 패턴·호출량·커넥션 수 같은 내부 정보를 담는다.
+    #
+    #   다만 기존 관측 스택(balruno-monitoring)이 별도 compose 네트워크에 있어
+    #   서비스명으로는 닿지 못한다. 그래서 사설 IP 에만 바인딩해 노출한다.
+    #   독립 스택(--profile observability)만 쓸 거면 127.0.0.1 로 두면 된다.
     ports:
       - "8080:8080"
-    # ★ 관리 포트(9090)는 publish 하지 않는다. expose 만 한다.
-    #   지표는 URI 패턴·호출량·커넥션 수 같은 내부 정보를 담는다.
-    #   Prometheus 는 같은 네트워크 안에 있으므로 이걸로 충분하다.
-    expose:
-      - "9090"
+      - "${MANAGEMENT_BIND:-127.0.0.1}:9091:9090"
     volumes:
       - app_logs:/app/logs
       - app_upload:/app/upload
@@ -69,9 +71,17 @@ services:
         condition: service_healthy
     networks: [edumeet]
 
+  # ★ 서버에 이미 다른 프로젝트(balruno)의 Prometheus/Grafana 가 돌고 있다.
+  #   2 vCPU 서버에 Prometheus 를 두 벌 띄우는 것은 낭비다.
+  #   기본으로는 뜨지 않고, 독립 스택이 필요할 때만 --profile observability 로 띄운다.
+  #
+  #     docker compose -f docker-compose.prod.yml --profile observability up -d
+  #
+  #   기존 스택을 재사용하는 방법은 docs/ops/04-observability.md 를 본다.
   prometheus:
     image: prom/prometheus:v3.1.0
     container_name: edumeet-prometheus
+    profiles: [observability]
     restart: unless-stopped
     # 마찬가지로 외부 노출 금지. Grafana 가 네트워크 안에서 붙는다.
     expose:
@@ -89,6 +99,7 @@ services:
   grafana:
     image: grafana/grafana:11.5.1
     container_name: edumeet-grafana
+    profiles: [observability]
     restart: unless-stopped
     # 사람이 봐야 하므로 이것만 publish 한다. 비밀번호는 .env 로 준다.
     ports:
