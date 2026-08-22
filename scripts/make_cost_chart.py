@@ -20,7 +20,7 @@ ORANGE, PURPLE, GREEN = "#ea580c", "#7c3aed", "#059669"
 MBPS_PER_VIEWER = 531 * 8 / 3000            # 1.42 Mbps
 GB_PER_VIEWER_HOUR = MBPS_PER_VIEWER * 3600 / 8 / 1024   # 0.622 GB
 
-FREE_GB = 10 * 1024      # OCI Always Free outbound 가정치 (조사 확인 전)
+FREE_GB = 10 * 1024      # OCI 아웃바운드 무료 한도 (2026-08 공식 확인)
 
 
 def main():
