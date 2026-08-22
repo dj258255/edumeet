@@ -54,6 +54,8 @@ public class SecurityConfig {
                         .successHandler(customOAuth2SuccessHandler);
                 })
 
+                // 이전에는 목록 마지막에 "/api/v1/**" 이 있어서 위에 나열한 경로가 전부 무의미했고
+                // anyRequest().authenticated() 가 사실상 죽은 코드였다. (#23)
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
                         .requestMatchers(
@@ -73,7 +75,9 @@ public class SecurityConfig {
                                 "/api/v1/members/send-code",
                                 "/api/v1/members/verification",
                                 "/api/v1/members/check-email",
-                                "/api/v1/**"
+                                // LiveKit 서버가 호출한다. 사용자 인증이 없으므로 permitAll 이지만
+                                // WebhookReceiver 가 API 시크릿으로 서명한 JWT 를 검증한다.
+                                "/api/v1/livekit/webhook"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

@@ -3,6 +3,8 @@ package com.edu.edumeet.openvidu.service;
 import io.livekit.server.CanSubscribe;
 import io.livekit.server.CanPublish;
 import com.edu.edumeet.openvidu.exception.LiveKitUnavailableException;
+import org.springframework.security.access.AccessDeniedException;
+import java.time.LocalDateTime;
 import io.livekit.server.RoomServiceClient;
 import livekit.LivekitModels;
 import retrofit2.Response;
@@ -195,12 +197,93 @@ public class OpenviduService {
                 .build();
     }
 
+    /**
+     * 화상강의를 종료한다.
+     *
+     * <p>이전에는 {@code email} 을 받으면서 쓰지 않아 <b>누구나 남의 회의를 종료할 수 있었다.</b>
+     * 그리고 DB 의 {@code endTime} 만 찍고 <b>LiveKit 룸은 그대로 두어</b> 참가자들이 계속
+     * 연결된 채로 남았다. (#23)
+     *
+     * <p>같은 서비스의 {@code getMeetingList} 는 생성자/참여자 권한을 검사한다.
+     * 종료는 더 강한 권한이 필요하므로 <b>클래스 생성자만</b> 허용한다.
+     */
     @Transactional
     public void endMeeting(String email, Long meetingId) {
         Meeting meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new IllegalArgumentException("미팅을 찾을 수 없습니다."));
 
+        String ownerEmail = meeting.getClassRoom().getMember().getEmail();
+        if (!ownerEmail.equals(email)) {
+            throw new AccessDeniedException("화상강의는 클래스 생성자만 종료할 수 있습니다.");
+        }
+
         meeting.endNow();
+
+        // 참가 기록을 닫는다. 이게 없으면 정원이 반환되지 않는다.
+        int closed = meetingParticipantRepository.closeAllActive(meetingId, LocalDateTime.now());
+        log.info("화상강의 종료 - meetingId={}, 정리한 참가 기록={}건", meetingId, closed);
+
+        // LiveKit 룸을 실제로 닫는다. DB 만 바꾸면 참가자는 계속 연결돼 있다.
+        deleteLiveKitRoom(meeting);
+    }
+
+    /**
+     * LiveKit 룸을 삭제한다.
+     *
+     * <p>실패해도 회의 종료 자체는 되돌리지 않는다. 룸은 비어 있으면 LiveKit 이
+     * {@code emptyTimeout} 후 자동으로 정리하므로, 여기서 실패해도 최종적으로는 회복된다.
+     * 반대로 예외를 던지면 DB 종료 처리까지 롤백되어 상태가 더 나빠진다.
+     */
+    private void deleteLiveKitRoom(Meeting meeting) {
+        String roomName = "meeting-" + meeting.getId();
+        try {
+            Response<Void> response = roomServiceClient.deleteRoom(roomName).execute();
+            if (!response.isSuccessful()) {
+                log.warn("LiveKit 룸 삭제 실패 - room={}, HTTP {}", roomName, response.code());
+            }
+        } catch (IOException e) {
+            log.warn("LiveKit 룸 삭제 실패 - room={}", roomName, e);
+        }
+    }
+
+    /**
+     * 참가자를 세션에서 내보낸다. LiveKit Webhook 이 {@code participant_left} 를 보낼 때 호출된다.
+     *
+     * <p>정원 반환의 실제 경로다. 클라이언트가 명시적으로 나가지 않고 브라우저를 닫아도
+     * LiveKit 이 이 이벤트를 보내주므로 정원이 회수된다. (#23)
+     */
+    @Transactional
+    public void releaseParticipant(String roomName, String participantEmail) {
+        Long meetingId = parseMeetingId(roomName);
+        if (meetingId == null) {
+            log.debug("우리가 만든 룸이 아니다 - room={}", roomName);
+            return;
+        }
+        meetingParticipantRepository.findActive(meetingId, participantEmail)
+                .ifPresent(MeetingParticipant::leave);
+    }
+
+    /** 룸 전체가 끝났을 때 남아 있는 참가 기록을 모두 닫는다. */
+    @Transactional
+    public void releaseRoom(String roomName) {
+        Long meetingId = parseMeetingId(roomName);
+        if (meetingId == null) {
+            return;
+        }
+        int closed = meetingParticipantRepository.closeAllActive(meetingId, LocalDateTime.now());
+        log.info("룸 종료로 참가 기록 정리 - meetingId={}, {}건", meetingId, closed);
+    }
+
+    /** {@code meeting-{id}} 형식에서 id 를 뽑는다. 형식이 다르면 null. */
+    private Long parseMeetingId(String roomName) {
+        if (roomName == null || !roomName.startsWith("meeting-")) {
+            return null;
+        }
+        try {
+            return Long.parseLong(roomName.substring("meeting-".length()));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public List<ClassMeetingInfoResponseDto> getMeetingList(String email, Long classId) {

@@ -84,6 +84,21 @@ public class OpenviduController {
         ));
     }
 
+    /**
+     * 세션에서 나간다. 정원을 반환한다.
+     *
+     * <p>이 엔드포인트가 없어서 {@code leaveSession} 이 호출되는 곳이 아예 없었다. (#23)
+     * 클라이언트가 호출하지 않고 브라우저를 닫는 경우는
+     * {@link LiveKitWebhookController} 가 처리한다.
+     */
+    @PostMapping("/{meetingId}/leave")
+    public ResponseEntity<Map<String, String>> leave(
+            @AuthenticationPrincipal SecurityMember member,
+            @PathVariable Long meetingId) {
+        openviduService.leaveSession(meetingId, member.getEmail());
+        return ResponseEntity.ok(Map.of("message", "세션에서 나갔습니다."));
+    }
+
     @GetMapping("/{classId}")
     public ResponseEntity<List<ClassMeetingInfoResponseDto>> getLiveList(
             @AuthenticationPrincipal SecurityMember member,
