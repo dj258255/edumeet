@@ -2,6 +2,10 @@
 # clone 직후 ./gradlew test 가 추가 설정 없이 통과해야 한다.
 
 spring:
+  # H2 + ddl-auto=create-drop 을 쓴다. MySQL 문법 마이그레이션은 여기서 돌면 안 된다. (#29)
+  flyway:
+    enabled: false
+
   datasource:
     url: jdbc:h2:mem:edumeet;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
