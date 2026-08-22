@@ -1,5 +1,5 @@
-version: '3.8'
-
+# 로컬 개발용. 운영은 docker-compose.prod.yml 을 쓴다.
+# version 키는 Compose v2 에서 무시되고 경고만 낸다. (#41)
 services:
   # MySQL 서비스
   mysql:
