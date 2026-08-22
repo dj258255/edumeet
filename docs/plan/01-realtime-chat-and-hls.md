@@ -61,7 +61,7 @@
 
 | | `INTERACTIVE` 화상강의 | `BROADCAST` 라이브방송 |
 |---|---|---|
-| 인원 | 정원 제한 (기본 30) | 제한 없음 (수천) |
+| 인원 | 정원 제한 (기본 30, **향후 100 예정**) | 제한 없음 (수천) |
 | fan-out | 메시지 1건 → 쓰기 **30회** | 메시지 1건 → 쓰기 **수천 회** |
 | 이력 | **보존해야 함** (수업 기록·질의응답) | 휘발 (최근 N건이면 충분) |
 | 메시지 유실 | **허용 안 됨** | 허용 |
@@ -310,11 +310,22 @@ socket.setReceiveBufferSize(4096);
 **두 채팅의 요구사항이 왜 다른지를 수치로 증명하는 단계.**
 
 ```bash
-k6 run -e ROOM_SIZE=30   k6/chat-fanout.js   # 화상강의 규모
+k6 run -e ROOM_SIZE=30   k6/chat-fanout.js   # 화상강의 현재
+k6 run -e ROOM_SIZE=100  k6/chat-fanout.js   # 화상강의 향후 정원
 k6 run -e ROOM_SIZE=300  k6/chat-fanout.js
 k6 run -e ROOM_SIZE=1000 k6/chat-fanout.js
 k6 run -e ROOM_SIZE=3000 k6/chat-fanout.js   # 라이브 규모
 ```
+
+> **100 을 측정 구간에 넣는 이유**: 화상강의 정원을 향후 30 → 100 으로 올릴 예정이다.
+> 어차피 인원을 스윕하므로 추가 비용이 0 이고, 그때 가서 근거를 다시 만들 필요가 없다.
+> 정원 자체는 `ClassRoom.participantLimit` 이라 **DB 값이지 하드코딩이 아니므로
+> 코드 변경 없이 올릴 수 있다.**
+>
+> 단 **"100 명이 전부 발행"** 은 다른 문제다. SFU 가 아니라 브라우저가 먼저 무너진다
+> (비디오 100 개 디코딩, 다운링크 30Mbps). 그때는 **입장 정원과 동시 발행 정원을 분리**해야 하고,
+> SDK 0.8.2 의 `updateParticipant(..., ParticipantPermission)` 으로 런타임 제어가 가능하다.
+> **지금은 만들지 않는다.**
 
 각 인원에서 발화율 10/50/100 msg/s를 스윕한다.
 
