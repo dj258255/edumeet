@@ -111,6 +111,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | | |
 |---|---|
 | [`ops/01-cicd-and-deploy.md`](ops/01-cicd-and-deploy.md) | GitHub Actions + OCI(ARM64) 배포 |
+| [`ops/02-egress-cost-model.md`](ops/02-egress-cost-model.md) | **전송 비용 모델** — 시청자 500명이 임계 구역 |
 
 ### 규칙
 

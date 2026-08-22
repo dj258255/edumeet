@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="336" viewBox="0 0 880 336" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="880" height="336" fill="#ffffff"/>
+<text x="28" y="32" font-size="18" font-weight="700" fill="#111827">CDN 캐시 히트율이 오리진 전송량을 얼마나 줄이나</text>
+<text x="28" y="53" font-size="12.5" fill="#6b7280">시청자 3,000명 1시간 기준 · 총 전송량은 같고 오리진 부담만 달라진다</text>
+<text x="218" y="93" text-anchor="end" font-size="13" font-weight="600" fill="#111827">WebRTC — 캐시 불가</text>
+<text x="218" y="108" text-anchor="end" font-size="11" fill="#6b7280">무료 한도로 5시간</text>
+<rect x="232" y="78" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="78" width="468.4" height="26" rx="4" fill="#dc2626"/>
+<text x="710.4" y="97" font-size="13.5" font-weight="700" fill="#dc2626">1867 GB</text>
+<text x="218" y="139" text-anchor="end" font-size="13" font-weight="600" fill="#111827">HLS+CDN 히트 50%</text>
+<text x="218" y="154" text-anchor="end" font-size="11" fill="#6b7280">무료 한도로 11시간</text>
+<rect x="232" y="124" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="124" width="234.2" height="26" rx="4" fill="#ea580c"/>
+<text x="476.2" y="143" font-size="13.5" font-weight="700" fill="#ea580c">933 GB</text>
+<text x="218" y="185" text-anchor="end" font-size="13" font-weight="600" fill="#111827">HLS+CDN 히트 80%</text>
+<text x="218" y="200" text-anchor="end" font-size="11" fill="#6b7280">무료 한도로 27시간</text>
+<rect x="232" y="170" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="170" width="93.7" height="26" rx="4" fill="#2563eb"/>
+<text x="335.7" y="189" font-size="13.5" font-weight="700" fill="#2563eb">373 GB</text>
+<text x="218" y="231" text-anchor="end" font-size="13" font-weight="600" fill="#111827">HLS+CDN 히트 95%</text>
+<text x="218" y="246" text-anchor="end" font-size="11" fill="#6b7280">무료 한도로 110시간</text>
+<rect x="232" y="216" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="216" width="23.4" height="26" rx="4" fill="#2563eb"/>
+<text x="265.4" y="235" font-size="13.5" font-weight="700" fill="#2563eb">93 GB</text>
+<text x="28" y="312" font-size="11.5" fill="#6b7280">WebRTC 는 stateful 이라 CDN 캐싱이 안 된다. 이게 방송을 HLS 로 빼는 진짜 이유다.</text>
+</svg>
