@@ -109,6 +109,25 @@ public class CustomRestAdvice {
      * <p>401(인증 필요)과 구분한다. 401 로 뭉뚱그리면 클라이언트가 "다시 로그인하면 되겠지"로
      * 오해한다.
      */
+    /**
+     * 잘못된 입력은 400 이다. (#27)
+     *
+     * <p>이전에는 서비스가 {@code catch (Exception e) -> throw new RuntimeException(...)} 으로
+     * 전부 재포장했다. IllegalArgumentException 도 RuntimeException 을 상속하므로 여기 걸려
+     * 컨트롤러의 400 분기는 <b>절대 실행되지 않았다.</b> 없는 classId 를 보내도 500 이 나갔다.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException e) {
+
+        log.warn("잘못된 요청: {}", e.getMessage());
+
+        Map<String, String> errorMap = new HashMap<>();
+        errorMap.put("time", "" + System.currentTimeMillis());
+        errorMap.put("msg", e.getMessage());
+        return ResponseEntity.badRequest().body(errorMap);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException e) {

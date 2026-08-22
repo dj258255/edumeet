@@ -77,11 +77,29 @@ class FlywayMigrationTest {
     void hibernate_accepts_the_migrated_schema() {
         // ddl-auto=none 인데 컨텍스트가 떴다는 것은
         // Flyway 가 만든 스키마로 EntityManagerFactory 가 구성됐다는 뜻이다.
-        Integer meetingColumns = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.columns " +
-                "WHERE table_schema = DATABASE() AND table_name = 'meeting'",
-                Integer.class);
+        // 컬럼 개수를 세는 단언은 마이그레이션이 추가될 때마다 깨진다.
+        // 개수가 아니라 "엔티티가 요구하는 컬럼이 있는가" 를 본다.
+        assertThat(columnsOf("meeting"))
+                .contains("id", "class_room_id", "title", "start_time", "session_type", "s3url");
+    }
 
-        assertThat(meetingColumns).isEqualTo(8);
+    @Test
+    @DisplayName("V2 가 요약본 컬럼을 추가한다")
+    void v2_adds_summary_columns() {
+        List<String> applied = jdbc.queryForList(
+                "SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank",
+                String.class);
+        assertThat(applied).as("V2 도 적용되어야 한다").contains("2");
+
+        assertThat(columnsOf("meeting"))
+                .as("MD 와 PDF URL 을 각각 저장한다 (#27)")
+                .contains("summary_md_url", "summary_pdf_url");
+    }
+
+    private List<String> columnsOf(String table) {
+        return jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns " +
+                "WHERE table_schema = DATABASE() AND table_name = ?",
+                String.class, table);
     }
 }

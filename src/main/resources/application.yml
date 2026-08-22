@@ -70,3 +70,9 @@ springdoc:
 logging:
   level:
     com.edu.edumeet: INFO
+
+edumeet:
+  internal:
+    # 서버 간 호출용 공유 시크릿. 파이썬 AI 서버가 X-Internal-Token 헤더로 보낸다. (#27)
+    # 비어 있으면 /api/v1/internal/** 은 전부 거부된다 (fail-closed).
+    api-token: ${INTERNAL_API_TOKEN:}
