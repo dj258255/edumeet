@@ -116,6 +116,10 @@ public class SecurityConfig {
                                 // show-details 를 when-authorized 로 막아 내부 정보는 안 나간다.
                                 "/actuator/health",
                                 "/actuator/health/**",
+                                // WebSocket 핸드셰이크. 여기서 막지 않고 STOMP CONNECT 에서 JWT 를 본다. (#33)
+                                // HTTP 필터는 핸드셰이크까지만 관여하고 이후 STOMP 프레임에는 관여하지 않으므로,
+                                // 어차피 프레임 단계의 인증이 따로 필요하다. StompAuthChannelInterceptor 가 한다.
+                                "/ws/**",
                                 // Spring 은 처리되지 않은 요청을 /error 로 포워드한다.
                                 // 여기가 인증을 요구하면 404 든 500 이든 전부 401 로 둔갑해서
                                 // "인증이 잘못됐나" 를 한참 뒤진다. 실제 상태 코드가 나가게 열어둔다.

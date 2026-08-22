@@ -59,17 +59,29 @@ class FlywayMigrationTest {
                 .contains("1");
     }
 
+    /**
+     * V1 baseline 이 만드는 테이블. 개수를 세면 마이그레이션이 추가될 때마다 깨진다.
+     * <b>이름으로 확인하면 V2·V3 가 무엇을 더 만들든 이 단언은 유효하다.</b>
+     */
+    private static final List<String> BASELINE_TABLES = List.of(
+            "assignment", "assignment_file_upload", "board", "board_category", "board_file_upload",
+            "class_invite", "class_member", "class_room", "class_room_seq", "class_room_tags",
+            "meeting", "meeting_participant", "member", "refresh_token", "reply",
+            "student_submission_status", "submission", "submission_file_upload");
+
     @Test
     @DisplayName("V1 이 엔티티가 기대하는 테이블을 전부 만든다")
-    void v1_creates_all_tables() {
-        Integer tableCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.tables " +
-                "WHERE table_schema = DATABASE() AND table_name <> 'flyway_schema_history'",
-                Integer.class);
+    void v1_creates_all_baseline_tables() {
+        assertThat(allTables())
+                .as("baseline 은 엔티티에서 생성했으므로 이 목록이 전부 있어야 한다")
+                .containsAll(BASELINE_TABLES);
+    }
 
-        assertThat(tableCount)
-                .as("엔티티에서 생성한 baseline 이므로 18개 테이블이 나와야 한다")
-                .isEqualTo(18);
+    private List<String> allTables() {
+        return jdbc.queryForList(
+                "SELECT table_name FROM information_schema.tables " +
+                "WHERE table_schema = DATABASE() AND table_name <> 'flyway_schema_history'",
+                String.class);
     }
 
     @Test
@@ -94,6 +106,19 @@ class FlywayMigrationTest {
         assertThat(columnsOf("meeting"))
                 .as("MD 와 PDF URL 을 각각 저장한다 (#27)")
                 .contains("summary_md_url", "summary_pdf_url");
+    }
+
+    @Test
+    @DisplayName("V3 가 채팅 테이블을 만든다")
+    void v3_creates_chat_message() {
+        List<String> applied = jdbc.queryForList(
+                "SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank",
+                String.class);
+        assertThat(applied).contains("3");
+
+        assertThat(allTables()).contains("chat_message");
+        assertThat(columnsOf("chat_message"))
+                .contains("meeting_id", "sender_email", "content", "sent_at");
     }
 
     private List<String> columnsOf(String table) {

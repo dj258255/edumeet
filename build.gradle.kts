@@ -39,6 +39,8 @@ dependencies {
     implementation("org.springframework.data:spring-data-redis:3.2.5")
     // Spring Security
     implementation("org.springframework.boot:spring-boot-starter-security")
+    // 채팅. STOMP + SimpleBroker 로 시작한다 - 기본 구성의 한계를 먼저 재기 위해서다. (#33)
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
 
     // 스키마 마이그레이션. 운영은 ddl-auto=none 이라 스키마 변경 경로가 없었다. (#29)
     // 평문 SQL 이라 DBA 리뷰와 수동 실행이 가능하다. 단일 DB(MySQL)라 Liquibase 의 추상화 이점이 없다.
