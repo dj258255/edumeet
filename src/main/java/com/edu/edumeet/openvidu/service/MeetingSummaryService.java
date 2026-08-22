@@ -1,271 +1,183 @@
 package com.edu.edumeet.openvidu.service;
 
-import com.edu.edumeet.classroom.domain.ClassRoom;
-import com.edu.edumeet.classroom.repository.ClassRepository;
 import com.edu.edumeet.openvidu.domain.Meeting;
+import com.edu.edumeet.openvidu.dto.SummaryUploadResult;
 import com.edu.edumeet.openvidu.repository.MeetingRepository;
 import com.edu.edumeet.s3.util.S3Uploader;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
+/**
+ * 파이썬 AI 서버가 만든 회의 요약본(MD/PDF)을 S3 에 올리고 회의에 연결한다. (#27)
+ *
+ * <h3>트랜잭션 경계를 왜 이렇게 잡았나</h3>
+ * 이전 구현은 메서드 전체가 {@code @Transactional} 이었고 그 안에서 S3 업로드를 두 번 했다.
+ * PDF 50MB 를 올리는 동안 DB 커넥션을 계속 붙잡는다. 커넥션 풀 고갈 경로다.
+ *
+ * <p>그래서 <b>느린 네트워크 I/O 를 트랜잭션 밖으로</b> 뺐다:
+ * <pre>
+ *   검증        (트랜잭션 없음)
+ *   회의 조회    (짧은 읽기)
+ *   S3 업로드    (트랜잭션 없음 - 여기가 오래 걸린다)
+ *   DB 기록      (짧은 쓰기)
+ * </pre>
+ *
+ * <h3>왜 TransactionTemplate 인가</h3>
+ * 오케스트레이션 메서드에서 {@code this.write(...)} 를 부르면
+ * <b>Spring AOP 프록시를 거치지 않아 {@code @Transactional} 이 무시된다.</b>
+ * 별도 빈으로 쪼개거나 TransactionTemplate 을 쓰는 수밖에 없는데,
+ * 여기서는 <b>트랜잭션 경계가 코드에 그대로 보이는</b> 쪽을 택했다.
+ */
 @Service
 @RequiredArgsConstructor
-@Log4j2
-@Transactional(readOnly = true)
+@Slf4j
 public class MeetingSummaryService {
 
+    private static final long MAX_MD_BYTES = 10L * 1024 * 1024;
+    private static final long MAX_PDF_BYTES = 50L * 1024 * 1024;
+    private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
     private final MeetingRepository meetingRepository;
-    private final ClassRepository classRepository;
     private final S3Uploader s3Uploader;
+    private final TransactionTemplate transactionTemplate;
 
     /**
-     * 파이썬에서 보낸 요약본 파일들을 S3에 업로드하고 Meeting의 s3url에 저장
-     * 파이썬 코드의 send_summary_to_api 함수 요청을 처리
+     * 요약본을 업로드한다. 회의는 <b>이미 존재해야 한다.</b>
+     *
+     * <p>이전 구현은 meetingId 가 없으면 최신 회의에 덮어쓰거나 "AI 요약 미팅" 을 새로 만들었다.
+     * 열린 적 없는 회의가 DB 에 생기고, 엉뚱한 회의에 요약본이 붙었다.
+     * 요약본은 <b>이미 끝난 회의의 산출물</b>이므로 회의를 만들 이유가 없다.
      */
-    @Transactional
-    public Map<String, String> uploadSummaryFiles(Long classId, Long meetingId,
-                                                  MultipartFile summaryMd, MultipartFile summaryPdf) {
+    public SummaryUploadResult uploadSummary(Long meetingId, MultipartFile markdown, MultipartFile pdf) {
+        validate(markdown, pdf);
 
-        log.info("📤 요약본 파일 업로드 시작 - classId: {}, meetingId: {}", classId, meetingId);
-        
-        try {
-            // 1. 클래스 존재 여부 확인
-            log.info("🔍 ClassRepository 확인 중...");
-            ClassRoom classRoom = classRepository.findById(classId)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 클래스입니다: " + classId));
-            log.info("✅ 클래스 조회 성공: {}", classRoom.getTitle());
+        Meeting meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 미팅입니다: " + meetingId));
 
-            // 2. Meeting 조회 또는 생성
-            log.info("🔍 Meeting 조회/생성 중...");
-            Meeting meeting = findOrCreateMeeting(classId, meetingId, classRoom);
-            log.info("✅ Meeting 준비 완료: {}", meeting.getId());
-
-            Map<String, String> result = new HashMap<>();
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String s3Directory = String.format("summaries/class_%s/meeting_%s_%s", 
-                                              classId, meeting.getId(), timestamp);
-            log.info("📁 S3 디렉토리: {}", s3Directory);
-
-            String primaryUrl = null; // s3url 필드에 저장할 주요 URL (PDF 우선, 없으면 MD)
-            boolean hasUploadedFile = false;
-
-            // 3. Markdown 파일 업로드
-            if (summaryMd != null && summaryMd.getOriginalFilename() != null) {
-                log.info("🔍 Markdown 파일 업로드 시작... (size: {})", summaryMd.getSize());
-                
-                // 빈 파일 경고만 출력하고 계속 진행
-                if (summaryMd.isEmpty()) {
-                    log.warn("⚠️ Markdown 파일이 비어있지만 계속 진행합니다.");
-                } else {
-                    validateMarkdownFile(summaryMd);
-                }
-                
-                String mdFileName = String.format("summary_%s.md", timestamp);
-                String mdUrl = s3Uploader.uploadMultipartFile(summaryMd, s3Directory, mdFileName);
-                result.put("summary_md_url", mdUrl);
-                primaryUrl = mdUrl; // MD를 일단 primary로 설정
-                hasUploadedFile = true;
-                log.info("✅ Markdown 파일 S3 업로드 완료: {}", mdUrl);
-            }
-
-            // 4. PDF 파일 업로드 (우선순위 높음)
-            if (summaryPdf != null && summaryPdf.getOriginalFilename() != null) {
-                log.info("🔍 PDF 파일 업로드 시작... (size: {})", summaryPdf.getSize());
-                
-                // 빈 파일 경고만 출력하고 계속 진행
-                if (summaryPdf.isEmpty()) {
-                    log.warn("⚠️ PDF 파일이 비어있지만 계속 진행합니다.");
-                } else {
-                    validatePdfFile(summaryPdf);
-                }
-                
-                String pdfFileName = String.format("summary_%s.pdf", timestamp);
-                String pdfUrl = s3Uploader.uploadMultipartFile(summaryPdf, s3Directory, pdfFileName);
-                result.put("summary_pdf_url", pdfUrl);
-                primaryUrl = pdfUrl; // PDF가 있으면 항상 primaryUrl로 덮어쓰기 (우선순위)
-                hasUploadedFile = true;
-                log.info("✅ PDF 파일 S3 업로드 완료: {}", pdfUrl);
-            }
-
-            // 업로드된 파일이 하나도 없으면 에러
-            if (!hasUploadedFile) {
-                throw new IllegalArgumentException("업로드할 파일이 없습니다. MD 또는 PDF 파일 중 하나는 필요합니다.");
-            }
-
-            // 5. Meeting 엔티티의 s3url 필드 업데이트 (primaryUrl은 항상 존재)
-            log.info("🔍 Meeting 엔티티 업데이트 중...");
-            meeting.changeS3Url(primaryUrl);
-            meetingRepository.save(meeting);
-            log.info("✅ Meeting s3url 업데이트 완료 - meetingId: {}, s3url: {}", 
-                    meeting.getId(), primaryUrl);
-            
-            // 업로드된 파일 정보 로깅
-            StringBuilder uploadInfo = new StringBuilder("업로드된 파일: ");
-            if (result.containsKey("summary_md_url")) {
-                uploadInfo.append("MD ");
-            }
-            if (result.containsKey("summary_pdf_url")) {
-                uploadInfo.append("PDF ");
-            }
-            uploadInfo.append("(Primary: ").append(primaryUrl.contains(".pdf") ? "PDF" : "MD").append(")");
-            log.info(uploadInfo.toString());
-
-            // 6. 응답 데이터 구성
-            result.put("class_id", classId.toString());
-            result.put("meeting_id", meeting.getId().toString());
-            result.put("s3_url", primaryUrl);
-            result.put("uploaded_at", LocalDateTime.now().toString());
-
-            log.info("🎉 요약본 업로드 완료 - classId: {}, meetingId: {}, primaryUrl: {}, uploadedFiles: {}",
-                    classId, meeting.getId(), primaryUrl, 
-                    result.keySet().stream()
-                        .filter(key -> key.endsWith("_url"))
-                        .reduce((a, b) -> a + ", " + b)
-                        .orElse("none"));
-
-            return result;
-
-        } catch (Exception e) {
-            log.error("❌ 요약본 업로드 실패 - classId: {}, meetingId: {}", classId, meetingId, e);
-            throw new RuntimeException("요약본 업로드 실패: " + e.getMessage(), e);
+        // 빠른 경로. 이미 있으면 S3 업로드 자체를 건너뛴다.
+        // 실제 판정은 아래 쓰기 트랜잭션 안에서 한 번 더 한다 (경쟁 조건).
+        if (meeting.hasSummary()) {
+            log.info("요약본이 이미 있어 업로드를 건너뛴다 - meetingId={}", meetingId);
+            return existingResult(meeting);
         }
+
+        String directory = "summaries/meeting_%d_%s".formatted(meetingId, LocalDateTime.now().format(STAMP));
+        String stamp = LocalDateTime.now().format(STAMP);
+
+        // --- 트랜잭션 밖. 여기가 수십 초 걸릴 수 있다. ---
+        String markdownUrl = upload(markdown, directory, "summary_%s.md".formatted(stamp));
+        String pdfUrl = upload(pdf, directory, "summary_%s.pdf".formatted(stamp));
+
+        return record(meetingId, markdownUrl, pdfUrl);
     }
 
     /**
-     * Meeting 조회 또는 생성
-     * meetingId가 있으면 해당 Meeting 조회, 없으면 새로 생성
+     * 회의에 요약본 URL 을 기록한다. 짧은 쓰기 트랜잭션이다.
+     *
+     * <p>여기서 {@code hasSummary()} 를 다시 확인하는 이유:
+     * 위쪽 빠른 경로와 이 시점 사이에 다른 요청이 먼저 기록했을 수 있다.
+     * 트랜잭션 안에서 확인해야 <b>마지막 판정</b>이 된다.
      */
-    private Meeting findOrCreateMeeting(Long classId, Long meetingId, ClassRoom classRoom) {
-        if (meetingId != null) {
-            // meetingId가 주어진 경우 해당 Meeting 조회
+    private SummaryUploadResult record(Long meetingId, String markdownUrl, String pdfUrl) {
+        return transactionTemplate.execute(status -> {
             Meeting meeting = meetingRepository.findById(meetingId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 미팅입니다: " + meetingId));
 
-            // 미팅이 해당 클래스에 속하는지 확인
-            if (!meeting.getClassRoom().getId().equals(classId)) {
-                throw new IllegalArgumentException("미팅이 해당 클래스에 속하지 않습니다.");
+            if (meeting.hasSummary()) {
+                log.info("경쟁하는 요청이 먼저 기록했다. 이번 업로드는 반영하지 않는다 - meetingId={}", meetingId);
+                return existingResult(meeting);
             }
-            
-            log.info("📋 기존 Meeting 사용 - meetingId: {}", meetingId);
-            return meeting;
-        } else {
-            // meetingId가 없으면 해당 클래스의 최신 미팅 조회 또는 새로 생성
-            Optional<Meeting> latestMeeting = meetingRepository.findTopByClassRoomIdOrderByStartTimeDesc(classId);
-            
-            if (latestMeeting.isPresent()) {
-                Meeting meeting = latestMeeting.get();
-                log.info("📋 최신 Meeting 사용 - meetingId: {}", meeting.getId());
-                return meeting;
-            } else {
-                // 미팅이 없으면 새로 생성
-                Meeting newMeeting = Meeting.builder()
-                        .classRoom(classRoom)
-                        .title("AI 요약 미팅 - " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
-                        .description("파이썬 AI 서버에서 생성된 요약본")
-                        .startTime(LocalDateTime.now())
-                        .build();
-                
-                Meeting savedMeeting = meetingRepository.save(newMeeting);
-                log.info("📋 새 Meeting 생성 - meetingId: {}", savedMeeting.getId());
-                return savedMeeting;
+
+            meeting.recordSummary(markdownUrl, pdfUrl);
+            log.info("요약본 기록 완료 - meetingId={}, md={}, pdf={}", meetingId, markdownUrl != null, pdfUrl != null);
+            return new SummaryUploadResult(
+                    meetingId, meeting.getClassRoom().getId(), markdownUrl, pdfUrl, false);
+        });
+    }
+
+    private SummaryUploadResult existingResult(Meeting meeting) {
+        return new SummaryUploadResult(
+                meeting.getId(),
+                meeting.getClassRoom().getId(),
+                meeting.getSummaryMdUrl(),
+                meeting.getSummaryPdfUrl(),
+                true);
+    }
+
+    private String upload(MultipartFile file, String directory, String fileName) {
+        if (isAbsent(file)) {
+            return null;
+        }
+        return s3Uploader.uploadMultipartFile(file, directory, fileName);
+    }
+
+    /**
+     * 요약본 조회. 이제 MD 와 PDF 를 <b>둘 다</b> 돌려준다.
+     * 이전에는 s3url 단일 컬럼이라 PDF 가 MD 를 덮어썼고 MD 는 조회할 방법이 없었다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<SummaryUploadResult> findLatestSummary(Long classId) {
+        return meetingRepository
+                .findTopByClassRoomIdAndS3urlIsNotNullOrderByStartTimeDesc(classId)
+                .map(this::existingResult);
+    }
+
+    // --- 검증 ---
+
+    /**
+     * 이전 구현은 빈 파일이면 경고만 찍고 검증을 <b>건너뛴 뒤 그대로 업로드</b>했다.
+     * 0바이트 객체가 S3 에 올라가고 DB 에 URL 이 박혔다.
+     */
+    private void validate(MultipartFile markdown, MultipartFile pdf) {
+        boolean hasMarkdown = !isAbsent(markdown);
+        boolean hasPdf = !isAbsent(pdf);
+
+        if (!hasMarkdown && !hasPdf) {
+            throw new IllegalArgumentException("업로드할 파일이 없습니다. Markdown(.md) 또는 PDF(.pdf) 중 하나는 필요합니다.");
+        }
+        if (hasMarkdown) {
+            requireExtensionOrType(markdown, ".md", "text/markdown", "text/x-markdown", "text/plain");
+            requireSizeUnder(markdown, MAX_MD_BYTES, "Markdown", "10MB");
+        }
+        if (hasPdf) {
+            requireExtensionOrType(pdf, ".pdf", "application/pdf");
+            requireSizeUnder(pdf, MAX_PDF_BYTES, "PDF", "50MB");
+        }
+    }
+
+    /** 파일 파트가 아예 없거나, 이름이 없거나, 내용이 비었으면 "없는 것" 으로 본다. */
+    private boolean isAbsent(MultipartFile file) {
+        return file == null || file.isEmpty() || file.getOriginalFilename() == null;
+    }
+
+    private void requireExtensionOrType(MultipartFile file, String extension, String... contentTypes) {
+        String name = file.getOriginalFilename();
+        if (name != null && name.toLowerCase().endsWith(extension)) {
+            return;
+        }
+        String actual = file.getContentType();
+        if (actual != null) {
+            for (String allowed : contentTypes) {
+                if (actual.contains(allowed)) {
+                    return;
+                }
             }
         }
+        throw new IllegalArgumentException(
+                "유효하지 않은 %s 파일입니다: name=%s, contentType=%s".formatted(extension, name, actual));
     }
 
-    /**
-     * 클래스의 요약본 정보 조회
-     */
-    public Map<String, String> getSummaryInfo(Long classId) {
-
-        ClassRoom classRoom = classRepository.findById(classId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 클래스입니다: " + classId));
-
-        Map<String, String> result = new HashMap<>();
-        result.put("class_id", classId.toString());
-        result.put("class_name", classRoom.getTitle());
-
-        // 해당 클래스의 요약본이 있는 최신 미팅 조회 (s3url 기준)
-        Optional<Meeting> latestMeetingWithSummary = meetingRepository
-                .findTopByClassRoomIdAndS3urlIsNotNullOrderByStartTimeDesc(classId);
-
-        if (latestMeetingWithSummary.isPresent()) {
-            Meeting meeting = latestMeetingWithSummary.get();
-            result.put("latest_meeting_id", meeting.getId().toString());
-            result.put("latest_meeting_title", meeting.getTitle());
-            result.put("latest_meeting_s3_url", meeting.getS3url());
-            result.put("latest_meeting_start_time", meeting.getStartTime().toString());
-        } else {
-            result.put("message", "요약본이 있는 미팅이 없습니다.");
-        }
-
-        return result;
-    }
-
-    /**
-     * Markdown 파일 검증
-     */
-    private void validateMarkdownFile(MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new IllegalArgumentException("Markdown 파일이 비어있습니다.");
-        }
-
-        String contentType = file.getContentType();
-        String fileName = file.getOriginalFilename();
-
-        log.debug("📝 Markdown 파일 검증 - fileName: {}, contentType: {}, size: {}", 
-                 fileName, contentType, file.getSize());
-
-        // Content-Type 또는 파일 확장자로 검증
-        boolean isValidMd = (contentType != null &&
-                (contentType.contains("text/markdown") ||
-                        contentType.contains("text/x-markdown") ||
-                        contentType.contains("text/plain"))) ||
-                (fileName != null && fileName.toLowerCase().endsWith(".md"));
-
-        if (!isValidMd) {
-            throw new IllegalArgumentException("유효하지 않은 Markdown 파일입니다.");
-        }
-
-        // 파일 크기 제한 (10MB)
-        if (file.getSize() > 10 * 1024 * 1024) {
-            throw new IllegalArgumentException("Markdown 파일 크기가 너무 큽니다. (최대 10MB)");
-        }
-    }
-
-    /**
-     * PDF 파일 검증
-     */
-    private void validatePdfFile(MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new IllegalArgumentException("PDF 파일이 비어있습니다.");
-        }
-
-        String contentType = file.getContentType();
-        String fileName = file.getOriginalFilename();
-
-        log.debug("📄 PDF 파일 검증 - fileName: {}, contentType: {}, size: {}", 
-                 fileName, contentType, file.getSize());
-
-        // Content-Type 또는 파일 확장자로 검증
-        boolean isValidPdf = (contentType != null && contentType.contains("application/pdf")) ||
-                (fileName != null && fileName.toLowerCase().endsWith(".pdf"));
-
-        if (!isValidPdf) {
-            throw new IllegalArgumentException("유효하지 않은 PDF 파일입니다.");
-        }
-
-        // 파일 크기 제한 (50MB)
-        if (file.getSize() > 50 * 1024 * 1024) {
-            throw new IllegalArgumentException("PDF 파일 크기가 너무 큽니다. (최대 50MB)");
+    private void requireSizeUnder(MultipartFile file, long limit, String label, String humanLimit) {
+        if (file.getSize() > limit) {
+            throw new IllegalArgumentException("%s 파일이 너무 큽니다. (최대 %s)".formatted(label, humanLimit));
         }
     }
 }

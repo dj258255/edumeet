@@ -61,6 +61,9 @@ spring:
             user-name-attribute: id
 
 edumeet:
+  # 테스트 전용 더미 값. (#27)
+  internal:
+    api-token: test-internal-token
   upload:
     path: ${java.io.tmpdir}/edumeet-test-upload
 

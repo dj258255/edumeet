@@ -2,6 +2,7 @@ package com.edu.edumeet.config;
 
 import com.edu.edumeet.config.jwt.JwtAuthenticationEntryPoint;
 import com.edu.edumeet.config.jwt.JwtAuthenticationFilter;
+import com.edu.edumeet.config.internal.InternalApiTokenFilter;
 import com.edu.edumeet.member.service.CustomOauth2UserService;
 import com.edu.edumeet.util.CustomOAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final InternalApiTokenFilter internalApiTokenFilter;
     private final CorsConfigurationSource corsConfigurationSource;
     private final CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
     private final CustomOauth2UserService customOauth2UserService;
@@ -83,12 +85,16 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**"
                         ).permitAll()
+                        // 서버 간 호출. 사용자 JWT 가 아니라 공유 시크릿으로 인증한다. (#27)
+                        // 경로를 분리해야 "사용자 인증" 과 "서비스 인증" 규칙이 섞이지 않는다.
+                        .requestMatchers("/api/v1/internal/**").hasRole("INTERNAL")
                         .anyRequest().authenticated()
                 )
 
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .exceptionHandling(e -> e.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(internalApiTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

@@ -40,7 +40,11 @@ class ApiAuthenticationRequiredTest {
         mockMvc.perform(get("/api/v1/meetingroom/1"))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(post("/api/v1/meeting/summary/1"))
+        mockMvc.perform(get("/api/v1/meeting/summary/1"))
+                .andExpect(status().isUnauthorized());
+
+        // 서버 간 경로도 사용자 JWT 로는 못 뚫는다. X-Internal-Token 이 있어야 한다. (#27)
+        mockMvc.perform(post("/api/v1/internal/meetings/1/summary"))
                 .andExpect(status().isUnauthorized());
     }
 

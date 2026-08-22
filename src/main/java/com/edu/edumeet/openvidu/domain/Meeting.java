@@ -41,7 +41,17 @@ public class Meeting {
 
     private LocalDateTime endTime;
 
+    /**
+     * 하위 호환용. PDF 가 있으면 PDF, 없으면 MD 를 담는다.
+     * 새 코드는 summaryMdUrl / summaryPdfUrl 을 직접 본다. (#27)
+     */
     private String s3url;
+
+    @Column(name = "summary_md_url", length = 500)
+    private String summaryMdUrl;
+
+    @Column(name = "summary_pdf_url", length = 500)
+    private String summaryPdfUrl;
 
     public void assignTo(ClassRoom classRoom) {
         this.classRoom = classRoom;
@@ -73,6 +83,24 @@ public class Meeting {
 
     public void changeS3Url(String newS3Url) {
         this.s3url = newS3Url;
+    }
+
+    /**
+     * 요약본 URL 을 기록한다. 둘 다 null 이면 호출하는 쪽 잘못이다.
+     * s3url 은 기존 조회 코드가 계속 읽으므로 함께 갱신한다. (#27)
+     */
+    public void recordSummary(String markdownUrl, String pdfUrl) {
+        if (markdownUrl == null && pdfUrl == null) {
+            throw new IllegalArgumentException("요약본 URL 이 하나도 없습니다.");
+        }
+        this.summaryMdUrl = markdownUrl;
+        this.summaryPdfUrl = pdfUrl;
+        this.s3url = (pdfUrl != null) ? pdfUrl : markdownUrl;
+    }
+
+    /** 이미 요약본이 기록되어 있는가. 멱등성 판단에 쓴다. */
+    public boolean hasSummary() {
+        return this.summaryMdUrl != null || this.summaryPdfUrl != null;
     }
 
     @PrePersist @PreUpdate
