@@ -63,6 +63,22 @@ Spring Boot 문서도 이 목록에 *"Spring WebSocket inbound/outbound message 
 
 > **공식 문서 어디에도 "위험하다"고 안 쓰여 있고, 한국어 블로그에도 거의 안 나온다.**
 
+### ⚠ 정확히 — "덮어쓸 수 없다"가 아니라 "아무도 안 바꾼다"
+
+`WebSocketMessageConverterConfiguration` 에 **`@Order(0)`** 이 붙어 있고,
+사용자 `WebSocketMessageBrokerConfigurer` 는 기본이 `LOWEST_PRECEDENCE` 라 **나중에 실행된다.**
+`ChannelRegistration.executor()` 는 단순 setter이므로 **나중에 호출한 쪽이 이긴다.**
+
+**→ `configureClientOutboundChannel` 을 오버라이드하면 재정의된다.**
+
+이 `@Order(0)` 은 [spring-boot#42924](https://github.com/spring-projects/spring-boot/issues/42924)
+에서 Spring 팀이 *"We consider this a bug and we're going to add `@Order(0)`"* 라며 붙인 것이다.
+근본 설계 문제는 [#44946](https://github.com/spring-projects/spring-boot/issues/44946) /
+[PR#50494](https://github.com/spring-projects/spring-boot/pull/50494) 로 **아직 미해결**.
+
+`ChannelRegistration.executor()` javadoc(6.2): *"taking precedence over a task executor
+registration if any"* — `taskExecutor()` 와 `executor()` 를 동시에 쓰면 **`executor()` 가 이긴다.**
+
 ### 1-4. 공식 문서의 경고 문구 (원문)
 
 > *"If clients are on a fast network, the number of threads should remain close to the number
@@ -117,8 +133,23 @@ private static final int DEFAULT_TIME_TO_FIRST_MESSAGE = 60 * 1000;  // 60초
 
 `OverflowStrategy` = `TERMINATE`(기본) / `DROP`(오래된 메시지 폐기, Spring 5.1+)
 
-> **⚠ `DROP`은 `WebSocketTransportRegistration`에 노출되어 있지 않다.**
-> 데코레이터를 직접 만들어 `DecoratorFactory`로 끼워야 한다. **이것 자체가 좋은 소재다.**
+> **⚠ 정정: STOMP 에서는 `DROP` 을 공식적으로 켤 수 없다.**
+>
+> `SubProtocolWebSocketHandler.decorateSession()` 이 **3-arg 생성자를 하드코딩**해
+> 무조건 `TERMINATE` 다. `WebSocketTransportRegistration` 에 `OverflowStrategy` 설정 메서드가
+> 없고, **`addDecoratorFactory` 는 `WebSocketHandler` 를 감싸지 세션을 감싸지 않는다.**
+>
+> DROP 을 쓰려면 `SubProtocolWebSocketHandler` 를 상속해 `decorateSession()` 을 오버라이드하고
+> `subProtocolWebSocketHandler` 빈을 교체해야 한다 — **비공식 우회.**
+> raw WebSocketHandler(STOMP 미사용)라면 `addDecoratorFactory` 가 정확히 그 지점이다.
+
+**그리고 `sendTimeLimit` 초과는 전략과 무관하다.**
+`checkSessionLimits()` 소스: **sendTimeLimit 초과 → 항상 예외**,
+**bufferSizeLimit 초과일 때만** TERMINATE / DROP 이 갈린다.
+`CloseStatus.SESSION_NOT_RELIABLE` = **코드 4500**.
+
+**종료 감지**: `StompSubProtocolHandler.afterSessionEnded()` 가 `SessionDisconnectEvent` 를 발행한다.
+`event.getCloseStatus()` 가 `SESSION_NOT_RELIABLE` 이면 느린 클라 강제 종료다 → **측정 가능.**
 
 ---
 

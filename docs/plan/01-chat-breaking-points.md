@@ -175,6 +175,61 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;          // 20초
 > **느린 클라이언트 1명이 아웃바운드 스레드 1개를 최대 20초 점유한다.
 > 8명이면 채팅 전체가 멈춘다.**
 
+### ⚠ 정확한 서술 — "덮어쓸 수 없다"가 아니다
+
+`WebSocketMessageConverterConfiguration` 에 **`@Order(0)`** 이 붙어 있고,
+사용자가 만든 `WebSocketMessageBrokerConfigurer` 는 기본이 `LOWEST_PRECEDENCE` 라
+**나중에 실행된다.** `ChannelRegistration.executor()` 는 단순 setter다.
+
+```
+Boot 기본 설정   @Order(0)            ← 먼저 실행
+내 Configurer    LOWEST_PRECEDENCE    ← 나중에 실행 → 이긴다
+```
+
+**→ `configureClientOutboundChannel` 을 오버라이드하면 그냥 재정의된다.**
+
+이 `@Order(0)` 자체가 [spring-boot#42924](https://github.com/spring-projects/spring-boot/issues/42924)
+에서 *"We consider this a bug and we're going to add `@Order(0)`... we'll do it in 3.4.x"* 로 붙은 것이다.
+**근본 설계 문제(WS 채널이 `applicationTaskExecutor` 를 재사용하는 것)는
+[#44946](https://github.com/spring-projects/spring-boot/issues/44946),
+[PR#50494](https://github.com/spring-projects/spring-boot/pull/50494) 로 아직 미해결이다.**
+
+> 정확한 문장은 **"덮어쓸 수 없다"** 가 아니라 **"기본값이 위험한데 아무도 바꾸지 않는다"** 이다.
+
+### 해결 코드 (Phase 3 에서 쓸 것)
+
+```java
+@Bean
+ThreadPoolTaskExecutor clientOutboundExecutor() {
+    ThreadPoolTaskExecutor e = new ThreadPoolTaskExecutor();
+    e.setCorePoolSize(4);
+    e.setMaxPoolSize(8);
+    e.setQueueCapacity(1000);                          // 무제한 방지 → 붕괴 ③ 차단
+    e.setThreadNamePrefix("ws-outbound-");
+    e.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+    return e;
+}
+
+@Override
+public void configureClientOutboundChannel(ChannelRegistration r) {
+    r.taskExecutor(clientOutboundExecutor());
+}
+```
+
+**`TaskExecutorRegistration` 에는 `RejectedExecutionHandler` 설정 메서드가 없다.**
+거부 정책까지 제어하려면 위처럼 직접 만든 `ThreadPoolTaskExecutor` 를 주입해야 한다.
+`spring.task.execution.pool.*` 에 `rejected-execution-handler` 프로퍼티 자체가 없고,
+`configureClientOutboundChannel` 을 재정의하는 순간 **그 프로퍼티들은 WS 채널에 무영향**이 된다.
+
+**거부 정책 선택**
+
+| 정책 | 채팅에서의 결과 |
+|---|---|
+| **`AbortPolicy`**(기본) | 호출부로 예외 전파 → 그 메시지 소실 + **로그로 즉시 감지**. 가장 다루기 쉬움 |
+| `CallerRunsPolicy` | 자연스러운 백프레셔지만, 호출자가 브로커 fan-out 루프면 **그 스레드가 소켓 I/O 로 막혀 연쇄 지연** |
+| `DiscardPolicy` | 조용히 버림. **채팅에 부적합** |
+| `DiscardOldestPolicy` | **채널 전체 큐**에서 오래된 것을 버림 → 무관한 정상 클라 메시지가 삭제될 수 있음(오폭) |
+
 ### Spring이 가진 방어 장치와 기본값
 
 ```java
@@ -187,9 +242,48 @@ TIME_TO_FIRST_MESSAGE = 60 * 1000;       // 60초
 한도 초과 시 `SessionLimitExceededException` + `CloseStatus.SESSION_NOT_RELIABLE`로 세션 강제 종료.
 `OverflowStrategy`는 `TERMINATE`(기본) / `DROP`(오래된 메시지 폐기) 두 가지.
 
-**`DROP`은 `WebSocketTransportRegistration`에 노출되어 있지 않다.**
-`ConcurrentWebSocketSessionDecorator`를 직접 만들어 `DecoratorFactory`로 끼워야 한다.
-→ 이것 자체가 좋은 소재다. `BROADCAST`는 DROP, `INTERACTIVE`는 TERMINATE로 갈린다.
+### ⚠ 정정 — STOMP 에서는 `DROP` 을 공식적으로 켤 수 없다
+
+```java
+// SubProtocolWebSocketHandler.decorateSession() 실제 소스
+protected WebSocketSession decorateSession(WebSocketSession session) {
+    return new ConcurrentWebSocketSessionDecorator(session, getSendTimeLimit(), getSendBufferSizeLimit());
+    // 3-arg 생성자 = OverflowStrategy.TERMINATE 하드코딩
+}
+```
+
+- `WebSocketTransportRegistration` 에 **`OverflowStrategy` 설정 메서드가 없다**
+- **`addDecoratorFactory` 가 감싸는 것은 `WebSocketHandler` 지 세션이 아니다.**
+  세션 데코레이션은 `afterConnectionEstablished()` 안에서 별도로 일어난다
+
+**→ DROP 을 쓰려면 `SubProtocolWebSocketHandler` 를 상속해 `decorateSession()` 을 오버라이드하고
+`subProtocolWebSocketHandler` 빈을 교체해야 한다. 비공식 우회다.**
+
+> **이게 오히려 좋은 소재다.** *"BROADCAST 는 DROP, INTERACTIVE 는 TERMINATE 로 나누려 했는데
+> 프레임워크가 막아놨다"* → 소스로 확인 → **우회하거나, 포기하고 근거를 남긴다.** 둘 다 결과다.
+
+**그리고 `sendTimeLimit` 초과는 전략과 무관하다.**
+
+```
+sendTimeLimit 초과     → 전략과 무관하게 항상 SessionLimitExceededException
+bufferSizeLimit 초과   → 여기서만 TERMINATE / DROP 이 갈린다
+```
+
+`CloseStatus.SESSION_NOT_RELIABLE` = **코드 4500**,
+reason `"Failed to send message within the configured send limit"`.
+
+### ★ 측정 지표가 생겼다 — 느린 클라 종료를 셀 수 있다
+
+```java
+@EventListener
+public void onDisconnect(SessionDisconnectEvent event) {
+    if (CloseStatus.SESSION_NOT_RELIABLE.equals(event.getCloseStatus())) {
+        slowClientEvictions.increment();   // Micrometer
+    }
+}
+```
+
+**Phase 3 의 핵심 지표다.** *"느린 클라이언트가 몇 명 강제 종료됐는가"* 를 직접 셀 수 있다.
 
 ### 통념 정정 — 이것도 기록 가치가 있다
 
@@ -620,6 +714,46 @@ Discord Maxjourney: 1,000명이 각각 1개 = 100만 알림 / 10만 명이면 **
 해법은 하나같이 전송량 자체를 줄이는 것 — Discord passive session 90% 스킵,
 Slack 구독자 없는 GS 제외, 치지직 `READ|SEND` 분리, LINE notify만 보내고 클라가 pull.
 
+### 8-6b. Redis 릴레이 구현 — 중복 전송을 어떻게 막는가
+
+**가장 깔끔한 설계는 "로컬로 직접 보내지 않고, 반드시 Redis 리스너를 거쳐서만 전송"이다.**
+발행자 인스턴스도 자기 메시지를 리스너로 받아 거기서 한 번만 보내므로
+**별도 중복 제거 로직이 필요 없다.**
+
+```java
+// 애플리케이션 코드는 오직 이것만 호출 — 로컬 직접 전송 금지
+public void publish(String roomId, ChatMessage msg) {
+    redisTemplate.convertAndSend(TOPIC, new ChatEnvelope(roomId, msg));
+}
+
+@Override
+public void onMessage(Message message, byte[] pattern) {
+    ChatEnvelope e = deserialize(message.getBody());
+    // 모든 인스턴스(발행자 포함)가 이 콜백에서만 로컬 STOMP 전송 → 중복 없음
+    messagingTemplate.convertAndSend("/topic/chat." + e.roomId(), e.payload());
+}
+```
+
+지연을 더 줄이려면 발행자가 로컬에 즉시 보내고 다른 인스턴스에게만 Redis 로 전파하는
+**비대칭 설계**도 가능하지만, 그때는 `originInstanceId` 를 실어 보내고
+`onMessage` 에서 자기 것이면 스킵해야 한다. 지연은 낮지만 로직이 하나 늘어난다.
+
+**리스너 executor 를 반드시 지정한다.**
+
+```java
+container.setTaskExecutor(redisListenerExecutor);         // 메시지 콜백
+container.setSubscriptionExecutor(redisListenerExecutor); // 구독 유지(장기 실행)
+```
+
+`RedisMessageListenerContainer` 기본값은 `SimpleAsyncTaskExecutor` —
+**태스크마다 새 스레드를 만든다.** javadoc 이 *"for reuse of thread pools"* 를 이유로 지정을 권고한다.
+
+> ⚠ **Netty 이벤트 루프 문제는 경로에 따라 다르다.**
+> 클래식 `RedisMessageListenerContainer` 는 Netty 가 아니라 `SimpleAsyncTaskExecutor` 다.
+> **`ReactiveRedisMessageListenerContainer` / `ReactiveRedisTemplate.listenToChannel()`
+> 을 쓸 때만** Lettuce Netty 이벤트 루프에서 emit 되므로
+> `.publishOn(Schedulers.boundedElastic())` 이 필요하다.
+
 ### 8-7. Spring 다중 인스턴스 함정 — `/user/**`
 
 `convertAndSendToUser()`는 세션 고유 목적지로 변환되는데, **다중 인스턴스에서는
@@ -630,6 +764,21 @@ Slack 구독자 없는 GS 제외, 치지직 `READ|SEND` 분리, LINE notify만 �
 > a destination to **broadcast unresolved messages** so that other servers have a chance to try."*
 
 **→ `MessageBrokerRegistry`의 `userDestinationBroadcast` + `userRegistryBroadcast` 설정 필수.**
+
+### ★ 그런데 이게 SimpleBroker 에도 공식 지원된다
+
+```java
+config.enableSimpleBroker("/queue/", "/topic/")
+      .setUserDestinationBroadcast("/topic/unresolved-user-destination")
+      .setUserRegistryBroadcast("/topic/simp-user-registry");
+```
+
+**이 두 토픽을 Redis 릴레이가 이미 전파하는 `/topic/**` 트래픽에 포함시키면,
+RabbitMQ 없이 SimpleBroker + Redis 조합만으로 크로스 인스턴스 user-destination 해석이 된다.**
+
+`userRegistryBroadcast` 는 각 인스턴스의 `SimpUserRegistry` 를 서로 동기화해
+*"이 유저가 어느 서버에 붙어 있는지"* 를 클러스터 전체가 알게 한다.
+`convertAndSendToUser` 를 멀티 인스턴스에서 쓸 계획이면 **필수**다.
 
 이걸 모르고 겪는 문제가 실제 이슈로 올라왔다 — spring-framework#30347,
 `No TCP connection for session [ID]` 에러. **closed as invalid** (프레임워크 버그가 아니라 설정 누락).
