@@ -95,6 +95,100 @@ registration if any"* — `taskExecutor()` 와 `executor()` 를 동시에 쓰면
 
 ---
 
+## 1-5. ★ 검증 — "10초면 정리된다"는 틀렸다
+
+`ConcurrentWebSocketSessionDecorator.sendMessage()` 소스:
+
+```
+메시지를 내부 LinkedBlockingQueue 에 적재
+  → flushLock.tryLock()   (논블로킹)
+      락 잡은 스레드만  → StandardWebSocketSession.getBasicRemote().sendText()  ← 블로킹
+      못 잡은 스레드는  → 즉시 리턴
+```
+
+**`checkSessionLimits()` 의 `sendTimeLimit`(10초) 체크는 블로킹 중인 그 스레드 자신이 아니라,
+나중에 같은 세션에 또 send 를 시도했다가 락을 못 잡은 "다른" 스레드에서만 실행된다.**
+
+```
+경쟁이 없으면       → 10초는 아예 발동하지 않는다
+실제 스레드 해제는  → Tomcat WsRemoteEndpointImplBase.sendMessageBlockInternal()
+                      DEFAULT_BLOCKING_SEND_TIMEOUT = 20,000ms
+                      → doClose() → 예외 전파 → finally 에서 flushLock.unlock()
+```
+
+**→ 경쟁 없는 느린 세션 1개당 스레드 점유 시간은 최악 20초다.**
+
+같은 세션에 발행이 몰려 경쟁이 생기면 경쟁 스레드들은 10초에 즉시 실패하지만,
+**원래 블로킹된 스레드가 조기 해제되는지는 소스만으로 확정할 수 없다(미확인).**
+
+## 1-6. fan-out 이 비싼 정확한 이유
+
+`SimpleBrokerMessageHandler` → `StompSubProtocolHandler.sendToClient()` 에서
+**구독자마다 `stompEncoder.encode(headers, payload)` 를 개별 호출**한다.
+구독자별 `subscription-id` 헤더가 달라 **프레임 자체가 달라서 payload 캐싱이 안 된다.**
+
+```
+구독자 N명 × 발행 r msg/s  =  초당 N×r 회 STOMP 인코딩
+```
+
+## 1-7. OOM 은 두 갈래다
+
+| | 트리거 | 근거 |
+|---|---|---|
+| **(a) 백로그형** | 발행률 — 큐에 태스크 누적 | `queueCapacity = Integer.MAX_VALUE` |
+| **(b) 유휴 연결형** | **순수 인원수. 발행률 무관** | 실측 **연결당 약 0.084MB** |
+
+(b)는 **메시지를 하나도 안 보내도 연결만 1만 개면 OOM** 이다.
+2Core/2GB 단일 WAS 실측 사례. 힙덤프 기준
+`NioSocketWrapper` + `WsFrameServer` + `WsRemoteEndpointImplServer` 합산.
+
+## 1-8. ★ Tomcat `maxConnections` 8192 는 실제 하드월이다
+
+Tomcat 10.1 공식 문서:
+> *"the server will accept, but not process, one further connection... the operating system
+> may still accept connections based on the `acceptCount` setting."*
+
+`AbstractEndpoint.countUpOrAwaitConnection()`(LimitLatch)이 **소켓 accept~close 생명주기 단위**로
+카운트하므로 **WebSocket 업그레이드 후에도 슬롯을 계속 점유한다**(아키텍처상 강한 추정, 문서 명문 미확인).
+
+**실측**: 8,000명째부터 막혔고 `server.tomcat.max-connections: 11000` 으로 올려서야 1만 명 성공.
+**임계 약 8,192 ~ 8,292명** (`acceptCount` 100 포함).
+
+> ⚠ **`ulimit -n` 이 먼저 걸릴 수 있다.** 관례적 기본값 1024 면 **약 1,000명**에서
+> `Too many open files`. **정확한 기본값은 이번 조사에서 재검증하지 못했다(미확인).**
+> 재현 시 `ulimit -n` 을 확인하고 기록할 것.
+
+## 1-9. 실측 사례 (수치 있는 것)
+
+| 사례 | 수치 |
+|---|---|
+| 10K 동시 접속 OOM + maxConnections 벽 | 연결당 heap **≈0.084MB**, 8192 에 막혀 8,000개만 연결 |
+| 인원 증가에 따른 지연/유실 | **1,000명: 평균 1.2s / 최대 4s** · **3,000명: 평균 18s + 유실** |
+| 블로킹 핸들러 스레드풀 고갈 | pool=50, 2,000 동시접속 → `"pool size=50, active=50, queued tasks=1471"` |
+| 순수 WS+STOMP → 이벤트 기반 전환 | 스레드 70~80 에서 과부하(1.8s) → 전환 후 100스레드 0.09s |
+| (반례) SimpleBroker + 튜닝 | **500~800명 안정**, 성공률 99.8% 자기보고 — 개인 프로젝트, 정성적 근거 |
+| (반례) WebFlux 단일 서버 | **5,000 VU 무오류** — CPU 100%, 메모리 5GB, p99 ≈1s |
+
+**국내 대기업 기술블로그의 Spring STOMP 채팅 장애 사례는 찾지 못했다(미확인).**
+
+## 1-10. `WebSocketMessageBrokerStats` — 경로와 API 정정
+
+**모듈은 `spring-websocket` 이다** (`spring-messaging` 아님).
+`org/springframework/web/socket/config/WebSocketMessageBrokerStats.java`
+
+6.2 에서 API 가 개편됐다:
+`getWebSocketSessionStats()`, `getStompSubProtocolStats()`, `getStompBrokerRelayStats()`,
+**`getClientInboundExecutorStatsInfo()`**, **`getClientOutboundExecutorStatsInfo()`**,
+`getSockJsTaskSchedulerStatsInfo()`
+
+`getExecutorStatsInfo()` 는 `ThreadPoolExecutor.toString()` 을 파싱해
+`"pool size = #, active threads = #, queued tasks = #, completed tasks = #"` 형태로 반환한다.
+
+> outbound executor 의 active/queued 가 **Micrometer 에 자동 노출되는지는 미확인.**
+> 확실히 하려면 `WebSocketMessageBrokerStats` 를 직접 로깅하거나 커스텀 게이지를 만든다.
+
+---
+
 ## 2. 전송은 블로킹이다 — 이게 진짜 병목
 
 `StandardWebSocketSession`:

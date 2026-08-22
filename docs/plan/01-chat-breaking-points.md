@@ -23,65 +23,187 @@
 
 ---
 
-## 1. 붕괴 5단계 (예측 — 이것 자체가 검증 대상이다)
+## 1. 붕괴 순서 — 조사로 검증된 6단계
+
+> 초안은 5단계였다. 조사 결과 **정정 3건 + 신규 1건**이 나왔다.
+> 근거: [`research/02-websocket-internals.md`](../research/02-websocket-internals.md)
 
 ```
-① 아웃바운드 스레드 고갈
-     Spring Boot 3.4+ 가 in/outbound 채널에 8스레드 executor 를 주입
-     + 전송이 블로킹(Tomcat 타임아웃 20초)
-     → 느린 클라이언트 8명이면 방 크기와 무관하게 전체가 멈춘다
-
-② fan-out CPU
-     메시지 1건 × N명 = 쓰기 N회
-     → 여기서 비로소 "인원"이 변수가 된다
-
-③ 무한 큐 → 힙 OOM
-     queueCapacity = Integer.MAX_VALUE
-     → ②를 못 따라가면 백로그가 힙에 무한 누적
-
-④ 단일 인스턴스 한계
-     SimpleBroker 는 JVM 안에서만 동작
-     → 서버를 늘리면 메시지가 갈라진다 (수신률 50%)
-
-⑤ Redis Pub/Sub 한계
-     클러스터 일반 PUBLISH 는 모든 노드에 전파
-     → 훨씬 나중. 우리 규모에서는 도달하지 않을 가능성이 높다
+① 아웃바운드 스레드 고갈       느린 클라 8명 (인원과 약한 상관)
+② fan-out CPU                  1,000명 체감 · 3,000명 붕괴
+③ OOM — 두 갈래
+     (a) 백로그형              발행률 의존
+     (b) 유휴 연결 heap 점유형  발행률 무관, 순수 인원수     ← 신규
+④ Tomcat maxConnections 8192   하드월                       ← 신규
+⑤ 단일 인스턴스 한계           SimpleBroker 클러스터링 불가
+⑥ Redis Pub/Sub                훨씬 나중 (미검증)
 ```
 
-### ★ 이 서사의 핵심은 ①이 인원과 무관하다는 것
+> ⚠ **`ulimit -n`이 먼저 걸릴 수 있다.** 관례적 기본값 1024면 **1,000명 근방**에서
+> `Too many open files` 가 8192 하드월보다 먼저 온다.
+> **재현 실험 시 `ulimit -n` 을 반드시 확인하고 기록한다.**
+
+---
+
+### ① 아웃바운드 스레드 고갈 — 느린 클라 8명
+
+**메커니즘 (소스 확인)**
+
+```
+ConcurrentWebSocketSessionDecorator.sendMessage()
+  → 내부 LinkedBlockingQueue 에 적재
+  → flushLock.tryLock()  (논블로킹)
+      락 잡은 스레드만  → StandardWebSocketSession
+                        → getBasicRemote().sendText()   ← 블로킹 API
+      못 잡은 스레드는  → 즉시 리턴
+```
+
+`queueCapacity = Integer.MAX_VALUE` 이므로 Oracle `ThreadPoolExecutor` javadoc 대로
+*"no more than corePoolSize threads will ever be created"* — **스레드는 절대 8개를 안 넘는다.**
+
+**→ 서로 다른 8개 세션이 동시에 느리면 outbound executor 가 완전 고갈되고,
+그 뒤로는 빠른 클라이언트에게 갈 메시지까지 전부 큐에서 대기한다.**
+
+**★ 정정 — "10초면 정리된다"는 틀렸다**
+
+`checkSessionLimits()` 의 `sendTimeLimit`(10초) 체크는
+**블로킹 중인 그 스레드 자신이 아니라, 나중에 같은 세션에 또 send 를 시도했다가
+락을 못 잡은 "다른" 스레드**에서만 실행된다.
+
+```
+경쟁이 없으면        → 10초는 아예 발동하지 않는다
+실제 스레드 해제는   → Tomcat WsRemoteEndpointImplBase.sendMessageBlockInternal()
+                       DEFAULT_BLOCKING_SEND_TIMEOUT = 20,000ms 에 걸려
+                       doClose() → 예외 전파 → finally 에서 flushLock.unlock()
+```
+
+**→ 경쟁 없는 느린 세션 1개당 스레드 점유 시간은 최악 20초다. 10초가 아니다.**
+
+같은 세션에 발행이 몰려 경쟁이 생기면 경쟁 스레드들은 10초에 `SessionLimitExceededException`
+으로 즉시 실패하지만, **원래 블로킹된 스레드가 조기 해제되는지는 소스만으로 확정할 수 없다(미확인).**
+
+**인원과의 관계** — 약한 상관. 임계 자체는 "느린 클라 8명"으로 인원과 무관하지만,
+N 이 커질수록 **"동시에 느린 클라가 8명 이상 존재할 확률"** 이 커진다.
+
+---
+
+### ② fan-out CPU — 1,000명 체감, 3,000명 붕괴
+
+**메커니즘 (소스 확인)**
+
+`SimpleBrokerMessageHandler` → `StompSubProtocolHandler.sendToClient()` 에서
+**구독자마다 `stompEncoder.encode(headers, payload)` 를 개별 호출**한다.
+구독자별 `subscription-id` 헤더가 달라 **프레임 자체가 달라서 캐싱이 안 된다.**
+
+```
+구독자 N명 × 발행 r msg/s  =  초당 N×r 회 STOMP 인코딩
+```
+
+**실측 사례**
+
+| 인원 | 결과 |
+|---|---|
+| 1,000명 | 평균 **1.2초** / 최대 4초 지연 |
+| 3,000명 | 평균 **18초** 지연 + **메시지 유실** |
+| (다른 사례) 스레드 70~80개 | 과부하, 1.8초 지연 → 이벤트 기반 전환 후 100스레드에서 0.09초 |
+
+---
+
+### ③ OOM — ★ 두 갈래다 (초안에는 (a)만 있었다)
+
+**(a) 백로그형** — 가설 원안.
+outbound executor 8스레드가 fan-out 속도를 못 따라가면 큐(무제한)에 인코딩된 태스크가 무한 적재.
+
+> 재현 계산(추정): heap 512MB, task ≈1.5KB 가정 시 약 23만 개 적재 가능.
+> **3분 내 재현하려면 대략 1,300 tasks/s** (예: 구독자 130명 × 10 msg/s)
+
+**(b) 유휴 연결 heap 점유형** — **신규. 발행률과 무관하다.**
+
+실측(단일 사례): 2Core/2GB 단일 WAS 에서 **메시지 발행 없이 연결만 1만 개**여도 OOM.
+힙덤프 기준 **연결당 약 0.084MB** (`NioSocketWrapper` + `WsFrameServer` + `WsRemoteEndpointImplServer` 합산).
+
+> **이건 순수 인원수만으로 발생하는 별개의 OOM 경로다.**
+> heap 2GB면 이론상 2만4천 연결이지만 **그 전에 ④(8192)가 먼저 막는다.**
+
+---
+
+### ④ Tomcat `maxConnections` 8192 하드월 — ★ 신규
+
+Tomcat 10.1 공식 문서:
+> *"the server will accept, but not process, one further connection... the operating system
+> may still accept connections based on the `acceptCount` setting."*
+
+`AbstractEndpoint.countUpOrAwaitConnection()`(LimitLatch)이 **소켓 accept~close 생명주기 단위**로
+카운트하므로 **WebSocket 업그레이드 후에도 슬롯을 계속 점유한다** (아키텍처상 강한 추정, 문서 명문은 미확인).
+
+**실측**: 위 사례에서 **8,000명째부터 진짜로 막혔고**,
+`server.tomcat.max-connections: 11000` 으로 올려서야 1만 명이 됐다.
+
+**임계: 약 8,192 ~ 8,292명** (`acceptCount` 100 포함, 설정 미변경 시)
+
+---
+
+### ⑤ 단일 인스턴스 한계 — SimpleBroker 클러스터링 불가
+
+Spring 공식 문서 (직접 재확인):
+> *"The simple broker is great for getting started but supports only a subset of STOMP commands
+> ... relies on a simple message-sending loop, and **is not suitable for clustering**."*
+
+**재현이 가장 쉽다** — 서버 2개 띄우고 클라이언트를 반씩 붙이면 **수신률 정확히 50%.**
+
+---
+
+### ⑥ Redis Pub/Sub — 미검증
+
+이번 조사에서 다루지 못했다. Redis Pub/Sub 은 통상 초당 수만 메시지를 처리한다고 알려져 있어
+**①~⑤보다 훨씬 늦게 도달할 것으로 추정하지만 검증하지 않았다.**
+채택 기준은 §9-5 에 사전 등록해뒀다.
+
+---
+
+## 1-2. ★ 이 서사의 핵심 — ①이 인원과 (거의) 무관하다
 
 대부분 *"동시접속 몇 명까지 되나요"* 를 재는데,
 **실제로 먼저 죽는 것은 "느린 클라이언트 몇 명"** 이다.
 
 이걸 수치로 보이면 **질문 자체를 바로잡는 것**이라 훨씬 강하다.
 
-### 각 단계가 별개 실험이 아니라 하나의 이야기다
+그리고 **③(b)가 이 서사를 완성한다** — *"메시지를 하나도 안 보내도 연결만 1만 개면 OOM 이다"*.
+**즉 "인원"과 "부하"는 다른 축이고, 둘 다 따로 재야 한다.**
 
 ```
-계측 환경을 만든다  →  ③으로 OOM 을 먼저 재현(가장 쉽고 확실)
-                    →  ①로 스레드 고갈을 재현하고 executor 를 분리
-                    →  ②로 한계 곡선을 그리고 배치 전송으로 개선
-                    →  ④로 인스턴스를 늘려 유실을 재현하고 Redis 로 해결
-                    →  ⑤는 기준에 걸리면 그때
+인원 축   →  ③(b) 유휴 연결 heap  →  ④ maxConnections 8192  →  ⑤ 단일 인스턴스
+부하 축   →  ① 느린 클라 8명      →  ② fan-out CPU          →  ③(a) 백로그 OOM
 ```
 
-**Phase 3(①)까지면 포트폴리오는 성립한다.**
+---
 
-### 검증할 것 — 이 순서가 정말 맞는가
+## 1-3. 반례 — 얼마나 버티나
 
-다른 것이 먼저 터질 수도 있다. 후보와 확인 방법:
-
-| 후보 | 언제 문제가 되나 | 확인 |
+| 사례 | 결과 | 신뢰도 |
 |---|---|---|
-| Tomcat `acceptCount`(100) | 재연결 폭풍 시 | 서버 재시작 후 동시 재연결 |
-| `maxConnections`(8192) / FD | 연결 수가 8천을 넘을 때 | 연결 수 스윕 |
-| `DefaultSubscriptionRegistry` 캐시(1024) | **방 수**가 많을 때 (인원 아님) | 방 개수 스윕 |
-| JSON 직렬화 CPU | 메시지가 클 때 | 페이로드 크기 스윕 |
-| GC | 힙 압박이 스레드 고갈보다 먼저? | `-Xlog:gc*` |
+| SimpleBroker + inbound 풀 튜닝(core10/max50/queue200) | **500~800명 안정**, 성공률 99.8% 자기보고 | 개인 프로젝트. **정성적 근거로만** |
+| WebFlux 단일 서버 | **5,000 VU 무오류** — 단 CPU 100%, 메모리 5GB, p99 ≈1초 | 저자 본인이 *"현재 셋업으로는 700명 정도가 현실적 한계"* 로 평가 |
 
-**측정 결과가 예측과 다르면 그것 자체가 결과다.**
-[#17 문서](../performance/06-lock-determinism.md)에서 이미 한 번 그랬다 —
-*"필요할 줄 알았는데 재보니 필요 없었다"*.
+> **우리 목표(화상강의 30~100명, 라이브 수천 명)는 ②의 실측 임계(1,000명 체감) 근처다.**
+> 즉 **채팅 자체는 무너지지 않을 가능성이 높고, ①이 먼저 온다.**
+> 그게 이 작업의 결론이 될 수도 있다 — 그것도 결과다.
+
+---
+
+## 1-4. Phase 순서가 붕괴 순서와 다른 이유
+
+```
+계측 환경  →  ③(a) OOM 재현     ← 가장 쉽고 확실. 여기서 세운 계측이 전부에 쓰임
+           →  ① 스레드 고갈     ← 가장 차별화됨
+           →  ② fan-out 곡선
+           →  ⑤ 다중 인스턴스   ← 재현이 극적(수신률 50%)
+           →  ④ 8192 하드월     ← 대량 연결이 필요해 어려움. 마지막
+```
+
+**④는 재현 난이도가 높다** — 8천 연결을 만들려면 클라이언트 쪽 포트·FD 준비가 필요하다.
+**노트북 1대로는 5,000~10,000 연결이 상한**이므로, 실제로는 *"설정값과 실측 사례를 인용하고
+우리는 N까지 확인했다"* 로 마무리하는 것이 현실적이다.
 
 ---
 
@@ -399,12 +521,13 @@ max GC pause  G1GC 170ms → ZGC 1ms     ← ZGC 채택 근거
 |---|---|---|
 | 0. 계측 환경 | — | 0.5일 |
 | 1. 채팅 최소 동작 | — | 2일 |
-| 2. 무한 큐 OOM | **③** | 1~2일 |
+| 2. 무한 큐 OOM | **③(a)** | 1~2일 |
 | 3. 백프레셔 | **①** | 2~3일 |
 | — | — | **여기까지 6~8일. 멈춰도 성립** |
 | 4. fan-out 한계 곡선 | **②** | 3~4일 |
-| 5. 다중 인스턴스 + Redis | **④** | 2~3일 |
-| (조건부) NATS | **⑤** | 사전 등록 기준 충족 시 |
+| 5. 다중 인스턴스 + Redis | **⑤** | 2~3일 |
+| 6. 연결 수 상한 | **③(b) + ④** | 2일 · 재현 난이도 높음 |
+| (조건부) NATS | **⑥** | 사전 등록 기준 충족 시 |
 
 ### Phase 0 — 계측 환경 (0.5일)
 
@@ -510,7 +633,7 @@ k6 run -e ROOM_SIZE=3000 k6/chat-fanout.js   # 라이브 규모
 **참고 기준점** — 카카오엔터 라이브채팅은 **Pod(CPU 4, MEM 8GiB) 1개당 동시접속 2,000명 +
 1초 내 송수신**을 목표로 잡았다. 우리 수치를 해석할 때 비교선으로 쓴다.
 
-### Phase 5 — 다중 인스턴스 (2~3일) — **붕괴 ④**
+### Phase 5 — 다중 인스턴스 (2~3일) — **붕괴 ⑤**
 
 **먼저 버그를 재현한다.** `SimpleBroker`는 단일 JVM만 안다.
 
@@ -528,7 +651,7 @@ k6 run -e ROOM_SIZE=3000 k6/chat-fanout.js   # 라이브 규모
 
 ---
 
-## 9. 팬아웃 설계 (= 붕괴 ④⑤)
+## 9. 팬아웃 설계 (= 붕괴 ⑤⑥)
 
 ### 8-1. 결론과 근거
 
