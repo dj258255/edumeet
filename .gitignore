@@ -261,3 +261,18 @@ application-prod.yml
 # Ansible vault 비밀번호. 이게 들어가면 암호화한 의미가 없다. (#37)
 ansible/.vault-pass
 ansible/*.retry
+
+# ── 키·인증서. 이름만 다르게 저장해도 걸리도록 넓게 잡는다. (#41)
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+**/secrets/
+.envrc
+
+# 예시 파일은 커밋한다. 위의 *.env.* 규칙에 걸리지 않도록 명시한다.
+!env.prod.example
+!application-local.yml.example

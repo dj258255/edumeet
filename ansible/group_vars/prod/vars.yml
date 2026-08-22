@@ -3,6 +3,13 @@
 # 비밀은 vault.yml 에 vault_ 접두사로 두고 여기서 참조한다.
 # 이렇게 하면 "무엇이 비밀인가" 가 이 파일만 봐도 드러난다.
 
+# 접속 정보. 주소는 공개 저장소에 두지 않는다. (#41)
+ansible_host: "{{ vault_ansible_host }}"
+ansible_user: rocky
+# 배포 전용 키가 아니라 관리자 키를 쓴다.
+# 배포 키(GitHub Actions 용)는 compose 를 돌리는 데만 쓴다.
+ansible_ssh_private_key_file: ~/.ssh/tymee
+
 app_dir: "/home/{{ ansible_user }}/edumeet"
 
 # 앱 관리 포트를 어디에 바인딩할지. (#34)
