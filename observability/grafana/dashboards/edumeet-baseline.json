@@ -1,0 +1,541 @@
+{
+  "uid": "edumeet-baseline",
+  "title": "EduMeet — 기준 지표",
+  "description": "붕괴 측정 이전의 기준선. 채팅을 붙이기 전 상태를 여기서 확인한다. (#28)",
+  "tags": [
+    "edumeet",
+    "baseline"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP 처리율 (req/s)",
+      "type": "timeseries",
+      "description": "처리율이 멈추면 포화다. 다만 포화의 첫 신호는 여기가 아니라 p99 다.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{service=\"edumeet\"}[1m]))",
+          "legendFormat": "전체",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{service=\"edumeet\"}[1m]))",
+          "legendFormat": "{{status}}",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "HTTP 지연 p50 / p95 / p99",
+      "type": "timeseries",
+      "description": "평균은 포화를 숨긴다. p99 가 먼저 벌어진다.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{service=\"edumeet\"}[1m])))",
+          "legendFormat": "p50",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{service=\"edumeet\"}[1m])))",
+          "legendFormat": "p95",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{service=\"edumeet\"}[1m])))",
+          "legendFormat": "p99",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "5xx 비율",
+      "type": "timeseries",
+      "description": "에러가 아니라 지연으로만 나타나는 포화도 있다. 이 값이 0 이어도 안심할 수 없다.",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 8,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(http_server_requests_seconds_count{service=\"edumeet\",status=~\"5..\"}[1m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{service=\"edumeet\"}[1m])), 0.001)",
+          "legendFormat": "5xx 비율",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "느린 엔드포인트 top (p95)",
+      "type": "timeseries",
+      "description": "어디가 느린지 URI 단위로 본다.",
+      "gridPos": {
+        "x": 8,
+        "y": 8,
+        "w": 16,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "topk(5, histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{service=\"edumeet\"}[5m]))))",
+          "legendFormat": "{{uri}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "JVM 힙",
+      "type": "timeseries",
+      "description": "MaxRAMPercentage 가 안 먹으면 여기가 호스트 메모리 기준으로 잡힌다.",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 8,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "sum(jvm_memory_used_bytes{service=\"edumeet\",area=\"heap\"})",
+          "legendFormat": "사용",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "sum(jvm_memory_committed_bytes{service=\"edumeet\",area=\"heap\"})",
+          "legendFormat": "커밋",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "sum(jvm_memory_max_bytes{service=\"edumeet\",area=\"heap\"})",
+          "legendFormat": "최대",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "GC 정지 시간",
+      "type": "timeseries",
+      "description": "브로드캐스트가 힙을 밀어올리면 여기부터 반응한다.",
+      "gridPos": {
+        "x": 8,
+        "y": 14,
+        "w": 8,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "rate(jvm_gc_pause_seconds_sum{service=\"edumeet\"}[1m])",
+          "legendFormat": "{{action}} {{cause}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "CPU 사용률",
+      "type": "timeseries",
+      "description": "2 OCPU 다. 여기가 먼저 차면 비용이 아니라 가용성이 한계다.",
+      "gridPos": {
+        "x": 16,
+        "y": 14,
+        "w": 8,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "process_cpu_usage{service=\"edumeet\"}",
+          "legendFormat": "프로세스",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "system_cpu_usage{service=\"edumeet\"}",
+          "legendFormat": "시스템",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "DB 커넥션 풀 (Hikari)",
+      "type": "timeseries",
+      "description": "대기(pending)가 0 이 아니면 커넥션을 기다리는 스레드가 있다는 뜻이다. 트랜잭션 안에서 느린 I/O 를 하면 여기가 먼저 드러난다.",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{service=\"edumeet\"}",
+          "legendFormat": "사용 중",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "hikaricp_connections_idle{service=\"edumeet\"}",
+          "legendFormat": "유휴",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "hikaricp_connections_pending{service=\"edumeet\"}",
+          "legendFormat": "대기",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "커넥션 획득 대기 시간",
+      "type": "timeseries",
+      "description": "풀이 마르면 이 값이 먼저 튄다.",
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "expr": "rate(hikaricp_connections_acquire_seconds_sum{service=\"edumeet\"}[1m]) / clamp_min(rate(hikaricp_connections_acquire_seconds_count{service=\"edumeet\"}[1m]), 0.001)",
+          "legendFormat": "평균 획득 시간",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}

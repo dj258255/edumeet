@@ -1,0 +1,24 @@
+# Prometheus 스크레이프 설정 (#28)
+#
+# 앱의 관리 포트(9090)를 컨테이너 네트워크 안에서 긁는다.
+# 이 포트는 호스트로 publish 되지 않으므로 인터넷에서는 닿지 않는다.
+
+global:
+  # 5초는 과하고 60초는 붕괴 순간을 놓친다. 부하 시험 중에도 형태가 보이는 값.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: prod
+
+scrape_configs:
+  - job_name: edumeet-app
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["app:9090"]
+        labels:
+          service: edumeet
+
+  # Prometheus 자기 자신. 스크레이프가 밀리는지 봐야 지표를 믿을 수 있다.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

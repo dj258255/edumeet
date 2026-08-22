@@ -51,6 +51,11 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+    # ★ 관리 포트(9090)는 publish 하지 않는다. expose 만 한다.
+    #   지표는 URI 패턴·호출량·커넥션 수 같은 내부 정보를 담는다.
+    #   Prometheus 는 같은 네트워크 안에 있으므로 이걸로 충분하다.
+    expose:
+      - "9090"
     volumes:
       - app_logs:/app/logs
       - app_upload:/app/upload
@@ -64,7 +69,46 @@ services:
         condition: service_healthy
     networks: [edumeet]
 
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: edumeet-prometheus
+    restart: unless-stopped
+    # 마찬가지로 외부 노출 금지. Grafana 가 네트워크 안에서 붙는다.
+    expose:
+      - "9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # 개인 서버라 디스크가 넉넉하지 않다. 15일이면 회귀 분석에 충분하다.
+      - --storage.tsdb.retention.time=15d
+    depends_on: [app]
+    networks: [edumeet]
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: edumeet-grafana
+    restart: unless-stopped
+    # 사람이 봐야 하므로 이것만 publish 한다. 비밀번호는 .env 로 준다.
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD 를 .env 에 설정해야 한다}
+      # 익명 접근을 막는다. 지표는 내부 정보다.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      # 대시보드를 UI 로 만들면 재현이 안 된다. 파일로 넣고 저장소에 커밋한다.
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on: [prometheus]
+    networks: [edumeet]
+
 volumes:
+  prometheus_data:
+  grafana_data:
   mysql_data:
   redis_data:
   app_logs:

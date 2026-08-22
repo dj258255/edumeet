@@ -36,8 +36,11 @@ EXPOSE 8080
 #   ExitOnOutOfMemoryError  OOM 이면 죽는다. 좀비 상태로 버티는 것보다 재시작이 낫다
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
 ENV SPRING_PROFILES_ACTIVE=prod
+# 액추에이터는 관리 포트로 분리한다. 지표를 인터넷 쪽 포트에 두지 않기 위해서다. (#28)
+# 이 포트가 바뀌면 아래 HEALTHCHECK 도 같이 바뀐다.
+ENV MANAGEMENT_PORT=9090
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-  CMD curl -fsS http://localhost:8080/actuator/health || exit 1
+  CMD curl -fsS http://localhost:${MANAGEMENT_PORT:-9090}/actuator/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
