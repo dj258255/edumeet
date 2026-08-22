@@ -29,6 +29,8 @@ dependencies {
     // Spring Boot Core
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    // 컨테이너 healthcheck 와 운영 관측에 쓴다. 노출 엔드포인트는 application.yml 에서 제한한다.
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.data:spring-data-redis:3.2.5")

@@ -1,0 +1,75 @@
+# 운영 배포용. OCI VM.Standard.A1.Flex (aarch64) 에서 돌린다.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# 필요한 환경변수는 .env 에 둔다. (저장소에 커밋하지 않는다)
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: edumeet-mysql
+    env_file: .env
+    restart: unless-stopped
+    # ★ 호스트 포트로 노출하지 않는다.
+    #   공인 IP 서버에서 3306 을 열면 인터넷 전체에 DB 가 노출된다.
+    #   같은 compose 네트워크 안에서는 서비스명(mysql)으로 접근되므로 포트 공개가 불필요하다.
+    expose:
+      - "3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [edumeet]
+
+  redis:
+    image: redis:7-alpine
+    container_name: edumeet-redis
+    restart: unless-stopped
+    expose:
+      - "6379"          # 마찬가지로 외부 노출 금지
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [edumeet]
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/dj258255/edumeet:latest}
+    container_name: edumeet-app
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - app_logs:/app/logs
+      - app_upload:/app/upload
+    # ★ healthcheck 를 기다린다.
+    #   그냥 depends_on 만 쓰면 MySQL 프로세스가 뜬 순간 앱이 시작해서
+    #   커넥션 실패로 죽는다. condition: service_healthy 가 있어야 한다.
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [edumeet]
+
+volumes:
+  mysql_data:
+  redis_data:
+  app_logs:
+  app_upload:
+
+networks:
+  edumeet:
+    driver: bridge

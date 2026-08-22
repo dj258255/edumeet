@@ -77,7 +77,11 @@ public class SecurityConfig {
                                 "/api/v1/members/check-email",
                                 // LiveKit 서버가 호출한다. 사용자 인증이 없으므로 permitAll 이지만
                                 // WebhookReceiver 가 API 시크릿으로 서명한 JWT 를 검증한다.
-                                "/api/v1/livekit/webhook"
+                                "/api/v1/livekit/webhook",
+                                // 컨테이너 healthcheck 와 로드밸런서가 부른다.
+                                // show-details 를 when-authorized 로 막아 내부 정보는 안 나간다.
+                                "/actuator/health",
+                                "/actuator/health/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
