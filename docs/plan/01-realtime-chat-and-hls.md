@@ -387,6 +387,36 @@ SOOP도 방송별로 서버가 `CHDOMAIN:CHPT`를 지정한다.
 
 ## 9. HLS — 범위를 먼저 자른다
 
+### 9-0. 왜 방송은 HLS로 빼야 하는가 — 정량적 답
+
+LiveKit 공식 벤치마크. 전부 **GCP `c2-standard-16` (16 vCPU) 단일 노드**.
+
+| 시나리오 | Publishers | Subscribers | Throughput | CPU |
+|---|---|---|---:|---:|
+| Audio rooms | 10 | 3,000 | 7.3 kBps in / 23 MBps out | 80% |
+| **Large meeting** | **150** | **150** | 50 MBps in / 93 MBps out | **85%** |
+| **Livestream** | **1** | **3,000** | 233 kBps in / **531 MBps out** | **92%** |
+
+**결정적 제약**: *"Each room must fit within a single node."*
+룸은 노드 분할이 안 된다 → **룸 하나의 상한 = 노드 하나의 상한.**
+
+**읽는 법**
+- 16코어로 150명 양방향 화상회의면 CPU 85% → **화상교육 룸은 대략 코어당 10명 남짓**이 현실적 상한
+- 1:3000 방송은 같은 하드웨어에서 돌지만 **아웃바운드가 531 MBps(≈4.2 Gbps)** →
+  CPU가 아니라 **NIC/대역폭 비용이 먼저 터진다**
+
+**이 두 줄이 "왜 방송은 HLS로 빼야 하는가"의 정량적 답이다.**
+(비교군 — mediasoup: *"a mediasoup C++ subprocess can typically handle over ~500 consumers"*)
+
+SFU에서 CPU를 먹는 것은 패킷 포워딩·SRTP 암복호화·대역폭 추정·simulcast 레이어 선택이고
+**트랜스코딩은 안 한다.** CPU가 폭발하는 순간은 **Egress를 켤 때**다 — 그때 비로소 디코드+인코드가 들어간다.
+
+부하 측정 명령:
+```bash
+lk load-test --url <URL> --api-key <K> --api-secret <S> \
+  --room load-test --video-publishers 150 --subscribers 150
+```
+
 ### 9-1. 경로 선택
 
 | 선택지 | 판단 |
@@ -431,7 +461,7 @@ redis:                      # 필수. livekit server 와 같은 주소여야 한
 message SegmentedFileOutput {
   string playlist_name       = 3;   // 전체 플레이리스트 (VOD용, 세그먼트 계속 누적)
   string live_playlist_name  = 11;  // 최근 세그먼트만. 미지정 시 비활성
-  uint32 segment_duration    = 4;   // 초. 명시적 기본값은 문서에 없음(공식 예제는 2)
+  uint32 segment_duration    = 4;   // 초. **기본값 4** (소스 pkg/config/output_segment.go)
 }
 ```
 
@@ -449,6 +479,84 @@ double key_frame_interval = 10;  // "Default 4 for streaming;
 → 이 값을 수동으로 세그먼트 길이와 다르게 주면 **세그먼트 경계가 IDR에 안 붙어 재생이 깨진다.**
 재현 가능한 1급 소재다.
 
+### 9-3b. 소스코드에서만 나오는 사실 (문서에 없다)
+
+**이 절이 HLS 파트의 금맥이다.** 공식 문서에 없고 소스를 읽어야 나온다.
+
+| 발견 | 소스 |
+|---|---|
+| **`segment_duration` 기본값 = 4초** | `pkg/config/output_segment.go` — `if conf.SegmentDuration == 0 { conf.SegmentDuration = 4 }` |
+| **라이브 플레이리스트 창 = 5개 하드코딩** | `pkg/pipeline/sink/segments.go` — `defaultLivePlaylistWindow = 5` |
+| **`EXT-X-PART`가 없다 → LL-HLS 미지원 확정** | `pkg/pipeline/sink/m3u8/writer.go` |
+| **`EXT-X-PROGRAM-DATE-TIME`을 세그먼트마다 기록** | 같은 파일 |
+| **한 Egress = 한 렌디션** | 요청 메시지의 `oneof options { preset \| advanced }` — 인코딩 설정이 하나뿐 |
+| `live_playlist_name`은 `playlist_name`과 **같은 디렉터리**여야 함 | `ErrInvalidInput("live_playlist_name must be in same directory")` |
+| 메인 플레이리스트는 `EXT-X-PLAYLIST-TYPE:EVENT` | writer.go |
+
+**★ 그리고 스펙 위반을 하나 찾았다.**
+
+```go
+defaultLivePlaylistWindow = 5
+```
+
+vs **Apple HLS Authoring Spec 8.11** — *"You MUST provide at least **six** segments in a live (linear) playlist."*
+
+> **LiveKit은 5개만 유지한다.** 실제로 생성된 m3u8을 열어 확인 가능하고,
+> iOS Safari 재생 안정성 비교까지 붙이면 **오픈소스 소스를 읽고 표준과 대조해
+> 불일치를 찾은 사례**가 된다. 신입에게서 보기 드문 행동이다.
+
+### 9-3c. 우리 SDK 버전(0.8.2)에서 되는가 — **된다**
+
+`server-sdk-kotlin` v0.8.2 태그의 `EgressServiceClient.kt`에 오버로드가 존재한다.
+
+```kotlin
+@JvmOverloads
+fun startRoomCompositeEgress(
+    roomName: String,
+    output: LivekitEgress.SegmentedFileOutput,   // ← HLS
+    layout: String = "",
+    optionsPreset: LivekitEgress.EncodingOptionsPreset? = null,
+    ...
+): Call<LivekitEgress.EgressInfo>
+```
+
+v0.8.2가 고정한 protocol 서브모듈에도 `live_playlist_name`(field 11), `segment_duration`,
+`key_frame_interval`이 **모두 있다.**
+
+**단 `PASSTHROUGH` 프리셋(= 트랜스코딩 스킵)은 0.8.2 proto에 없다.**
+이 버전의 프리셋은 `H264_720P_30`(기본, 1280×720/30fps/3000kbps) ~ `PORTRAIT_H264_1080P_60` 8개뿐이다.
+
+### 9-3d. CPU 비용 — 몇 개까지 띄울 수 있나
+
+공식 config 기본값:
+
+```yaml
+room_composite_cpu_cost:       3.0   # 룸 합성 HLS 1개 = 3코어
+web_cpu_cost:                  3.0
+track_composite_cpu_cost:      2.0
+track_cpu_cost:                1.0
+audio_room_composite_cpu_cost: 1.0
+```
+
+**→ 4코어 인스턴스 = RoomComposite HLS 동시 1개.** ABR 3단이면 Egress 3개 = **9코어**.
+
+### 9-3e. S3 없이 로컬 디스크로 (가장 싼 경로)
+
+클라우드 스토리지를 지정하지 않으면 **컨테이너 로컬 파일시스템**에 쓴다.
+
+```shell
+docker run --rm --cap-add SYS_ADMIN \
+  -e EGRESS_CONFIG_FILE=/out/config.yaml \
+  -v ~/livekit-egress:/out \
+  livekit/egress
+```
+
+**주의**: *"egress is not run as the root user, write permissions will need to be enabled for all users"*
+
+**Spring Boot가 그 디렉터리를 정적 리소스로 서빙하면 CDN도 S3도 없이 hls.js로 재생된다.**
+며칠짜리 포트폴리오엔 이게 정답이다.
+(MIME: `.m3u8` = `application/vnd.apple.mpegurl`, `.ts` = `video/mp2t`, CORS 헤더 필요)
+
 ### 9-4. 왜 지연 ≈ 3 × 세그먼트 길이인가 (사양 기반)
 
 세 조항이 곱해진 결과다.
@@ -462,8 +570,17 @@ double key_frame_interval = 10;  // "Default 4 for streaming;
 
 ```
 E2E ≈ 인코딩 + 1×세그먼트(패키징) + 0~1.5×세그먼트(전파) + 3×세그먼트(HOLD-BACK) + 디코딩
-    → 6초 세그먼트: 18~30초 · 2초 세그먼트: 6~10초
 ```
+
+**우리 기본값에 대입하면**
+
+| 설정 | hls.js `targetLatency` | 비고 |
+|---|---:|---|
+| **LiveKit 기본 (4초)** | **12초** | 3 × 4 |
+| `segment_duration: 2` | **6초** | **목표** |
+| `segment_duration: 1` | 3초 | 창 5개 = 5초 → Apple 8.11 위반 심화 |
+
+**소재 1은 이 표를 실측으로 채우는 것이다.** 코드 한 줄 바꾸고 §9-6 방법 B로 재면 된다.
 
 **Apple 권장값** (원문): 7.5/7.6 *"Target durations SHOULD be 6 seconds"*,
 1.13 *"Key frames (IDRs) SHOULD be present every two seconds"*,
@@ -508,8 +625,22 @@ TS 세그먼트  →  CMAF(fMP4) 아님
 **A + B를 같이 쓰면 지연을 분해할 수 있다** — 총 지연 중 몇 초가 플레이어 HOLD-BACK 몫인지.
 그게 §9-4의 3× 규칙에 대한 실측 증명이 된다.
 
-> **⚠ 확인 필요**: LiveKit egress가 `EXT-X-PROGRAM-DATE-TIME`을 출력하는지가 B의 성립 조건이다.
-> 출력된 m3u8을 직접 열어봐야 한다. 없으면 A로 대체한다.
+> **확정됨** — LiveKit egress는 **세그먼트마다 `EXT-X-PROGRAM-DATE-TIME`을 찍는다.**
+> (`pkg/pipeline/sink/m3u8/writer.go` 소스 확인) PDT 기준 시각은
+> `segmentStartTime := s.startTime.Add(t - s.startRunningTime)` — **egress 서버의 wall clock**이다.
+> 따라서 **방법 B가 성립하고, 코드 5줄로 끝난다.**
+>
+> ```js
+> setInterval(() => {
+>   if (hls.playingDate) {
+>     const latencyMs = Date.now() - hls.playingDate.getTime();
+>   }
+> }, 500);
+> ```
+>
+> 전제: egress 서버와 시청 브라우저의 **시계가 맞아야 한다.** 같은 머신에서 도커로 돌리면 자동 충족.
+> 그리고 Apple 스펙 **8.4가 라이브 플레이리스트에 PDT를 MUST로 요구**하므로,
+> 이건 LiveKit 전용 꼼수가 아니라 **표준 기반 범용 기법**이다.
 
 **A는 엄밀히는 glass-to-glass가 아니라 "encode-to-render"다** (카메라 캡처·디스플레이 출력 지연 제외).
 이 한계를 명시하는 것이 오히려 신뢰도를 올린다.
@@ -568,8 +699,10 @@ abrBandWidthUpFactor  0.70   ← 상향 판단
 | **1** | **세그먼트 6s→2s 튜닝 + 트레이드오프 실측** | 2~3일 | **상** | 지연 p50/p95 · 요청 수 3배 · 오리진 전송량 % · 리버퍼 횟수 |
 | **2** | `live_playlist_name` 누락 버그 재현·수정 | 0.5~1일 | 중 | 재생 시작 위치 · 플레이리스트 누적 곡선 |
 | **3** | **계측 hls.js 플레이어 + ABR 대시보드** | 3~4일 | **상** | 전환 횟수 · 추정 오차율 · 리버퍼 총합 |
-| 4 | Egress 실패 모드 5종 재현 + 런북 | 2~3일 | 중~상 | MTTD · MTTR · 로그 시그니처 |
-| 5 | 2단 래더 + 대역폭 제한 하 ABR 검증 | 3~4일 | 중 | 제한 시 리버퍼 · 전환 지연 · CPU 2배 정량화 |
+| **4** | **SFU 수용 한계 측정** (`lk load-test` + Prometheus) | 1~2일 | **상** | *"4코어에서 양방향 N명 = CPU 85% → 룸 정원 N 확정"* |
+| **5** | **라이브 창 5 vs Apple 8.11(6) 검증** | 0.5일 | 중 | m3u8 실측 · iOS 재생 안정성 비교 |
+| 6 | Egress 실패 모드 재현 + 런북 | 2~3일 | 중~상 | MTTD · MTTR · 로그 시그니처 |
+| 7 | 2단 래더 + 대역폭 제한 하 ABR 검증 | 3~4일 | 중 | 제한 시 리버퍼 · 전환 지연 · CPU 2배 정량화 |
 
 **1 + 3을 묶으면 5~7일에 완결된 스토리가 나온다** —
 *"지연을 줄이는 서버 변경 → 그 효과를 자체 계측 도구로 정량 증명"*.
@@ -774,3 +907,11 @@ FROM livekit/gstreamer:1.24.12-dev            ← C 라이브러리
 | `key_frame_interval` 기본 = 세그먼트 길이 | LiveKit Egress API 문서 |
 | RoomComposite 잡당 2~6 CPU, 인스턴스당 1잡 | LiveKit 자체호스팅 문서 |
 | hls.js `abrBandWidthUpFactor` 0.7 vs `abrBandWidthFactor` 0.95 | hls.js API 문서 + `abr-controller.ts` |
+| **`segment_duration` 기본 4초** | livekit/egress `pkg/config/output_segment.go` |
+| **라이브 창 5개 하드코딩 (Apple 8.11 위반)** | livekit/egress `pkg/pipeline/sink/segments.go` |
+| **PDT를 세그먼트마다 기록 / `EXT-X-PART` 없음** | livekit/egress `pkg/pipeline/sink/m3u8/writer.go` |
+| SDK 0.8.2 에 `startRoomCompositeEgress(SegmentedFileOutput)` 존재 | server-sdk-kotlin v0.8.2 `EgressServiceClient.kt` |
+| SFU 벤치마크 (150×150 = CPU 85%, 1×3000 = 531 MBps) | LiveKit 자체호스팅 벤치마크 문서 |
+| `room_composite_cpu_cost: 3.0` | livekit/egress README |
+| LL-HLS 실증 (iPhone 14 20분 후 끊김) | WINK Ultra-Low-Latency HLS Experiments 2025 |
+| WHIP = RFC 9725 (2025-03 정식), WHEP = draft | rfc-editor.org / datatracker |
