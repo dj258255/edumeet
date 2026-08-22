@@ -207,6 +207,31 @@ Java 21  →  spring.threads.virtual.enabled=true → 문제 소멸  ← 서사 
 
 **1을 건너뛰고 바로 21로 가지 않는다.** 그러면 무엇을 피했는지 말할 수 없다.
 
+### 참고 — 카카오톡은 C++에서 JVM으로 갔다
+
+**Java를 유지하는 결정의 가장 강한 근거다.** if(kakao)2022 "카카오톡 메시징 시스템
+재건축 이야기"에서 relay & session manager를 **C++ → Kotlin + Netty + ZGC**로 포팅했다.
+
+**이유 (공식)**
+- *"경직된 코드 — 계층 강결합, 매크로/최적화로 가독성 저하, 메모리 버그"*
+- *"파트내 인적 리소스 불균형: C++/JAVA"*
+- *"10년 후에도 문제없이 유지보수가 가능할까?"*
+
+**결과**
+```
+코드라인      절반 이상 감소
+가용 인력     3배 증가
+relay time    C++ 47ms → Kotlin 42ms   ← 오히려 개선
+max GC pause  G1GC 170ms → ZGC 1ms     ← ZGC 채택 근거
+```
+
+규모는 **일 평균 500K tps, 평균 연결 세션 4,000만, 최고 6.5M tps,
+일 메시지 100억 건, relay 서버 대당 50만 세션**이다.
+
+> **"실시간 메시징은 C++이어야 한다"는 명제가 국내 최대 메신저에서 반증됐다.**
+> 그리고 그 근거가 성능이 아니라 **유지보수성과 인력**이었다는 점이 더 중요하다.
+> ZGC의 1ms pause가 그걸 가능하게 했다.
+
 ---
 
 ## 7. 단계별 계획
@@ -322,66 +347,215 @@ k6 run -e ROOM_SIZE=3000 k6/chat-fanout.js   # 라이브 규모
 
 ## 8. 팬아웃 설계 — Redis / NATS / Kafka
 
-### 왜 Redis Pub/Sub으로 시작하나
+### 8-1. 결론과 근거
 
-1. **프로젝트에 Redis가 이미 있다.** 운영 대상이 늘지 않는다
-2. **라이브 채팅은 유실을 허용한다**(§3). at-most-once로 충분하고,
-   **NATS Core도 at-most-once라 이 요구사항만 보면 차이가 없다**
-3. JetStream이 주는 지속성은 `INTERACTIVE` 이력용인데 **그건 MySQL이 이미 한다**
+**Redis Pub/Sub으로 간다.** 근거는 다섯이다.
 
-### 국내 선례 — 같은 문제에 정반대 결론
+**① 채팅의 진실 원천은 브로커가 아니라 MySQL이다. 그래서 at-most-once로 충분하다.**
 
-| | LINE LIVE (2016) | 카카오엔터 라이브채팅 (2022) |
+Redis 공식 Java/Lettuce 프로덕션 가이드가 이 패턴을 명시적으로 권장한다.
+
+> *"Pub/sub is at-most-once — pair it with durable state if you need replay.
+> On reconnect, consumers reconcile by **reading the durable store**, not by waiting for
+> missed pub/sub messages."*
+
+Slack도 같다 — *"every message sent in Slack is **persisted before** it's sent across the
+real-time websocket stack."* 메시지는 MySQL에 저장하고, Redis Pub/Sub은
+**"지금 연결된 사람에게 빨리 알리는 신호선"** 일 뿐이다. 신호가 유실되면
+클라이언트가 `lastMessageId` 이후를 다시 조회한다.
+
+> **브로커에 durability를 요구하지 않는 설계라, at-most-once가 결함이 아니라
+> 요구사항에 맞는 선택이다.**
+
+**② 새 미들웨어 0개.** Redis는 이미 있다. `RedisMessageListenerContainer` 빈 하나로 끝난다.
+
+**③ 이 규모에서 성능이 남는다 — 수치로 말할 수 있다.**
+
+**Centrifugo**(Go 실시간 메시징 서버)가 노드 간 통신을 Redis Pub/Sub으로 하는데,
+*"one deployment served up to **500k connections** with 10 Centrifugo node pods and only
+**one Redis instance** which consumed only **60% of a single processor core**"* 다.
+
+앱 인스턴스가 N개면 **Redis 구독자도 N개(수십 개)이지 클라이언트 수만큼이 아니다.**
+
+**④ 실시간 메시징의 사실상 업계 표준 구현체다.**
+Socket.IO 공식 Redis Adapter, Centrifugo Redis Engine, LINE LIVE(Java + Akka +
+Redis Cluster Pub/Sub, 100+ 인스턴스 / 피크 분당 1만 코멘트)가 모두 이 패턴이다.
+
+**⑤ 한계에 닿는 지점을 수치로 안다.** (8-3)
+
+### 8-2. Redis Pub/Sub 실무 함정 — 미리 알고 간다
+
+**(a) `client-output-buffer-limit`으로 인한 구독자 강제 종료**
+
+```
+client-output-buffer-limit pubsub 32mb 8mb 60
+  hard 32MB  → 즉시 연결 종료
+  soft  8MB가 60초 연속 유지 → 연결 종료
+```
+
+Pub/Sub은 push 기반이라 **구독자 처리 속도 < 발행 속도면 출력 버퍼가 무한 증가**한다.
+끊기면 *"all pending messages for that subscriber are lost"* 다.
+
+> **증상: 애플리케이션 로그의 원인 불명 잦은 구독자 재접속.**
+> 리스너가 무겁거나(JDBC 쓰기, 동기 HTTP) 인스턴스가 GC로 멈추면 → 버퍼 증가 →
+> Redis가 그 인스턴스를 끊음 → **그 인스턴스에 붙은 전체 클라이언트가 조용히 메시지를 놓친다.**
+> 이게 Redis Pub/Sub 채팅의 실제 1급 장애 시나리오다.
+
+**(b) 리스너 콜백은 Netty 이벤트 루프 스레드에서 돈다**
+
+Redis 공식 가이드: *"messages arrive on **Netty event loop threads**. Blocking there
+ties up I/O threads and delays the next message on the same socket."*
+
+**→ 리스너에서 무거운 작업 금지. executor로 넘긴다.**
+(§4의 Spring WebSocket 스레드 고갈과 같은 종류의 함정이다.)
+
+**(c) 구독자마다 별도 커넥션**
+Lettuce는 `SUBSCRIBE` 후 커넥션을 subscribe-only 모드로 전환한다 →
+`StatefulRedisPubSubConnection`을 공유하면 안 된다.
+
+**(d) 글롭 패턴은 발행마다 전부 평가된다**
+`PUBLISH`는 **O(N+M)** (N=채널 구독자, M=전체 패턴 수).
+핫패스에서 `*:*:*` 같은 다중 와일드카드 금지. 채널명은 `chat:room:123` 콜론 계층으로.
+
+### 8-3. 한계 임계점 — 어디서 무너지나
+
+**Redis Cluster의 일반 `PUBLISH`는 모든 노드에 브로드캐스트된다.**
+Redis 이슈 #2672의 계산:
+
+```
+1KB 메시지 · 10노드 · 1Gbit/s  →  12.5K RPS 한계
+5KB 메시지 · 50노드            →     500 RPS
+```
+
+**노드를 늘릴수록 publish가 비싸진다. 스케일이 반대로 간다.**
+
+**해결책: Redis 7 Sharded Pub/Sub** (`SPUBLISH` / `SSUBSCRIBE`).
+채널을 키와 같은 알고리즘으로 슬롯에 해싱해 **샤드 내부로만 전파**한다.
+Lettuce가 클러스터 커넥션에 `spublish()` / `ssubscribe()`를 노출한다.
+제약: 한 번의 `SSUBSCRIBE` 호출의 모든 채널이 **같은 슬롯**이어야 한다.
+
+**임계점의 실물 — 카카오엔터(2022)**
+
+동시접속 20만 목표에서 **Redis Pub/Sub을 명시적으로 탈락**시켰다. 이유 셋:
+
+1. Redis Cluster에서 publish 시 **모든 노드에 전파** → 노드를 늘릴수록 느려짐
+   (당시 GCP Memorystore가 Redis 6.x만 지원해 Sharded Pub/Sub 사용 불가)
+2. 특정 채널 발행 시 **모든 subscriber 순회** → 구독자 수 비례 선형 지연
+3. 메시지 휘발성 + 전/후처리 파이프라인 자체 구현 필요
+
+Cloud Pub/Sub vs Kafka 실측:
+
+| | Cloud Pub/Sub | Kafka |
+|---|---:|---:|
+| p90 | 45~180ms | **30~65ms** |
+| p99 | 500~1,000ms | **60~100ms** |
+
+결과: Pod(CPU 4 / MEM 8GiB)당 **동시접속 2,000명 + 1초 내 송수신**.
+
+> **그 임계점이 어디인지 알고 있고, 우리는 그 아래에 있다.**
+
+### 8-4. 같은 문제, 정반대 결론
+
+| | LINE LIVE (2016) | 카카오엔터 (2022) |
 |---|---|---|
 | 브로커 | **Redis Cluster Pub/Sub** | **Kafka** |
 | 룸 배치 | 룸이 여러 서버에 걸침 | 룸을 N대에 분산 |
-| 규모 | 분당 1만+ 코멘트 | 목표 동접 20만 |
+| 규모 | **분당 1만+ 코멘트** | **동시접속 20만** |
 | 스택 | Java + Akka | Kotlin + Spring Boot + Coroutine |
 
-**카카오엔터가 Redis Pub/Sub을 기각한 이유 (그대로 우리 판단 기준이 된다)**
+**이유가 규모와 시기다.** 분당 1만이면 Redis Pub/Sub, 동시 20만이면 브로커,
+동시 수백만이면 자체 라우팅(8-6).
 
-1. Redis Cluster에서 publish 시 **모든 노드에 전파** → 노드를 늘릴수록 느려짐
-   (Redis 7의 Sharded Pub/Sub로 개선되나 당시 Memorystore는 6.x)
-2. 특정 채널 발행 시 **모든 subscriber를 순회** → **구독자 수에 비례해 선형 지연**
-3. 메시지 휘발성 + 전/후처리 파이프라인을 직접 만들어야 함
-
-그리고 실측 비교를 공개했다 — **Kafka p90 30~65ms / p99 60~100ms**,
-Cloud Pub/Sub p90 45~180ms / p99 500~1,000ms.
-
-### NATS 채택 기준 — 사전 등록
+### 8-5. NATS 채택 기준 — 사전 등록
 
 > 재고 나서 기준을 만들면 **결과에 맞춰 논리를 짜게 된다.** 먼저 정한다.
 
 아래 중 **하나라도** 측정에서 나오면 NATS를 도입하고 그 수치를 근거로 기록한다.
 
-- [ ] Redis Pub/Sub 경유 전파 지연 **p95 > 50ms** (카카오엔터 Kafka p99 60~100ms를 기준선으로)
+- [ ] Redis Pub/Sub 경유 전파 지연 **p95 > 50ms** (카카오엔터 Kafka p99 60~100ms 기준선)
 - [ ] 부하 중 `client-output-buffer-limit pubsub`으로 **인스턴스 구독이 끊긴다**
 - [ ] 메시지 유실률이 `BROADCAST` 허용치(**1%**)를 넘는다
 - [ ] Redis가 채팅 때문에 세션·캐시 용도에 지장을 준다
 
-**여유가 되면 A/B로 잰다.** 기준에 안 걸려도
-*"Redis는 X ms, NATS는 Y ms였고 차이가 Z라 도입하지 않았다"*가
-*"안 써봤다"*보다 훨씬 강하다.
+**그런데 조사에서 NATS의 실제 약점이 나왔다.**
 
-### Kafka는 후보에서 뺀다
+> **Centrifugo는 NATS를 브로커로 지원하지만 등급이 낮다** —
+> *"Nats integration works only for **unreliable at most once PUB/SUB**"*,
+> **history/recovery 기능 사용 불가**, 와일드카드 구독 기본 비활성.
 
-채팅 실시간 전파에는 지연·운영 부담이 과하다. Kafka가 맞는 자리는
-**채팅 로그 적재·분석 파이프라인**이지 실시간 전파가 아니다.
-(카카오엔터가 Kafka를 쓴 것은 **동접 20만 + Kafka Streams로 금칙어·도배 판정**이라는
-다른 요구사항 때문이다. 우리에겐 그 요구사항이 없다.)
+즉 실시간 메시징 서버 관점에서 **NATS Core는 Redis보다 기능이 적다.**
+이력·복구를 원하면 JetStream까지 가야 하고, 그러면 운영 부담이 Kafka 쪽으로 이동한다.
+그리고 **NATS 공식 어답터 목록에 채팅/메신저 회사가 없다** (인프라·IoT·클라우드 중심).
 
-### 참고 — 실서비스는 "룸을 서버에 고정"한다
+**NATS가 정당해지는 조건** (참고로 기록)
+1. `org.{id}.room.{id}.event.{type}` 같은 **subject 계층**이 도메인 요구사항이고 subject가 수만~수백만 개
+2. **멀티 리전 / 엣지** 토폴로지 (gateway·leaf node)
+3. 리소스 극단 제한 환경 (단일 바이너리, 메모리 20MB 미만)
+4. **request-reply**가 팬아웃만큼 중요 (평균 50.87µs)
+5. queue group 분배 + 브로드캐스트를 **한 시스템**에서
 
-치지직은 **클라이언트가 서버를 정한다**: `hash(chatChannelId) % 9 + 1` → `kr-ss1~9`.
-같은 방송 시청자가 항상 같은 서버로 수렴하므로 **서버 간 fan-out이 원천적으로 불필요**해진다.
-SOOP도 방송별로 서버가 `CHDOMAIN:CHPT`를 지정한다.
+**우리는 다섯 중 어느 것도 아니다.** subject가 방 ID 하나뿐이고 단일 리전이다.
 
-**카카오엔터는 이 방식을 명시적으로 기각했다** — 룸별 트래픽 편차로 리소스가 불균형해지기 때문.
-그래서 브로커가 필수가 됐다.
+### 8-6. Kafka는 후보에서 뺀다 — 그리고 대형 서비스는 어디에 있나
 
-> **우리는 Redis Pub/Sub(= 룸을 분산)으로 간다.**
-> 룸-서버 고정은 스티키 세션 인프라가 필요하고, 방이 적은 우리 규모에서는
-> 편차가 평탄해지지 않는다. 이 판단도 ADR에 남긴다.
+Kafka는 **처리량을 위해 건당 지연을 의도적으로 희생**하는 설계다
+(producer latency 15~30ms vs Redis Pub/Sub <1ms).
+**방 하나당 토픽은 안티패턴**이고, *"throughput does still drop off when there are
+more than 1,000 topics"* 다. 컨슈머 그룹은 파티션을 나눠 갖는 모델이라
+"모든 인스턴스가 모든 메시지 수신"과 맞지 않는다.
+
+**대형 서비스에서 Kafka의 실제 위치**: Slack은 Kafka를 쓰지만 **잡 큐 앞단 durable
+buffer**(하루 14억 잡, 브로커 16대)다. **채팅 전달 경로가 아니다.**
+
+**그리고 대형 플레이어는 채팅 팬아웃에 브로커를 아예 안 쓴다.**
+
+| 회사 | 채팅 팬아웃 |
+|---|---|
+| Discord | Distributed Erlang + 자체 **Manifold** |
+| Slack | **자체 Java pub/sub 티어** (Channel Server) |
+| Twitch | **자체 Go Pubsub** |
+| KakaoTalk | **relay 풀메시 직접 라우팅** (세션 위치는 Redis Cluster 조회) |
+| LINE | 브로커 없음 — LEGY **notify** + 클라이언트 `fetchOps()` **pull** |
+
+**공통 패턴이 하나 있다** — 룸/채널 단위 어피니티 + consistent hashing.
+Slack(channel_id 해시), Discord(guild=프로세스 1개), 치지직(`hash%9+1`),
+SOOP(서버가 호스트 지정), 카카오(session info repository).
+
+> 핵심은 *"브로커를 쓰지 말라"* 가 아니라
+> **"같은 방을 같은 곳에 모아 cross-node 팬아웃 자체를 없애라"** 다.
+> 카카오엔터조차 **룸을 서버에 고정하지 "않기로" 선택했기 때문에** 브로커가 필수가 됐다.
+> 인과관계가 이 방향이다.
+
+**팬아웃 비용은 O(N²)이고 결국 "안 보내기"로 이긴다.**
+Discord Maxjourney: 1,000명이 각각 1개 = 100만 알림 / 10만 명이면 **100억 알림**.
+해법은 하나같이 전송량 자체를 줄이는 것 — Discord passive session 90% 스킵,
+Slack 구독자 없는 GS 제외, 치지직 `READ|SEND` 분리, LINE notify만 보내고 클라가 pull.
+
+### 8-7. Spring 다중 인스턴스 함정 — `/user/**`
+
+`convertAndSendToUser()`는 세션 고유 목적지로 변환되는데, **다중 인스턴스에서는
+유저가 다른 서버에 붙어 있으면 목적지가 해석되지 않는다.**
+
+> *"In a multi-application server scenario, a user destination may remain unresolved
+> because the user is connected to a different server. In such cases, you can configure
+> a destination to **broadcast unresolved messages** so that other servers have a chance to try."*
+
+**→ `MessageBrokerRegistry`의 `userDestinationBroadcast` + `userRegistryBroadcast` 설정 필수.**
+
+이걸 모르고 겪는 문제가 실제 이슈로 올라왔다 — spring-framework#30347,
+`No TCP connection for session [ID]` 에러. **closed as invalid** (프레임워크 버그가 아니라 설정 누락).
+
+### 8-8. 면접 답변 — "왜 NATS 안 쓰고 Redis 썼어요?"
+
+> 팬아웃 브로커에 durability를 요구하지 않는 설계라 at-most-once면 충분했고,
+> 그러면 **NATS Core와 Redis Pub/Sub의 전달 보장은 동일합니다.**
+> 오히려 Centrifugo 같은 실시간 서버는 NATS 브로커를 쓰면 history/recovery를 못 씁니다.
+> Redis는 이미 프로젝트에 있어서 새 클러스터가 0개고, 이력·프레즌스까지 같은 스토어에서 처리됩니다.
+> NATS의 진짜 강점인 subject 계층 수백만 개와 마이크로초 라우팅은 우리 규모에서 쓸 일이 없습니다.
+>
+> 대신 **Redis Pub/Sub의 한계는 알고 있습니다** — 클러스터 전 노드 브로드캐스트와
+> output buffer 강제 종료요. 전자는 Redis 7 Sharded Pub/Sub으로,
+> 후자는 리스너에서 블로킹 안 하는 걸로 대응했습니다.
 
 ---
 
@@ -915,3 +1089,14 @@ FROM livekit/gstreamer:1.24.12-dev            ← C 라이브러리
 | `room_composite_cpu_cost: 3.0` | livekit/egress README |
 | LL-HLS 실증 (iPhone 14 20분 후 끊김) | WINK Ultra-Low-Latency HLS Experiments 2025 |
 | WHIP = RFC 9725 (2025-03 정식), WHEP = draft | rfc-editor.org / datatracker |
+| `client-output-buffer-limit pubsub 32mb 8mb 60` | Redis 설정 기본값 |
+| Redis Cluster PUBLISH 전 노드 전파 (1KB/10노드 = 12.5K RPS) | redis/redis#2672 |
+| Redis 7 Sharded Pub/Sub (`SPUBLISH`/`SSUBSCRIBE`) | redis.io 커맨드 문서 + Lettuce wiki |
+| 리스너 콜백이 Netty 이벤트 루프에서 실행 | Redis 공식 Java/Lettuce 프로덕션 가이드 |
+| Centrifugo: Redis 1대로 50만 커넥션, CPU 코어 60% | centrifugal.dev/docs/server/engines |
+| Centrifugo의 NATS = at-most-once만, history/recovery 불가 | 동일 |
+| Spring `/user/**` 다중 인스턴스 `userDestinationBroadcast` 필수 | Spring 문서 + spring-framework#30347 |
+| **카카오톡 C++ → Kotlin+Netty+ZGC (relay 47→42ms, 인력 3배)** | if(kakao)2022 슬라이드 |
+| **ZGC max pause G1GC 170ms vs ZGC 1ms** | 카카오 자체 벤치마크 |
+| Slack: 메시지는 팬아웃 전 MySQL 영속화 | slack.engineering/real-time-messaging |
+| Kafka 브로커는 raw java.nio (Netty 아님) | apache/kafka SocketServer.scala |
