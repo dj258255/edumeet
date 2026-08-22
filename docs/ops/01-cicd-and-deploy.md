@@ -221,6 +221,15 @@ gh secret set OCI_SSH_KEY < ~/.ssh/edumeet_deploy
 
 ### 2. 서버 디렉터리와 `.env`
 
+> **Ansible 로 자동화했다 (#37).** 아래 수동 절차는 Ansible 을 못 쓰는 상황을 위해 남긴다.
+> `ansible/README.md` 를 먼저 본다.
+>
+> ```bash
+> cd ansible && ansible-playbook playbook.yml --check --diff   # 미리 보기
+> cd ansible && ansible-playbook playbook.yml                  # 적용
+> ```
+
+
 배포 스크립트는 `cd ~/edumeet` 로 시작한다. **이 디렉터리가 없으면 거기서 끝난다.**
 
 ```bash

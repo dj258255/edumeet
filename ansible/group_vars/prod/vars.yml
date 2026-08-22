@@ -1,0 +1,41 @@
+# 비밀이 아닌 값. 평문으로 둔다.
+#
+# 비밀은 vault.yml 에 vault_ 접두사로 두고 여기서 참조한다.
+# 이렇게 하면 "무엇이 비밀인가" 가 이 파일만 봐도 드러난다.
+
+app_dir: "/home/{{ ansible_user }}/edumeet"
+
+# 앱 관리 포트를 어디에 바인딩할지. (#34)
+# 기존 관측 스택(balruno-monitoring)이 긁게 하려면 사설 IP 를 준다.
+# 127.0.0.1 이면 서버 안에서만 보인다.
+management_bind: "10.0.0.11"
+
+mysql_database: edumeet
+mysql_user: edumeet
+
+aws_region: ap-northeast-2
+mail_host: smtp.gmail.com
+mail_port: 587
+
+# 8080 을 방화벽에서 열지 여부. 공개 노출 결정이므로 기본은 닫아 둔다.
+# 리버스 프록시(80/443)를 두는 편이 낫다 - docs/ops/01-cicd-and-deploy.md
+open_app_port: false
+
+# ── 비밀 참조 ────────────────────────────────────────────
+mysql_root_password: "{{ vault_mysql_root_password }}"
+mysql_password: "{{ vault_mysql_password }}"
+grafana_password: "{{ vault_grafana_password }}"
+jwt_secret: "{{ vault_jwt_secret }}"
+internal_api_token: "{{ vault_internal_api_token }}"
+mail_username: "{{ vault_mail_username }}"
+mail_password: "{{ vault_mail_password }}"
+aws_access_key: "{{ vault_aws_access_key }}"
+aws_secret_key: "{{ vault_aws_secret_key }}"
+aws_s3_bucket: "{{ vault_aws_s3_bucket }}"
+kakao_client_id: "{{ vault_kakao_client_id }}"
+kakao_client_secret: "{{ vault_kakao_client_secret }}"
+livekit_url: "{{ vault_livekit_url }}"
+livekit_api_key: "{{ vault_livekit_api_key }}"
+livekit_api_secret: "{{ vault_livekit_api_secret }}"
+front_url: "{{ vault_front_url }}"
+front_url2: "{{ vault_front_url2 }}"

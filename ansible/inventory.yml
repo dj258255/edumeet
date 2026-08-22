@@ -1,0 +1,14 @@
+# 서버 목록. 지금은 한 대다.
+#
+#   ansible-playbook playbook.yml --check --diff    # 무엇이 바뀌는지만 본다
+#   ansible-playbook playbook.yml                   # 적용한다
+all:
+  children:
+    prod:
+      hosts:
+        oci-aarch64-1:
+          ansible_host: 168.107.47.33
+          ansible_user: rocky
+          # 배포 전용 키가 아니라 관리자 키를 쓴다.
+          # 배포 키는 GitHub Actions 가 compose 를 돌리는 데만 쓴다.
+          ansible_ssh_private_key_file: ~/.ssh/tymee

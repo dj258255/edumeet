@@ -1,0 +1,90 @@
+# EduMeet 서버 프로비저닝. (#37)
+#
+#   ansible-playbook playbook.yml --check --diff    # 무엇이 바뀌는지만 본다
+#   ansible-playbook playbook.yml                   # 적용한다
+#   ansible-vault edit group_vars/prod/vault.yml    # 값을 바꾼다
+#
+# ★ 이 서버는 다른 프로젝트(balruno-monitoring, incident-lab)도 쓴다.
+#   그래서 패키지 설치나 시스템 설정을 하지 않는다. 확인만 하고, 없으면 멈춘다.
+#   남의 워크로드가 도는 서버에 플레이북이 함부로 손대면 안 된다.
+
+- name: EduMeet 프로비저닝
+  hosts: prod
+  gather_facts: true
+
+  tasks:
+    # ── 전제 확인. 고치지 않고 확인만 한다 ──────────────────
+    - name: Docker 가 있는지 확인
+      ansible.builtin.command: docker compose version
+      register: docker_check
+      changed_when: false
+      failed_when: docker_check.rc != 0
+
+    - name: 확인 결과
+      ansible.builtin.assert:
+        that: docker_check.rc == 0
+        fail_msg: >-
+          Docker Compose 가 없다. 이 플레이북은 설치하지 않는다 -
+          다른 프로젝트가 쓰는 서버라 패키지를 건드리지 않는다.
+        success_msg: "Docker Compose 확인됨"
+
+    # ── 배포 대상 디렉터리 ──────────────────────────────────
+    # #34 에서 배포가 실패한 원인 중 하나가 이 디렉터리가 없었던 것이다.
+    - name: 배포 디렉터리
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: "0755"
+
+    # ── .env ────────────────────────────────────────────────
+    # no_log: 출력에 값이 찍히면 암호화한 의미가 없다.
+    # backup: 값을 잘못 넣었을 때 되돌릴 수 있어야 한다.
+    - name: .env 생성
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ app_dir }}/.env"
+        mode: "0600"
+        backup: true
+      no_log: true
+      register: env_result
+
+    - name: .env 결과
+      ansible.builtin.debug:
+        msg: "{{ '.env 갱신됨' if env_result.changed else '.env 변경 없음' }}"
+
+    # ── compose / 관측 설정 ────────────────────────────────
+    # GitHub Actions 도 배포마다 이걸 복사한다(#34). 여기서도 하는 이유는
+    # CI 없이 서버를 재구축할 수 있어야 하기 때문이다.
+    - name: compose 파일
+      ansible.builtin.copy:
+        src: "../docker-compose.prod.yml"
+        dest: "{{ app_dir }}/docker-compose.prod.yml"
+        mode: "0644"
+
+    - name: 관측 설정
+      ansible.builtin.copy:
+        src: "../observability/"
+        dest: "{{ app_dir }}/observability/"
+        mode: "0644"
+        directory_mode: "0755"
+
+    # ── 방화벽 ──────────────────────────────────────────────
+    # 기본은 닫아 둔다. 공개 노출은 판단이 필요한 결정이다.
+    # OCI 는 VCN 보안목록에서도 따로 막으므로 여기만 열어서는 외부에서 닿지 않는다.
+    - name: 앱 포트 개방
+      ansible.posix.firewalld:
+        port: 8080/tcp
+        permanent: true
+        immediate: true
+        state: "{{ 'enabled' if open_app_port else 'disabled' }}"
+      become: true
+      when: open_app_port is defined
+
+    # ── 결과 ────────────────────────────────────────────────
+    - name: 요약
+      ansible.builtin.debug:
+        msg:
+          - "디렉터리: {{ app_dir }}"
+          - "관리 포트 바인딩: {{ management_bind }}:9091"
+          - "8080 개방: {{ open_app_port }}"
+          - "다음: cd {{ app_dir }} && docker compose -f docker-compose.prod.yml up -d"
