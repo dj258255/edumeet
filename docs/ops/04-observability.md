@@ -122,20 +122,60 @@ UI 로 만든 대시보드는 **재현이 안 되고, 누가 무엇을 왜 넣�
 
 `promtool check config` 로 Prometheus 설정 문법도 확인했다.
 
-## 6. 다음 — 채팅이 있어야 붙는다
+## 6. 채팅 계측 (#39)
 
-이 문서의 범위는 **지금 있는 코드**에 대한 기준선이다.
+채팅이 생겼으므로(#33) 붙일 대상이 생겼다.
 
-붕괴 5단계 중 ②(스레드 풀 포화)·③(느린 클라이언트)·⑤(다중 인스턴스)를 보려면
-**WebSocket 채팅을 먼저 만들어야 한다.** 이 리포에는 아직 없다.
+### `WebSocketMessageBrokerStats` 를 쓰지 않았다
 
-| 나중에 추가 | |
+Spring 이 같은 값을 이미 계산한다. 다만 **전부 `String` 으로만 노출한다.**
+
+```java
+String getClientInboundExecutorStatsInfo()   // "pool size = 8, active threads = 0, ..."
+```
+
+문자열을 파싱하면 Spring 이 형식을 바꾸는 순간 **조용히 깨진다.**
+그래서 **실행기 객체를 Micrometer 에 직접 바인딩**하고, 세션·방·발행량은 이벤트로 직접 센다.
+
+### 무엇을 재는가
+
+| 지표 | 무엇을 보는가 | 붕괴 단계 |
+|---|---|---|
+| **`executor_queued_tasks`** | **대기열 길이 — 포화의 첫 신호** | ②③ |
+| `executor_active_threads` / `pool_size` | active 가 pool 에 붙으면 그 뒤는 전부 큐로 간다 | ②③ |
+| `chat_sessions_active` | 커넥션 한계 | ④ |
+| `chat_rooms_active` | 활성 방 수 | ① |
+| `chat_messages_published_total` | 발행량 | ① |
+| **`chat_fanout_recipients`** | **실제 전달 대상 수** | ① |
+
+> **fan-out 배수가 브로드캐스트 비용의 본체다.**
+> 발행량만 세면 30명 방과 3,000명 방이 같아 보인다. **실제 쓰기량 = 발행량 × 이 값**이다.
+
+### 정리하지 않으면 지표가 부풀려진다
+
+`SessionUnsubscribeEvent` 는 **목적지를 담지 않는다.** 구독 id 만 온다.
+그리고 브라우저를 닫으면 **UNSUBSCRIBE 없이 세션이 사라진다** — 이게 정상 경로다.
+
+그래서 `(세션, 구독id) → 목적지` 를 들고 있다가 끊길 때 정리한다.
+안 하면 **방이 비었는데 구독자 수가 줄지 않아 fan-out 배수가 계속 부풀려진다.**
+테스트로 고정했다 (`fanout_records_recipient_count` 마지막 단언).
+
+### `_bucket` 이 없으면 패널이 빈 화면이다
+
+`chat.fanout.recipients` 에 `publishPercentileHistogram()` 을 붙였다.
+빠지면 `chat_fanout_recipients_bucket` 이 안 나오고 대시보드의
+`histogram_quantile` 패널이 통째로 **"No data"** 가 된다. §4 의 5xx 패널과 같은 함정이다.
+
+이것도 테스트로 고정했다.
+
+## 7. 남은 것
+
+| | |
 |---|---|
-| `WebSocketMessageBrokerStats` → Micrometer | Spring 이 이미 계산하는데 30초마다 INFO 로그로만 나간다 |
-| inbound/outbound **큐 길이** | 기본 큐가 무한이라 **포화가 에러가 아니라 지연으로만** 나타난다 |
-| 세션 버퍼 / 강제 종료 수 | 느린 클라이언트 |
+| 세션 버퍼 / 강제 종료 수 | 느린 클라이언트 (붕괴 ③) — Phase 3 |
+| Redis Pub/Sub 전파 지연 | 다중 인스턴스 (붕괴 ⑤) — Phase 5 |
 
-## 7. 미확인
+## 8. 미확인
 
 - **Grafana 대시보드를 실제 화면으로 확인하지 않았다.** PromQL 이 값을 내는 것까지만 검증했다
 - 알림(Alertmanager) 없음. 기준선을 잡기 전에는 임계값을 정할 수 없다
