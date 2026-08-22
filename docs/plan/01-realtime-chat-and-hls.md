@@ -783,41 +783,142 @@ TS 세그먼트  →  CMAF(fMP4) 아님
 > **구현하지 않되 "왜 못 하는가"를 사양 조항과 함께 서술한다.**
 > *"LL-HLS로 가려면 fMP4/CMAF 패키저 교체가 선행되어야 한다"* 가 분석 결론이 된다.
 
-### 9-6. glass-to-glass 측정 — 소프트웨어만으로
+### 9-6. 지연 측정 — 무엇을 재는지부터 정의한다
 
-| 방법 | 정확도 | 소요 | 내용 |
-|---|---|---|---|
-| **A. 화면 ms 시계 + 스크린샷** | 중 | 반나절 | canvas에 `Date.now()`를 그려 `captureStream()`으로 publish → 다른 탭에서 HLS 재생 → 두 탭이 보이는 스크린샷 1장. **차이가 지연** |
-| **B. `hls.playingDate`** | 중 | 3줄 | `Date.now() - hls.playingDate.getTime()` = 패키저 벽시계 기준 지연. **상시 계측·자동화 가능** |
-| C. 스마트폰 240fps 촬영 | 상 | 1회 | 진짜 glass-to-glass. 샘플 수를 못 늘림 |
-| D. videoLat | — | — | macOS 전용, 화상회의 왕복 특화. 오버킬 |
+**⚠ 먼저: "glass-to-glass"라고 부르면 안 되는 것을 부르지 않는다.**
 
-**A를 자동화하면 p95까지 낼 수 있다.** `requestVideoFrameCallback()`으로 프레임마다
-픽셀 패턴(타임스탬프 바)을 디코딩하면 수백 회 샘플이 나온다.
-**p95를 낼 수 있으면 급이 한 단계 올라간다.**
+DASH-IF가 지연을 단위로 쪼개 정의한다. **면접에서 이 구분이 먹힌다.**
 
-**A + B를 같이 쓰면 지연을 분해할 수 있다** — 총 지연 중 몇 초가 플레이어 HOLD-BACK 몫인지.
-그게 §9-4의 3× 규칙에 대한 실측 증명이 된다.
+| 용어 | 정의 |
+|---|---|
+| **EEL** (End-to-End Latency) | *"captured by the camera until its visibility on the remote screen"* ← **진짜 glass-to-glass** |
+| **EDL** (Encoder-Display Latency) | 인코더 출력 → 화면 |
+| Packager-Display Latency | 패키저 → 화면 |
+| LSD (Live Edge Start-up Delay) | 채널 체인지 타임 |
 
-> **확정됨** — LiveKit egress는 **세그먼트마다 `EXT-X-PROGRAM-DATE-TIME`을 찍는다.**
-> (`pkg/pipeline/sink/m3u8/writer.go` 소스 확인) PDT 기준 시각은
-> `segmentStartTime := s.startTime.Add(t - s.startRunningTime)` — **egress 서버의 wall clock**이다.
-> 따라서 **방법 B가 성립하고, 코드 5줄로 끝난다.**
->
-> ```js
-> setInterval(() => {
->   if (hls.playingDate) {
->     const latencyMs = Date.now() - hls.playingDate.getTime();
->   }
-> }, 500);
-> ```
->
-> 전제: egress 서버와 시청 브라우저의 **시계가 맞아야 한다.** 같은 머신에서 도커로 돌리면 자동 충족.
-> 그리고 Apple 스펙 **8.4가 라이브 플레이리스트에 PDT를 MUST로 요구**하므로,
-> 이건 LiveKit 전용 꼼수가 아니라 **표준 기반 범용 기법**이다.
+**우리가 잴 수 있는 건 EDL에 가깝다.** 방송(위성/케이블/DTT) 기준선이 **EDL 3~10초**,
+스타트업 1~2초다. 리포트에 **어느 구간인지 반드시 명시한다.**
 
-**A는 엄밀히는 glass-to-glass가 아니라 "encode-to-render"다** (카메라 캡처·디스플레이 출력 지연 제외).
-이 한계를 명시하는 것이 오히려 신뢰도를 올린다.
+> SVTA 공식 문서(SVTA1058)의 결론:
+> *"there is **no single measurement point or method** that can provide a complete
+> measurement of latency through the delivery chain"*
+
+#### 방법 A — `EXT-X-PROGRAM-DATE-TIME` (채택)
+
+```js
+hls.on(Hls.Events.FRAG_CHANGED, (e, data) => {
+  if (hls.levels[data.frag.level].details.hasProgramDateTime) {
+    const latencySec = (Date.now() - new Date(data.frag.programDateTime)) / 1000;
+  }
+});
+```
+
+**LiveKit egress는 세그먼트마다 PDT를 찍는다**(소스 확인, §9-3b). Apple 8.4가
+라이브 플레이리스트에 PDT를 **MUST**로 요구하므로 표준 기반 기법이다.
+
+**⚠ 이 방법이 재는 범위** — Mux가 자기 지표에 붙인 캐비엇이 정확하다.
+
+> *"you should expect the latency measured for Mux Video streams to be
+> **around 1 second lower than the actual glass-to-glass latency**"*
+> — Mux는 카메라 캡처가 아니라 **ingest 시점**에 PDT를 찍기 때문.
+
+**→ PDT 기반 측정은 정의상 "PDT 삽입 지점 → 화면"이다.**
+우리 경우 PDT를 찍는 건 **egress 인코더**이므로, WebRTC 구간(카메라 → SFU → egress)이
+빠진다. 그 구간은 §9-6c로 따로 재서 **더한다.**
+
+#### 방법 B — `hls.latency` (교차검증용)
+
+**⚠ 문서 설명과 실제 구현이 다르다. 소스를 확인했다.**
+
+```
+문서:  "difference between hls.playingDate and server's program-date-time"
+
+실제:  latency-controller.ts
+       computeLatency() = liveEdge - currentTime
+       liveEdge = levelDetails.edge + levelDetails.age
+```
+
+즉 구현은 **"플레이리스트가 알려주는 라이브 엣지 − 현재 재생 위치"** 다.
+PDT 벽시계 차가 아니다. **둘 다 알고 있어야 하고, A와 B를 같이 그리면
+"총 지연 중 몇 초가 플레이어 HOLD-BACK 몫인가"를 분리할 수 있다.**
+
+그리고 `targetLatency` 구현에 숨은 동작이 있다.
+
+```ts
+let targetLatency = lowLatencyMode ? partHoldBack || holdBack : holdBack;
+...
+return targetLatency + Math.min(
+  this.stallCount * config.liveSyncOnStallIncrease, maxLiveSyncOnStallIncrease);
+```
+
+**스톨이 날 때마다 타깃 지연을 올린다** (최대 +targetduration).
+→ 측정 중 리버퍼가 나면 **타깃 자체가 움직인다.** 리포트에 스톨 횟수를 함께 적어야 한다.
+
+#### 방법 C — WebRTC 구간 (`getStats()`)
+
+W3C 스펙 기준으로 세 값을 함께 리포트한다.
+
+| 지표 | 계산 |
+|---|---|
+| 평균 지터버퍼 지연 | `jitterBufferDelay / jitterBufferEmittedCount` |
+| 평균 수신→디코드 | `totalProcessingDelay / framesDecoded` |
+| RTT | `roundTripTime` (RTCP SR 기반) |
+
+`totalProcessingDelay` 정의가 정확하다 — *"the time from the **first RTP packet is
+received** and to the time the corresponding sample or frame is **decoded**"*.
+
+튜닝은 `receiver.jitterBufferTarget` (0~4000ms).
+
+**→ A(HLS 구간) + C(WebRTC 구간)를 더하면 사실상 EEL이다.**
+보고서에는 *"HLS 구간 X초 + WebRTC 구간 Y ms"* 로 **분해해서 쓰는 게 더 좋은 그림**이다.
+
+#### 방법 D — 화면 시계 (교차검증 전용)
+
+한 PC에서 ms 시계 탭을 캡처해 송출하고 다른 탭에서 재생, 두 창을 한 스크린샷에.
+**같은 시스템 클록이라 NTP 문제가 없다**는 게 장점이다.
+
+**⚠ 그런데 오차가 그대로 남는다.**
+
+| 오차원 | 크기 |
+|---|---|
+| 화면 캡처 파이프라인(OBS) | 60~400ms |
+| 모니터 리프레시 60Hz | 16.7ms 양자화 |
+| 웹 스톱워치 자체 refresh | 43ms 보고 사례 |
+| 롤링셔터 (카메라 촬영 시) | 화면 상/하단 시각 차이 |
+
+**→ 절대값 ±수십 ms를 주장할 수 없다.** 상대 비교(설정 A vs B)나 초 단위 오더 확인용이다.
+
+#### ★ 캘리브레이션 원칙 (videoLat)
+
+videoLat 논문의 핵심 원칙이고, **소프트웨어-온리 측정에도 그대로 적용된다.**
+
+> *"this delay includes the delay caused by the internal processing of videoLat itself.
+> Therefore, before doing a real measurement, the operator should first do a
+> **calibration run** ... This self-delay will then be **subtracted** from the real measurement."*
+
+**→ 같은 리그로 "루프백"(캡처 → 즉시 로컬 표시)을 먼저 재서 빼야 한다.**
+이걸 안 하면 측정 리그의 지연을 서비스 지연으로 착각한다.
+
+#### 절대값이 필요하면 — ffmpeg 번인
+
+```
+%{localtime\:%H\\:%M\\:%S.%3N}
+```
+
+`drawtext`의 `localtime`은 **`%[1-6]N`으로 초의 소수부**를 찍는다(공식 문서).
+`pts` 옵션의 `hms`는 밀리초 정밀도 `[-]HH:MM:SS.mmm`.
+240fps 슬로모로 촬영해 프레임 카운트하면 절대값이 나온다.
+
+OCR 없이 하려면 **stb-tester `latency-clock`** — 64비트 나노초를
+**8×8px 흑백 박스**로 프레임에 그려 넣어 카메라 촬영본에서도 견고하게 디코딩된다.
+GStreamer 엘리먼트 `gsttimestampoverlay` / `timeoverlayparse` 제공.
+
+#### 리포트에 반드시 적을 것
+
+1. **어느 구간인지** — EEL / EDL / Packager-Display (DASH-IF 용어)
+2. **측정 리그 캘리브레이션값**
+3. **분포** — 평균만이 아니라 p95와 표준편차
+4. **스톨 횟수** (타깃 지연이 움직이므로)
 
 ### 9-7. ABR — 하되 2단까지만
 
@@ -938,6 +1039,96 @@ LiveKit egress의 `StreamOutput`은 **RTMP(s)와 SRT를 모두 지원**한다.
 CMAF = fMP4 기반 세그먼트 표준. **HLS와 DASH가 같은 세그먼트를 공유하고 매니페스트만 두 벌** 두면 되게 만든 것.
 iOS Safari는 DASH를 지원하지 않으므로 **iOS를 지원해야 하면 HLS는 선택이 아니라 필수**다.
 
+**B-frame의 지연 비용** — 저지연 설계의 핵심
+
+디코드 순서 ≠ 표시 순서라 **리오더 하나가 곧 1프레임 버퍼링**이다.
+24fps면 약 42ms, 60fps면 약 17ms. B-pyramid(B가 B를 참조)는 압축을 10~15% 개선하지만
+디코더 버퍼링을 GOP/2 수준까지 요구한다.
+
+```
+HLS/DASH VOD   →  closed GOP + B-pyramid 허용
+LL-HLS         →  closed GOP, B-pyramid 최소
+WebRTC         →  B-frame off
+```
+
+> *"B-frame은 압축 이득을 주지만 **리오더링 버퍼가 곧 레이턴시**다.
+> 그래서 WebRTC에서는 B를 끄고, LL-HLS에서도 B-pyramid를 줄인다."*
+
+**Open GOP vs Closed GOP**
+
+Open GOP는 GOP 시작부 B-frame이 직전 GOP를 참조해 비트레이트를 1~3% 절약하지만,
+**ABR 전환 시 참조 프레임이 달라져 문제가 생긴다.** Apple 7.4(세그먼트는 IDR로 시작)가
+사실상 HLS에서 closed GOP를 강제한다. 품질 차이는 VMAF 측정상 미미하다.
+
+**WHIP / WHEP 표준화 현황** (정확히 알면 좋음)
+
+```
+WHIP  = RFC 9725 (2025-03, Proposed Standard). RFC 8840·8842 업데이트
+WHEP  = draft-ietf-wish-whep-04, WG Last Call. 아직 RFC 아님
+WG 이름 = WISH (WebRTC Ingest Signaling over HTTPS)
+```
+
+WHIP 흐름: `POST` + `application/sdp` → `201 Created` + SDP answer + **`Location` 헤더** →
+종료는 그 URL로 `DELETE`. STUN/TURN은 201 응답의 `Link` 헤더 `rel="ice-server"`.
+
+**Enhanced RTMP** — RTMP가 안 죽는 이유
+
+RTMP는 스펙상 HEVC/AV1을 공식 지원하지 않지만 **인코더·OBS·CDN 인제스트가 전부 이미 지원**해서
+실질 표준으로 남았다. 업계는 버리는 대신 **Enhanced RTMP**로 확장했다 —
+FourCC 코덱 시그널링, HEVC/AV1/VP9, Opus/FLAC, 멀티트랙, **나노초 타임스탬프**.
+참여: Adobe, YouTube, Twitch, Amazon, FFmpeg, OBS, Dolby, Intel 등.
+
+**SRT 튜닝 숫자** (면접에서 물어볼 수 있음)
+
+```
+SRTO_RCVLATENCY  기본 120ms (Live mode)
+rule of thumb    SRT Latency = RTT × 4
+범위             20 ~ 8000 ms
+양단 설정 시     둘 중 큰 값 사용
+TSBPD 공식       PTS[x] = ETS[x] + LATENCY + DRIFT
+```
+
+**CMAF가 저지연에 유리한 진짜 이유**
+
+```
+Chunk     moof + mdat 한 쌍. 참조 가능한 최소 단위
+Fragment  chunk 1개 이상
+Segment   fragment 1개 이상
+```
+
+**chunk는 키프레임으로 시작할 필요가 없다.** 그래서 **세그먼트를 줄이지 않고도** 저지연을
+달성한다 — 세그먼트를 줄이면 IDR이 늘어 대역폭이 증가하는데, chunk는 그 대가가 없다.
+단 **CTE(chunked transfer encoding)를 오리진→CDN→플레이어 전 구간이 흘려야** 동작한다.
+
+> **CMAF 자체는 지연을 줄이지 않는다.** chunk + CTE 조합이 줄이는 것이다.
+
+**Apple 스펙에서 외워둘 조항 넷**
+
+```
+2.4   "You SHOULD NOT use HE-AAC if your audio bit rate is above 64 kbit/s"
+7.4   "Video segments MUST start with an IDR frame"
+10.1  "The server MUST deliver playlists using gzip content-encoding"
+13.7  "MUST use an encrypt:skip pattern of 1:9 (10% partial encryption)"   ← cbcs 패턴의 실체
+13.11 "Encryption with SAMPLE-AES-CTR SHALL NOT be used on Apple devices"  ← Apple = CBC 계열
+```
+
+**QoE 지표 — Mux 공식 정의와 공식**
+
+```
+Startup Time Score  = 8 / (8 + startup_seconds) × 100
+Smoothness Score    = [1/√(1+(rebuffer_count/2)²) 와 e^(-10×rebuffer_pct) 의 평균] × 100
+Viewer Experience   = Playback Success Score × (트레이드오프 3항 평균)
+```
+
+**중요도 서열**: `Playback Success(곱셈 계수) > Smoothness > Startup Time > Quality`
+— *"derived from user research across millions of video views"*
+
+**SMPTE ST 2110** (방송사 IT 면접 단골)
+
+SDI가 비디오+오디오+ANC를 한 케이블에 묶던 것과 달리 **에센스를 분리**해
+각각 다른 경로로 IP 전송한다. `-20` 비압축 비디오, `-30` PCM 오디오(AES67),
+`-40` ANC 데이터. 타이밍은 **IEEE 1588 PTP**(방송 프로파일 ST 2059).
+
 **한 줄 요약 세트**
 
 - *"HLS 지연이 약 3배 세그먼트인 이유는 RFC 8216 §6.3.3의 3 target duration 규칙이고,
@@ -945,6 +1136,9 @@ iOS Safari는 DASH를 지원하지 않으므로 **iOS를 지원해야 하면 HLS
 - *"세그먼트 길이는 GOP의 정수배여야 한다 — Apple 7.4가 세그먼트 시작을 IDR로 강제하기 때문"*
 - *"TS냐 fMP4냐가 CMAF·HEVC·LL-HLS 가능 여부를 한 번에 결정한다"*
 - *"RTMP/SRT는 인제스트, HLS/DASH는 배포. 계층이 다르다"*
+- *"B-frame의 리오더링 버퍼가 곧 레이턴시다. 그래서 WebRTC는 B를 끈다"*
+- *"CMAF chunk는 키프레임으로 시작할 필요가 없어서, 세그먼트를 안 줄이고도 지연을 줄인다"*
+- *"WHIP은 RFC 9725로 표준화됐고 WHEP은 아직 IETF 드래프트다"*
 
 ---
 
@@ -1100,3 +1294,13 @@ FROM livekit/gstreamer:1.24.12-dev            ← C 라이브러리
 | **ZGC max pause G1GC 170ms vs ZGC 1ms** | 카카오 자체 벤치마크 |
 | Slack: 메시지는 팬아웃 전 MySQL 영속화 | slack.engineering/real-time-messaging |
 | Kafka 브로커는 raw java.nio (Netty 아님) | apache/kafka SocketServer.scala |
+| **`hls.latency` 구현 = liveEdge − currentTime (문서와 다름)** | hls.js `latency-controller.ts` |
+| `targetLatency`는 스톨마다 증가 | 동일 소스 |
+| PDT 측정은 "삽입 지점 → 화면" (Mux 기준 실제보다 약 1초 낮음) | mux.com/blog/live-latency-metric |
+| EEL / EDL / Packager-Display 용어 | DASH-IF CR-Low-Latency-Live-r8 |
+| 캘리브레이션 원칙(리그 자체 지연을 뺀다) | videoLat 논문 (ACM MM'14) |
+| `drawtext` `%[1-6]N`으로 밀리초 번인 | ffmpeg 필터 공식 문서 |
+| B-frame 리오더 = 1프레임 버퍼링 (24fps 42ms) | 인코딩 문헌 |
+| WHIP = RFC 9725 (2025-03) / WHEP = draft-04 | rfc-editor.org, datatracker |
+| SRT `SRTO_RCVLATENCY` 기본 120ms, RTT×4 | Haivision 공식 문서 |
+| Mux QoE 공식 (Startup Score = 8/(8+t)×100) | mux.com/docs/guides |
