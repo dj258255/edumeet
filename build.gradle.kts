@@ -37,6 +37,11 @@ dependencies {
     // Spring Security
     implementation("org.springframework.boot:spring-boot-starter-security")
 
+    // 스키마 마이그레이션. 운영은 ddl-auto=none 이라 스키마 변경 경로가 없었다. (#29)
+    // 평문 SQL 이라 DBA 리뷰와 수동 실행이 가능하다. 단일 DB(MySQL)라 Liquibase 의 추상화 이점이 없다.
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-mysql")
+
     // Swagger (OpenAPI)
     // API Documentation(Swagger)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
@@ -66,6 +71,11 @@ dependencies {
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // 마이그레이션 검증은 진짜 MySQL 이어야 한다.
+    // H2 로는 engine=InnoDB, enum(...) 같은 MySQL 문법을 확인할 수 없다. (#29)
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:mysql")
+    testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.springframework.restdocs:spring-restdocs-mockmvc")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
