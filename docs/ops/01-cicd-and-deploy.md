@@ -191,3 +191,107 @@ docker compose -f docker-compose.prod.yml up -d
 | 자체 러너 | GitHub 호스티드 ARM 러너가 public 저장소에 무료다 |
 
 **필요해지면 그때 넣는다. 지금은 근거가 없다.**
+
+
+---
+
+## 배포 준비 — 한 번만 하는 것 (#34)
+
+배포 워크플로가 매번 실패하고 있었다. 원인이 하나가 아니었고, 그중 절반은 **서버 쪽 준비**였다.
+
+### 1. GitHub Secrets
+
+| 이름 | 값 |
+|---|---|
+| `OCI_HOST` | 서버 공인 IP |
+| `OCI_USER` | `rocky` (Rocky Linux 기본 계정) |
+| `OCI_SSH_KEY` | **배포 전용** SSH 개인 키 |
+
+개인 키를 그대로 올리지 않는다. **전용 키를 따로 만들어** 서버 `authorized_keys` 에 넣고
+그 키만 등록한다. 유출되거나 더 이상 필요 없어지면 그 키만 지우면 된다.
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/edumeet_deploy -N "" -C "github-actions@edumeet"
+ssh-copy-id -i ~/.ssh/edumeet_deploy.pub rocky@<서버>
+
+gh secret set OCI_HOST  --body "<서버 IP>"
+gh secret set OCI_USER  --body "rocky"
+gh secret set OCI_SSH_KEY < ~/.ssh/edumeet_deploy
+```
+
+### 2. 서버 디렉터리와 `.env`
+
+배포 스크립트는 `cd ~/edumeet` 로 시작한다. **이 디렉터리가 없으면 거기서 끝난다.**
+
+```bash
+ssh rocky@<서버> 'mkdir -p ~/edumeet'
+scp env.prod.example rocky@<서버>:~/edumeet/.env
+ssh rocky@<서버> 'chmod 600 ~/edumeet/.env'   # 그 뒤 값을 채운다
+```
+
+**`.env` 는 배포가 건드리지 않는다.** 워크플로는 `docker-compose.prod.yml` 과
+`observability/` 만 덮어쓴다. 시크릿은 서버에만 존재한다.
+
+### 3. 방화벽
+
+Rocky Linux 는 firewalld 가 켜져 있고 기본 허용은 `ssh / http / https / cockpit` 이다.
+**8080 은 막혀 있다.**
+
+```bash
+sudo firewall-cmd --permanent --add-port=8080/tcp && sudo firewall-cmd --reload
+```
+
+OCI 는 VCN **보안 목록/NSG** 에서도 따로 막는다. 둘 다 열어야 외부에서 닿는다.
+
+> 다만 8080 을 그대로 여는 것보다 **80/443 에 리버스 프록시**를 두는 편이 낫다.
+> http·https 는 이미 firewalld 에 열려 있고, TLS 종료 지점도 필요하다.
+
+## 헬스체크는 컨테이너에게 묻는다
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' edumeet-app
+```
+
+호스트에서 `curl localhost:8080/actuator/health` 를 하면 **절대 통과하지 못한다.**
+#28 에서 액추에이터를 관리 포트(9090)로 옮겼고 **그 포트는 publish 하지 않기** 때문이다.
+
+Dockerfile 의 `HEALTHCHECK` 가 컨테이너 안에서 이미 그 포트를 부르고 있으므로
+**컨테이너가 보고하는 상태를 그대로 읽으면 된다.** 판정 로직이 두 곳에 흩어지지 않는다.
+
+## 이 서버는 이미 다른 것이 쓰고 있다
+
+실사해 보니 관측 스택이 통째로 돌고 있었다.
+
+```
+balruno-monitoring         prometheus(9090) · grafana(3000) · loki · alertmanager
+balruno-monitoring-agent   alloy · cadvisor · node-exporter
+a02-mdl-storm              incident-lab 세션 2개
+```
+
+**2 vCPU 서버에 Prometheus 를 두 벌 돌릴 이유가 없다.** 그리고 기존 스택은
+다른 프로젝트 소유라 그 설정 파일을 함부로 고칠 수 없다.
+
+그래서 edumeet 의 관측 스택을 **compose profile 로 분리**했다.
+
+```bash
+docker compose -f docker-compose.prod.yml up -d                          # 앱만
+docker compose -f docker-compose.prod.yml --profile observability up -d  # 독립 스택까지
+```
+
+기존 Prometheus 가 긁게 하려면 앱 관리 포트를 사설 IP 에 노출한다.
+
+```bash
+# ~/edumeet/.env
+MANAGEMENT_BIND=10.0.0.11
+```
+
+그리고 기존 `prometheus.yml` 에 잡을 추가한다(**다른 프로젝트 파일이므로 소유자 확인 후**).
+
+```yaml
+  - job_name: edumeet-app
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["10.0.0.11:9091"]
+        labels:
+          service: edumeet
+```

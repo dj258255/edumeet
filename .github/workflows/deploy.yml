@@ -69,6 +69,23 @@ jobs:
     environment: production   # 승인 게이트를 걸고 싶으면 여기서 설정
 
     steps:
+      - uses: actions/checkout@v4
+
+      # ★ compose 파일과 관측 설정을 서버로 보낸다.
+      #   이전에는 서버의 ~/edumeet 에 있는 파일을 그대로 썼다.
+      #   저장소에서 compose 를 고쳐도 서버에는 반영되지 않아서
+      #   "머지했는데 왜 안 바뀌지" 가 된다. .env 는 서버에만 두고 건드리지 않는다.
+      - name: Sync compose and observability config
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          source: "docker-compose.prod.yml,observability/**"
+          target: "~/edumeet"
+          overwrite: true
+          strip_components: 0
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -86,15 +103,23 @@ jobs:
             docker compose -f docker-compose.prod.yml pull app
             docker compose -f docker-compose.prod.yml up -d
 
-            # 헬스체크가 통과할 때까지 기다린다. 통과 못 하면 실패로 끝낸다.
-            for i in $(seq 1 30); do
-              if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
-                echo "healthy"
+            # ★ 호스트에서 curl 하지 않는다.
+            #   actuator 는 관리 포트(9090)로 옮겨갔고 그 포트는 publish 하지 않는다.
+            #   Dockerfile 의 HEALTHCHECK 가 컨테이너 안에서 이미 그 포트를 부르고 있으므로
+            #   컨테이너가 보고하는 상태를 그대로 읽는다.
+            for i in $(seq 1 36); do
+              status=$(docker inspect --format='{{.State.Health.Status}}' edumeet-app 2>/dev/null || echo starting)
+              if [ "$status" = "healthy" ]; then
+                echo "healthy (${i}회차)"
                 exit 0
+              fi
+              if [ "$status" = "unhealthy" ]; then
+                echo "컨테이너가 unhealthy 로 확정됐다"
+                break
               fi
               sleep 5
             done
-            echo "헬스체크 실패"
+            echo "헬스체크 실패 - 마지막 상태: ${status:-unknown}"
             docker compose -f docker-compose.prod.yml logs --tail=100 app
             exit 1
           envs: GHCR_TOKEN,GHCR_USER
