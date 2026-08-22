@@ -1,6 +1,7 @@
 package com.edu.edumeet.chat.controller;
 
 import com.edu.edumeet.chat.dto.ChatMessageResponse;
+import com.edu.edumeet.chat.metrics.ChatMetrics;
 import com.edu.edumeet.chat.dto.ChatSendRequest;
 import com.edu.edumeet.chat.service.ChatService;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class ChatController {
 
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatMetrics chatMetrics;
 
     @MessageMapping("/rooms/{meetingId}/send")
     public void send(@DestinationVariable Long meetingId,
@@ -43,6 +45,11 @@ public class ChatController {
         ChatMessageResponse response =
                 chatService.handle(meetingId, principal.getName(), request.content());
 
-        messagingTemplate.convertAndSend("/topic/rooms/" + meetingId, response);
+        String destination = "/topic/rooms/" + meetingId;
+        messagingTemplate.convertAndSend(destination, response);
+
+        // 발행 1건이 수신 N건이 되는 배수가 브로드캐스트 비용의 본체다. (#39)
+        // 발행량만 세면 30명 방과 3,000명 방이 같아 보인다.
+        chatMetrics.published(destination);
     }
 }

@@ -11,7 +11,7 @@
 import json
 import pathlib
 
-OUT = pathlib.Path("observability/grafana/dashboards/edumeet-baseline.json")
+OUT_DIR = pathlib.Path("observability/grafana/dashboards")
 JOB = 'service="edumeet"'
 
 
@@ -92,6 +92,52 @@ panels = [
     ], "s", "풀이 마르면 이 값이 먼저 튄다."),
 ]
 
+# ── 채팅 붕괴 측정 (#39) ─────────────────────────────────────────────
+# 계획 문서의 붕괴 5단계를 이 대시보드로 본다.
+# 핵심은 처리율이 아니라 "대기열" 과 "fan-out 배수" 다.
+chat_panels = [
+    panel(1, "★ STOMP 큐 길이 - 포화의 첫 신호", 0, 0, 24, 8, [
+        target(f'executor_queued_tasks{{{JOB},name="clientInboundChannelExecutor"}}', "inbound"),
+        target(f'executor_queued_tasks{{{JOB},name="clientOutboundChannelExecutor"}}', "outbound"),
+    ], "short",
+       "기본 실행기는 큐가 무한이라 스레드 풀이 절대 거부하지 않는다. "
+       "그래서 포화가 에러가 아니라 지연으로만 나타난다. 에러율은 0인데 여기가 오른다. 붕괴 2·3단계."),
+
+    panel(2, "STOMP 활성 스레드", 0, 8, 12, 7, [
+        target(f'executor_active_threads{{{JOB},name="clientInboundChannelExecutor"}}', "inbound active"),
+        target(f'executor_pool_size_threads{{{JOB},name="clientInboundChannelExecutor"}}', "inbound pool"),
+        target(f'executor_active_threads{{{JOB},name="clientOutboundChannelExecutor"}}', "outbound active"),
+        target(f'executor_pool_size_threads{{{JOB},name="clientOutboundChannelExecutor"}}', "outbound pool"),
+    ], "short", "active 가 pool 에 붙으면 더 못 밀어 넣는다. 그 뒤로는 전부 큐로 간다."),
+
+    panel(3, "★ fan-out 배수 - 브로드캐스트 비용의 본체", 12, 8, 12, 7, [
+        target(f'histogram_quantile(0.50, sum by (le) (rate(chat_fanout_recipients_bucket{{{JOB}}}[1m])))', "p50"),
+        target(f'histogram_quantile(0.95, sum by (le) (rate(chat_fanout_recipients_bucket{{{JOB}}}[1m])))', "p95"),
+        target(f'histogram_quantile(0.99, sum by (le) (rate(chat_fanout_recipients_bucket{{{JOB}}}[1m])))', "p99"),
+    ], "short",
+       "발행 1건이 수신 N건이 된다. 발행량만 보면 30명 방과 3,000명 방이 같아 보인다. "
+       "실제 쓰기량 = 발행량 x 이 값."),
+
+    panel(4, "발행량 / 실제 전달량", 0, 15, 12, 7, [
+        target(f'rate(chat_messages_published_total{{{JOB}}}[1m])', "발행 (msg/s)"),
+        target(f'rate(chat_fanout_recipients_sum{{{JOB}}}[1m])', "실제 전달 (msg/s)"),
+    ], "short", "두 선의 간격이 곧 fan-out 배수다. 방이 커질수록 벌어진다."),
+
+    panel(5, "세션 수 / 활성 방 수", 12, 15, 12, 7, [
+        target(f'chat_sessions_active{{{JOB}}}', "STOMP 세션"),
+        target(f'chat_rooms_active{{{JOB}}}', "활성 방"),
+    ], "short", "세션 수가 커넥션 한계(붕괴 4단계)에 닿는지 본다."),
+
+    panel(6, "JVM 힙 - 큐가 무한이면 여기가 먼저 찬다", 0, 22, 12, 7, [
+        target(f'sum(jvm_memory_used_bytes{{{JOB},area="heap"}})', "사용"),
+        target(f'sum(jvm_memory_max_bytes{{{JOB},area="heap"}})', "최대"),
+    ], "bytes", "붕괴 3단계(무한 큐 OOM)는 큐 길이와 힙이 같이 오르는 형태로 나타난다."),
+
+    panel(7, "GC 정지 시간", 12, 22, 12, 7, [
+        target(f'rate(jvm_gc_pause_seconds_sum{{{JOB}}}[1m])', "{{action}} {{cause}}"),
+    ], "s", "힙이 차면 GC 가 먼저 반응하고, 그게 다시 큐를 밀어올린다."),
+]
+
 dashboard = {
     "uid": "edumeet-baseline",
     "title": "EduMeet — 기준 지표",
@@ -105,6 +151,21 @@ dashboard = {
     "panels": panels,
 }
 
-OUT.parent.mkdir(parents=True, exist_ok=True)
-OUT.write_text(json.dumps(dashboard, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-print(f"{OUT}  패널 {len(panels)}개")
+chat_dashboard = {
+    "uid": "edumeet-chat",
+    "title": "EduMeet — 채팅 붕괴 측정",
+    "description": "붕괴 5단계를 보는 대시보드. 처리율이 아니라 대기열과 fan-out 배수를 본다. (#39)",
+    "tags": ["edumeet", "chat", "breaking-points"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "5s",   # 붕괴는 빠르게 온다. 기준 대시보드보다 촘촘하게 본다.
+    "time": {"from": "now-15m", "to": "now"},
+    "panels": chat_panels,
+}
+
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+for name, d in [("edumeet-baseline", dashboard), ("edumeet-chat", chat_dashboard)]:
+    path = OUT_DIR / f"{name}.json"
+    path.write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"{path}  패널 {len(d['panels'])}개")
