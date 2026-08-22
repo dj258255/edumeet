@@ -2,6 +2,7 @@ package com.edu.edumeet.exception;
 
 
 import com.edu.edumeet.openvidu.exception.LiveKitUnavailableException;
+import org.springframework.security.access.AccessDeniedException;
 import com.edu.edumeet.openvidu.exception.SessionCapacityExceededException;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -100,5 +101,19 @@ public class CustomRestAdvice {
         log.info("정원 초과 입장 시도: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "SESSION_CAPACITY_EXCEEDED", "message", e.getMessage()));
+    }
+
+    /**
+     * 권한 없음. 인증은 됐지만 그 리소스를 만질 자격이 없다 → 403.
+     *
+     * <p>401(인증 필요)과 구분한다. 401 로 뭉뚱그리면 클라이언트가 "다시 로그인하면 되겠지"로
+     * 오해한다.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException e) {
+        log.warn("권한 없는 접근: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "ACCESS_DENIED", "message", e.getMessage()));
     }
 }
