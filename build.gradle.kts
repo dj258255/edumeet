@@ -31,6 +31,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     // 컨테이너 healthcheck 와 운영 관측에 쓴다. 노출 엔드포인트는 application.yml 에서 제한한다.
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // /actuator/prometheus 는 이 레지스트리가 있어야 생긴다. (#28)
+    // exposure.include 에 prometheus 를 적어둬도 레지스트리가 없으면 404 였다.
+    implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.data:spring-data-redis:3.2.5")

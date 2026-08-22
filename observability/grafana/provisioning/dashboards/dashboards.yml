@@ -1,0 +1,10 @@
+# 대시보드를 손으로 만들면 재현이 안 된다. JSON 을 저장소에 두고 자동 등록한다. (#28)
+apiVersion: 1
+providers:
+  - name: edumeet
+    folder: EduMeet
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

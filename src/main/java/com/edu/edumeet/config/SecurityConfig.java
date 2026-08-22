@@ -7,6 +7,8 @@ import com.edu.edumeet.member.service.CustomOauth2UserService;
 import com.edu.edumeet.util.CustomOAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
+import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -39,7 +41,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, Environment environment) throws Exception {
         log.info("SecurityFilterChain 설정 시작");
         
         http
@@ -58,9 +60,39 @@ public class SecurityConfig {
 
                 // 이전에는 목록 마지막에 "/api/v1/**" 이 있어서 위에 나열한 경로가 전부 무의미했고
                 // anyRequest().authenticated() 가 사실상 죽은 코드였다. (#23)
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
-                        .requestMatchers(
+                .authorizeHttpRequests(authorize -> {
+                    authorize.requestMatchers(CorsUtils::isPreFlightRequest).permitAll();
+
+                    // 관리 포트가 서비스 포트와 분리되어 있으면 actuator 를 통과시킨다. (#28)
+                    //
+                    // 지표는 URI 패턴·호출량·커넥션 수 같은 내부 정보를 담는다.
+                    // 그래서 인증이 아니라 "네트워크로 격리" 한다 -
+                    // docker-compose 에서 관리 포트는 expose 만 하고 publish 하지 않으므로
+                    // 컨테이너 네트워크 안(Prometheus)에서만 닿는다.
+                    //
+                    // 포트 번호를 손으로 비교하지 않는다. management.server.port=0 (임의 포트) 이면
+                    // server.port 도 0 일 수 있어서 "같은 포트" 로 잘못 판정되고, 규칙이 조용히 안 걸린다.
+                    // Boot 가 이미 이 판단을 한다 - 0 은 DIFFERENT 로 친다.
+                    //
+                    // 매처는 URI 로 직접 판단한다. EndpointRequest.toAnyEndpoint() 도,
+                    // requestMatchers("/actuator/**") 도 여기서는 걸리지 않는다 -
+                    // 관리 포트를 분리하면 액추에이터가 별도 자식 컨텍스트에서 돌아가는데
+                    // 이 필터 체인은 부모 컨텍스트에 있어서 핸들러 매핑을 해석하지 못하고
+                    // 매칭이 "조용히" 실패한다. 예외가 아니라 401 로만 드러나서 찾기 어렵다.
+                    //
+                    // 서비스 포트에서는 이 경로가 아예 존재하지 않으므로(404) permitAll 이어도 안전하다.
+                    if (ManagementPortType.get(environment) == ManagementPortType.DIFFERENT) {
+                        String basePath = environment.getProperty("management.endpoints.web.base-path", "/actuator");
+                        log.info("관리 포트가 분리되어 있다. {} 이하는 네트워크 격리로 보호한다.", basePath);
+                        authorize.requestMatchers(r -> {
+                            String uri = r.getRequestURI();
+                            return uri.equals(basePath) || uri.startsWith(basePath + "/");
+                        }).permitAll();
+                    } else {
+                        log.warn("관리 포트가 분리되지 않았다. actuator 는 health 외에는 인증을 요구한다.");
+                    }
+
+                    authorize.requestMatchers(
                                 "/api/v1/members/signup",
                                 "/api/v1/members/login",
                                 "/api/v1/members/refresh",
@@ -83,13 +115,17 @@ public class SecurityConfig {
                                 // 컨테이너 healthcheck 와 로드밸런서가 부른다.
                                 // show-details 를 when-authorized 로 막아 내부 정보는 안 나간다.
                                 "/actuator/health",
-                                "/actuator/health/**"
+                                "/actuator/health/**",
+                                // Spring 은 처리되지 않은 요청을 /error 로 포워드한다.
+                                // 여기가 인증을 요구하면 404 든 500 이든 전부 401 로 둔갑해서
+                                // "인증이 잘못됐나" 를 한참 뒤진다. 실제 상태 코드가 나가게 열어둔다.
+                                "/error"
                         ).permitAll()
                         // 서버 간 호출. 사용자 JWT 가 아니라 공유 시크릿으로 인증한다. (#27)
                         // 경로를 분리해야 "사용자 인증" 과 "서비스 인증" 규칙이 섞이지 않는다.
-                        .requestMatchers("/api/v1/internal/**").hasRole("INTERNAL")
-                        .anyRequest().authenticated()
-                )
+                            .requestMatchers("/api/v1/internal/**").hasRole("INTERNAL")
+                            .anyRequest().authenticated();
+                })
 
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .exceptionHandling(e -> e.authenticationEntryPoint(jwtAuthenticationEntryPoint))
