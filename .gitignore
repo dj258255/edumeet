@@ -257,3 +257,7 @@ application-prod.yml
 !application.yml
 !application-test.yml
 !application-*.yml.example
+
+# Ansible vault 비밀번호. 이게 들어가면 암호화한 의미가 없다. (#37)
+ansible/.vault-pass
+ansible/*.retry
