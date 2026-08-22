@@ -1,7 +1,9 @@
 # 사전 조사 종합 — 실시간 채팅 / 스트리밍 / 언어 선택
 
 > 조사일 2026-08-22 · 네 갈래 병렬 조사 결과를 정리했다.
-> **실행 계획은 [`docs/plan/01-realtime-chat-and-hls.md`](../plan/01-realtime-chat-and-hls.md)** 에 있다.
+> **실행 계획은 [`docs/plan/01-chat-breaking-points.md`](../plan/01-chat-breaking-points.md)** 에 있다.
+> HLS 는 [`02-hls-optional.md`](../plan/02-hls-optional.md) 로 분리했다.
+> 전체 지도는 [`docs/README.md`](../README.md) 를 먼저 보라.
 > 이 폴더는 **근거와 출처 아카이브**다.
 
 ## 문서 목록
