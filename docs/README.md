@@ -106,6 +106,13 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`performance/05-fault-injection.md`](performance/05-fault-injection.md) | Toxiproxy. 무응답 시 3초 실패 vs 30초에도 안 돌아옴 |
 | [`performance/06-lock-determinism.md`](performance/06-lock-determinism.md) | **가설 검증 후 미도입.** 지연이 검출률을 안 올림 |
 
+### 운영
+
+| | |
+|---|---|
+| [`ops/01-cicd-and-deploy.md`](ops/01-cicd-and-deploy.md) | GitHub Actions + OCI(ARM64) 배포 |
+| [`ops/02-egress-cost-model.md`](ops/02-egress-cost-model.md) | **전송 비용 모델** — OCI 는 10TB 무료라 **비용보다 가용성이 먼저 터진다** |
+
 ### 규칙
 
 | | |

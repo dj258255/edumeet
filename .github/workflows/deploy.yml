@@ -1,0 +1,103 @@
+name: Deploy
+
+# master 에 머지되면 ARM64 이미지를 만들어 GHCR 에 올리고 OCI 서버에 배포한다.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:        # 수동 재배포용
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false   # 배포는 취소하지 않는다. 중간에 끊기면 상태가 애매해진다
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-image:
+    # ★ ARM 네이티브 러너.
+    #   OCI A1.Flex 가 aarch64 라 arm64 이미지가 필요한데,
+    #   x86 러너에서 QEMU 로 크로스 빌드하면 에뮬레이션이라 수 배 느리다.
+    #   public 저장소는 ARM 러너가 무료이므로 네이티브로 굽는다.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 레이어 캐시를 GitHub Actions 캐시에 둔다. 의존성 레이어 재빌드를 막는다.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-image
+    runs-on: ubuntu-latest    # SSH 만 쏘므로 아키텍처 무관
+    timeout-minutes: 10
+    environment: production   # 승인 게이트를 걸고 싶으면 여기서 설정
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          script_stop: true    # 한 줄이라도 실패하면 즉시 중단
+          script: |
+            set -euo pipefail
+            cd ~/edumeet
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            export APP_IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
+            docker compose -f docker-compose.prod.yml pull app
+            docker compose -f docker-compose.prod.yml up -d
+
+            # 헬스체크가 통과할 때까지 기다린다. 통과 못 하면 실패로 끝낸다.
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+                echo "healthy"
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "헬스체크 실패"
+            docker compose -f docker-compose.prod.yml logs --tail=100 app
+            exit 1
+          envs: GHCR_TOKEN,GHCR_USER
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
