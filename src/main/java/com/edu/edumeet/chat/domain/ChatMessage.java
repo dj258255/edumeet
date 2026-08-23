@@ -1,6 +1,6 @@
 package com.edu.edumeet.chat.domain;
 
-import com.edu.edumeet.openvidu.domain.Meeting;
+import com.edu.edumeet.meeting.domain.Meeting;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

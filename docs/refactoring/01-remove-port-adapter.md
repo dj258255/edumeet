@@ -134,7 +134,8 @@ presentation -> controller
 presentation/dto -> dto
 ```
 
-`classroom` / `member` / `openvidu` 와 같은 구조가 되었다.
+`classroom` / `member` / `meeting` 과 같은 구조가 되었다.
+(당시 이름은 `openvidu` 였다. 실제로 쓰는 기술이 LiveKit 이라 #57 에서 `meeting` 으로 바꿨다.)
 
 ---
 

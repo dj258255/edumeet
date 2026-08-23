@@ -2,7 +2,7 @@ package com.edu.edumeet.classroom.domain;
 
 import com.edu.edumeet.base.BaseEntity;
 import com.edu.edumeet.member.domain.Member;
-import com.edu.edumeet.openvidu.domain.Meeting;
+import com.edu.edumeet.meeting.domain.Meeting;
 import jakarta.persistence.*;
 import lombok.*;
 

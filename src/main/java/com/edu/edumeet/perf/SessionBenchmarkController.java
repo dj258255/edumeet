@@ -1,10 +1,10 @@
 package com.edu.edumeet.perf;
 
-import com.edu.edumeet.openvidu.domain.Meeting;
-import com.edu.edumeet.openvidu.exception.SessionCapacityExceededException;
-import com.edu.edumeet.openvidu.repository.MeetingParticipantRepository;
-import com.edu.edumeet.openvidu.repository.MeetingRepository;
-import com.edu.edumeet.openvidu.service.OpenviduService;
+import com.edu.edumeet.meeting.domain.Meeting;
+import com.edu.edumeet.meeting.exception.SessionCapacityExceededException;
+import com.edu.edumeet.meeting.repository.MeetingParticipantRepository;
+import com.edu.edumeet.meeting.repository.MeetingRepository;
+import com.edu.edumeet.meeting.service.MeetingService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +33,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SessionBenchmarkController {
 
-    private final OpenviduService openviduService;
+    private final MeetingService meetingService;
     private final MeetingRepository meetingRepository;
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final UnsafeJoinService unsafeJoinService;
@@ -48,7 +48,7 @@ public class SessionBenchmarkController {
             @RequestParam(defaultValue = "true") boolean lock) {
         try {
             Map<String, Object> token = lock
-                    ? openviduService.joinSession(meetingId, email, false)
+                    ? meetingService.joinSession(meetingId, email, false)
                     : unsafeJoinService.join(meetingId, email);
             return ResponseEntity.ok(token);
         } catch (SessionCapacityExceededException e) {

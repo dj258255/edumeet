@@ -418,7 +418,7 @@ com.edu.edumeet
 | 도메인 | 구조 | 상태 |
 |---|---|---|
 | `homework` | `controller` / `service` / `repository` / `domain` / `dto` | ✅ 적용 완료 (#3) |
-| `classroom`, `member`, `openvidu` | 동일 | ✅ 원래부터 준수 |
+| `classroom`, `member`, `meeting` | 동일 | ✅ 원래부터 준수 |
 | `board`, `reply`, `attachment` | `application` / `domain` / `infrastructure` / `presentation` | ⬜ 미적용 |
 
 `board` · `reply` · `attachment` 는 아직 헥사고날 계열 구조다. 순차 적용이 남아 있다.

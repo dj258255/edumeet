@@ -62,7 +62,7 @@ for (int i = 0; i < CONCURRENT_REQUESTS; i++) {
     pool.submit(() -> {
         ready.countDown();
         start.await();                              // 전부 여기서 대기하다 동시에 출발
-        openviduService.joinSession(meetingId, email, false);
+        openviduService.joinSession(meetingId, email, false);   // 현재 이름: meetingService (#57)
         ...
     });
 }
