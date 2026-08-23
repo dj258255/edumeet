@@ -43,6 +43,14 @@ spring:
         # 통계 수집. 성능 측정 시 쿼리 수를 세기 위해 필요하다. (CONTRIBUTING.md 참조)
         generate_statistics: false
 
+  # 모든 프로필이 여기서 시작한다. test/perf 는 아래에서 덮어쓴다.
+  # prod 문서에 datasource 를 안 둔 채로 배포했다가 H2 로 떴다. (#49)
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/edumeet?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -186,12 +194,6 @@ spring:
   config:
     activate:
       on-profile: local
-
-  datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/edumeet?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
-    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
