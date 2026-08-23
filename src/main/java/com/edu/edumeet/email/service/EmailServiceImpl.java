@@ -1,4 +1,4 @@
-package com.edu.edumeet.email.application;
+package com.edu.edumeet.email.service;
 
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

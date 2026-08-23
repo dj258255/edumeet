@@ -1,4 +1,4 @@
-package com.edu.edumeet.email.application;
+package com.edu.edumeet.email.service;
 
 public interface AuthCodeService {
 

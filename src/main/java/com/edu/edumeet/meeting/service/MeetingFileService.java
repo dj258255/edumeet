@@ -4,7 +4,7 @@ import com.edu.edumeet.classroom.domain.ClassMember;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
-import com.edu.edumeet.util.S3Downloader;
+import com.edu.edumeet.s3.util.S3Downloader;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

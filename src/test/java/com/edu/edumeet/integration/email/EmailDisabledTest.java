@@ -1,6 +1,6 @@
 package com.edu.edumeet.integration.email;
 
-import com.edu.edumeet.email.application.AuthCodeService;
+import com.edu.edumeet.email.service.AuthCodeService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
