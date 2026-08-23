@@ -1,7 +1,7 @@
 package com.edu.edumeet.member.controller;
 
 import com.edu.edumeet.config.jwt.JwtService;
-import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
+import com.edu.edumeet.email.dto.request.EmailRequest;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.dto.request.RefreshTokenRequest;

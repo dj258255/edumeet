@@ -4,7 +4,7 @@ import com.edu.edumeet.config.jwt.JwtAuthenticationEntryPoint;
 import com.edu.edumeet.config.jwt.JwtAuthenticationFilter;
 import com.edu.edumeet.config.internal.InternalApiTokenFilter;
 import com.edu.edumeet.member.service.CustomOauth2UserService;
-import com.edu.edumeet.util.CustomOAuth2SuccessHandler;
+import com.edu.edumeet.member.config.CustomOAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;

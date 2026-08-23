@@ -1,10 +1,10 @@
-package com.edu.edumeet.email.presentation;
+package com.edu.edumeet.email.controller;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import com.edu.edumeet.email.application.AuthCodeServiceImpl;
-import com.edu.edumeet.email.application.EmailServiceImpl;
-import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
-import com.edu.edumeet.email.presentation.dto.request.EmailVarificationRequest;
+import com.edu.edumeet.email.service.AuthCodeServiceImpl;
+import com.edu.edumeet.email.service.EmailServiceImpl;
+import com.edu.edumeet.email.dto.request.EmailRequest;
+import com.edu.edumeet.email.dto.request.EmailVarificationRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;

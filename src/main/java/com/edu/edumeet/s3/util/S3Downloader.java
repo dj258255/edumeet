@@ -1,4 +1,4 @@
-package com.edu.edumeet.util;
+package com.edu.edumeet.s3.util;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

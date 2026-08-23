@@ -1,4 +1,4 @@
-package com.edu.edumeet.util;
+package com.edu.edumeet.member.config;
 
 import com.edu.edumeet.config.jwt.JwtService;
 import com.edu.edumeet.member.domain.CustomOauth2UserDetails;
