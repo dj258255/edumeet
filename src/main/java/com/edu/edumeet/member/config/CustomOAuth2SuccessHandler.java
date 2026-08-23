@@ -1,5 +1,7 @@
 package com.edu.edumeet.member.config;
 
+import java.time.Duration;
+import com.edu.edumeet.member.service.RefreshTokenStore;
 import com.edu.edumeet.config.jwt.JwtService;
 import com.edu.edumeet.member.domain.CustomOauth2UserDetails;
 import jakarta.servlet.ServletException;
@@ -20,6 +22,7 @@ import java.io.IOException;
 public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final JwtService jwtService;
+    private final RefreshTokenStore refreshTokenStore;
     
     @Value("${front.url2}")
     private String frontendUrl;
@@ -43,6 +46,12 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
             // JWT 생성
     String accessToken = jwtService.generateAccessToken(memberId, email);
     String refreshToken = jwtService.generateRefreshToken(memberId, email);
+
+    // 카카오 로그인도 refresh token 을 저장한다. (#70)
+    // 이전에는 생성만 하고 저장하지 않아서, OAuth 로 로그인한 사용자는
+    // 토큰 갱신 요청이 "저장된 RefreshToken 을 찾을 수 없습니다" 로 실패했다.
+    refreshTokenStore.save(memberId, refreshToken,
+            Duration.ofMillis(jwtService.getRefreshTokenExpTime()));
 
     log.info("✅ OAuth2 로그인 성공 - 사용자: {}, memberId: {}", email, memberId);
             log.info("✅ JWT 토큰 발급 완료 - accessToken 길이: {}, refreshToken 길이: {}", 
