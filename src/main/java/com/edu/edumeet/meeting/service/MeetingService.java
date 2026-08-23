@@ -18,6 +18,7 @@ import com.edu.edumeet.classroom.repository.ClassRepository;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.member.repository.MemberRepository;
 import com.edu.edumeet.meeting.domain.Meeting;
+import com.edu.edumeet.meeting.domain.SessionType;
 import com.edu.edumeet.meeting.dto.request.MeetingCreateRequestDto;
 import com.edu.edumeet.meeting.dto.response.ClassMeetingInfoResponseDto;
 import com.edu.edumeet.meeting.dto.response.MeetingCreateResponseDto;
@@ -168,6 +169,23 @@ public class MeetingService {
         return result;
     }
 
+    /**
+     * 세션을 만든다.
+     *
+     * <p><b>{@code @Transactional} 이 없었다.</b> {@code open-in-view: false} 라
+     * 조회한 {@code ClassRoom} 이 준영속 상태로 돌아오고,
+     * 응답을 만들며 {@code classRoom.getMember().getEmail()} 을 부르는 순간
+     * {@code LazyInitializationException} 이 난다.
+     *
+     * <p>왜 지금까지 안 드러났나 — 권한 검사의 {@code getMember().getId()} 는
+     * <b>프록시가 DB 를 타지 않고 답할 수 있어서</b> 그냥 통과한다.
+     * 초기화가 필요한 첫 필드는 응답을 만들 때 나오는 {@code email} 이다.
+     *
+     * <p>더 나쁜 것은 <b>{@code meetingRepository.save()} 가 자기 트랜잭션으로 먼저 커밋된다</b>는 점이다.
+     * 그래서 <b>DB 에는 세션이 생기는데 클라이언트는 500 을 받는다</b> - 아무도 못 쓰는 세션이 쌓인다.
+     * 트랜잭션으로 묶으면 응답을 못 만들 때 세션도 남지 않는다.
+     */
+    @Transactional
     public MeetingCreateResponseDto create(Long memberId, MeetingCreateRequestDto meetingCreateRequestDto) {
         log.info("📝 미팅 생성 시작 - memberId: {}, classId: {}, title: {}", 
                 memberId, meetingCreateRequestDto.getClassId(), meetingCreateRequestDto.getTitle());
@@ -194,15 +212,27 @@ public class MeetingService {
             throw new IllegalArgumentException("해당 클래스의 생성자 또는 참여자가 아닙니다.");
         }
 
+        // ★ 방송은 클래스 생성자만 연다. (#76)
+        //   권한 문제이기 이전에 자원 문제다 - 방송은 egress 인스턴스를 점유하고
+        //   (코어 1~4개, 인스턴스 하나가 방 하나) 클래스를 대표해서 외부로 나간다.
+        //   화상강의는 참가자도 연다. 스터디 모임을 막을 이유가 없다.
+        SessionType sessionType = meetingCreateRequestDto.sessionTypeOrDefault();
+        if (sessionType != SessionType.INTERACTIVE && !isCreator) {
+            throw new AccessDeniedException("방송 세션은 클래스 생성자만 만들 수 있습니다.");
+        }
+
         Meeting meeting = Meeting.builder()
                 .title(meetingCreateRequestDto.getTitle())
                 .description(meetingCreateRequestDto.getDescription())
                 .startTime(LocalDateTime.now())
                 .classRoom(classRoom)
+                // 이 한 줄이 없어서 세션 타입 기능 전체가 도달할 수 없는 코드였다. (#76)
+                .sessionType(sessionType)
                 .build();
 
         meetingRepository.save(meeting);
-        log.info("✅ 미팅 생성 완료 - meetingId: {}, title: {}", meeting.getId(), meeting.getTitle());
+        log.info("✅ 미팅 생성 완료 - meetingId: {}, title: {}, type: {}",
+                meeting.getId(), meeting.getTitle(), meeting.getSessionType());
         
         return MeetingCreateResponseDto.builder()
                 .title(meeting.getTitle())
