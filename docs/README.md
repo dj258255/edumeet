@@ -12,6 +12,7 @@
 | 채팅 붕괴 | [`plan/01-chat-breaking-points.md`](plan/01-chat-breaking-points.md) |
 | 오디오 방송 (라디오 + 자막) | [`plan/03-audio-broadcast.md`](plan/03-audio-broadcast.md) |
 | HLS | [`plan/02-hls-optional.md`](plan/02-hls-optional.md) — 선택 |
+| **방송 모드 3개 (공통/분기)** | [`plan/04-three-broadcast-modes.md`](plan/04-three-broadcast-modes.md) |
 
 ---
 
@@ -43,6 +44,35 @@ OCI 의 무료 한도는 타 클라우드의 **50~100배**, 초과 요금은 약
 **같은 부하, 같은 힙.** 소비 속도 하나만 달랐다.
 
 → [`performance/07-chat-unbounded-queue-oom.md`](performance/07-chat-unbounded-queue-oom.md)
+
+### 선언은 있는데 아무도 안 쓴다 — 네 번 만났다
+
+같은 모양의 버그를 네 번 만났다. 넷 다 **테스트를 통과하고 있었고, 아무 효과가 없었다.**
+
+```
+probes.enabled                 배포 헬스체크가 계속 unhealthy
+prometheus.export.enabled      /actuator/prometheus 404. 원인을 세 번 잘못 짚었다
+SessionType.isAudioOnly()      참조가 테스트뿐. "오디오 전용" 이 UI 관례로만 존재
+sessionType 이 요청에 없음      기능 네 개가 통째로 도달 불가
+```
+
+**테스트가 부품을 검증했지, 부품이 연결되어 있는지는 검증하지 않았다.**
+테스트가 픽스처를 직접 만들면, 그 픽스처가 실제로 만들어질 수 있는지는 영원히 안 물어보게 된다.
+
+→ [`ops/07-declared-but-unused.md`](ops/07-declared-but-unused.md)
+
+### 우리 서버는 오디오 HLS 만 돌릴 수 있다 — 소스로 확인했다
+
+```
+roomCompositeCpuCost      = 4     비디오 방송   2 >= 4  거짓 → ErrNotEnoughCPU
+audioRoomCompositeCpuCost = 1     오디오 방송   2 >= 1  참   → 된다
+```
+
+싼 게 아니라 **파이프라인이 다르다.** 오디오 전용은 헤드리스 Chrome 합성을 통째로 건너뛴다.
+그리고 시작 시점 검사는 **가장 싼 타입과만** 비교하므로,
+**egress 는 정상으로 보이는데 비디오 방송 시작만 실패한다.**
+
+→ [`plan/04-three-broadcast-modes.md`](plan/04-three-broadcast-modes.md)
 
 ### 언어를 바꾸지 않는다
 
