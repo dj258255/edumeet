@@ -82,6 +82,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | | |
 |---|---|
 | [`plan/01-chat-breaking-points.md`](plan/01-chat-breaking-points.md) | **메인.** 채팅 붕괴 5단계 |
+| [`plan/03-audio-broadcast.md`](plan/03-audio-broadcast.md) | **오디오 라이브 방송** — 라디오를 "볼 수 있게" 만든다 |
 | [`plan/02-hls-optional.md`](plan/02-hls-optional.md) | HLS — 시간이 남으면 |
 
 ### 조사 — 왜 그렇게 판단했는지
