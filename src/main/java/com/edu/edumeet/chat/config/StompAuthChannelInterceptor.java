@@ -40,8 +40,22 @@ import java.util.regex.Pattern;
 @Slf4j
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
-    /** 방 하나가 이 목적지다. */
-    private static final Pattern ROOM_DESTINATION = Pattern.compile("^/topic/rooms/(\\d+)$");
+    /**
+     * 방 하나에 딸린 목적지들.
+     *
+     * <pre>
+     *   /topic/rooms/{id}            채팅
+     *   /topic/rooms/{id}/captions   실시간 자막 (#65)
+     * </pre>
+     *
+     * <b>목적지를 나눈 이유</b> — 클라이언트가 자막만 구독하거나 끌 수 있어야 한다.
+     * 하나로 합치면 채팅을 안 보는 사람도 채팅 트래픽을 받는다.
+     *
+     * <p>권한은 <b>둘 다 같다</b> — 이 방을 볼 수 있으면 채팅도 자막도 볼 수 있다.
+     * 그래서 방 번호만 뽑아서 같은 검사를 태운다.
+     */
+    private static final Pattern ROOM_DESTINATION =
+            Pattern.compile("^/topic/rooms/(\\d+)(?:/captions)?$");
     private static final String BEARER = "Bearer ";
 
     private final JwtService jwtService;

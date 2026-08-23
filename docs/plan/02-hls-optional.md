@@ -617,3 +617,20 @@ SDI가 비디오+오디오+ANC를 한 케이블에 묶던 것과 달리 **에센
 
 ---
 
+---
+
+## 자막도 같이 옮겨야 한다 (#65 에서 연결)
+
+[오디오 방송 계획](03-audio-broadcast.md)에서 **WebSocket 실시간 자막**을 만든다.
+그건 WebRTC 경로용이다.
+
+**HLS 로 배포를 옮기면 자막도 WebVTT 사이드카 세그먼트로 바뀌어야 한다.**
+
+```
+영상만 CDN 에 태우고 자막은 WebSocket 으로 뿌리면
+  → 시청자 수에 비례해 오리진 연결이 유지된다
+  → CDN 으로 줄인 부담을 자막이 도로 만든다
+```
+
+Apple HLS 스펙 기준 자막은 CEA-608 · CEA-708 · **WebVTT** · IMSC1 이다.
+WebVTT 는 `X-TIMESTAMP-MAP` 이 필수다 ([조사](../research/05-streaming-hls.md)).
