@@ -127,6 +127,37 @@ sourceSets {
         java.srcDirs("src/test/java")
         resources.srcDirs("src/test/resources")
     }
+    // ★ 부하 측정 전용 소스셋. 운영 jar 에 들어가지 않는다. (#57)
+    //
+    //   여기에는 벤치마크 엔드포인트, 시드 데이터, 개선 전 코드(UnsafeJoinService),
+    //   그리고 /api/perf/** 를 여는 보안 설정이 있다.
+    //   @Profile("perf") 로 활성화는 막혀 있었지만 코드 자체는 운영 jar 에 실려 있었다.
+    //   #49 의 H2 와 같은 종류의 문제다 - 운영에 있을 이유가 없는 것이 있으면
+    //   언젠가 설정 실수 하나로 켜진다.
+    create("perf") {
+        java.srcDirs("src/perf/java")
+        compileClasspath += named("main").get().output
+        runtimeClasspath += named("main").get().output
+    }
+}
+
+// perf 소스셋이 main 과 같은 의존성을 쓰게 한다.
+configurations["perfImplementation"].extendsFrom(configurations.implementation.get())
+configurations["perfRuntimeOnly"].extendsFrom(configurations.runtimeOnly.get())
+configurations["perfAnnotationProcessor"].extendsFrom(configurations.annotationProcessor.get())
+// Lombok 은 compileOnly 다. 이걸 빼면 @Slf4j 부터 못 찾는다.
+configurations["perfCompileOnly"].extendsFrom(configurations.compileOnly.get())
+
+// 부하 측정용 실행 jar. scripts/run-*.sh 가 이걸 쓴다.
+//   ./gradlew perfBootJar  ->  build/libs/EduMeet-<version>-perf.jar
+tasks.register<org.springframework.boot.gradle.tasks.bundling.BootJar>("perfBootJar") {
+    group = "build"
+    description = "부하 측정용 실행 jar. 벤치마크 엔드포인트를 포함한다."
+    mainClass.set("com.edu.edumeet.EduMeetApplication")
+    classpath(sourceSets["perf"].runtimeClasspath)
+    archiveClassifier.set("perf")
+    // 커스텀 BootJar 는 플러그인이 자동으로 채워주지 않는다.
+    targetJavaVersion.set(java.targetCompatibility)
 }
 
 // Clean 시 QueryDSL 생성 파일도 삭제
