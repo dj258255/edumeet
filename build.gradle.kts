@@ -53,7 +53,8 @@ dependencies {
 
     // Database
     runtimeOnly("com.mysql:mysql-connector-j")           // 운영환경용 MySQL
-    runtimeOnly("com.h2database:h2")
+    // H2 는 테스트에만 둔다. 운영 클래스패스에 있으면 datasource 설정이 없을 때
+    // 조용히 임베디드 H2 로 떠서, 설정 실수가 부팅 실패가 아니라 "이상한 DB" 로 나타난다. (#49)
     testRuntimeOnly("com.h2database:h2")                 // 테스트환경용 H2 인메모리
     testRuntimeOnly("com.mysql:mysql-connector-j")
 
