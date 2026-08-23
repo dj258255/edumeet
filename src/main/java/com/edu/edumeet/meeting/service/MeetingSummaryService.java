@@ -3,6 +3,7 @@ package com.edu.edumeet.meeting.service;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.dto.SummaryUploadResult;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
+import com.edu.edumeet.classroom.service.ClassAccessChecker;
 import com.edu.edumeet.s3.util.S3Uploader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,7 @@ public class MeetingSummaryService {
 
     private final MeetingRepository meetingRepository;
     private final S3Uploader s3Uploader;
+    private final ClassAccessChecker classAccessChecker;
     private final TransactionTemplate transactionTemplate;
 
     /**
@@ -124,7 +126,10 @@ public class MeetingSummaryService {
      * 이전에는 s3url 단일 컬럼이라 PDF 가 MD 를 덮어썼고 MD 는 조회할 방법이 없었다.
      */
     @Transactional(readOnly = true)
-    public Optional<SummaryUploadResult> findLatestSummary(Long classId) {
+    public Optional<SummaryUploadResult> findLatestSummary(Long classId, String email) {
+        // 요약본은 수업 STT 전문이다. 로그인만 하면 아무 클래스나 읽을 수 있었다. (#62)
+        classAccessChecker.requireMember(classId, email);
+
         return meetingRepository
                 .findTopByClassRoomIdAndS3urlIsNotNullOrderByStartTimeDesc(classId)
                 .map(this::existingResult);

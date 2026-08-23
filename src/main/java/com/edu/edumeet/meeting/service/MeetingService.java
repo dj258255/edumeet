@@ -41,6 +41,7 @@ import io.livekit.server.AccessToken;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
+import com.edu.edumeet.classroom.service.ClassAccessChecker;
 
 @Slf4j
 @Service
@@ -51,6 +52,7 @@ public class MeetingService {
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final ClassRepository classRepository;
     private final ClassMemberRepository classMemberRepository;
+    private final ClassAccessChecker classAccessChecker;
     private final MemberRepository memberRepository;
     private final RoomServiceClient roomServiceClient;
 
@@ -115,7 +117,18 @@ public class MeetingService {
      * @return 룸 정보. 룸이 없으면 {@code null}
      * @throws LiveKitUnavailableException LiveKit 에 닿지 못했거나 제한 시간을 넘겼을 때
      */
-    public Map<String, Object> getRoomInfo(String roomName) {
+    public Map<String, Object> getRoomInfo(String roomName, String email) {
+        // 방 이름에서 회의를 찾아 그 클래스의 접근 권한을 본다. (#62)
+        // 이 검사가 없어서 로그인만 하면 남의 방 정보를 읽을 수 있었다.
+        Long meetingId = parseMeetingId(roomName);
+        if (meetingId == null) {
+            throw new AccessDeniedException("접근할 수 없는 방입니다.");
+        }
+        Long classId = meetingRepository.findById(meetingId)
+                .map(m -> m.getClassRoom().getId())
+                .orElseThrow(() -> new AccessDeniedException("접근할 수 없는 방입니다."));
+        classAccessChecker.requireMember(classId, email);
+
         try {
             Response<List<LivekitModels.Room>> response =
                     roomServiceClient.listRooms(List.of(roomName)).execute();
