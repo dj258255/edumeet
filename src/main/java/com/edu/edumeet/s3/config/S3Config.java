@@ -1,5 +1,7 @@
 package com.edu.edumeet.s3.config;
 
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +15,20 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import java.time.Duration;
 
 @Configuration
+@Slf4j
 public class S3Config {
+
+    /**
+     * 자격증명이 없을 때 쓰는 자리표시자. {@code application.yml} 의 기본값과 같아야 한다. (#51)
+     *
+     * <p>빈 문자열을 두면 {@code AwsBasicCredentials.create} 가 NPE 를 던져
+     * <b>앱 전체가 뜨지 못한다.</b> S3 는 첨부·썸네일·요약본에만 쓰이는데
+     * 그것 때문에 서비스가 안 뜨는 건 과하다.
+     *
+     * <p>대신 <b>조용히 넘어가지 않는다.</b> 기동 시 경고를 남긴다 -
+     * 설정이 빠진 채로 떠 있는 상태를 로그만 보고 알 수 있어야 한다.
+     */
+    private static final String NOT_CONFIGURED = "not-configured";
 
     /**
      * 한 번의 S3 호출이 재시도까지 포함해 잡을 수 있는 최대 시간.
@@ -44,6 +59,14 @@ public class S3Config {
     private String region;
 
 
+
+    @PostConstruct
+    void warnIfNotConfigured() {
+        if (NOT_CONFIGURED.equals(accessKey) || NOT_CONFIGURED.equals(secretKey)) {
+            log.warn("AWS 자격증명이 설정되지 않았다. 앱은 뜨지만 S3 를 쓰는 기능(첨부·썸네일·요약본)은 "
+                     + "호출 시점에 실패한다. .env 의 AWS_ACCESS_KEY / AWS_SECRET_KEY 를 채워야 한다. (#51)");
+        }
+    }
 
     @Bean
     public S3Client s3Client() {
