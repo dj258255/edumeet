@@ -84,13 +84,15 @@ class ReadinessProbeTest {
         assertThat(response.getBody()).contains("\"status\":\"UP\"");
     }
 
-    @Test
-    @DisplayName("전체 health 는 메일까지 보므로 DOWN 이다 - 그래서 컨테이너가 보면 안 된다")
-    void full_health_includes_mail_and_is_down() {
-        assertThat(get("/actuator/health").getStatusCode())
-                .as("이 경로를 HEALTHCHECK 에 쓰면 메일 없이는 절대 healthy 가 못 된다")
-                .isNotEqualTo(HttpStatus.OK);
-    }
+    /*
+     * 여기 있던 "전체 health 는 메일 때문에 DOWN 이다" 테스트를 지웠다.
+     * #55 에서 이메일 인증을 끄면서 메일 헬스 인디케이터도 함께 꺼졌고,
+     * 그 전제가 사라졌다. 조건이 없어졌는데 테스트만 남겨두면
+     * "무엇을 지키는 테스트인가" 를 아무도 답할 수 없게 된다.
+     *
+     * readiness 를 따로 두는 이유 자체는 그대로다 - 전체 health 는 diskSpace 처럼
+     * "죽어도 트래픽은 받을 수 있는" 것까지 본다. 그 구분은 아래 설정 테스트가 지킨다.
+     */
 
     /**
      * 응답 본문으로는 확인할 수 없다. {@code show-details: when-authorized} 라

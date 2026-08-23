@@ -106,6 +106,8 @@ public class SecurityConfig {
                                 "/api-docs/**",
                                 "/swagger-resources/**",
                                 "/webjars/**",
+                                // 이메일 인증은 기본으로 꺼져 있다(#55). 규칙은 남긴다 -
+                                // EMAIL_ENABLED=true 로 되살릴 때 이것까지 기억해야 하면 또 막힌다.
                                 "/api/v1/members/send-code",
                                 "/api/v1/members/verification",
                                 "/api/v1/members/check-email",
