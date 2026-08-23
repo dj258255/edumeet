@@ -111,6 +111,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | | |
 |---|---|
 | [`ops/01-cicd-and-deploy.md`](ops/01-cicd-and-deploy.md) | GitHub Actions + OCI(ARM64) 배포 |
+| [`performance/07-chat-unbounded-queue-oom.md`](performance/07-chat-unbounded-queue-oom.md) | **무한 큐 OOM** — 가정이 틀렸고, 조건(느린 소비)을 찾아 재현했다 |
 | [`ops/02-egress-cost-model.md`](ops/02-egress-cost-model.md) | **전송 비용 모델** — OCI 는 10TB 무료라 **비용보다 가용성이 먼저 터진다** |
 
 ### 규칙
