@@ -77,7 +77,9 @@ public class ChatService {
      * 무엇보다 <b>이 분기가 없으면 브로드캐스트 성능 측정이 DB 쓰기에 묻힌다.</b>
      */
     private boolean shouldPersist(SessionType sessionType) {
-        return sessionType == SessionType.INTERACTIVE;
+        // 정책을 여기서 비교하지 않는다. 세션 타입이 늘 때 이 자리를 빠뜨리면
+        // 새 타입이 조용히 INTERACTIVE 와 다르게 동작한다. (#65)
+        return sessionType.persistsChatInline();
     }
 
     private String validate(String content) {
