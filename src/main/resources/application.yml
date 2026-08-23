@@ -154,6 +154,17 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+      # 컨테이너 헬스체크가 보는 것. (#53)
+      #
+      # /actuator/health 전체는 "모든 의존성이 살아 있나" 를 묻는다.
+      # 컨테이너가 알아야 하는 건 "이 앱이 트래픽을 받을 수 있나" 다. 둘은 다르다.
+      #
+      # 메일이 없으면 인증 코드 발송만 막히고, S3 가 없으면 첨부만 막힌다.
+      # 그것 때문에 컨테이너를 죽이면 나머지 기능까지 같이 죽는다.
+      # 기준은 "이게 없으면 서비스가 의미 없는가" 다.
+      group:
+        readiness:
+          include: readinessState, db, redis
 
 springdoc:
   swagger-ui:
