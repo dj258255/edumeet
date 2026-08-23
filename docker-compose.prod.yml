@@ -45,7 +45,11 @@ services:
     networks: [edumeet]
 
   app:
-    image: ${APP_IMAGE:-ghcr.io/dj258255/edumeet:latest}
+    # ★ 기본값을 두지 않는다. (#83)
+    #   :latest 로 두면 APP_IMAGE export 를 잊은 채 compose up 을 했을 때
+    #   운영이 핀 태그에서 떠다니는 태그로 조용히 바뀐다. 경고도 없다.
+    #   같은 파일의 GRAFANA_PASSWORD 와 같은 기준으로 맞춘다.
+    image: ${APP_IMAGE:?APP_IMAGE 를 지정해야 한다. 기본값을 :latest 로 두면 export 를 잊었을 때 운영이 조용히 떠다니는 태그로 바뀐다}
     container_name: edumeet-app
     env_file: .env
     restart: unless-stopped
