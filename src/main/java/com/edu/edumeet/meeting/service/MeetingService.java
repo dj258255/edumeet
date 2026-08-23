@@ -38,6 +38,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 import io.livekit.server.AccessToken;
+import io.livekit.server.CanPublishSources;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
 import com.edu.edumeet.classroom.repository.ClassMemberRepository;
@@ -407,10 +408,20 @@ public class MeetingService {
                 new CanPublish(canPublish),
                 new CanSubscribe(true)
         );
+
+        // 오디오 전용 방송에서 비디오를 막는다. (#72)
+        // 이 제한이 없으면 "오디오 전용" 은 클라이언트 UI 관례일 뿐이라,
+        // 수정된 클라이언트나 다른 SDK 가 카메라를 올릴 수 있다.
+        List<String> sources = meeting.getSessionType().publishableSources();
+        if (canPublish && !sources.isEmpty()) {
+            token.addGrants(new CanPublishSources(sources));
+        }
+
         token.setTtl(Duration.ofHours(6).toMillis());
 
-        log.info("입장 토큰 발급 - meetingId={}, type={}, participant={}, canPublish={}",
-                meeting.getId(), meeting.getSessionType(), participantName, canPublish);
+        log.info("입장 토큰 발급 - meetingId={}, type={}, participant={}, canPublish={}, sources={}",
+                meeting.getId(), meeting.getSessionType(), participantName, canPublish,
+                sources.isEmpty() ? "제한없음" : sources);
 
         Map<String, Object> response = new HashMap<>();
         response.put("token", token.toJwt());
@@ -419,6 +430,7 @@ public class MeetingService {
         response.put("participantName", participantName);
         response.put("sessionType", meeting.getSessionType());
         response.put("canPublish", canPublish);
+        response.put("publishableSources", sources);
         return response;
     }
 }
