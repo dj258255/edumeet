@@ -1,5 +1,6 @@
 package com.edu.edumeet.meeting.config;
 
+import io.livekit.server.EgressServiceClient;
 import io.livekit.server.RoomServiceClient;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,13 +39,34 @@ public class LiveKitConfig {
     @Value("${livekit.api.secret}")
     private String apiSecret;
 
+    /**
+     * egress 시작은 룸 조회보다 오래 걸린다. (#75)
+     *
+     * <p>룸 조회는 LiveKit 이 메모리에서 답하지만, egress 시작은
+     * <b>Redis 를 거쳐 워커가 잡을 받아야</b> 응답이 온다.
+     * 3초를 그대로 쓰면 정상 시작을 타임아웃으로 오인해
+     * <b>egress 는 돌고 있는데 우리는 실패로 처리하는</b> 상태가 된다 -
+     * 그러면 코어를 먹는 고아 egress 가 남는다.
+     */
+    private static final Duration EGRESS_READ_TIMEOUT = Duration.ofSeconds(10);
+
     @Bean
     public RoomServiceClient roomServiceClient() {
         return RoomServiceClient.createClient(host, apiKey, apiSecret, () ->
-                new OkHttpClient.Builder()
-                        .connectTimeout(CONNECT_TIMEOUT)
-                        .readTimeout(READ_TIMEOUT)
-                        .writeTimeout(READ_TIMEOUT)
-                        .build());
+                httpClient(READ_TIMEOUT));
+    }
+
+    @Bean
+    public EgressServiceClient egressServiceClient() {
+        return EgressServiceClient.createClient(host, apiKey, apiSecret, () ->
+                httpClient(EGRESS_READ_TIMEOUT));
+    }
+
+    private OkHttpClient httpClient(Duration readTimeout) {
+        return new OkHttpClient.Builder()
+                .connectTimeout(CONNECT_TIMEOUT)
+                .readTimeout(readTimeout)
+                .writeTimeout(readTimeout)
+                .build();
     }
 }

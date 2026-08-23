@@ -53,6 +53,14 @@ public class Meeting {
     @Column(name = "summary_pdf_url", length = 500)
     private String summaryPdfUrl;
 
+    /** 진행 중인 HLS egress 의 id. null 이면 내보내는 중이 아니다. (#75) */
+    @Column(name = "hls_egress_id", length = 100)
+    private String hlsEgressId;
+
+    /** 플레이어가 여는 라이브 플레이리스트 주소. 방송이 끝나도 지우지 않는다. (#75) */
+    @Column(name = "hls_playlist_url", length = 500)
+    private String hlsPlaylistUrl;
+
     public void assignTo(ClassRoom classRoom) {
         this.classRoom = classRoom;
         if (classRoom != null) {
@@ -101,6 +109,28 @@ public class Meeting {
     /** 이미 요약본이 기록되어 있는가. 멱등성 판단에 쓴다. */
     public boolean hasSummary() {
         return this.summaryMdUrl != null || this.summaryPdfUrl != null;
+    }
+
+    /** HLS 내보내기를 시작했다고 기록한다. (#75) */
+    public void startHls(String egressId, String playlistUrl) {
+        this.hlsEgressId = egressId;
+        this.hlsPlaylistUrl = playlistUrl;
+    }
+
+    /**
+     * HLS 내보내기를 멈췄다고 기록한다.
+     *
+     * <p><b>플레이리스트 주소는 지우지 않는다.</b> 방송이 끝나면 {@code live.m3u8} 은
+     * 의미를 잃지만 같은 디렉터리의 {@code index.m3u8} 은 다시보기로 남는다.
+     * 주소를 지우면 다시보기로 가는 길이 끊긴다.
+     */
+    public void stopHls() {
+        this.hlsEgressId = null;
+    }
+
+    /** 지금 HLS 로 내보내는 중인가. */
+    public boolean isStreamingHls() {
+        return hlsEgressId != null;
     }
 
     @PrePersist @PreUpdate
