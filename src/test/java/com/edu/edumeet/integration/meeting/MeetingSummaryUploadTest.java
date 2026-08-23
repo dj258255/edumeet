@@ -5,7 +5,7 @@ import com.edu.edumeet.config.internal.InternalApiTokenFilter;
 import com.edu.edumeet.member.domain.Member;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.domain.SessionType;
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;

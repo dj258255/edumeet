@@ -1,7 +1,7 @@
 package com.edu.edumeet.classroom.service;
 
 import java.time.Duration;
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import com.edu.edumeet.classroom.domain.*;
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
 import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
