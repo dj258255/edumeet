@@ -1,15 +1,26 @@
-# 공통 설정 — 시크릿을 담지 않는다. 이 파일은 저장소에 커밋된다.
-# 환경별 시크릿은 application-local.yml (git 무시) 에 둔다.
-# 최초 실행: cp application-local.yml.example application-local.yml
+# EduMeet 설정 — 프로필 전부가 이 파일 하나에 있다.
+#
+# ★ 이 파일에는 시크릿이 없다. 전부 ${ENV_VAR:기본값} 으로 받는다.
+#   기본값은 로컬에서 그대로 뜨는 값이라, clone 직후 아무 설정 없이 실행된다.
+#
+#   실제 값은 .env 에 둔다 (gitignore).
+#     운영    Ansible vault -> .env -> docker compose env_file -> 환경변수  (#37)
+#     로컬    .env 를 만들거나 IDE 실행 구성에 환경변수를 넣는다
+#
+#   예전에는 프로필마다 파일이 따로 있었고 application-local.yml 이 시크릿을 들고
+#   gitignore 되어 있었다. 그래서 커밋된 파일이 존재하지 않는 파일을 기본 프로필로
+#   가리켰고, clone 직후 실행이 무조건 실패했다. 시크릿을 환경변수로 빼면서 그 이유가 사라졌다. (#47)
+#
+#   프로필 전환:  --spring.profiles.active=perf   또는  SPRING_PROFILES_ACTIVE=prod
 
 spring:
   application:
     name: edumeet
   profiles:
-    active: local
+    active: ${SPRING_PROFILES_ACTIVE:local}
 
   # 스키마 마이그레이션. 운영은 ddl-auto=none 이라 변경 경로가 없었다. (#29)
-  # baseline-on-migrate: 기존 운영 DB 는 스키마가 이미 있으므로 V1 을 실행하지 않고 V1 로 표시만 한다.
+  # baseline-on-migrate: 기존 운영 DB 는 스키마가 이미 있으므로 V1 을 실행하지 않고 표시만 한다.
   #                      빈 DB(신규 개발자)에서는 V1 부터 실제로 실행된다.
   flyway:
     enabled: true
@@ -28,17 +39,64 @@ spring:
         # 지연 로딩 컬렉션을 IN 절로 묶어서 가져온다.
         # @BatchSize 를 컬렉션마다 붙이는 방식은 새 컬렉션이 추가될 때 누락되기 쉽다.
         # 실제로 이 프로젝트에 @BatchSize 가 없는 @OneToMany 가 8곳 있었다.
-        # 전역 기본값을 두고, 특별히 다른 크기가 필요한 곳만 @BatchSize 로 재정의한다.
         default_batch_fetch_size: 100
         # 통계 수집. 성능 측정 시 쿼리 수를 세기 위해 필요하다. (CONTRIBUTING.md 참조)
         generate_statistics: false
 
   data:
     redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
       # 타임아웃이 없으면 Redis 가 응답하지 않을 때 요청 스레드가 무한정 잡힌다.
       # 인증 코드 조회 같은 가벼운 작업이라 2초를 넘길 이유가 없다.
       timeout: 2s
       connect-timeout: 1s
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  cloud:
+    aws:
+      credentials:
+        access-key: ${AWS_ACCESS_KEY:}
+        secret-key: ${AWS_SECRET_KEY:}
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
+      s3:
+        bucket: ${AWS_S3_BUCKET:}
+
+  security:
+    oauth2:
+      client:
+        # 자격증명만 프로필·환경별로 다르다. 나머지는 어디서나 같으므로 여기 한 번만 쓴다.
+        # 예전에는 이 블록이 프로필 파일마다 통째로 복사돼 있었다.
+        #
+        # client-id 기본값이 비면 안 된다 - Spring 이 부팅 중 검증에서 죽는다.
+        #   Client id of registration 'kakao' must not be empty.
+        registration:
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID:kakao-client-id-not-set}
+            client-secret: ${KAKAO_CLIENT_SECRET:}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: profile_nickname, account_email
+            client-name: Kakao
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
 
   servlet:
     multipart:
@@ -46,14 +104,14 @@ spring:
       max-request-size: 100MB
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 # 운영 관측. 컨테이너 healthcheck 가 /actuator/health 를 부른다.
 # 필요한 것만 연다. env, beans, heapdump 같은 것은 노출하지 않는다.
 management:
   # 관리 포트를 분리한다. (#28)
-  # 메트릭은 URI 패턴·호출량·커넥션 수 같은 내부 정보를 담는다. 8080 에 두면 인터넷에 나간다.
-  # docker-compose 에서 이 포트는 expose 만 하고 publish 하지 않는다.
+  # 지표는 URI 패턴·호출량·커넥션 수 같은 내부 정보를 담는다. 8080 에 두면 인터넷에 나간다.
+  # docker-compose 에서 이 포트는 publish 하지 않는다.
   server:
     port: ${MANAGEMENT_PORT:9090}
   endpoints:
@@ -79,7 +137,6 @@ management:
         http.server.requests: true
       slo:
         http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s, 2s
-
   endpoint:
     health:
       # 의존 컴포넌트(DB, Redis) 상태까지 보이게 한다.
@@ -94,10 +151,253 @@ springdoc:
 
 logging:
   level:
-    com.edu.edumeet: INFO
+    com.edu.edumeet: ${LOG_LEVEL_APP:INFO}
+
+front:
+  url: ${FRONT_URL:http://localhost:3000}
+  url2: ${FRONT_URL2:http://localhost:5173}
+
+jwt:
+  # 기본값은 로컬 전용이다. 운영에서는 반드시 환경변수로 덮는다.
+  secret: ${JWT_SECRET:bG9jYWwtb25seS1zZWNyZXQtbm90LXVzZWQtaW4tcHJvZHVjdGlvbi0xMjM0NTY=}
+  expiration_time: ${JWT_EXPIRATION:3600000}
+
+openvidu:
+  url: ${LIVEKIT_URL:http://localhost:7880}
+  livekit:
+    api:
+      key: ${LIVEKIT_API_KEY:devkey}
+      secret: ${LIVEKIT_API_SECRET:secret}
 
 edumeet:
   internal:
     # 서버 간 호출용 공유 시크릿. 파이썬 AI 서버가 X-Internal-Token 헤더로 보낸다. (#27)
     # 비어 있으면 /api/v1/internal/** 은 전부 거부된다 (fail-closed).
     api-token: ${INTERNAL_API_TOKEN:}
+  upload:
+    path: ${UPLOAD_PATH:./upload}
+
+
+# ══════════════════════════════════════════════════════════════════
+#  local — 기본값. 아무 설정 없이 clone 직후 뜬다.
+# ══════════════════════════════════════════════════════════════════
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/edumeet?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      # 로컬은 Flyway 대신 Hibernate 가 스키마를 맞춘다.
+      ddl-auto: update
+  flyway:
+    enabled: false
+
+
+# ══════════════════════════════════════════════════════════════════
+#  test — clone 직후 ./gradlew test 가 추가 설정 없이 통과해야 한다.
+#         값은 전부 더미다. 실제 시크릿이 아니다.
+# ══════════════════════════════════════════════════════════════════
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  # H2 + ddl-auto=create-drop 을 쓴다. MySQL 문법 마이그레이션은 여기서 돌면 안 된다. (#29)
+  flyway:
+    enabled: false
+
+  datasource:
+    url: jdbc:h2:mem:edumeet;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        generate_statistics: true   # 테스트에서 쿼리 수를 단언하기 위해 켠다
+
+  mail:
+    username: test@example.com
+    password: test
+
+  cloud:
+    aws:
+      credentials:
+        access-key: test-access-key
+        secret-key: test-secret-key
+      s3:
+        bucket: test-bucket
+
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-id: test-client-id
+            client-secret: test-client-secret
+
+jwt:
+  secret: dGVzdC1vbmx5LXNlY3JldC1ub3QtdXNlZC1pbi1wcm9kdWN0aW9uLTEyMzQ1Njc4OTA=
+
+openvidu:
+  livekit:
+    api:
+      key: devkey
+      secret: devsecret
+
+edumeet:
+  internal:
+    api-token: test-internal-token
+  upload:
+    path: ${java.io.tmpdir}/edumeet-test-upload
+
+logging:
+  level:
+    com.edu.edumeet: WARN
+    org.hibernate.SQL: DEBUG
+
+
+# ══════════════════════════════════════════════════════════════════
+#  perf — 부하 측정 전용.
+#
+#    docker compose -f docker-compose.perf.yml up -d
+#    ./gradlew bootRun --args='--spring.profiles.active=perf'
+#
+#  PERF_BATCH_SIZE 는 요청 단위로 못 바꾸는 전역 설정이라
+#  개선 전/후 비교는 앱을 두 번 띄워서 한다. (scripts/run-benchmark.sh)
+#    -1 배치 페치 없음 = 개선 전 / 100 IN 절로 묶음 = 개선 후
+# ══════════════════════════════════════════════════════════════════
+---
+spring:
+  config:
+    activate:
+      on-profile: perf
+
+  # ddl-auto=create 로 매번 새로 만든다. (#29)
+  flyway:
+    enabled: false
+
+  datasource:
+    # PERF_DB_PORT=13307 로 두면 Toxiproxy 를 거쳐 MySQL 로 간다.
+    # 잠금 테스트를 결정론적으로 만들기 위해 DB 응답에 지연을 넣을 때 쓴다.
+    url: jdbc:mysql://localhost:${PERF_DB_PORT:3307}/edumeet_perf?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
+    username: edumeet
+    password: perfpass
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 커넥션 풀이 병목이 되면 쿼리 개선 효과가 묻힌다.
+      # k6 최대 VU(50)보다 넉넉하게 잡아 DB 왕복 자체를 재도록 한다.
+      maximum-pool-size: 60
+      minimum-idle: 10
+      connection-timeout: 10000
+
+  jpa:
+    hibernate:
+      ddl-auto: create
+    properties:
+      hibernate:
+        format_sql: false
+        default_batch_fetch_size: ${PERF_BATCH_SIZE:-1}
+        generate_statistics: true
+        # 요청별 SQL 개수를 세기 위해 등록한다.
+        # Statistics 는 SessionFactory 누적값이라 동시 요청에서 요청별 델타를 못 낸다.
+        session_factory:
+          statement_inspector: com.edu.edumeet.perf.QueryCountInspector
+
+  data:
+    redis:
+      port: 6380
+
+  mail:
+    username: perf@example.com
+    password: perf
+
+  cloud:
+    aws:
+      credentials:
+        access-key: perf-access-key
+        secret-key: perf-secret-key
+      s3:
+        bucket: perf-bucket
+
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-id: perf-client-id
+            client-secret: perf-client-secret
+
+server:
+  # 개발 서버(8080)와 겹치지 않게 별도 포트를 쓴다.
+  port: ${PERF_PORT:8081}
+
+jwt:
+  secret: cGVyZi1vbmx5LXNlY3JldC1ub3QtdXNlZC1pbi1wcm9kdWN0aW9uLTEyMzQ1Njc4
+
+openvidu:
+  # Toxiproxy 를 거쳐 LiveKit 으로 간다. 지연·단절을 주입해
+  # 타임아웃과 폴백이 실제로 동작하는지 확인하기 위해서다. (#19)
+  #   앱 -> toxiproxy:7881 -[toxic]-> livekit:7880
+  url: ${LIVEKIT_URL:http://localhost:7881}
+  livekit:
+    api:
+      # livekit-server --dev 가 쓰는 placeholder 자격증명과 반드시 같아야 한다.
+      # 컨테이너 기동 로그: {"API Key": "devkey", "API Secret": "secret"}
+      key: devkey
+      secret: secret
+
+edumeet:
+  upload:
+    path: ${java.io.tmpdir}/edumeet-perf-upload
+  # 시드 규모. N+1 은 데이터가 적으면 드러나지 않는다.
+  perf:
+    seed:
+      classes: 5
+      assignments-per-class: 30
+      students-per-assignment: 20
+      submissions-per-assignment: 15
+      files-per-submission: 2
+      files-per-assignment: 3
+
+logging:
+  level:
+    root: WARN
+    com.edu.edumeet: WARN
+    org.hibernate.SQL: WARN
+
+
+# ══════════════════════════════════════════════════════════════════
+#  prod — 시크릿은 전부 환경변수다. Ansible 이 만든 .env 가 공급한다. (#37)
+# ══════════════════════════════════════════════════════════════════
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  jpa:
+    hibernate:
+      # 스키마는 Flyway 가 관리한다. Hibernate 가 손대면 안 된다.
+      ddl-auto: none
+    properties:
+      hibernate:
+        # 운영에서 SQL 을 포맷하면 로그만 커진다.
+        format_sql: false
+
+logging:
+  level:
+    org.hibernate.SQL: WARN

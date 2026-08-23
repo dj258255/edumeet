@@ -556,7 +556,7 @@ GStreamer 엘리먼트 `gsttimestampoverlay` / `timeoverlayparse` 제공. LGPLv2
 ### 4-8. hls.js timed metadata (참고)
 
 - **`Hls.Events.FRAG_PARSING_METADATA`** — *"fired when parsing metadata is completed (ID3 / CMAF KLV)"*
-  - ⚠️ **`pts`/`dts`가 relative(초)** — 절대 벽시계로 쓰려면 PDT와 결합 필요
+  - **주의: `pts`/`dts` 는 relative(초)** 다. 절대 벽시계로 쓰려면 PDT 와 결합해야 한다
 - **`Hls.Events.FRAG_PARSING_USERDATA`** — *"fired when parsing **sei** text is completed"*
 - config (모두 기본 `true`): `enableID3MetadataCues`, `enableEmsgMetadataCues`,
   `enableDateRangeMetadataCues` / `enableEmsgKLVMetadata`(기본 `false`)
