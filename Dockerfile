@@ -38,9 +38,12 @@ ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
 ENV SPRING_PROFILES_ACTIVE=prod
 # 액추에이터는 관리 포트로 분리한다. 지표를 인터넷 쪽 포트에 두지 않기 위해서다. (#28)
 # 이 포트가 바뀌면 아래 HEALTHCHECK 도 같이 바뀐다.
+#
+# HEALTHCHECK 는 /actuator/health 가 아니라 readiness 를 본다. (#53)
+# 전체 health 는 메일·S3 까지 포함해서, 메일 하나 때문에 컨테이너가 죽는다.
 ENV MANAGEMENT_PORT=9090
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-  CMD curl -fsS http://localhost:${MANAGEMENT_PORT:-9090}/actuator/health || exit 1
+  CMD curl -fsS http://localhost:${MANAGEMENT_PORT:-9090}/actuator/health/readiness || exit 1
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

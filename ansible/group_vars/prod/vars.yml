@@ -39,6 +39,8 @@ mail_password: "{{ vault_mail_password }}"
 aws_access_key: "{{ vault_aws_access_key }}"
 aws_secret_key: "{{ vault_aws_secret_key }}"
 aws_s3_bucket: "{{ vault_aws_s3_bucket }}"
+# S3 호환 엔드포인트. 비우면 AWS S3, 채우면 그쪽으로 간다 (Cloudflare R2 등). (#53)
+aws_endpoint: "{{ vault_aws_endpoint | default('') }}"
 kakao_client_id: "{{ vault_kakao_client_id }}"
 kakao_client_secret: "{{ vault_kakao_client_secret }}"
 livekit_url: "{{ vault_livekit_url }}"
