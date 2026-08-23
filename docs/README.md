@@ -136,3 +136,5 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | NATS | Core도 at-most-once라 Redis와 보장 수준이 같음. 채택 기준은 사전 등록 |
 | Kafka | 채팅 전파에는 지연·운영 부담이 과함 |
 | LL-HLS | LiveKit egress가 TS 세그먼트라 CMAF가 아님. 부분 세그먼트 경로 없음 |
+| MongoDB (채팅) | Slack이 MySQL로 초당 30만 쓰기. 우리는 초당 20 — **15,000배 차이**. Discord는 MongoDB에서 **떠났다** |
+| Rust/C++ 미디어 서버 | 프로토콜 바이트를 직접 만지지 않는다. LiveKit(Go)이 SFU를 한다 |

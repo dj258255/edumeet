@@ -511,6 +511,42 @@ Twitch(Go 1.7까지 기다림), Discord(Go→Rust), 카카오(C++→Kotlin+ZGC).
 
 ---
 
+
+## 채팅 저장소 — 실제 사례 (2026-08-23 추가)
+
+*"채팅이니까 MongoDB"* 를 검토했다. **근거가 반대 방향이었다.**
+
+| | |
+|---|---|
+| **Slack** | **MySQL + Vitess.** 피크 **2.3M QPS**(읽기 2M / **쓰기 300K**), 중앙값 2ms · p99 11ms. DynamoDB·Cassandra 를 **검토하고 거절**했다 |
+| **Discord** | MongoDB 로 시작 → **메시지 1억 건 시점에 Cassandra 로 이전**. 사유: *"데이터와 인덱스가 RAM 에 들어가지 않으면서 지연이 예측 불가능해졌다"* |
+
+**Discord 사례의 교훈은 "MongoDB 가 낫다" 가 아니라 그 반대다.** MongoDB 로 시작했다가 떠났고,
+간 곳도 MongoDB 튜닝이 아니라 Cassandra 다.
+
+> 진짜 분기점은 **DB 종류가 아니라 "워킹셋이 RAM 에 들어가는가"** 였다.
+
+### 우리 규모
+
+```
+Slack     초당 30만 쓰기   (MySQL)
+우리      초당 20 쓰기     (INTERACTIVE 30명 방)
+```
+
+**15,000배 차이다.** 이 규모에서 DB 를 바꿀 근거는 존재하지 않는다.
+
+### Kafka 도 같은 논리다
+
+Kafka 는 **DB 쓰기를 대체하는 것이 아니라 생산자와 DB 사이에 버퍼를 두는 것**이다.
+그 버퍼는 [#61](https://github.com/dj258255/edumeet/issues/61) 에서 이미 설계했다 —
+**비동기 배치 + 상한 있는 큐.** 인메모리로 시작하고, 부족하다는 것이 측정되면 그때 바꾼다.
+#43 에서 배운 대로 **상한 없는 큐를 다시 만들지 않는다.**
+
+**출처**
+- [Slack — Scaling Datastores with Vitess](https://slack.engineering/scaling-datastores-at-slack-with-vitess/)
+- [Discord — How Discord Stores Billions of Messages](https://discord.com/blog/how-discord-stores-billions-of-messages)
+
+---
 ## 10. 미확인 항목
 
 - 치지직 / SOOP의 채팅 팬아웃 미들웨어·언어·저장소 — **전부 미확인**

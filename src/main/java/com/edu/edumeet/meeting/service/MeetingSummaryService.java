@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
@@ -125,6 +126,9 @@ public class MeetingSummaryService {
      * 요약본 조회. 이제 MD 와 PDF 를 <b>둘 다</b> 돌려준다.
      * 이전에는 s3url 단일 컬럼이라 PDF 가 MD 를 덮어썼고 MD 는 조회할 방법이 없었다.
      */
+    /** 읽기 링크 유효 시간. 요약본을 여는 동안 유지되면 충분하다. */
+    private static final Duration READ_LINK_TTL = Duration.ofMinutes(15);
+
     @Transactional(readOnly = true)
     public Optional<SummaryUploadResult> findLatestSummary(Long classId, String email) {
         // 요약본은 수업 STT 전문이다. 로그인만 하면 아무 클래스나 읽을 수 있었다. (#62)
@@ -132,7 +136,14 @@ public class MeetingSummaryService {
 
         return meetingRepository
                 .findTopByClassRoomIdAndS3urlIsNotNullOrderByStartTimeDesc(classId)
-                .map(this::existingResult);
+                // 저장된 주소를 그대로 주지 않는다. 요약본은 수업 STT 전문이다. (#64)
+                // 파일이 비공개가 됐으므로 볼 자격이 확인된 지금 시점에만 기간 링크를 발급한다.
+                .map(meeting -> new SummaryUploadResult(
+                        meeting.getId(),
+                        meeting.getClassRoom().getId(),
+                        s3Uploader.presignedGetUrl(meeting.getSummaryMdUrl(), READ_LINK_TTL),
+                        s3Uploader.presignedGetUrl(meeting.getSummaryPdfUrl(), READ_LINK_TTL),
+                        true));
     }
 
     // --- 검증 ---
