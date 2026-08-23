@@ -1,7 +1,7 @@
 package com.edu.edumeet.perf;
 
-import com.edu.edumeet.openvidu.exception.LiveKitUnavailableException;
-import com.edu.edumeet.openvidu.service.OpenviduService;
+import com.edu.edumeet.meeting.exception.LiveKitUnavailableException;
+import com.edu.edumeet.meeting.service.MeetingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -36,15 +36,15 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ResilienceBenchmarkController {
 
-    private final OpenviduService openviduService;
+    private final MeetingService meetingService;
 
-    @Value("${openvidu.url}")
+    @Value("${livekit.url}")
     private String livekitUrl;
 
-    @Value("${openvidu.livekit.api.key}")
+    @Value("${livekit.api.key}")
     private String apiKey;
 
-    @Value("${openvidu.livekit.api.secret}")
+    @Value("${livekit.api.secret}")
     private String apiSecret;
 
     @GetMapping("/room")
@@ -61,7 +61,7 @@ public class ResilienceBenchmarkController {
         HttpStatus status;
 
         try {
-            Map<String, Object> info = openviduService.getRoomInfo(name);
+            Map<String, Object> info = meetingService.getRoomInfo(name);
             // 룸이 없는 것은 정상 결과다. 장애가 아니다.
             status = info == null ? HttpStatus.NOT_FOUND : HttpStatus.OK;
             body.put("outcome", info == null ? "ROOM_NOT_FOUND" : "OK");

@@ -1,9 +1,9 @@
 package com.edu.edumeet.exception;
 
 
-import com.edu.edumeet.openvidu.exception.LiveKitUnavailableException;
+import com.edu.edumeet.meeting.exception.LiveKitUnavailableException;
 import org.springframework.security.access.AccessDeniedException;
-import com.edu.edumeet.openvidu.exception.SessionCapacityExceededException;
+import com.edu.edumeet.meeting.exception.SessionCapacityExceededException;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;

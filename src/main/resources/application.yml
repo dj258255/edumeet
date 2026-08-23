@@ -188,12 +188,14 @@ jwt:
   secret: ${JWT_SECRET:bG9jYWwtb25seS1zZWNyZXQtbm90LXVzZWQtaW4tcHJvZHVjdGlvbi0xMjM0NTY=}
   expiration_time: ${JWT_EXPIRATION:3600000}
 
-openvidu:
+# 패키지는 도메인 이름(meeting), 설정 키는 기술 이름(livekit)이다. (#57)
+# 예전엔 openvidu.livekit.api.key 였는데 openvidu 는 쓰지도 않는 제품이고
+# 중첩도 한 단계 남았다.
+livekit:
   url: ${LIVEKIT_URL:http://localhost:7880}
-  livekit:
-    api:
-      key: ${LIVEKIT_API_KEY:devkey}
-      secret: ${LIVEKIT_API_SECRET:secret}
+  api:
+    key: ${LIVEKIT_API_KEY:devkey}
+    secret: ${LIVEKIT_API_SECRET:secret}
 
 edumeet:
   email:
@@ -276,11 +278,10 @@ spring:
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1ub3QtdXNlZC1pbi1wcm9kdWN0aW9uLTEyMzQ1Njc4OTA=
 
-openvidu:
-  livekit:
-    api:
-      key: devkey
-      secret: devsecret
+livekit:
+  api:
+    key: devkey
+    secret: devsecret
 
 edumeet:
   email:
@@ -376,17 +377,16 @@ server:
 jwt:
   secret: cGVyZi1vbmx5LXNlY3JldC1ub3QtdXNlZC1pbi1wcm9kdWN0aW9uLTEyMzQ1Njc4
 
-openvidu:
+livekit:
   # Toxiproxy 를 거쳐 LiveKit 으로 간다. 지연·단절을 주입해
   # 타임아웃과 폴백이 실제로 동작하는지 확인하기 위해서다. (#19)
   #   앱 -> toxiproxy:7881 -[toxic]-> livekit:7880
   url: ${LIVEKIT_URL:http://localhost:7881}
-  livekit:
-    api:
-      # livekit-server --dev 가 쓰는 placeholder 자격증명과 반드시 같아야 한다.
-      # 컨테이너 기동 로그: {"API Key": "devkey", "API Secret": "secret"}
-      key: devkey
-      secret: secret
+  api:
+    # livekit-server --dev 가 쓰는 placeholder 자격증명과 반드시 같아야 한다.
+    # 컨테이너 기동 로그: {"API Key": "devkey", "API Secret": "secret"}
+    key: devkey
+    secret: secret
 
 edumeet:
   upload:

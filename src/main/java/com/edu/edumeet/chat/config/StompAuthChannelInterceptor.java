@@ -1,7 +1,7 @@
 package com.edu.edumeet.chat.config;
 
 import com.edu.edumeet.config.jwt.JwtService;
-import com.edu.edumeet.openvidu.repository.MeetingParticipantRepository;
+import com.edu.edumeet.meeting.repository.MeetingParticipantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;

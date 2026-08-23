@@ -1,10 +1,10 @@
 package com.edu.edumeet.perf;
 
-import com.edu.edumeet.openvidu.domain.Meeting;
-import com.edu.edumeet.openvidu.domain.MeetingParticipant;
-import com.edu.edumeet.openvidu.exception.SessionCapacityExceededException;
-import com.edu.edumeet.openvidu.repository.MeetingParticipantRepository;
-import com.edu.edumeet.openvidu.repository.MeetingRepository;
+import com.edu.edumeet.meeting.domain.Meeting;
+import com.edu.edumeet.meeting.domain.MeetingParticipant;
+import com.edu.edumeet.meeting.exception.SessionCapacityExceededException;
+import com.edu.edumeet.meeting.repository.MeetingParticipantRepository;
+import com.edu.edumeet.meeting.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -16,7 +16,7 @@ import java.util.Optional;
 /**
  * 잠금 없이 참가시키는 구현. 정원 제어의 대조군이다.
  *
- * <p>{@link com.edu.edumeet.openvidu.service.OpenviduService#joinSession} 에서
+ * <p>{@link com.edu.edumeet.meeting.service.MeetingService#joinSession} 에서
  * {@code findByIdForUpdate} 를 {@code findById} 로 바꾼 것 외에는 동일하다.
  *
  * <p>왜 별도 빈인가 — Spring 의 {@code @Transactional} 은 프록시로 동작해서
