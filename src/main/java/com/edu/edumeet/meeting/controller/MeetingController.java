@@ -18,7 +18,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/meetingroom")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Log4j2
 public class MeetingController {
 
@@ -107,8 +106,10 @@ public class MeetingController {
     }
 
     @GetMapping("/room/{roomName}")
-    public ResponseEntity<Map<String, Object>> getRoomInfo(@PathVariable String roomName) {
-        Map<String, Object> roomInfo = meetingService.getRoomInfo(roomName);
+    public ResponseEntity<Map<String, Object>> getRoomInfo(
+            @AuthenticationPrincipal SecurityMember member,
+            @PathVariable String roomName) {
+        Map<String, Object> roomInfo = meetingService.getRoomInfo(roomName, member.getEmail());
 
         if (roomInfo == null) {
             return ResponseEntity.notFound().build();
