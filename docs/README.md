@@ -74,6 +74,22 @@ audioRoomCompositeCpuCost = 1     오디오 방송   2 >= 1  참   → 된다
 
 → [`plan/04-three-broadcast-modes.md`](plan/04-three-broadcast-modes.md)
 
+### 부하 생성기를 측정 대상 안에 두지 않는다
+
+OCI 서버는 **2코어인데 컨테이너가 14개** 돌고 있다(우리 앱은 3개, 나머지는 다른 프로젝트).
+`load average 1.13` 이 기준선이다. 여기서 k6 까지 돌리면 **재는 것이 앱의 한계가 아니라
+부하 생성기의 방해**가 된다.
+
+```
+앱 + MySQL + Redis  →  OCI       측정 대상
+k6                  →  노트북     네트워크 너머
+```
+
+네트워크 바닥값을 먼저 쟀다 — **p50 15ms / p95 28ms.**
+OCI 측정의 지연에는 이만큼이 상수로 얹혀 있다.
+
+→ [`performance/08-network-floor-oci.md`](performance/08-network-floor-oci.md)
+
 ### 언어를 바꾸지 않는다
 
 경계는 언어가 아니라 **"패킷당 하는 일"** 이다.
