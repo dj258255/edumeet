@@ -2,14 +2,47 @@
 
 ## 지금 하는 일
 
-> **"실시간 채팅에서 인원이 늘 때 어디서부터 무너지는가"를 5단계로 측정하고,
+> **"인원이 늘 때 어디서부터 무너지는가"를 단계별로 측정하고,
 > 각 단계를 프레임워크 기본값·설정·구조로 해결한다.**
 
-계획: [`plan/01-chat-breaking-points.md`](plan/01-chat-breaking-points.md)
+측정을 하려면 그 전에 **관측·배포·시크릿**이 서 있어야 했다. 그것도 이 저장소의 일부다.
+
+| 축 | 계획 |
+|---|---|
+| 채팅 붕괴 | [`plan/01-chat-breaking-points.md`](plan/01-chat-breaking-points.md) |
+| 오디오 방송 (라디오 + 자막) | [`plan/03-audio-broadcast.md`](plan/03-audio-broadcast.md) |
+| HLS | [`plan/02-hls-optional.md`](plan/02-hls-optional.md) — 선택 |
 
 ---
 
 ## 결론 먼저
+
+### 비용보다 가용성이 먼저 터진다
+
+처음엔 *"시청자 500명이 임계 구역"* 이라고 적었다. **요금을 확인하고 뒤집혔다.**
+
+```
+OCI 무료 한도 10TB 를 넘기려면   시청자 7,400명 x 1시간
+그 전에                          2 OCPU / 12GB VM 이 먼저 죽는다
+```
+
+OCI 의 무료 한도는 타 클라우드의 **50~100배**, 초과 요금은 약 **1/10** 이다.
+**그래서 이 프로젝트의 주제는 비용 최적화가 아니라 가용성 한계 측정이다.**
+
+→ [`ops/02-egress-cost-model.md`](ops/02-egress-cost-model.md)
+
+### 무한 큐가 위험해지는 조건은 "빠른 발행" 이 아니라 "느린 소비" 다
+
+*"기본 큐가 무한이니 빠르게 발행하면 OOM"* 으로 가정하고 부하를 걸었다. **안 죽었다.**
+
+| | 큐 최대 | 결과 |
+|---|---:|---|
+| 빠른 소비자 (k6 루프백) | 525 | **4분 생존** |
+| **느린 소비자** (Toxiproxy 5KB/s) | **1,077,906** | **84초에 OOM** |
+
+**같은 부하, 같은 힙.** 소비 속도 하나만 달랐다.
+
+→ [`performance/07-chat-unbounded-queue-oom.md`](performance/07-chat-unbounded-queue-oom.md)
 
 ### 언어를 바꾸지 않는다
 
@@ -106,14 +139,18 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`performance/04-session-capacity-mysql.md`](performance/04-session-capacity-mysql.md) | InnoDB 재검증. 잠금 없으면 150명 중 34명 입장(정원 30) |
 | [`performance/05-fault-injection.md`](performance/05-fault-injection.md) | Toxiproxy. 무응답 시 3초 실패 vs 30초에도 안 돌아옴 |
 | [`performance/06-lock-determinism.md`](performance/06-lock-determinism.md) | **가설 검증 후 미도입.** 지연이 검출률을 안 올림 |
+| [`performance/07-chat-unbounded-queue-oom.md`](performance/07-chat-unbounded-queue-oom.md) | **무한 큐 OOM.** 큐 107만 → 상한 2만, 84초 OOM → 444초 무중단 |
+| [`refactoring/01-remove-port-adapter.md`](refactoring/01-remove-port-adapter.md) | Port/Adapter 제거. 코드 38% 감소, 최적화 쿼리가 죽어 있었음 |
 
 ### 운영
 
 | | |
 |---|---|
-| [`ops/01-cicd-and-deploy.md`](ops/01-cicd-and-deploy.md) | GitHub Actions + OCI(ARM64) 배포 |
-| [`performance/07-chat-unbounded-queue-oom.md`](performance/07-chat-unbounded-queue-oom.md) | **무한 큐 OOM** — 가정이 틀렸고, 조건(느린 소비)을 찾아 재현했다 |
-| [`ops/02-egress-cost-model.md`](ops/02-egress-cost-model.md) | **전송 비용 모델** — OCI 는 10TB 무료라 **비용보다 가용성이 먼저 터진다** |
+| [`ops/01-cicd-and-deploy.md`](ops/01-cicd-and-deploy.md) | GitHub Actions + OCI(ARM64) 배포 · Flyway · Ansible |
+| [`ops/02-egress-cost-model.md`](ops/02-egress-cost-model.md) | **전송 비용 모델** — 비용보다 가용성이 먼저 터진다 |
+| [`ops/03-internal-api-contract.md`](ops/03-internal-api-contract.md) | 파이썬 AI 서버 ↔ 자바 규약 (`X-Internal-Token`) |
+| [`ops/04-observability.md`](ops/04-observability.md) | Prometheus·Grafana. **설정만 있고 동작 안 하던 것들** |
+| [`ops/05-secrets.md`](ops/05-secrets.md) | Ansible Vault. 무엇이 어디에 있고 **왜 히스토리를 다시 쓰지 않았는가** |
 
 ### 규칙
 
@@ -137,5 +174,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | NATS | Core도 at-most-once라 Redis와 보장 수준이 같음. 채택 기준은 사전 등록 |
 | Kafka | 채팅 전파에는 지연·운영 부담이 과함 |
 | LL-HLS | LiveKit egress가 TS 세그먼트라 CMAF가 아님. 부분 세그먼트 경로 없음 |
-| MongoDB (채팅) | Slack이 MySQL로 초당 30만 쓰기. 우리는 초당 20 — **15,000배 차이**. Discord는 MongoDB에서 **떠났다** |
+| MongoDB (채팅) | Discord는 MongoDB에서 **떠났다**(1억 건 → Cassandra). 우리 병목은 DB가 아니라 **fan-out** — #43에서 직접 측정 |
+| PostgreSQL 이전 | 통합할 대상이 없다(DB가 하나뿐). jsonb·파티셔닝을 쓰고 있지 않다 |
+| SRT/RTMP 인제스트 | LiveKit Ingress로 되지만 **측정할 질문이 없다**. 프로토콜을 늘려도 배우는 게 없다 |
 | Rust/C++ 미디어 서버 | 프로토콜 바이트를 직접 만지지 않는다. LiveKit(Go)이 SFU를 한다 |
