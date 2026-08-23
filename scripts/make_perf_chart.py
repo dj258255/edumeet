@@ -15,8 +15,14 @@ RED, BLUE, GRAY, DARK, MUTED = "#dc2626", "#2563eb", "#9ca3af", "#111827", "#6b7
 
 def line_chart(*, title, subtitle, x_label, y_label,
                series, x_ticks, y_max, y_ticks, out_path,
-               legend_pos="upper-left"):
-    """series: [(라벨, 색, [(x, y), ...]), ...]"""
+               legend_pos="upper-left", x_unit="건", markers=True,
+               y_fmt=None):
+    """series: [(라벨, 색, [(x, y), ...]), ...]
+
+    markers: 점과 값 라벨을 그릴지. 시계열처럼 점이 수백 개면 꺼야 읽힌다.
+    x_unit:  x축 눈금 접미사. 원래 "건" 으로 하드코딩돼 있었다.
+    y_fmt:   y축 눈금 포맷 함수. 큰 수는 1,000 단위로 끊어야 읽힌다.
+    """
     W, H = 880, 440
     PAD_L, PAD_R, PAD_T, PAD_B = 78, 34, 66, 74
     PW, PH = W - PAD_L - PAD_R, H - PAD_T - PAD_B
@@ -37,14 +43,14 @@ def line_chart(*, title, subtitle, x_label, y_label,
         parts.append(f'<line x1="{PAD_L}" y1="{py(v):.1f}" x2="{PAD_L+PW}" y2="{py(v):.1f}" '
                      f'stroke="#e5e7eb" stroke-width="1"/>')
         parts.append(f'<text x="{PAD_L-11}" y="{py(v)+4:.1f}" text-anchor="end" '
-                     f'font-size="12" fill="{MUTED}">{v}</text>')
+                     f'font-size="12" fill="{MUTED}">{y_fmt(v) if y_fmt else v}</text>')
 
     parts.append(f'<line x1="{PAD_L}" y1="{PAD_T}" x2="{PAD_L}" y2="{PAD_T+PH}" stroke="{GRAY}" stroke-width="1.5"/>')
     parts.append(f'<line x1="{PAD_L}" y1="{PAD_T+PH}" x2="{PAD_L+PW}" y2="{PAD_T+PH}" stroke="{GRAY}" stroke-width="1.5"/>')
 
     for v in x_ticks:
         parts.append(f'<text x="{px(v):.1f}" y="{PAD_T+PH+24}" text-anchor="middle" '
-                     f'font-size="12.5" fill="{MUTED}">{v}건</text>')
+                     f'font-size="12.5" fill="{MUTED}">{v}{x_unit}</text>')
 
     parts.append(f'<text x="{PAD_L+PW/2:.0f}" y="{H-20}" text-anchor="middle" '
                  f'font-size="12.5" fill="#374151">{x_label}</text>')
@@ -56,11 +62,12 @@ def line_chart(*, title, subtitle, x_label, y_label,
                      for i, (a, b) in enumerate(pts))
         parts.append(f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2.6"/>')
 
-    for _, color, pts in series:
-        for a, b in pts:
-            parts.append(f'<circle cx="{px(a):.1f}" cy="{py(b):.1f}" r="5.5" fill="{color}"/>')
-            parts.append(f'<text x="{px(a):.1f}" y="{py(b)-14:.1f}" text-anchor="middle" '
-                         f'font-size="14" font-weight="700" fill="{color}">{b}</text>')
+    if markers:
+        for _, color, pts in series:
+            for a, b in pts:
+                parts.append(f'<circle cx="{px(a):.1f}" cy="{py(b):.1f}" r="5.5" fill="{color}"/>')
+                parts.append(f'<text x="{px(a):.1f}" y="{py(b)-14:.1f}" text-anchor="middle" '
+                             f'font-size="14" font-weight="700" fill="{color}">{b}</text>')
 
     lw, lh = 260, 26 * len(series) + 16
     lx = PAD_L + 18 if legend_pos == "upper-left" else PAD_L + PW - lw - 10

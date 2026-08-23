@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="244" viewBox="0 0 880 244" font-family="'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="880" height="244" fill="#ffffff"/>
+<text x="28" y="32" font-size="18" font-weight="700" fill="#111827">같은 부하, 큐 상한만 다르다</text>
+<text x="28" y="53" font-size="12.5" fill="#6b7280">구독자 150명 · 발행 4x60/s · 클라이언트 대역 5KB/s · 힙 512MB</text>
+<text x="218" y="93" text-anchor="end" font-size="13" font-weight="600" fill="#111827">개선 전 — 큐 무한</text>
+<text x="218" y="108" text-anchor="end" font-size="11" fill="#6b7280">큐 최대 1,077,906 · OOM</text>
+<rect x="232" y="78" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="78" width="87.4" height="26" rx="4" fill="#dc2626"/>
+<text x="329.4" y="97" font-size="13.5" font-weight="700" fill="#dc2626">83초</text>
+<text x="218" y="139" text-anchor="end" font-size="13" font-weight="600" fill="#111827">개선 후 — 큐 상한 20,000</text>
+<text x="218" y="154" text-anchor="end" font-size="11" fill="#6b7280">큐 최대 20,000 · 무중단</text>
+<rect x="232" y="124" width="552" height="26" rx="4" fill="#f3f4f6"/>
+<rect x="232" y="124" width="467.8" height="26" rx="4" fill="#2563eb"/>
+<text x="709.8" y="143" font-size="13.5" font-weight="700" fill="#2563eb">444초</text>
+<text x="28" y="220" font-size="11.5" fill="#6b7280">무한 큐는 아무도 버리지 않고 다 같이 죽는 선택이었다. 상한은 느린 쪽을 버리고 나머지가 산다.</text>
+</svg>

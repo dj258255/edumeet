@@ -126,6 +126,28 @@ UI 로 만든 대시보드는 **재현이 안 되고, 누가 무엇을 왜 넣�
 
 채팅이 생겼으므로(#33) 붙일 대상이 생겼다.
 
+### 직접 바인딩하려다 프레임워크와 충돌했다
+
+처음에는 STOMP 실행기를 `ExecutorServiceMetrics` 로 **직접 바인딩하는 설정을 썼다.**
+그리고 부하 시험에서 이 경고가 나왔다.
+
+```
+The meter (executor.completed, tags=[application, name]) registration has failed:
+Prometheus requires that all meters with the same name have the same set of tag keys.
+There is already an existing meter named 'executor_completed_tasks'
+containing tag keys [application, component, name].
+```
+
+**Spring Boot 의 `TaskExecutorMetricsAutoConfiguration` 이 이미 모든
+`ThreadPoolTaskExecutor` 빈을 바인딩하고 있었다.** 내 설정이 먼저 등록되면서
+`component=stomp` 태그를 붙였고, 뒤이은 Boot 의 등록이 **키 집합 불일치로 실패**했다.
+
+설정을 통째로 지우고 테스트를 다시 돌렸더니 **지표가 그대로 나왔다.**
+내가 쓴 코드는 처음부터 필요 없었다.
+
+> **프레임워크가 이미 하는 일을 다시 하면, 안 되는 게 아니라 충돌한다.**
+> 그리고 그 충돌은 경고 한 줄로만 드러나서 부하 시험 로그를 읽기 전까지 몰랐다.
+
 ### `WebSocketMessageBrokerStats` 를 쓰지 않았다
 
 Spring 이 같은 값을 이미 계산한다. 다만 **전부 `String` 으로만 노출한다.**
