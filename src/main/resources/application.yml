@@ -75,12 +75,14 @@ spring:
   cloud:
     aws:
       credentials:
-        access-key: ${AWS_ACCESS_KEY:}
-        secret-key: ${AWS_SECRET_KEY:}
+        # 비어 있으면 S3Client 생성이 NPE 로 죽어 앱 전체가 안 뜬다. (#51)
+        # 자리표시자를 기본값으로 두어 뜨게 하되, S3Config 가 기동 시 경고를 남긴다.
+        access-key: ${AWS_ACCESS_KEY:not-configured}
+        secret-key: ${AWS_SECRET_KEY:not-configured}
       region:
         static: ${AWS_REGION:ap-northeast-2}
       s3:
-        bucket: ${AWS_S3_BUCKET:}
+        bucket: ${AWS_S3_BUCKET:not-configured}
 
   security:
     oauth2:
