@@ -1,6 +1,7 @@
 package com.edu.edumeet.email.application;
 
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
+@ConditionalOnProperty(name = "edumeet.email.enabled", havingValue = "true")
 @Service
 @RequiredArgsConstructor
 @Slf4j

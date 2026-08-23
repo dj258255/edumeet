@@ -147,6 +147,11 @@ management:
         http.server.requests: true
       slo:
         http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s, 2s
+  health:
+    # 메일을 쓰지 않으므로 헬스에서도 뺀다. 안 그러면 전체 health 가 영영 DOWN 이다. (#55)
+    mail:
+      enabled: ${EMAIL_ENABLED:false}
+
   endpoint:
     health:
       # 의존 컴포넌트(DB, Redis) 상태까지 보이게 한다.
@@ -191,6 +196,10 @@ openvidu:
       secret: ${LIVEKIT_API_SECRET:secret}
 
 edumeet:
+  email:
+    # 카카오 로그인만 쓰기로 해서 껐다. (#55)
+    # 지우지 않고 플래그로 둔 이유는 되살릴 때 다시 짜지 않기 위해서다.
+    enabled: ${EMAIL_ENABLED:false}
   internal:
     # 서버 간 호출용 공유 시크릿. 파이썬 AI 서버가 X-Internal-Token 헤더로 보낸다. (#27)
     # 비어 있으면 /api/v1/internal/** 은 전부 거부된다 (fail-closed).
@@ -274,6 +283,10 @@ openvidu:
       secret: devsecret
 
 edumeet:
+  email:
+    # 카카오 로그인만 쓰기로 해서 껐다. (#55)
+    # 지우지 않고 플래그로 둔 이유는 되살릴 때 다시 짜지 않기 위해서다.
+    enabled: ${EMAIL_ENABLED:false}
   internal:
     api-token: test-internal-token
   upload:

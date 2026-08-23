@@ -1,6 +1,7 @@
 package com.edu.edumeet.email.application;
 
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.Random;
 
 
 
+@ConditionalOnProperty(name = "edumeet.email.enabled", havingValue = "true")
 @Service
 @RequiredArgsConstructor
 @Slf4j

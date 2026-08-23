@@ -1,5 +1,6 @@
 package com.edu.edumeet.email.presentation;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import com.edu.edumeet.email.application.AuthCodeServiceImpl;
 import com.edu.edumeet.email.application.EmailServiceImpl;
 import com.edu.edumeet.email.presentation.dto.request.EmailRequest;
@@ -19,6 +20,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 
+
+/**
+ * 이메일 인증. <b>기본으로 꺼져 있다.</b> (#55)
+ *
+ * <p>카카오 로그인만 쓰기로 해서 SMTP 계정을 유지할 이유가 없어졌다.
+ * 그리고 이 기능 때문에 메일 헬스가 DOWN 이 되어 <b>컨테이너가 unhealthy</b> 였다(#53).
+ *
+ * <p><b>지우지 않고 플래그로 끈다.</b> 지우면 되살릴 때 다시 짜야 하고,
+ * "왜 껐는가" 라는 판단도 같이 사라진다. 플래그면 환경변수 하나로 돌아온다.
+ *
+ * <pre>
+ *   EMAIL_ENABLED=true
+ * </pre>
+ */
+@ConditionalOnProperty(name = "edumeet.email.enabled", havingValue = "true")
 @Controller
 @RequestMapping("/api/v1/members")
 @RequiredArgsConstructor
