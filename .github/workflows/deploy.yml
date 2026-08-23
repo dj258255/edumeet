@@ -104,8 +104,25 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
             export APP_IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
-            docker compose -f docker-compose.prod.yml pull app
-            docker compose -f docker-compose.prod.yml up -d
+
+            # ★ --profile observability 를 붙인다. (#83)
+            #   prometheus·grafana 는 profiles: [observability] 라
+            #   프로필 없이 up 하면 "정의는 되어 있는데 뜨지 않는다".
+            #   에러도 경고도 안 난다 - compose 는 프로필이 꺼진 서비스를 조용히 건너뛴다.
+            #   그래서 관측 스택을 만들고 배포까지 하고도 한 번도 켜진 적이 없었다.
+            COMPOSE="docker compose -f docker-compose.prod.yml --profile observability"
+            $COMPOSE pull app
+            $COMPOSE up -d
+
+            # 관측 스택이 실제로 떴는지 확인한다. 프로필을 붙였다는 사실만으로는 모른다.
+            for c in edumeet-prometheus edumeet-grafana; do
+              if [ -z "$(docker ps -q -f name=^${c}$)" ]; then
+                echo "관측 컨테이너가 뜨지 않았다: $c"
+                $COMPOSE logs --tail=50 "${c#edumeet-}"
+                exit 1
+              fi
+            done
+            echo "관측 스택 기동 확인"
 
             # ★ 호스트에서 curl 하지 않는다.
             #   actuator 는 관리 포트(9090)로 옮겨갔고 그 포트는 publish 하지 않는다.

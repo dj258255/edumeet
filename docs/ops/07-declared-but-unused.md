@@ -14,6 +14,7 @@
 | 2 | `management.prometheus.metrics.export.enabled` | `/actuator/prometheus` 404. **원인을 세 번 잘못 짚었다** |
 | 3 | `SessionType.isAudioOnly()` | 참조가 테스트뿐이었다. "오디오 전용" 이 클라이언트 UI 관례로만 존재 |
 | 4 | `MeetingCreateRequestDto` 에 `sessionType` 부재 | **기능 네 개가 통째로 도달 불가** |
+| 5 | `docker compose up -d` 에 `--profile observability` 부재 | **관측 스택이 한 번도 켜진 적 없음** |
 
 ---
 
@@ -34,6 +35,31 @@
 그런데 단위 테스트는 전부 통과했다 — `BROADCAST` 세션을 **테스트 안에서 직접 만들어** 검증했기 때문이다.
 
 ---
+
+## 5번은 종류가 다르다
+
+앞의 넷은 **코드 안**이라 테스트로 잡을 수 있는 것이었다. 5번은 **배포 스크립트**다.
+
+```yaml
+prometheus:
+  profiles: [observability]     # 프로필이 켜져야만 뜬다
+```
+
+```bash
+docker compose -f docker-compose.prod.yml up -d     # 배포가 하던 것
+```
+
+**Compose 는 프로필이 꺼진 서비스를 조용히 건너뛴다.** 에러도 경고도 없다.
+`docker ps` 를 보지 않는 한 알 방법이 없고, 배포는 초록으로 끝난다.
+
+그래서 배포 스크립트에 **"떴는지 확인하는 줄"** 을 넣었다.
+프로필을 붙였다는 사실만으로는 떴는지 모른다 — 이건 코드에서 `assertThat` 을 쓰는 것과 같은 이유다.
+
+```bash
+for c in edumeet-prometheus edumeet-grafana; do
+  if [ -z "$(docker ps -q -f name=^${c}$)" ]; then exit 1; fi
+done
+```
 
 ## 왜 테스트가 못 잡았나
 

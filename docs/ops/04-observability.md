@@ -197,8 +197,46 @@ String getClientInboundExecutorStatsInfo()   // "pool size = 8, active threads =
 | 세션 버퍼 / 강제 종료 수 | 느린 클라이언트 (붕괴 ③) — Phase 3 |
 | Redis Pub/Sub 전파 지연 | 다중 인스턴스 (붕괴 ⑤) — Phase 5 |
 
-## 8. 미확인
+## 8. ★ 정정 — 관측 스택이 한 번도 켜진 적이 없었다 (2026-08-24)
+
+OCI 서버에 붙어 컨테이너를 세어 보니 EduMeet 것은 **3개(app·mysql·redis)뿐**이었다.
+`prometheus` 와 `grafana` 는 `docker-compose.prod.yml` 에 **정의되어 있는데 떠 있지 않았다.**
+
+```yaml
+prometheus:
+  profiles: [observability]     # ← 프로필이 켜져야만 뜬다
+grafana:
+  profiles: [observability]
+```
+
+```bash
+docker compose -f docker-compose.prod.yml up -d      # 배포 워크플로가 하던 것
+```
+
+**Compose 는 프로필이 꺼진 서비스를 조용히 건너뛴다.** 에러도 경고도 없다.
+그래서 만들고, 커밋하고, 배포까지 하고도 **한 번도 켜진 적이 없었다.**
+
+막는 것은 없었다. `GRAFANA_PASSWORD` 는 서버 `.env` 에 있고,
+Grafana 가 쓰는 3001 도 Prometheus 의 내부 9090 도 다른 것과 겹치지 않는다.
+**그냥 프로필을 안 붙였을 뿐이다.**
+
+> 이 저장소에서 **"만들었는데 동작하지 않는다" 의 다섯 번째**다.
+> → [`07-declared-but-unused.md`](07-declared-but-unused.md)
+>
+> 앞의 넷은 **설정값**이었는데 이건 **컨테이너 두 개**다.
+> 그리고 아래 9절의 "실제 화면으로 확인하지 않았다" 는 게으름이 아니라
+> **확인할 화면이 없었다**는 뜻이었다. 그때는 그걸 몰랐다.
+
+### 왜 지금 드러났나
+
+부하 측정을 노트북에서 OCI 로 옮기려고 서버 상태를 조사하다가 나왔다.
+**관측이 없으면 부하 측정을 밖에서 눈감고 하는 셈이다** —
+앱 안에서 큐가 쌓이는지, 세션이 끊기는지, GC 가 도는지를 못 본다.
+그래서 측정보다 이것이 먼저다.
+
+## 9. 미확인
 
 - **Grafana 대시보드를 실제 화면으로 확인하지 않았다.** PromQL 이 값을 내는 것까지만 검증했다
+  (8절 참고 — 애초에 떠 있지 않았다)
 - 알림(Alertmanager) 없음. 기준선을 잡기 전에는 임계값을 정할 수 없다
 - Prometheus 보존 15일은 임의값. 디스크 사용량을 보고 조정한다
