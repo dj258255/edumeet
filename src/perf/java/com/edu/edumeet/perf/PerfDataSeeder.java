@@ -9,6 +9,7 @@ import com.edu.edumeet.homework.domain.SubmissionFileUpload;
 import com.edu.edumeet.homework.domain.SubmissionStatus;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.domain.SessionType;
+import com.edu.edumeet.member.domain.Member;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
@@ -122,7 +123,20 @@ public class PerfDataSeeder implements ApplicationRunner {
      * 정원 값은 부하 회차마다 /api/perf/sessions/reset 으로 다시 설정한다.
      */
     private int seedSession() {
+        // ★ 소유자가 있어야 한다.
+        //   #62 에서 넣은 접근 권한 검사(ClassAccessChecker)는 클래스 소유자나
+        //   ClassMember 만 통과시킨다. 소유자 없는 클래스는 어떤 이메일로도 못 지나간다.
+        //   그러면 장애 주입 벤치마크가 LiveKit 에 닿기도 전에 끊겨서
+        //   "LiveKit 타임아웃이 몇 초인가" 가 아니라 "권한 거부가 몇 마이크로초인가" 를 재게 된다.
+        Member owner = Member.builder()
+                .email(PERF_OWNER_EMAIL)
+                .nickname("측정용 강사")
+                .password("perf-only-not-a-credential")
+                .build();
+        em.persist(owner);
+
         ClassRoom classRoom = ClassRoom.builder()
+                .member(owner)
                 .title("정원 측정용 클래스")
                 .description("부하 테스트 전용")
                 .participantLimit(30)
@@ -141,10 +155,13 @@ public class PerfDataSeeder implements ApplicationRunner {
         em.persist(meeting);
         em.flush();
 
-        log.warn("정원 측정용 세션 생성: meetingId={}, classRoomId={}, 정원={}",
-                meeting.getId(), classRoom.getId(), classRoom.getParticipantLimit());
-        return 2;
+        log.warn("정원 측정용 세션 생성: meetingId={}, classRoomId={}, 정원={}, 소유자={}",
+                meeting.getId(), classRoom.getId(), classRoom.getParticipantLimit(), PERF_OWNER_EMAIL);
+        return 3;
     }
+
+    /** 측정용 클래스의 소유자. 벤치마크 엔드포인트가 이 이메일로 권한 검사를 통과한다. */
+    public static final String PERF_OWNER_EMAIL = "perf-owner@edumeet.test";
 
     private static String studentEmail(int c, int s) {
         return "student%d-%d@edumeet.test".formatted(c, s);

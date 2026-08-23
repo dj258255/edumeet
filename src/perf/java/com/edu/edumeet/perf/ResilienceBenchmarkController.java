@@ -50,7 +50,10 @@ public class ResilienceBenchmarkController {
     @GetMapping("/room")
     public ResponseEntity<Map<String, Object>> room(
             @RequestParam(defaultValue = "meeting-1") String name,
-            @RequestParam(defaultValue = "false") boolean legacy) {
+            @RequestParam(defaultValue = "false") boolean legacy,
+            // #62 의 접근 권한 검사를 통과할 이메일. 통과하지 못하면 이 벤치마크는
+            // LiveKit 에 닿기도 전에 끊겨서 타임아웃이 아니라 권한 거부를 재게 된다.
+            @RequestParam(defaultValue = PerfDataSeeder.PERF_OWNER_EMAIL) String email) {
 
         if (legacy) {
             return legacyRoom(name);
@@ -61,7 +64,7 @@ public class ResilienceBenchmarkController {
         HttpStatus status;
 
         try {
-            Map<String, Object> info = meetingService.getRoomInfo(name);
+            Map<String, Object> info = meetingService.getRoomInfo(name, email);
             // 룸이 없는 것은 정상 결과다. 장애가 아니다.
             status = info == null ? HttpStatus.NOT_FOUND : HttpStatus.OK;
             body.put("outcome", info == null ? "ROOM_NOT_FOUND" : "OK");

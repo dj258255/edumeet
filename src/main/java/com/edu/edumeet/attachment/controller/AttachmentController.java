@@ -2,7 +2,7 @@ package com.edu.edumeet.attachment.controller;
 
 import com.edu.edumeet.attachment.service.AttachmentService;
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import com.edu.edumeet.attachment.dto.AttachmentAdapter;
 import com.edu.edumeet.attachment.dto.AttachmentUploadDTO;
 import com.edu.edumeet.attachment.dto.AttachmentResultDTO;

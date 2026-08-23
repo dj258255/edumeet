@@ -4,7 +4,7 @@ import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.dto.SummaryUploadResult;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
 import com.edu.edumeet.classroom.service.ClassAccessChecker;
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

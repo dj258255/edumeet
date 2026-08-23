@@ -2,7 +2,7 @@ package com.edu.edumeet.attachment.dto;
 
 import java.time.Duration;
 import com.edu.edumeet.attachment.domain.Attachment;
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Component;

@@ -2,8 +2,8 @@ package com.edu.edumeet.attachment.service;
 
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.attachment.dto.AttachmentResultDTO;
-import com.edu.edumeet.s3.util.LocalUploader;
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.LocalUploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import com.edu.edumeet.attachment.service.AttachmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;

@@ -11,7 +11,7 @@ import com.edu.edumeet.board.domain.Board;
 import com.edu.edumeet.board.dto.BoardListAllDTO;
 import com.edu.edumeet.board.dto.BoardListReplyCountDTO;
 import com.edu.edumeet.reply.domain.QReply;
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Projections;

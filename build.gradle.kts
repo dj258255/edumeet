@@ -148,6 +148,15 @@ configurations["perfAnnotationProcessor"].extendsFrom(configurations.annotationP
 // Lombok 은 compileOnly 다. 이걸 빼면 @Slf4j 부터 못 찾는다.
 configurations["perfCompileOnly"].extendsFrom(configurations.compileOnly.get())
 
+// ★ perf 소스셋을 check 에 묶는다.
+//
+//   묶기 전에는 아무도 컴파일하지 않았다. CI 는 `./gradlew build -x test` 만 돌리는데
+//   커스텀 소스셋은 build 가 자동으로 잡지 않는다. 그래서 getRoomInfo 에 권한 검사용
+//   파라미터가 추가됐을 때 perf 쪽이 따라가지 않았고, 아무도 몰랐다.
+//
+//   부하 측정 코드가 썩으면 "측정하려는 순간에" 발견된다. 그때가 제일 나쁘다.
+tasks.named("check") { dependsOn("compilePerfJava") }
+
 // 부하 측정용 실행 jar. scripts/run-*.sh 가 이걸 쓴다.
 //   ./gradlew perfBootJar  ->  build/libs/EduMeet-<version>-perf.jar
 tasks.register<org.springframework.boot.gradle.tasks.bundling.BootJar>("perfBootJar") {

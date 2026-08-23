@@ -1,6 +1,6 @@
 package com.edu.edumeet.integration.s3;
 
-import com.edu.edumeet.s3.util.S3Uploader;
+import com.edu.edumeet.s3.service.S3Uploader;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
