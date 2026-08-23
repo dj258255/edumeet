@@ -48,7 +48,11 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
-            type=sha,prefix=,format=short
+            # ★ long 이어야 한다. 배포 스크립트가 ${{ github.sha }}(40자)로 당기는데
+            #   short(7자)로 푸시하면 같은 커밋인데 이름이 달라 manifest unknown 이 난다. (#45)
+            #   배포 쪽에서 자르는 방법도 있지만, 자르는 코드가 하나 더 생기면
+            #   또 어긋날 자리가 생긴다. 양쪽이 같은 값을 쓰게 한다.
+            type=sha,prefix=,format=long
 
       - name: Build and push
         uses: docker/build-push-action@v6
