@@ -107,13 +107,13 @@ https://charm-custard-27a.notion.site/API-2328d31b258e80acb086cd7b8f40c9e5
 
 ## ⚙ 서비스 아키텍쳐
 
-![Architecture](/asset/img/infra.png)
+![Architecture](asset/img/infra.png)
 
 ## 🎬 디자인 및 기능
 
 ### 메인화면
 
-![Main](/asset/img/Main.png)
+![Main](asset/img/Main.png)
 <br>
 <br>
 <br>
@@ -121,7 +121,7 @@ https://charm-custard-27a.notion.site/API-2328d31b258e80acb086cd7b8f40c9e5
 
 ### 로그인
 
-![Main](/asset/img/Login.png)
+![Main](asset/img/Login.png)
 
 <br>
 <br>
@@ -130,7 +130,7 @@ https://charm-custard-27a.notion.site/API-2328d31b258e80acb086cd7b8f40c9e5
 
 ### 게시판
 
-![Main](/asset/img/board.png)
+![Main](asset/img/board.png)
 
 <br>
 <br>
@@ -174,7 +174,7 @@ https://charm-custard-27a.notion.site/API-2328d31b258e80acb086cd7b8f40c9e5
 
 ### 화상강의 및 STT
 
-![Main](/asset/img/openvidu.png)
+![Main](asset/img/openvidu.png)
 
 <br>
 <br>
@@ -183,8 +183,8 @@ https://charm-custard-27a.notion.site/API-2328d31b258e80acb086cd7b8f40c9e5
 
 ### AI 문서요약
 
-![Main](/asset/img/document.png)
-![Main](/asset/img/AIDocument.png)
+![Main](asset/img/document.png)
+![Main](asset/img/AIDocument.png)
 
 <br>
 <br>
