@@ -1,5 +1,6 @@
 package com.edu.edumeet.attachment.dto;
 
+import java.time.Duration;
 import com.edu.edumeet.attachment.domain.Attachment;
 import com.edu.edumeet.s3.util.S3Uploader;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Log4j2
 public class AttachmentAdapter {
+
+    /** 읽기 링크 유효 시간. 페이지를 보는 동안 유지되면 충분하고, 그 뒤에는 닫혀야 한다. */
+    private static final int READ_LINK_TTL_MINUTES = 15;
+    private static final Duration READ_LINK_TTL = Duration.ofMinutes(READ_LINK_TTL_MINUTES);
 
     private final S3Uploader s3Uploader;
 
@@ -42,19 +47,19 @@ public class AttachmentAdapter {
         // S3 URL 설정
         if (attachment.getDomain() != null && !attachment.getDomain().isEmpty()) {
             // 도메인별 URL 생성
-            dto.setOriginalUrl(s3Uploader.getDomainOriginalUrl(
-                    attachment.getDomain(), attachment.getUuid(), attachment.getFileName()));
+            dto.setOriginalUrl(readLink(s3Uploader.getDomainOriginalUrl(
+                    attachment.getDomain(), attachment.getUuid(), attachment.getFileName())));
             
             if (attachment.isImage()) {
-                dto.setThumbnailUrl(s3Uploader.getDomainThumbnailUrl(
-                        attachment.getDomain(), attachment.getUuid(), attachment.getFileName()));
+                dto.setThumbnailUrl(readLink(s3Uploader.getDomainThumbnailUrl(
+                        attachment.getDomain(), attachment.getUuid(), attachment.getFileName())));
             }
         } else {
             // 기본 URL 생성
-            dto.setOriginalUrl(s3Uploader.getOriginalUrl(attachment.getUuid(), attachment.getFileName()));
+            dto.setOriginalUrl(readLink(s3Uploader.getOriginalUrl(attachment.getUuid(), attachment.getFileName())));
             
             if (attachment.isImage()) {
-                dto.setThumbnailUrl(s3Uploader.getThumbnailUrl(attachment.getUuid(), attachment.getFileName()));
+                dto.setThumbnailUrl(readLink(s3Uploader.getThumbnailUrl(attachment.getUuid(), attachment.getFileName())));
             }
         }
 
@@ -83,24 +88,24 @@ public class AttachmentAdapter {
         // S3 URL 설정
         if (attachment.getDomain() != null && !attachment.getDomain().isEmpty()) {
             // 도메인별 URL 생성
-            String originalUrl = s3Uploader.getDomainOriginalUrl(
-                    attachment.getDomain(), attachment.getUuid(), attachment.getFileName());
+            String originalUrl = readLink(s3Uploader.getDomainOriginalUrl(
+                    attachment.getDomain(), attachment.getUuid(), attachment.getFileName()));
             dto.setS3Url(originalUrl);
             
             if (attachment.isImage()) {
-                String thumbnailUrl = s3Uploader.getDomainThumbnailUrl(
-                        attachment.getDomain(), attachment.getUuid(), attachment.getFileName());
+                String thumbnailUrl = readLink(s3Uploader.getDomainThumbnailUrl(
+                        attachment.getDomain(), attachment.getUuid(), attachment.getFileName()));
                 dto.setS3ThumbnailUrl(thumbnailUrl);
                 log.debug("도메인별 썸네일 URL 설정 - UUID: {}, 도메인: {}, 이미지: {}, 썸네일URL: {}", 
                         attachment.getUuid(), attachment.getDomain(), attachment.isImage(), thumbnailUrl);
             }
         } else {
             // 기본 URL 생성
-            String originalUrl = s3Uploader.getOriginalUrl(attachment.getUuid(), attachment.getFileName());
+            String originalUrl = readLink(s3Uploader.getOriginalUrl(attachment.getUuid(), attachment.getFileName()));
             dto.setS3Url(originalUrl);
             
             if (attachment.isImage()) {
-                String thumbnailUrl = s3Uploader.getThumbnailUrl(attachment.getUuid(), attachment.getFileName());
+                String thumbnailUrl = readLink(s3Uploader.getThumbnailUrl(attachment.getUuid(), attachment.getFileName()));
                 dto.setS3ThumbnailUrl(thumbnailUrl);
                 log.debug("기본 썸네일 URL 설정 - UUID: {}, 이미지: {}, 썸네일URL: {}", 
                         attachment.getUuid(), attachment.isImage(), thumbnailUrl);
@@ -159,5 +164,20 @@ public class AttachmentAdapter {
         return attachmentDTOS.stream()
                 .map(this::fromFileUploadDTO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 파일을 <b>기간이 정해진 링크</b>로 내보낸다. (#64)
+     *
+     * <p>예전에는 여기서 공개 주소를 만들어 그대로 내려줬다.
+     * 업로드가 {@code PUBLIC_READ} 였기 때문에 <b>주소를 아는 사람이 곧 볼 자격이 있는 사람</b>이었다.
+     * 과제 제출물이 그렇게 열려 있었다.
+     *
+     * <p>이제 파일은 비공개고, 이 응답을 받을 자격이 확인된 뒤에만 링크가 나간다.
+     * 링크는 {@value #READ_LINK_TTL_MINUTES}분 뒤 만료된다 —
+     * 유출되더라도 창이 닫힌다.
+     */
+    private String readLink(String objectUrl) {
+        return s3Uploader.presignedGetUrl(objectUrl, READ_LINK_TTL);
     }
 }

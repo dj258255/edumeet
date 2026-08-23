@@ -9,13 +9,15 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.io.File;
 import java.nio.file.Paths;
+import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
 
@@ -29,6 +31,10 @@ public class S3Uploader {
 
     @Value("${spring.cloud.aws.s3.bucket}")
     private String bucket;
+
+    /** S3 호환 엔드포인트. 비면 AWS S3. (#64) */
+    @Value("${spring.cloud.aws.s3.endpoint:}")
+    private String endpoint;
 
     @Value("${spring.cloud.aws.region.static}")
     private String region;
@@ -61,7 +67,6 @@ public class S3Uploader {
             PutObjectRequest objectRequest = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(s3Key)
-                    .acl(ObjectCannedACL.PUBLIC_READ)
                     .build();
 
             PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
@@ -81,22 +86,22 @@ public class S3Uploader {
 
     //기본 원본 파일 url 생성
     public String getOriginalUrl(String uuid, String fileName) {
-        return String.format("https://%s.s3.%s.amazonaws.com/%s_%s", bucket, region, uuid, fileName);
+        return objectUrl("%s_%s".formatted(uuid, fileName));
     }
 
     //썸네일 url 생성(이미지인 경우만)
     public String getThumbnailUrl(String uuid, String fileName) {
-        return String.format("https://%s.s3.%s.amazonaws.com/s_%s_%s", bucket, region, uuid, fileName);
+        return objectUrl("s_%s_%s".formatted(uuid, fileName));
     }
 
     //도메인별 원본 파일 생성
     public String getDomainOriginalUrl(String domain, String uuid, String fileName) {
-        return String.format("https://%s.s3.%s.amazonaws.com/%s/%s_%s", bucket, region, domain, uuid, fileName);
+        return objectUrl("%s/%s_%s".formatted(domain, uuid, fileName));
     }
 
     //도메인별 썸네일 url 생성
     public String getDomainThumbnailUrl(String domain, String uuid, String fileName) {
-        return String.format("https://%s.s3.%s.amazonaws.com/%s/s_%s_%s", bucket, region, domain, uuid, fileName);
+        return objectUrl("%s/s_%s_%s".formatted(domain, uuid, fileName));
     }
 
     // ================== 파일 삭제 메서드들 ==================
@@ -178,7 +183,6 @@ public class S3Uploader {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(s3Key)
-                .acl(ObjectCannedACL.PUBLIC_READ)
                 .build();
 
         s3Client.putObject(putObjectRequest, Paths.get(uploadFile.getPath()));
@@ -206,7 +210,6 @@ public class S3Uploader {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(s3Key)
-                    .acl(ObjectCannedACL.PUBLIC_READ)
                     .contentType(file.getContentType())
                     .build();
 
@@ -235,7 +238,6 @@ public class S3Uploader {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(s3Key)
-                    .acl(ObjectCannedACL.PUBLIC_READ)
                     .contentType(file.getContentType())
                     .build();
 
@@ -248,5 +250,63 @@ public class S3Uploader {
             log.error("MultipartFile S3 업로드 실패: {}", e.getMessage());
             throw new RuntimeException("S3 업로드 실패: " + e.getMessage());
         }
+    }
+
+    // ── 주소 생성과 프리사인 (#64) ──────────────────────────────────
+
+    /**
+     * 객체 주소. <b>AWS 형식을 하드코딩하지 않는다.</b>
+     *
+     * <p>예전에는 {@code https://{bucket}.s3.{region}.amazonaws.com/{key}} 로 만들어
+     * DB 에 그대로 저장했다. 그래서 스토리지를 바꾸면 <b>저장된 데이터에 박힌 도메인</b> 때문에
+     * 기존 파일을 못 찾는다. R2 는 경로 스타일이라 형식 자체가 다르다.
+     */
+    public String objectUrl(String key) {
+        if (endpoint != null && !endpoint.isBlank()) {
+            return "%s/%s/%s".formatted(endpoint.replaceAll("/$", ""), bucket, key);
+        }
+        return "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, region, key);
+    }
+
+    /**
+     * 저장된 주소를 <b>기간이 정해진 읽기 링크</b>로 바꾼다.
+     *
+     * <p>업로드가 더 이상 {@code PUBLIC_READ} 로 올리지 않는다(#64).
+     * 파일은 비공개이고, 볼 자격이 확인된 뒤에만 이 링크를 발급한다.
+     *
+     * <p>예전 구조는 <b>URL 을 아는 사람이 곧 볼 자격이 있는 사람</b>이었다.
+     * 과제 제출물과 수업 STT 전문이 그렇게 열려 있었다.
+     */
+    public String presignedGetUrl(String storedUrl, Duration duration) {
+        if (storedUrl == null || storedUrl.isBlank()) {
+            return null;
+        }
+        String key = extractKey(storedUrl);
+        GetObjectRequest getRequest = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(duration)
+                .getObjectRequest(getRequest)
+                .build();
+        return s3Presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    /**
+     * 저장된 주소에서 객체 키만 뽑는다.
+     *
+     * <p>두 형식을 모두 받는다 — 예전에 저장된 AWS 가상 호스트 주소와
+     * 경로 스타일(R2) 주소. <b>기존 데이터를 마이그레이션하지 않고 읽으려면 필요하다.</b>
+     */
+    String extractKey(String storedUrl) {
+        String path = URI.create(storedUrl).getPath();       // /bucket/key 또는 /key
+        if (path.startsWith("/")) {
+            path = path.substring(1);
+        }
+        if (path.startsWith(bucket + "/")) {                 // 경로 스타일
+            path = path.substring(bucket.length() + 1);
+        }
+        return path;
     }
 }

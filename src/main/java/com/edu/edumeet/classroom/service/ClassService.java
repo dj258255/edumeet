@@ -1,5 +1,7 @@
 package com.edu.edumeet.classroom.service;
 
+import java.time.Duration;
+import com.edu.edumeet.s3.util.S3Uploader;
 import com.edu.edumeet.classroom.domain.*;
 import com.edu.edumeet.classroom.dto.request.ClassCreateRequestDto;
 import com.edu.edumeet.classroom.dto.request.ClassStatusChangeRequestDto;
@@ -29,6 +31,7 @@ public class ClassService {
     private final ClassInviteRepository classInviteRepository;
     private final MemberRepository memberRepository;
     private final ClassThumbnailService classThumbnailService;
+    private final S3Uploader s3Uploader;
 
     /**
      * 클래스 생성 (썸네일 정보 포함)
@@ -120,7 +123,7 @@ public class ClassService {
                 .title(classRoom.getTitle())
                 .description(classRoom.getDescription())
                 .participantLimit(classRoom.getParticipantLimit())
-                .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근! JOIN 불필요
+                .thumbnailUrl(readLink(classRoom.getThumbnailUrl()))  // 직접 접근! JOIN 불필요
                 .tags(classRoom.getTags() != null 
                       ? classRoom.getTags().stream().map(Tag::getName).toList() 
                       : List.of())
@@ -141,7 +144,7 @@ public class ClassService {
                         .title(classRoom.getTitle())
                         .description(classRoom.getDescription())
                         .participantLimit(classRoom.getParticipantLimit())
-                        .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근!
+                        .thumbnailUrl(readLink(classRoom.getThumbnailUrl()))  // 직접 접근!
                         .tags(Optional.ofNullable(classRoom.getTags())
                                 .orElse(List.of())
                                 .stream()
@@ -164,7 +167,7 @@ public class ClassService {
                 .title(classRoom.getTitle())
                 .description(classRoom.getDescription())
                 .participantLimit(classRoom.getParticipantLimit())
-                .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근!
+                .thumbnailUrl(readLink(classRoom.getThumbnailUrl()))  // 직접 접근!
                 .tags(Optional.ofNullable(classRoom.getTags())
                         .orElse(List.of())
                         .stream()
@@ -226,7 +229,7 @@ public class ClassService {
                         .classId(classRoom.getId())
                         .title(classRoom.getTitle())
                         .description(classRoom.getDescription())
-                        .thumbnailUrl(classRoom.getThumbnailUrl())  // 직접 접근!
+                        .thumbnailUrl(readLink(classRoom.getThumbnailUrl()))  // 직접 접근!
                         .tags(classRoom.getTags().stream()
                                 .map(Tag::getName)
                                 .toList())
@@ -319,5 +322,16 @@ public class ClassService {
                 .orElseThrow(() -> new IllegalArgumentException("클래스에 해당 학생이 존재하지 않습니다."));
 
         classMemberRepository.delete(classMember);
+    }
+
+    /**
+     * 썸네일을 기간이 정해진 링크로 내보낸다. (#64)
+     *
+     * <p>업로드가 더 이상 {@code PUBLIC_READ} 가 아니므로 저장된 주소를 그대로 주면 403 이 난다.
+     * 클래스 표지는 민감도가 낮지만, <b>파일 하나만 공개로 두면 예외가 생기고
+     * 예외는 곧 규칙이 된다.</b> 전부 같은 방식으로 내보낸다.
+     */
+    private String readLink(String objectUrl) {
+        return s3Uploader.presignedGetUrl(objectUrl, Duration.ofMinutes(15));
     }
 }

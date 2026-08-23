@@ -12,6 +12,10 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
+import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+
+import java.net.URI;
 import java.time.Duration;
 
 @Configuration
@@ -58,6 +62,18 @@ public class S3Config {
     @Value("${spring.cloud.aws.region.static}")
     private String region;
 
+    /**
+     * S3 호환 엔드포인트. 비우면 AWS S3, 채우면 그쪽으로 간다. (#64)
+     *
+     * <p>Cloudflare R2 예: {@code https://<account>.r2.cloudflarestorage.com}
+     *
+     * <p>R2 는 <b>객체 ACL 을 지원하지 않는다.</b> 그래서 R2 로 옮기면
+     * {@code PUBLIC_READ} 로 올리던 파일이 전부 비공개가 된다 —
+     * 읽기를 프리사인 URL 로 바꾸는 것이 선택이 아니라 전제다.
+     */
+    @Value("${spring.cloud.aws.s3.endpoint:}")
+    private String endpoint;
+
 
 
     @PostConstruct
@@ -68,29 +84,45 @@ public class S3Config {
         }
     }
 
-    @Bean
-    public S3Client s3Client() {
-        return S3Client.builder()
-                .overrideConfiguration(timeouts())
-                .region(Region.of(region))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)
-                        )
-                )
-                .build();
+    private StaticCredentialsProvider credentials() {
+        return StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey));
     }
 
+    private boolean hasCustomEndpoint() {
+        return endpoint != null && !endpoint.isBlank();
+    }
 
     @Bean
-    public S3Presigner s3Presigner(){
-        return S3Presigner.builder()
+    public S3Client s3Client() {
+        S3ClientBuilder builder = S3Client.builder()
+                .overrideConfiguration(timeouts())
                 .region(Region.of(region))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)
-                        )
-                )
-                .build();
+                .credentialsProvider(credentials());
+
+        if (hasCustomEndpoint()) {
+            // R2 는 가상 호스트 스타일(bucket.endpoint)을 쓰지 않는다. 경로 스타일이어야 한다.
+            builder.endpointOverride(URI.create(endpoint)).forcePathStyle(true);
+            log.info("S3 호환 엔드포인트 사용: {}", endpoint);
+        }
+        return builder.build();
+    }
+
+    @Bean
+    public S3Presigner s3Presigner() {
+        S3Presigner.Builder builder = S3Presigner.builder()
+                .region(Region.of(region))
+                .credentialsProvider(credentials());
+
+        if (hasCustomEndpoint()) {
+            // ★ Presigner 에도 경로 스타일을 줘야 한다. (#64)
+            //   S3Client 에만 주고 여기서 빠뜨리면 서명된 주소가
+            //   https://{bucket}.{endpoint}/{key} (가상 호스트) 로 나온다.
+            //   R2 는 그 형식을 받지 않으므로 링크가 전부 깨진다.
+            builder.endpointOverride(URI.create(endpoint))
+                    .serviceConfiguration(S3Configuration.builder()
+                            .pathStyleAccessEnabled(true)
+                            .build());
+        }
+        return builder.build();
     }
 }
