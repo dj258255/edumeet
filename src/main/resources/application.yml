@@ -202,6 +202,16 @@ edumeet:
     # 카카오 로그인만 쓰기로 해서 껐다. (#55)
     # 지우지 않고 플래그로 둔 이유는 되살릴 때 다시 짜지 않기 위해서다.
     enabled: ${EMAIL_ENABLED:false}
+  hls:
+    # egress 인스턴스가 붙어 있을 때만 켠다.
+    # 켜 놓고 인스턴스가 없으면 방송 시작이 "no response from egress service" 로 실패한다.
+    enabled: ${HLS_ENABLED:false}
+    # LiveKit 기본값은 4초다. 지연이 세그먼트 길이에 비례해서 2초로 낮췄다.
+    # 대신 요청 수가 두 배가 되고 키프레임이 잦아져 비트레이트가 오른다. (#75)
+    segment-duration: ${HLS_SEGMENT_DURATION:2}
+    prefix: ${HLS_PREFIX:hls}
+    # 플레이어가 읽을 공개 URL. R2 퍼블릭 도메인이나 CDN 주소를 넣는다.
+    public-base-url: ${HLS_PUBLIC_BASE_URL:}
   internal:
     # 서버 간 호출용 공유 시크릿. 파이썬 AI 서버가 X-Internal-Token 헤더로 보낸다. (#27)
     # 비어 있으면 /api/v1/internal/** 은 전부 거부된다 (fail-closed).
