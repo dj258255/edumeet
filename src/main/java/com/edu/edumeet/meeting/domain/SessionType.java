@@ -1,5 +1,7 @@
 package com.edu.edumeet.meeting.domain;
 
+import java.util.List;
+
 /**
  * 세션 형태.
  *
@@ -54,6 +56,28 @@ public enum SessionType {
     /** 비디오 트랙 없이 오디오만 다루는가. */
     public boolean isAudioOnly() {
         return this == AUDIO_BROADCAST;
+    }
+
+    /**
+     * 발행자에게 허용할 미디어 소스. 비어 있으면 <b>제한하지 않는다</b>는 뜻이다. (#72)
+     *
+     * <p>LiveKit 은 토큰에 {@code canPublishSources} 가 없으면 모든 소스를 허용한다.
+     * 그래서 비디오 세션은 의도적으로 비워 둔다 -
+     * <b>여기에 카메라·마이크·화면공유를 나열해 봐야 표현되는 정책이 없다.</b>
+     * 오늘의 소스 목록을 얼려서, LiveKit 이 소스를 추가하면 화상 세션이 조용히 막히게 만들 뿐이다.
+     *
+     * <p>반대로 오디오 방송에는 <b>표현할 정책이 있다.</b> 마이크만이다.
+     * 이 목록은 서명된 JWT 안에 들어가므로 SFU 가 강제한다 -
+     * 클라이언트를 고쳐도, 토큰을 다른 SDK 에 넣어도 비디오는 올라가지 않는다.
+     *
+     * <p><b>왜 서버가 막아야 하는가.</b> 실측한 egress 는 시청자당 1.42 Mbps 였고 비디오 기준이다.
+     * 오디오 전용의 비용 모델은 그 전제 위에 서 있는데,
+     * 전제를 서버가 지키지 않으면 <b>비용 계산이 근거를 잃는다.</b>
+     */
+    public List<String> publishableSources() {
+        // screen_share_audio 는 뺐다. 라디오에서 시스템 오디오(음원 재생)를 허용할지는
+        // 기술 문제가 아니라 저작권·편성 문제라, 필요해지면 그때 정한다.
+        return this == AUDIO_BROADCAST ? List.of("microphone") : List.of();
     }
 
     /**
