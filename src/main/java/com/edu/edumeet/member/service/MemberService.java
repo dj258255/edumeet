@@ -3,9 +3,7 @@ package com.edu.edumeet.member.service;
 import com.edu.edumeet.config.jwt.JwtService;
 import com.edu.edumeet.email.dto.request.EmailRequest;
 import com.edu.edumeet.member.repository.MemberRepository;
-import com.edu.edumeet.member.repository.RefreshTokenRepository;
 import com.edu.edumeet.member.domain.Member;
-import com.edu.edumeet.member.domain.RefreshToken;
 import com.edu.edumeet.member.dto.request.LoginRequestDto;
 import com.edu.edumeet.member.dto.request.RefreshTokenRequest;
 import com.edu.edumeet.member.dto.request.SignupRequestDto;
@@ -21,6 +19,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -30,7 +29,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MemberService {
     private final MemberRepository memberRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenStore refreshTokenStore;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -71,25 +70,14 @@ public class MemberService {
 
         log.info("JWT 토큰 생성 완료 - memberId: {}", member.getId());
 
-        LocalDateTime refreshTokenExpiration = LocalDateTime.now()
-                .plusSeconds(jwtService.getRefreshTokenExpTime() / 1000);
-
-        RefreshToken refreshToken = RefreshToken.create(
-                member.getId(), 
-                refreshTokenValue, 
-                refreshTokenExpiration
-        );
-
-        log.info("RefreshToken 엔티티 생성 완료 - memberId: {}, expiration: {}",
-                member.getId(), refreshTokenExpiration);
+        // 만료를 컬럼으로 들고 비교하지 않는다. TTL 이 곧 만료다. (#70)
+        Duration refreshTtl = Duration.ofMillis(jwtService.getRefreshTokenExpTime());
 
         try {
-            log.info("RefreshToken 저장 시작 - memberId: {}", member.getId());
-            saveOrUpdateRefreshToken(member.getId(), refreshToken);
-            log.info("RefreshToken 저장 성공 - memberId: {}", member.getId());
+            refreshTokenStore.save(member.getId(), refreshTokenValue, refreshTtl);
         } catch (Exception e) {
-            log.error("RefreshToken 저장 실패 - memberId: {}, member 객체: {}",
-                    member.getId(), member, e);
+            // member 객체 전체를 찍지 않는다. 비밀번호 해시가 로그에 남는다.
+            log.error("RefreshToken 저장 실패 - memberId: {}", member.getId(), e);
             throw new RuntimeException("로그인 처리 중 오류가 발생했습니다.", e);
         }
 
@@ -116,16 +104,13 @@ public class MemberService {
 
         log.info("토큰에서 추출한 정보 - memberId: {}, email: {}", memberId, email);
 
-        RefreshToken storedRefreshToken = refreshTokenRepository.findByMemberId(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("저장된 RefreshToken을 찾을 수 없습니다."));
+        // 토큰으로 직접 조회한다. 없으면 만료됐거나(TTL) 무효화된 것이다. (#70)
+        // 만료 비교를 코드로 하지 않는다 - 만료된 키는 애초에 조회되지 않는다.
+        Long storedMemberId = refreshTokenStore.findMemberByToken(refreshTokenValue)
+                .orElseThrow(() -> new IllegalArgumentException("유효하지 않거나 만료된 RefreshToken입니다."));
 
-        if (!storedRefreshToken.getToken().equals(refreshTokenValue)) {
+        if (!storedMemberId.equals(memberId)) {
             throw new IllegalArgumentException("유효하지 않은 RefreshToken입니다.");
-        }
-
-        if (storedRefreshToken.isExpired(LocalDateTime.now())) {
-            refreshTokenRepository.deleteByMemberId(memberId);
-            throw new IllegalArgumentException("만료된 RefreshToken입니다.");
         }
 
         String newAccessToken = jwtService.generateAccessToken(memberId, email);
@@ -151,7 +136,7 @@ public class MemberService {
 
     public void logout(Long memberId) {
         log.info("로그아웃 요청: memberId={}", memberId);
-        refreshTokenRepository.deleteByMemberId(memberId);
+        refreshTokenStore.deleteByMember(memberId);
         log.info("로그아웃 완료: memberId={}", memberId);
     }
 
@@ -206,16 +191,6 @@ public class MemberService {
         }
     }
 
-    private void saveOrUpdateRefreshToken(Long memberId, RefreshToken refreshToken) {
-        if (refreshTokenRepository.existsByMemberId(memberId)) {
-            RefreshToken existingToken = refreshTokenRepository.findByMemberId(memberId)
-                    .orElseThrow(() -> new RuntimeException("RefreshToken 조회 실패"));
-            existingToken.updateToken(refreshToken.getToken(), refreshToken.getExpiration());
-            refreshTokenRepository.save(existingToken);
-        } else {
-            refreshTokenRepository.save(refreshToken);
-        }
-    }
 
     // OAuth2CallbackController에서 사용할 Repository 접근 메서드
     public MemberRepository getMemberRepository() {

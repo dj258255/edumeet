@@ -60,21 +60,37 @@ class FlywayMigrationTest {
     }
 
     /**
-     * V1 baseline 이 만드는 테이블. 개수를 세면 마이그레이션이 추가될 때마다 깨진다.
-     * <b>이름으로 확인하면 V2·V3 가 무엇을 더 만들든 이 단언은 유효하다.</b>
+     * 마이그레이션을 전부 적용한 뒤 있어야 하는 테이블.
+     *
+     * <p>처음엔 개수를 셌는데 V2·V3 가 추가될 때마다 깨졌다. 이름으로 바꿨다.
+     * 그리고 <b>V5 가 {@code refresh_token} 을 지우면서 또 깨졌다</b> —
+     * 이 테스트는 "V1 이 만든 것" 이 아니라 <b>"지금 스키마가 무엇을 갖고 있는가"</b> 를 봐야 한다.
+     *
+     * <p>{@code refresh_token} 은 목록에서 뺐다. refresh token 은 Redis 로 옮겼다(#70).
      */
-    private static final List<String> BASELINE_TABLES = List.of(
+    private static final List<String> EXPECTED_TABLES = List.of(
             "assignment", "assignment_file_upload", "board", "board_category", "board_file_upload",
             "class_invite", "class_member", "class_room", "class_room_seq", "class_room_tags",
-            "meeting", "meeting_participant", "member", "refresh_token", "reply",
+            "meeting", "meeting_participant", "member", "reply",
             "student_submission_status", "submission", "submission_file_upload");
 
     @Test
-    @DisplayName("V1 이 엔티티가 기대하는 테이블을 전부 만든다")
-    void v1_creates_all_baseline_tables() {
+    @DisplayName("마이그레이션을 전부 적용하면 엔티티가 기대하는 테이블이 있다")
+    void schema_has_all_expected_tables() {
         assertThat(allTables())
-                .as("baseline 은 엔티티에서 생성했으므로 이 목록이 전부 있어야 한다")
-                .containsAll(BASELINE_TABLES);
+                .as("엔티티가 요구하는 테이블이 하나라도 없으면 부팅 시점이 아니라 첫 질의에서 죽는다")
+                .containsAll(EXPECTED_TABLES);
+    }
+
+    @Test
+    @DisplayName("★ V5 가 refresh_token 을 지운다 - Redis 로 옮겼다")
+    void v5_drops_refresh_token() {
+        assertThat(jdbc.queryForList(
+                "SELECT version FROM flyway_schema_history WHERE success = 1", String.class))
+                .contains("5");
+        assertThat(allTables())
+                .as("남겨두면 '어느 쪽이 진짜인가' 가 생긴다")
+                .doesNotContain("refresh_token");
     }
 
     private List<String> allTables() {
