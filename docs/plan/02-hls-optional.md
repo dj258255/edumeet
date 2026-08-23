@@ -21,6 +21,17 @@ iMBC 에도 라이브스트리밍 직무가 실재한다. **미디어 업계에�
 단 **미디어 코어(코덱·트랜스코딩)는 C/C++ 트랙**이다. 우리가 하는 것은 **그 위 계층**이고,
 서사도 그렇게 잡는다.
 
+## 진행 상태 (2026-08-23 갱신)
+
+| | |
+|---|---|
+| ✅ | LiveKit Egress HLS 요청 생성 + 함정 4개 테스트로 고정 ([#75](https://github.com/dj258255/edumeet/issues/75)) |
+| ✅ | CPU 경계를 소스에서 확인하고 코드에 상수로 박음 |
+| ✅ | 방송 세션 생성 경로 ([#76](https://github.com/dj258255/edumeet/issues/76)) — **없어서 HLS 가 실행될 수 없었다** |
+| ⬜ | egress 인스턴스 붙여 **실제 재생·지연 실측** |
+| ⬜ | `segment_duration` 4 → 2 트레이드오프 실측 |
+| ⬜ | 라이브 창 5 vs Apple 스펙 8.11(6) 검증 |
+
 ## 최소 범위 — 이것만 한다
 
 ```
@@ -177,17 +188,53 @@ v0.8.2가 고정한 protocol 서브모듈에도 `live_playlist_name`(field 11), 
 
 ## 3d. CPU 비용 — 몇 개까지 띄울 수 있나
 
-공식 config 기본값:
+> **⚠ 아래 숫자는 낡았다.** 처음 조사할 때 참고한 config 예시의 값이고,
+> 구현하면서 소스를 직접 읽어 확인하니 달랐다. **정정된 값은 이 절 아래에 있다.**
 
 ```yaml
-room_composite_cpu_cost:       3.0   # 룸 합성 HLS 1개 = 3코어
+# 낡은 값 (조사 시점)
+room_composite_cpu_cost:       3.0
 web_cpu_cost:                  3.0
 track_composite_cpu_cost:      2.0
 track_cpu_cost:                1.0
 audio_room_composite_cpu_cost: 1.0
 ```
 
-**→ 4코어 인스턴스 = RoomComposite HLS 동시 1개.** ABR 3단이면 Egress 3개 = **9코어**.
+### ★ 정정 — 소스에서 확인한 값 (#75)
+
+```go
+// pkg/config/service.go
+roomCompositeCpuCost      = 4      // 3.0 이 아니다
+audioRoomCompositeCpuCost = 1
+webCpuCost                = 4
+audioWebCpuCost           = 1
+participantCpuCost        = 2
+trackCompositeCpuCost     = 1
+trackCpuCost              = 0.5
+```
+
+**비디오 RoomComposite 는 3코어가 아니라 4코어다.** 우리 서버(2 OCPU)와의 격차가 더 크다.
+
+선택 로직도 확인했다.
+
+```go
+// pkg/stats/monitor.go
+if r.RoomComposite.AudioOnly { costs.cpu = AudioRoomCompositeCpuCost }   // 1
+else                         { costs.cpu = RoomCompositeCpuCost }        // 4
+
+required := costs.cpu
+accept   := available >= required        // 아니면 ErrNotEnoughCPU
+```
+
+| | 필요 | 우리 서버(2) | |
+|---|---:|---|---|
+| 비디오 방송 HLS | 4 | `2 >= 4` 거짓 | **거부** |
+| 오디오 방송 HLS | 1 | `2 >= 1` 참 | **가능** |
+
+**그리고 시작 시점 검사(`validateCPUConfig`)는 가장 싼 타입(`trackCpuCost = 0.5`)과만 비교한다.**
+→ egress 프로세스는 정상으로 뜨는데 **비디오 방송 시작만 실패한다.**
+
+→ 구현과 테스트: [`04-three-broadcast-modes.md`](04-three-broadcast-modes.md)
 
 ## 3e. S3 없이 로컬 디스크로 (가장 싼 경로)
 
