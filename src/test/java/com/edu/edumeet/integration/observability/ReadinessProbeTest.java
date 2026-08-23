@@ -10,6 +10,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.core.env.Environment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,8 +40,30 @@ import static org.assertj.core.api.Assertions.assertThat;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "management.server.port=0")
 @ActiveProfiles("test")
+@Testcontainers
 @DisplayName("readiness 프로브")
 class ReadinessProbeTest {
+
+    /**
+     * Redis 를 진짜로 띄운다.
+     *
+     * <p>처음엔 컨테이너 없이 썼는데 <b>로컬에서만 통과하고 CI 에서 실패</b>했다.
+     * 내 기계에는 다른 프로젝트의 Redis 가 6379 에 떠 있었고 CI 에는 없었다.
+     * <b>테스트가 잘못된 이유로 통과하고 있었다.</b>
+     *
+     * <p>readiness 에 Redis 가 들어 있으므로, Redis 없이 UP 을 기대하는 것은 애초에 틀렸다.
+     * 확인하려는 것은 <b>"Redis 가 있고 메일이 없을 때 UP 인가"</b> 다.
+     */
+    @Container
+    @SuppressWarnings("resource")
+    static final GenericContainer<?> REDIS =
+            new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
+
+    @DynamicPropertySource
+    static void redis(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+    }
 
     @LocalManagementPort int managementPort;
     @Autowired TestRestTemplate rest;
