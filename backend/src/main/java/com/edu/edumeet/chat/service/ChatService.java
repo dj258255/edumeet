@@ -2,6 +2,8 @@ package com.edu.edumeet.chat.service;
 
 import com.edu.edumeet.chat.domain.ChatMessage;
 import com.edu.edumeet.chat.dto.ChatMessageResponse;
+import com.edu.edumeet.classroom.service.ClassAccessChecker;
+import com.edu.edumeet.chat.dto.ChatReplayResponse;
 import com.edu.edumeet.chat.repository.ChatMessageRepository;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.domain.SessionType;
@@ -30,7 +32,16 @@ public class ChatService {
     private static final int MAX_CONTENT_LENGTH = 1000;
     private static final int RECENT_LIMIT = 50;
 
+    /**
+     * 다시보기 한 번에 주는 최대 건수.
+     *
+     * <p>상한이 없으면 두 시간 방송의 채팅을 한 응답에 담게 되고 수 MB 가 된다.
+     * 클라이언트는 재생 위치를 따라가며 조금씩 물어보는 것이 맞다.
+     */
+    private static final int REPLAY_LIMIT = 500;
+
     private final MeetingRepository meetingRepository;
+    private final ClassAccessChecker classAccessChecker;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatArchiveQueue archiveQueue;
 
@@ -76,6 +87,43 @@ public class ChatService {
                         meetingId, m.getSenderEmail(), m.getContent(),
                         m.getSentAt().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()))
                 .toList();
+    }
+
+    /**
+     * 다시보기 채팅 한 구간을 읽는다. (#108)
+     *
+     * <p><b>{@link #recentMessages} 와 다른 질문이다.</b>
+     * 그쪽은 "지금 들어왔는데 방금 무슨 얘기 했나" 이고, 이쪽은 "그때 무슨 얘기 했나" 다.
+     * 한 메서드로 합치면 둘 다 어정쩡해진다.
+     *
+     * @param fromMillis 구간 시작(포함). 회의 시작 기준
+     * @param toMillis   구간 끝(제외)
+     */
+    @Transactional(readOnly = true)
+    public ChatReplayResponse replay(Long meetingId, String email, long fromMillis, long toMillis) {
+        if (fromMillis < 0 || toMillis <= fromMillis) {
+            throw new IllegalArgumentException(
+                    "구간이 잘못됐습니다. from=%d, to=%d".formatted(fromMillis, toMillis));
+        }
+
+        Meeting meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회의입니다: " + meetingId));
+        // 그 클래스의 구성원만 본다. 다시보기도 수업 자료다.
+        classAccessChecker.requireMember(meeting.getClassRoom().getId(), email);
+
+        // 상한보다 하나 더 받아서 "더 있는지" 를 판단한다.
+        // count 쿼리를 따로 날리면 큰 구간에서 두 번 훑게 된다.
+        List<ChatMessage> rows = chatMessageRepository.findReplayWindow(
+                meetingId, fromMillis, toMillis, PageRequest.of(0, REPLAY_LIMIT + 1));
+
+        boolean hasMore = rows.size() > REPLAY_LIMIT;
+        List<ChatReplayResponse.Message> messages = rows.stream()
+                .limit(REPLAY_LIMIT)
+                .map(m -> new ChatReplayResponse.Message(
+                        m.getSenderEmail(), m.getContent(), m.getOffsetMillis()))
+                .toList();
+
+        return new ChatReplayResponse(meetingId, fromMillis, toMillis, messages, hasMore);
     }
 
     /**
