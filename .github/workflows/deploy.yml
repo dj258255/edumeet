@@ -98,7 +98,10 @@ jobs:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
-          script_stop: true    # 한 줄이라도 실패하면 즉시 중단
+          # script_stop 은 ssh-action@v1 에 없는 입력이라 조용히 무시된다.
+          # (실행 로그에 Unexpected input(s) 경고로만 남는다)
+          # 중간 실패에서 멈추는 것은 아래 set -euo pipefail 이 한다 -
+          # 그동안 그게 실제로 일을 하고 있었고 script_stop 은 장식이었다.
           script: |
             set -euo pipefail
             cd ~/edumeet
@@ -203,7 +206,9 @@ jobs:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
-          script_stop: true
+          # script_stop 은 ssh-action@v1 에 없는 입력이다. 주면 조용히 무시된다.
+          # (워크플로 실행 로그에 Unexpected input(s) 경고로만 남는다)
+          # 중간 실패에서 멈추는 것은 스크립트 안의 set -euo pipefail 이 한다.
           script: |
             set -euo pipefail
             sudo rm -rf /var/www/edumeet.new
