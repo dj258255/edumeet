@@ -90,6 +90,12 @@ def test_body_has_the_declared_fields(env):
         assert field in bodies[0], f"계약의 {field} 가 본문에 없다"
 
 
+def test_technical_terms_are_normalized_before_sending(env):
+    """★ 기술 용어 표기는 토큰을 쓰지 않고 hot path 에서 보정한다."""
+    _, bodies, _ = _send("python 과 spring boot 를 설명합니다.")
+    assert bodies[0]["text"] == "파이썬 과 스프링 부트 를 설명합니다."
+
+
 def test_timing_is_reported_as_approximate(env):
     """★ 근사라는 사실을 숨기지 않는다.
 

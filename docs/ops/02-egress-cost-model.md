@@ -195,6 +195,47 @@ OCI 는 egress 가 이미 10TB 까지 공짜라서, **줄일 것이 없는 구�
 > 앞선 §4 의 "CDN 이 오리진 부담을 20배 줄인다"는 여전히 참이다.
 > 다만 **그 20배가 돈으로 의미를 갖는 건 10TB 를 넘긴 뒤**다.
 
+### ★ LiveKit Cloud 로 냈다면 얼마인가
+
+2026-08-25 기준 LiveKit Cloud Ship 플랜은 downstream data transfer 250GB 포함,
+초과분 $0.12/GB 다. Recording/export 의 video transcode 는 포함분 이후
+$0.02/min, audio-only 는 $0.005/min 이다.
+
+환율은 2026-08-24 USD/KRW 1,382원으로 계산한다.
+
+| 시나리오 | 전송량 | LiveKit downstream 비용<br />(포함분 무시) | 250GB 포함 후 초과 비용 | OCI 직송 |
+|---|---:|---:|---:|---:|
+| 50명 × 1시간 | 31GB | $3.73 ≈ **5,200원** | 0원 | 0원 |
+| 500명 × 1시간 | 311GB | $37.32 ≈ **51,600원** | $7.32 ≈ **10,100원** | 0원 |
+| 3,000명 × 1시간 | 1,867GB | $224.04 ≈ **309,600원** | $194.04 ≈ **268,200원** | 0원 |
+
+같은 3,000명 1시간 방송을 LiveKit Cloud paid path 로 처리하면
+downstream 만 **약 27만~31만원/시간** 구간이다. 반면 OCI 는 첫 10TB/month 까지
+public internet egress 가 무료라, 이 규모의 단발 방송은 네트워크 청구액이 0원이다.
+
+단, 이 문장은 **"실제로 청구서를 줄였다"가 아니다.**
+우리 서비스는 유료 LiveKit Cloud 로 운영하지 않았다. 정확한 표현은
+**"같은 트래픽을 유료 LiveKit Cloud downstream 으로 처리했을 때 발생했을 비용을
+직접 HLS + OCI 무료 egress 로 회피했다"** 이다.
+
+그리고 transcode 비용은 bandwidth 에 비하면 작다.
+
+| 항목 | 단가 | 1시간 |
+|---|---:|---:|
+| LiveKit video transcode | $0.02/min | $1.20 ≈ **1,660원** |
+| LiveKit audio-only transcode | $0.005/min | $0.30 ≈ **410원** |
+
+그래서 방송 비용의 큰 축은 **인코딩 분당 과금보다 viewer-hour × GB 단가**다.
+우리가 LiveKit RoomComposite Egress 를 걷어낸 이유도 "분당 1,660원을 아껴서"가
+아니라, 2 OCPU 서버에서 합성 비용 때문에 비디오 방송 자체가 막혔기 때문이다.
+
+출처:
+
+- LiveKit pricing: <https://livekit.com/pricing>
+- LiveKit quotas and limits: <https://docs.livekit.io/deploy/admin/quotas-and-limits/>
+- OCI public internet egress 10TB/month free: <https://www.oracle.com/cloud/networking/virtual-cloud-network/pricing/>
+- 환율 가정: <https://kr.investing.com/currencies/usd-krw-historical-data>
+
 ---
 
 ## 7. ★ 결론 반전 — 비용보다 가용성이 먼저 터진다

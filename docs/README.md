@@ -108,6 +108,38 @@ HTTP 실패 0/1,968 이었다.
 
 → [`performance/12-hls-codec-benchmark.md`](performance/12-hls-codec-benchmark.md)
 
+### AI 자막은 STT·용어사전·LLM 을 분리한다
+
+현재 파이썬 AI 경로는 **진짜 실시간 자막이 아니다.**
+녹음이 끝난 뒤 CLOVA batch STT 결과를 받아 문장 단위로 Java 에 보내는 구조라
+`realtime: false`, `approximate_timing: true` 로 남겼다.
+
+실시간 자막에서 중요한 제약은 세 가지다.
+
+| 축 | 판단 |
+|---|---|
+| 비용 | STT 는 오디오 시간 과금, LLM 은 토큰 과금이다. 단위가 다르다 |
+| 속도 | 자막 hot path 에 외부 LLM 호출을 넣으면 모델 지연과 장애점이 매 조각마다 붙는다 |
+| 품질 | 한국어 강의 안의 `python`, `Spring Boot`, `WebSocket` 같은 영어 기술어가 흔들린다 |
+
+그래서 hot path 에서는 LLM 을 호출하지 않고, 결정적 용어 사전으로 `python → 파이썬`,
+`websocket → WebSocket` 같은 보정만 수행한다. LLM 은 회의 후 요약·검색 색인·자막
+정리처럼 지연을 허용하는 경로로 보낸다.
+
+→ [`ops/09-realtime-caption-cost-quality.md`](ops/09-realtime-caption-cost-quality.md)
+
+### MySQL 은 "새로 고른 DB" 가 아니라 유지한 운영 전제다
+
+EduMeet 에서 DB 를 PostgreSQL 로 바꾸지 않은 이유는 PostgreSQL 이 부족해서가 아니다.
+이미 MySQL 로 만든 팀 산출물을 인수했고, 목표는 스택 교체가 아니라 운영 경로 정리였다.
+
+H2 로는 InnoDB 잠금, MySQL enum/FK 문법, 네트워크 왕복 비용이 드러나지 않는다.
+그래서 N+1·세션 정원·Flyway baseline 은 Testcontainers(MySQL)와 k6 로 재현했다.
+새 iMBC 맞춤 프로젝트라면 MS-SQL 을 고르겠지만, EduMeet 에서는 측정 가능한
+운영 개선이 더 중요했다.
+
+→ [`ops/08-database-choice.md`](ops/08-database-choice.md)
+
 ### nginx 기본값 하나가 WebSocket 을 60초마다 끊는다
 
 같은 코드·같은 부하·같은 경로. 바뀐 것은 설정 한 줄이다.
