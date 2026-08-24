@@ -402,7 +402,7 @@ export default {
          meetingInfo.downloading = true
 
          const accessToken = localStorage.getItem('accessToken')
-         const url = `https://i13c205.p..io/api/v1/meeting/files/download/${meetingInfo.id}`
+         const url = `https://api.studywithtymee.com/api/v1/meeting/files/download/${meetingInfo.id}`
          
          console.log('📡 요청 URL:', url)
          console.log('🔑 토큰 존재:', !!accessToken)
@@ -516,7 +516,7 @@ export default {
      const fetchLiveInfoForClass = async (classId) => {
        try {
          const accessToken = localStorage.getItem('accessToken')
-         const url = `https://i13c205.p.ssafy.io/api/v1/meetingroom/${classId}`
+         const url = `https://api.studywithtymee.com/api/v1/meetingroom/${classId}`
          
          console.log(`📡 LiveInfo 조회 시작 - classId: ${classId}`)
          console.log(`🔗 요청 URL: ${url}`)
@@ -705,9 +705,9 @@ export default {
         }
         
         console.log('🔍 토큰 요청 시작');
-        console.log('🔍 요청 URL:', `https://i13c205.p.ssafy.io/api/v1/meetingroom/token`);
+        console.log('🔍 요청 URL:', `https://api.studywithtymee.com/api/v1/meetingroom/token`);
         
-        const response = await fetch(`https://i13c205.p.ssafy.io/api/v1/meetingroom/token`, {
+        const response = await fetch(`https://api.studywithtymee.com/api/v1/meetingroom/token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

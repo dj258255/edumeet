@@ -134,7 +134,7 @@ const summaryStatus = ref(null)
 const isGeneratingSummary = ref(false)
 
 // API 기본 URL
-const API_BASE_URL = 'https://i13c205.p.ssafy.io'
+const API_BASE_URL = 'https://api.studywithtymee.com'
 
 // 드래그 시작
 const startDrag = (event) => {
