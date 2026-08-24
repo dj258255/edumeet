@@ -44,6 +44,39 @@ sudo nginx -t && sudo systemctl reload nginx
 그래서 **Origin Certificate(대시보드 작업) 없이** 발급할 수 있고,
 공개 CA 인증서라 암호화 모드를 **`전체(엄격)`** 으로 올릴 수 있다.
 
+### ★ 브라우저가 보는 인증서는 이게 아니다
+
+프록시를 켜면 TLS 가 **두 구간**으로 끊긴다. 각 구간이 다른 인증서를 쓴다.
+
+```
+브라우저 ──TLS①──▶ Cloudflare ──TLS②──▶ 원본 nginx
+          CF 엣지 인증서          Let's Encrypt
+          (Google Trust Services)
+```
+
+실제로 확인한 값:
+
+```
+$ echo | openssl s_client -connect studywithtymee.com:443 \
+        -servername studywithtymee.com | openssl x509 -noout -issuer
+issuer= /C=US/O=Google Trust Services/CN=WE1        <- Let's Encrypt 가 아니다
+```
+
+**원본 인증서는 밖에서 볼 수 없다.** 원본 443 은 CF 대역만 허용하므로
+`openssl s_client` 로 직접 붙는 것 자체가 막힌다 — 그게 의도한 상태다.
+
+그래서 *"우리 사이트는 Let's Encrypt 를 쓴다"* 는 절반만 맞다.
+정확히는 **원본 구간이** Let's Encrypt 다. 이 구분이 필요한 이유:
+
+| 착각 | 실제 |
+|---|---|
+| 원본 인증서가 만료되면 브라우저에 경고가 뜬다 | **526** 이 뜬다. 브라우저 인증서 창은 멀쩡하다 |
+| 브라우저에 자물쇠가 보이니 원본까지 암호화됐다 | 모드가 `유연` 이면 원본 구간은 평문이다 |
+| 원본 인증서를 갱신하면 방문자가 새 인증서를 본다 | 방문자가 보는 건 CF 가 자기 주기로 갱신한다 |
+
+두 번째 줄이 `전체(엄격)` 을 쓰는 이유다. `유연`·`전체` 는 자물쇠가 똑같이 보이면서
+원본 구간이 각각 평문·무검증이다. **눈으로는 셋을 구분할 수 없다.**
+
 ### 갱신
 
 ```
@@ -52,8 +85,12 @@ renewal-hooks/deploy/        갱신 후 nginx -t && systemctl reload nginx
 ```
 
 **deploy 훅이 핵심이다.** 없으면 certbot 은 새 인증서를 받는데 nginx 는
-메모리에 올린 옛 파일을 계속 쓴다. 90일 뒤 **브라우저에서는 만료인데
-서버에는 유효한 파일이 있는** 상태가 된다.
+메모리에 올린 옛 파일을 계속 쓴다. 90일 뒤 **디스크에는 유효한 파일이 있는데
+nginx 는 만료된 것을 내미는** 상태가 된다.
+
+이때 증상은 브라우저 경고가 **아니다.** 브라우저는 원본 인증서를 볼 일이 없다(아래).
+`전체(엄격)` 에서 CF 가 원본 검증에 실패하므로 **526 Invalid SSL Certificate** 이 뜬다.
+브라우저 인증서 창을 봐도 멀쩡해 보이니 원인을 엉뚱한 데서 찾게 된다.
 
 `certbot renew --dry-run` 으로 훅까지 확인했다.
 
