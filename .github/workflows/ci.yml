@@ -144,6 +144,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: 테스트
+        working-directory: frontend
+        run: npm test
+
       - name: 빌드
         working-directory: frontend
         run: npm run build
