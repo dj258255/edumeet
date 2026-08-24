@@ -191,18 +191,19 @@ LINE(notify + 클라 pull).
 
 ## 5. HLS — 범위와 근거
 
-**LiveKit Egress 경유로 하되 LL-HLS는 제외한다.**
+초기 조사에서는 **LiveKit Egress 경유로 하되 LL-HLS는 제외한다**고 판단했다.
+구현 중 egress 를 실제로 띄워 보니 발표자 1명 방송에는 RoomComposite 합성이 과했다.
+현재 구현은 직접 HLS delivery 다.
 
 ```
-LiveKit egress 출력 = MPEG-TS 세그먼트
-  → CMAF(fMP4) 아님
-  → HEVC/AV1 불가 (Apple 1.5/1.39: fMP4 MUST)
-  → DASH 와 세그먼트 공유 불가
-  → LL-HLS 부분 세그먼트를 얹을 실용적 경로가 없음
+발표자 MediaRecorder 조각
+  → HTTP chunk ingest
+  → ffmpeg HLS muxer
+  → nginx / hls.js delivery
 ```
 
-그리고 서버가 구현해야 할 것이 다섯인데, 그중 **Blocking Playlist Reload**는
-*"응답 없이 HTTP 커넥션을 붙잡는 서버"* 다. 반면 **hls.js는 `lowLatencyMode`가 이미 `true`** 라
+LL-HLS 제외 결론은 유지한다. 현재 출력은 TS HLS 이고, LL-HLS 로 가려면
+CMAF/fMP4, `EXT-X-PART`, Blocking Playlist Reload 등 패키저와 서버 동작을 바꿔야 한다.
 클라이언트 쪽 기여 여지가 0이다.
 
 **실증**: WINK 팀은 200ms 파트로 900ms를 달성했지만
