@@ -1,7 +1,9 @@
 # HLS 스트리밍 — 선택 작업
 
-> **이건 메인이 아니다.** 메인은 [`01-chat-breaking-points.md`](01-chat-breaking-points.md) 다.
-> HLS 는 **채팅 붕괴 5단계를 끝낸 뒤 시간이 남으면** 얹는다.
+> **이 문서는 초기 계획과 조사 기록이다.**
+> 실제 구현은 LiveKit Egress 에서 직접 HLS delivery 로 바뀌었다.
+> 현재 결론은 [`05-own-hls.md`](05-own-hls.md) 와
+> [`../performance/12-hls-codec-benchmark.md`](../performance/12-hls-codec-benchmark.md) 를 기준으로 본다.
 >
 > 근거와 출처는 [`../research/05-streaming-hls.md`](../research/05-streaming-hls.md) 에 있다.
 
@@ -21,15 +23,17 @@ iMBC 에도 라이브스트리밍 직무가 실재한다. **미디어 업계에�
 단 **미디어 코어(코덱·트랜스코딩)는 C/C++ 트랙**이다. 우리가 하는 것은 **그 위 계층**이고,
 서사도 그렇게 잡는다.
 
-## 진행 상태 (2026-08-23 갱신)
+## 진행 상태 (2026-08-25 갱신)
 
 | | |
 |---|---|
 | ✅ | LiveKit Egress HLS 요청 생성 + 함정 4개 테스트로 고정 ([#75](https://github.com/dj258255/edumeet/issues/75)) |
 | ✅ | CPU 경계를 소스에서 확인하고 코드에 상수로 박음 |
 | ✅ | 방송 세션 생성 경로 ([#76](https://github.com/dj258255/edumeet/issues/76)) — **없어서 HLS 가 실행될 수 없었다** |
-| ⬜ | egress 인스턴스 붙여 **실제 재생·지연 실측** |
-| ⬜ | `segment_duration` 4 → 2 트레이드오프 실측 |
+| ✅ | LiveKit Egress 를 실제로 띄워 `minimumCpu: 4` 로그가 전체 실패가 아니라 일부 타입 경고임을 확인 |
+| ✅ | 발표자 1명 방송에는 합성이 필요 없다고 판단하고 직접 HLS delivery 로 교체 |
+| ✅ | OCI 2 OCPU 에서 ffmpeg 리먹싱/재인코딩/audio-only 비용 측정 |
+| ✅ | 운영 HLS URL 을 k6 로 20 VU / 1분 hold 측정 |
 | ⬜ | 라이브 창 5 vs Apple 스펙 8.11(6) 검증 |
 
 ## 최소 범위 — 이것만 한다
@@ -81,8 +85,8 @@ lk load-test --url <URL> --api-key <K> --api-secret <S> \
 
 | 선택지 | 판단 |
 |---|---|
-| **A. LiveKit Egress → HLS** | **채택.** 공식 경로 |
-| B. 별도 RTMP ingest + FFmpeg 직접 | 제외 (§12) |
+| A. LiveKit Egress → HLS | 초기 채택 후 제외. 발표자 1명 방송에 RoomComposite 합성 비용이 과함 |
+| **B. HTTP chunk ingest + FFmpeg 직접 HLS** | **현재 채택.** 브라우저 발표자만 다루므로 가장 작고 측정 가능 |
 | C. 녹화 파일 → HLS 변환 (VOD) | **폴백.** A가 막히면 |
 | LL-HLS | **제외.** 근거는 아래 9-5 |
 | 자체 HLS 파서 | **제외.** `hls.js`로 충분 |
@@ -285,7 +289,9 @@ E2E ≈ 인코딩 + 1×세그먼트(패키징) + 0~1.5×세그먼트(전파) + 3
 | `segment_duration: 2` | **6초** | **목표** |
 | `segment_duration: 1` | 3초 | 창 5개 = 5초 → Apple 8.11 위반 심화 |
 
-**소재 1은 이 표를 실측으로 채우는 것이다.** 코드 한 줄 바꾸고 §9-6 방법 B로 재면 된다.
+실제 구현은 2초 세그먼트를 기준으로 갔다. 리먹싱은 CPU 를 크게 아끼지만,
+키프레임 간격이 길면 2초 세그먼트를 보장하지 못한다는 것도 별도로 재현했다.
+→ [`../performance/12-hls-codec-benchmark.md`](../performance/12-hls-codec-benchmark.md)
 
 **Apple 권장값** (원문): 7.5/7.6 *"Target durations SHOULD be 6 seconds"*,
 1.13 *"Key frames (IDRs) SHOULD be present every two seconds"*,
