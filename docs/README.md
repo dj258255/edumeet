@@ -61,18 +61,52 @@ sessionType 이 요청에 없음      기능 네 개가 통째로 도달 불가
 
 → [`ops/07-declared-but-unused.md`](ops/07-declared-but-unused.md)
 
-### 우리 서버는 오디오 HLS 만 돌릴 수 있다 — 소스로 확인했다
+### 방송 HLS 는 합성 대신 delivery 만 만든다
+
+처음에는 LiveKit Egress 로 HLS 를 만들려고 했다.
+하지만 `RoomComposite` 가 CPU 4를 요구하는 이유는 여러 참가자 화면을 합성하기 때문이다.
+EduMeet 의 방송 모드는 발표자 한 명만 나가므로 합성할 것이 없다.
+
+그래서 HLS 는 직접 만든다.
 
 ```
-roomCompositeCpuCost      = 4     비디오 방송   2 >= 4  거짓 → ErrNotEnoughCPU
-audioRoomCompositeCpuCost = 1     오디오 방송   2 >= 1  참   → 된다
+발표자 MediaRecorder 조각 → HTTP chunk → ffmpeg → live.m3u8 + .ts → nginx/hls.js
 ```
 
-싼 게 아니라 **파이프라인이 다르다.** 오디오 전용은 헤드리스 Chrome 합성을 통째로 건너뛴다.
-그리고 시작 시점 검사는 **가장 싼 타입과만** 비교하므로,
-**egress 는 정상으로 보이는데 비디오 방송 시작만 실패한다.**
+20초 분량 기준 OCI aarch64 2 OCPU ffmpeg 측정 결과다.
 
-→ [`plan/04-three-broadcast-modes.md`](plan/04-three-broadcast-modes.md)
+| 경로 | real | user CPU |
+|---|---:|---:|
+| 리먹싱(H264 복사) | 0.084초 | 0.079초 |
+| 재인코딩(VP8 → H264) | 5.456초 | 8.633초 |
+| 오디오 전용(Opus → AAC) | 0.245초 | 0.282초 |
+
+오디오는 "HLS audio mode" 가 아니라 **audio-only HLS delivery** 다.
+HLS 는 송출 프로토콜이 아니라 다수 시청자에게 나눠 주는 delivery 형식으로 본다.
+
+→ [`plan/04-three-broadcast-modes.md`](plan/04-three-broadcast-modes.md),
+[`plan/05-own-hls.md`](plan/05-own-hls.md),
+[`plan/06-webrtc-sfu-100-policy.md`](plan/06-webrtc-sfu-100-policy.md)
+
+HLS 를 파일로 내보내면서 캐시 경계도 같이 나눴다.
+`index.html` 과 `live.m3u8` 은 최신성이 중요해서 캐시하지 않고,
+해시가 붙은 Vite asset 은 1년 `immutable` 로 둔다.
+반면 HLS `.ts` 는 파일명이 방송 재시작 때 재사용되므로 4초만 허용한다.
+
+→ [`performance/11-http-cache-boundaries.md`](performance/11-http-cache-boundaries.md)
+
+HLS 에서는 "어떤 프로토콜인가"보다 **서버가 재인코딩을 하느냐**가 먼저 비용을 가른다.
+20초 720p30 합성 소스에서 H264 리먹싱은 real 0.084초, VP8→H264 재인코딩은
+real 5.456초였다. 같은 HLS 여도 서버에서 약 65배 차이다.
+
+그래서 송출 화면은 720p30/360p15/audio-only 를 선택하게 하고,
+시청 화면은 hls.js 의 live latency·target latency·buffer·bandwidth estimate 를 보여 준다.
+또 `hls.js` 를 동적 import 로 분리해 방송 시청 화면 JS 를 402.77KB 에서 4.91KB 로 줄였다.
+시청자 부하는 `k6/hls-viewer.js` 로 playlist 와 segment 를 나눠 재도록 했다.
+운영 URL 20 VU 측정에서 playlist p95 391.38ms, segment p95 372.41ms,
+HTTP 실패 0/1,968 이었다.
+
+→ [`performance/12-hls-codec-benchmark.md`](performance/12-hls-codec-benchmark.md)
 
 ### nginx 기본값 하나가 WebSocket 을 60초마다 끊는다
 
@@ -202,6 +236,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`research/03-fanout-messaging.md`](research/03-fanout-messaging.md) | Redis·NATS·Kafka, Discord·Slack·카카오톡 |
 | [`research/04-language-boundary.md`](research/04-language-boundary.md) | C/C++ 경계, 국내 채용 실태 |
 | [`research/05-streaming-hls.md`](research/05-streaming-hls.md) | LiveKit Egress, 지연 측정, 방송 용어 |
+| [`research/06-media-stack-boundaries.md`](research/06-media-stack-boundaries.md) | ffmpeg·GStreamer·Bento4·RTMP·HLS·DASH·WebRTC 의 역할 경계와 도입 조건 |
 
 ### 측정 기록 — 이미 한 것
 
@@ -214,6 +249,8 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`performance/05-fault-injection.md`](performance/05-fault-injection.md) | Toxiproxy. 무응답 시 3초 실패 vs 30초에도 안 돌아옴 |
 | [`performance/06-lock-determinism.md`](performance/06-lock-determinism.md) | **가설 검증 후 미도입.** 지연이 검출률을 안 올림 |
 | [`performance/07-chat-unbounded-queue-oom.md`](performance/07-chat-unbounded-queue-oom.md) | **무한 큐 OOM.** 큐 107만 → 상한 2만, 84초 OOM → 444초 무중단 |
+| [`performance/11-http-cache-boundaries.md`](performance/11-http-cache-boundaries.md) | SPA asset 과 HLS playlist/segment 의 캐시 경계 분리 |
+| [`performance/12-hls-codec-benchmark.md`](performance/12-hls-codec-benchmark.md) | H264 리먹싱 vs VP8 재인코딩 vs audio-only HLS 의 CPU·세그먼트 길이 비교 |
 | [`refactoring/01-remove-port-adapter.md`](refactoring/01-remove-port-adapter.md) | Port/Adapter 제거. 코드 38% 감소, 최적화 쿼리가 죽어 있었음 |
 
 ### 운영
@@ -256,8 +293,8 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | NATS | Core 도 at-most-once 라 Redis 와 보장 수준이 같음. **채택 기준을 사전 등록해두고 안 넘김** |
 | MongoDB (채팅) | Discord 는 MongoDB 에서 **떠났다**(1억 건 → Cassandra). 우리 병목은 DB 가 아니라 **fan-out** — #43 에서 직접 측정 |
 | PostgreSQL 이전 | **통합할 대상이 없다**(DB 가 하나뿐). jsonb·파티셔닝을 쓰고 있지 않다 |
-| LL-HLS | LiveKit egress 가 TS 세그먼트라 CMAF 가 아님. 부분 세그먼트 경로 없음 |
-| SRT/RTMP 인제스트 | LiveKit Ingress 로 되지만 **측정할 질문이 없다.** 프로토콜을 늘려도 배우는 게 없다 |
+| LL-HLS | 현재 직접 HLS 는 TS 세그먼트다. 부분 세그먼트(CMAF) 경로가 아직 없다 |
+| SRT/RTMP 인제스트 | 확장 방향으로 남긴다. 지금은 MediaRecorder HTTP ingest 로도 송출/배포 경계 검증이 된다 |
 | Rust/C++ 미디어 서버 | **프로토콜 바이트를 직접 만지지 않는다.** LiveKit(Go)이 SFU 를 한다 |
 | `spring-dotenv` | 마지막 릴리스 2023-05. **모든 값을 `${ENV:기본값}` 으로 받으면 의존성 없이 같은 효과** |
 

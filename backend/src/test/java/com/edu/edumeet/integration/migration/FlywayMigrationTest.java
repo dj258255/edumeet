@@ -137,9 +137,31 @@ class FlywayMigrationTest {
                 .contains("meeting_id", "sender_email", "content", "sent_at");
     }
 
+    @Test
+    @DisplayName("★ V7 이 다시보기 채팅 조회용 복합 인덱스를 만든다")
+    void v7_adds_chat_replay_index() {
+        assertThat(jdbc.queryForList(
+                "SELECT version FROM flyway_schema_history WHERE success = 1", String.class))
+                .contains("7");
+
+        assertThat(columnsOf("chat_message"))
+                .as("다시보기는 절대 시각이 아니라 재생 위치로 자른다")
+                .contains("offset_millis");
+        assertThat(indexesOf("chat_message"))
+                .as("meeting_id + offset_millis 범위 조회라 sent_at 인덱스로는 질문이 다르다")
+                .contains("idx_chat_message_replay");
+    }
+
     private List<String> columnsOf(String table) {
         return jdbc.queryForList(
                 "SELECT column_name FROM information_schema.columns " +
+                "WHERE table_schema = DATABASE() AND table_name = ?",
+                String.class, table);
+    }
+
+    private List<String> indexesOf(String table) {
+        return jdbc.queryForList(
+                "SELECT DISTINCT index_name FROM information_schema.statistics " +
                 "WHERE table_schema = DATABASE() AND table_name = ?",
                 String.class, table);
     }

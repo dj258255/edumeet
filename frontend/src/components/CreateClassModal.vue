@@ -9,38 +9,38 @@
           </svg>
         </button>
       </div>
-      
+
       <div class="modal-body">
         <div class="form-group">
           <label for="title">화상수업 제목 *</label>
-          <input 
+          <input
             id="title"
-            v-model="title" 
-            type="text" 
+            v-model="title"
+            type="text"
             placeholder="화상수업 제목을 입력하세요"
             class="form-input"
             :class="{ 'error': titleError }"
           />
           <span v-if="titleError" class="error-message">{{ titleError }}</span>
         </div>
-        
+
         <div class="form-group">
           <label for="description">화상수업 설명</label>
-          <textarea 
+          <textarea
             id="description"
-            v-model="description" 
+            v-model="description"
             placeholder="화상수업에 대한 설명을 입력하세요 (선택사항)"
             class="form-textarea"
             rows="3"
           ></textarea>
         </div>
-        
+
         <div class="form-group">
           <label for="creatorName">참여자 이름 *</label>
-          <input 
+          <input
             id="creatorName"
-            v-model="creatorName" 
-            type="text" 
+            v-model="creatorName"
+            type="text"
             placeholder="참여자 이름을 입력하세요"
             class="form-input"
             :class="{ 'error': creatorNameError }"
@@ -48,11 +48,11 @@
           <span v-if="creatorNameError" class="error-message">{{ creatorNameError }}</span>
         </div>
       </div>
-      
+
       <div class="modal-footer">
         <button class="cancel-btn" @click="$emit('close')">취소</button>
-        <button 
-          class="create-btn" 
+        <button
+          class="create-btn"
           @click="handleCreate"
           :disabled="!isFormValid || isCreating"
         >
@@ -129,7 +129,7 @@ watch(() => props.isOpen, (newValue) => {
 // 입력값 검증
 const validateForm = () => {
   let isValid = true
-  
+
   // 제목 검증
   if (!title.value.trim()) {
     titleError.value = '화상수업 제목을 입력해주세요.'
@@ -140,7 +140,7 @@ const validateForm = () => {
   } else {
     titleError.value = ''
   }
-  
+
   // 참여자 이름 검증
   if (!creatorName.value.trim()) {
     creatorNameError.value = '참여자 이름을 입력해주세요.'
@@ -151,7 +151,7 @@ const validateForm = () => {
   } else {
     creatorNameError.value = ''
   }
-  
+
   return isValid
 }
 
@@ -159,14 +159,14 @@ const handleCreate = async () => {
   if (!validateForm()) {
     return
   }
-  
+
   if (!props.classId) {
     alert('클래스 ID가 없습니다. 다시 시도해주세요.')
     return
   }
-  
+
   isCreating.value = true
-  
+
   try {
     // API 요청 데이터 준비 (백엔드 MeetingCreateRequestDto에 맞춤)
     const requestData = {
@@ -174,14 +174,14 @@ const handleCreate = async () => {
       participantName: creatorName.value.trim(),
       classId: Number(props.classId)
     }
-    
+
     console.log('🔍 화상수업 생성 요청:', requestData)
-    
+
     // POST /api/v1/meetingroom/token 엔드포인트 호출
     const response = await apiClient.post('/meetingroom/token', requestData)
-    
+
     console.log('🔍 화상수업 생성 및 토큰 응답:', response.data)
-    
+
     // localStorage에서 사용자 정보 가져오기
     const userStr = localStorage.getItem('user')
     let userEmail = ''
@@ -193,7 +193,7 @@ const handleCreate = async () => {
         console.error('사용자 정보 파싱 실패:', e)
       }
     }
-    
+
     // 성공 시 부모 컴포넌트에 데이터 전달 (백엔드 응답 구조에 맞게 수정)
     emit('create', {
       meetingId: response.data.roomName || title.value.trim(), // roomName 또는 title 사용
@@ -204,12 +204,14 @@ const handleCreate = async () => {
       description: description.value.trim(),
       token: response.data.token, // 백엔드에서 반환하는 토큰
       roomName: response.data.roomName || title.value.trim(), // 원본 roomName 또는 title
-      url: response.data.url || 'wss://edumeet-1jz93drq.livekit.cloud' // LiveKit URL
+      // 백엔드가 livekit.url 을 내려준다. 없으면 빌드 환경값까지만 본다.
+      // 외부 SFU 주소를 하드코딩하면 운영 경로가 조용히 갈라진다.
+      url: response.data.url || import.meta.env.VITE_LIVEKIT_URL || ''
     })
-    
+
   } catch (error) {
     console.error('🔍 화상수업 생성 실패:', error)
-    
+
     if (error.response?.status === 403) {
       alert('이 클래스의 화상수업을 생성할 권한이 없습니다.')
     } else if (error.response?.status === 400) {
@@ -457,14 +459,14 @@ const handleOverlayClick = () => {
     width: 95%;
     margin: 1rem;
   }
-  
+
   .modal-footer {
     flex-direction: column;
   }
-  
+
   .cancel-btn,
   .create-btn {
     flex: none;
   }
 }
-</style> 
+</style>

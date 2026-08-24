@@ -150,6 +150,11 @@ jobs:
 
       - name: 빌드
         working-directory: frontend
+        env:
+          VITE_API_BASE_URL: https://api.studywithtymee.com/api/v1
+          VITE_BASE_URL: https://api.studywithtymee.com
+          VITE_API_ORIGIN: https://api.studywithtymee.com
+          VITE_LIVEKIT_URL: ${{ vars.VITE_LIVEKIT_URL }}
         run: npm run build
 
       - name: 산출물에 죽은 주소가 남았는지

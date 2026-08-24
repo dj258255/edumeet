@@ -3,13 +3,11 @@ import {
   LocalVideoTrack,
   Room,
   RoomEvent,
-  DataPacket_Kind,
 } from 'livekit-client';
 import { onMounted, onUnmounted, ref, type Ref, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import VideoComponent from '@/components/VideoComponent.vue';
 import AudioComponent from '@/components/AudioComponent.vue';
-import LiveCaption from '@/components/LiveCaption.vue';
 import SharedLiveCaption from '@/components/SharedLiveCaption.vue';
 import AudioRecorder from '@/components/AudioRecorder.vue';
 import ScreenShareComponent from '@/components/ScreenShareComponent.vue';
@@ -86,9 +84,13 @@ let APPLICATION_SERVER_URL = '';
 let LIVEKIT_URL = '';
 
 function configureUrls() {
-  APPLICATION_SERVER_URL = 'https://api.studywithtymee.com/api/v1/meetingroom/'
-      
-  LIVEKIT_URL = 'wss://edumeet-1jz93drq.livekit.cloud'
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
+  APPLICATION_SERVER_URL = `${apiBase}/meetingroom/`;
+
+  // 방송 HLS 에서 LiveKit Egress 를 걷어냈을 뿐, 다자간 화상채팅은 SFU 가 필요하다.
+  // URL 은 백엔드 토큰 응답을 우선한다. 여기에는 개발/비상용 기본값만 둔다.
+  // 하드코딩된 외부 SFU 주소로 조용히 붙으면 운영 경로가 둘로 갈라진다.
+  LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || ''
 }
 configureUrls();
 
@@ -212,7 +214,12 @@ async function joinRoom(targetRoom?: string, existingToken?: string) {
   const realtimeMeetingId = (route.query.meetingId as string) || target;
   if (realtimeMeetingId) connectRealtime(realtimeMeetingId);
 
-  const currentRoom = new Room();
+  const currentRoom = new Room({
+    // P2P mesh 가 아니라 SFU 로 간다. SDK 가 화면에 필요한 레이어만 받도록 켜 두되,
+    // 100명 정책 전체(역할·active speaker·가시 영역 기반 구독)는 별도 설계로 남긴다.
+    adaptiveStream: true,
+    dynacast: true,
+  });
   room.value = currentRoom;
 
   currentRoom.on(RoomEvent.TrackSubscribed, (_track, publication, participant) => {
@@ -277,49 +284,26 @@ async function joinRoom(targetRoom?: string, existingToken?: string) {
     }
   });
 
-  currentRoom.on(RoomEvent.DataReceived, (payload, participant) => {
-    try {
-      const decoded = new TextDecoder().decode(payload);
-      console.log('📩 수신된 원시 문자열:', decoded);
-
-      if (!decoded || decoded.trim() === '') return;
-      const data = JSON.parse(decoded);
-      
-      // 자막 데이터 처리
-      if (data.type === 'caption') {
-        handleCaptionData(decoded);
-        return;
-      }
-      
-      // 채팅 메시지 처리
-      if (data.message && data.sender) {
-        chatMessagesList.value.push({
-          sender: data.sender || participant?.identity || '익명',
-          message: data.message,
-        });
-        
-        // 새 메시지 수신 시 자동 스크롤
-        nextTick(() => {
-          scrollToBottom();
-        });
-      }
-    } catch (e) {
-      console.error('데이터 해석 실패:', e);
-    }
-  });
-
   try {
     // URL에서 받은 토큰이 있으면 사용, 없으면 새로 요청
     let livekitToken: string;
+    let livekitUrl = LIVEKIT_URL;
     if (existingToken) {
       console.log('🔍 URL에서 받은 토큰 사용')
       livekitToken = existingToken;
+      livekitUrl = (route.query.url as string) || livekitUrl;
     } else {
       console.log('🔍 새로운 토큰 요청')
-      livekitToken = await getToken(target, participantName.value);
+      const tokenResponse = await getToken(target, participantName.value);
+      livekitToken = tokenResponse.token;
+      livekitUrl = tokenResponse.url || livekitUrl;
+    }
+
+    if (!livekitUrl) {
+      throw new Error('LiveKit URL이 설정되지 않았습니다. 백엔드 응답 url 또는 VITE_LIVEKIT_URL을 확인하세요.')
     }
     
-    await currentRoom.connect(LIVEKIT_URL, livekitToken);
+    await currentRoom.connect(livekitUrl, livekitToken);
     await currentRoom.localParticipant.enableCameraAndMicrophone();
 
     // 카메라 트랙이 준비될 때까지 기다리기
@@ -448,7 +432,7 @@ async function getToken(roomName: string, participantName: string) {
     throw new Error('토큰이 응답에 포함되지 않았습니다.')
   }
   
-  return data.token;
+  return { token: data.token, url: data.url || '' };
 }
 
 function setMainTrack(track: any, identity: string) {
@@ -614,76 +598,14 @@ function scrollToBottom() {
   }
 }
 
-// LiveCaption 이벤트 핸들러들
-function handleLiveCaption(data) {
-  console.log('🎤 실시간 자막:', data.text);
-  console.log('🎤 신뢰도:', data.confidence);
-  console.log('🎤 최종 결과 여부:', data.isFinal);
-  
-  // 실시간 자막은 자막창에만 표시하고 채팅창에는 입력하지 않음
-}
-
-// 공유 실시간 자막 이벤트 핸들러
+// 브라우저 음성인식 미리보기 이벤트. 다른 참가자에게 보내는 경로는 STOMP 자막 계약이다.
 function handleSharedCaption(data) {
   console.log('🎤 공유 실시간 자막:', data.text);
   console.log('🎤 신뢰도:', data.confidence);
   console.log('🎤 최종 결과 여부:', data.isFinal);
-  
-  // 생성자의 음성만 전체 학생들이 볼 수 있도록 처리
-  if (isUserCreator.value) {
-    // 실시간 자막을 모든 참여자에게 공유 (중간 결과 포함)
-    shareCaptionToAll(data.text, data.confidence, data.isFinal);
-  }
-}
-
-// 자막을 모든 참여자에게 공유
-function shareCaptionToAll(text, confidence, isFinal) {
-  if (!room.value) return;
-  
-  const captionData = {
-    type: 'caption',
-    text: text,
-    confidence: confidence,
-    isFinal: isFinal,
-    sender: participantName.value,
-    timestamp: Date.now()
-  };
-  
-  const encoder = new TextEncoder();
-  const payload = encoder.encode(JSON.stringify(captionData));
-  
-  console.log('📤 자막 공유:', captionData);
-  room.value.localParticipant.publishData(payload, { reliable: true });
-}
-
-// 다른 참여자로부터 자막 데이터 수신
-function handleCaptionData(data) {
-  try {
-    const captionData = JSON.parse(data);
-    
-    if (captionData.type === 'caption') {
-      console.log('📥 자막 수신:', captionData);
-      
-      // 생성자의 자막만 표시
-      if (captionData.sender !== participantName.value) {
-        sharedCaption.value = captionData.text;
-        sharedCaptionConfidence.value = captionData.confidence;
-        isSharedCaptionActive.value = true;
-        
-        // 최종 결과가 아닌 경우에만 자동 숨김 (실시간 유지)
-        if (captionData.isFinal) {
-          // 최종 결과는 3초 후 숨김
-          setTimeout(() => {
-            if (sharedCaption.value === captionData.text) {
-              isSharedCaptionActive.value = false;
-            }
-          }, 3000);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('자막 데이터 파싱 오류:', error);
-  }
+  // 이 값은 생성자 로컬 미리보기용이다. 다른 참가자에게 보내는 경로는
+  // LiveKit DataChannel 이 아니라 백엔드 STOMP /topic/rooms/{id}/captions 다.
+  // 그래야 AI 자막과 다시보기 저장 경로가 같은 서버 계약을 탄다.
 }
 
 function handleCaptionError(error) {

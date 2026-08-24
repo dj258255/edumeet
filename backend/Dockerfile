@@ -19,10 +19,10 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl \
+ && apt-get install -y --no-install-recommends curl ffmpeg time \
  && rm -rf /var/lib/apt/lists/* \
- && groupadd --system spring \
- && useradd --system --gid spring spring
+ && groupadd --gid 10001 spring \
+ && useradd --uid 10001 --gid spring --home-dir /app --shell /usr/sbin/nologin spring
 
 COPY --from=builder /app/build/libs/*.jar app.jar
 RUN chown -R spring:spring /app

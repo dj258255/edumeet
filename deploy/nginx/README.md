@@ -125,7 +125,12 @@ nginx 가 서기 전에는 `0.0.0.0/0` 으로 8080 이 열려 있었다(보안 �
 
 보안 목록은 바꾸기 전에 백업했다(`edumeet-seclist-backup-*.json`).
 
-## 아직 안 한 것
+## 현재 상태
 
-- 암호화 모드 `전체(엄격)` + Origin Certificate (지금은 자체서명 + `전체(비엄격)`)
-- STOMP 하트비트. 켜면 `proxy_read_timeout` 을 60초로 되돌려도 된다
+- 암호화 모드: `전체(엄격)`
+- 원본 인증서: Let's Encrypt
+- 갱신: `certbot-renew.timer` + `nginx -t && reload` deploy hook
+- WebSocket: STOMP 하트비트가 켜져 있어 `proxy_read_timeout` 은 120초
+
+Origin Certificate 는 쓰지 않는다. Let's Encrypt 가 자동 갱신되고,
+프록시를 꺼야 하는 상황에서도 공개 CA 인증서로 그대로 동작하기 때문이다.
