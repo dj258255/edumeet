@@ -164,18 +164,18 @@ const features = ref([
     title: 'AI 수업 요약',
     description: '수업 내용을 자동으로 요약하여 학습 효율성 극대화',
     metrics: [
-      { value: '95%', label: '정확도' },
-      { value: '실시간', label: '처리' },
+      { value: '계약', label: '연동 검증' },
+      { value: '수업 후', label: '처리' },
     ]
   },
   {
     id: 2,
     icon: '📝',
     title: '실시간 자막',
-    description: '언어 장벽 없는 교육 환경을 위한 실시간 자막 서비스',
+    description: '청각장애 학습자를 위한 자막 전달 경로',
     metrics: [
-      { value: '0.5초', label: '지연시간' },
-      { value: '98%', label: '인식률' }
+      { value: '분리', label: '채팅/자막' },
+      { value: 'STOMP', label: '전달 경로' }
     ]
   }
 ])
@@ -236,4 +236,4 @@ const techStack = ref([
     ]
   }
 ])
-</script> 
+</script>

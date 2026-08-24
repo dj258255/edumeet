@@ -20,6 +20,8 @@ import time
 import requests
 from dotenv import load_dotenv
 
+from caption_normalizer import normalize_caption_text
+
 
 def _config_path() -> str:
     """이 서비스의 설정 파일. 전에는 다른 프로젝트(Express)의 .env 를 읽고 있었다. (#91)"""
@@ -94,7 +96,9 @@ def send_captions_to_api(meeting_id, text: str, started_at_ms: int | None = None
         if mid is None:
             return {"ok": False, "detail": f"meetingId 가 없다(값={meeting_id!r})"}
 
-        chunks = _split_into_captions(text)
+        # 실시간 경로에서는 LLM 호출을 넣지 않는다. 기술 용어 표기처럼 규칙으로
+        # 처리할 수 있는 것만 먼저 고친다. 비용보다 지연과 장애점이 더 큰 문제다.
+        chunks = _split_into_captions(normalize_caption_text(text))
         if not chunks:
             return {"ok": False, "detail": "보낼 자막이 없다"}
 
