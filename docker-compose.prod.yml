@@ -144,7 +144,17 @@ services:
   #   켜려면:  docker compose --profile ai up -d
   #   그 전에 트리거 경로와 자막 전송을 먼저 만든다.
   ai:
-    image: ${AI_IMAGE:?AI_IMAGE 를 지정해야 한다}
+    # ★ :? 를 쓰지 않는다. (#110)
+    #
+    #   Compose 는 프로필이 꺼진 서비스라도 변수 보간을 먼저 한다 -
+    #   프로필 필터링은 그 다음 단계다. :? 를 쓰면 ai 를 켜지 않는
+    #   평범한 배포까지 "required variable AI_IMAGE is missing" 으로 죽는다.
+    #   실제로 그렇게 배포가 한 번 실패했다.
+    #
+    #   대신 :- 로 자리표시자를 준다. --profile ai 로 켤 때
+    #   AI_IMAGE 를 안 주면 그 태그를 못 찾아 pull 에서 실패하므로
+    #   "조용히 엉뚱한 것이 뜨는" 일은 없다.
+    image: ${AI_IMAGE:-ghcr.io/dj258255/edumeet-ai:set-AI_IMAGE-to-deploy}
     container_name: edumeet-ai
     profiles: [ai]
     restart: unless-stopped
@@ -154,7 +164,7 @@ services:
     environment:
       # 계약은 contracts/internal-api.json 이다. 경로 변수는 meetingId 다.
       SUMMARY_UPLOAD_URL: http://app:8080/api/v1/internal/meetings/{meetingId}/summary
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CLOVA_INVOKE_URL: ${CLOVA_INVOKE_URL:-}
       CLOVA_SECRET_KEY: ${CLOVA_SECRET_KEY:-}
