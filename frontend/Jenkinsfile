@@ -1,0 +1,177 @@
+pipeline {
+    agent any
+    
+    tools {
+        nodejs 'NodeJS-22'
+    }
+    
+    environment {
+        SERVICE_NAME = 'edumeet-frontend'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        
+        // Jenkins Credentials 사용
+        DOCKER_HUB_CREDENTIALS = credentials('Docker-Hub-Credential')
+        FRONTEND_DOCKER_REPO = credentials('frontend-dockerhub-repo')
+        VITE_API_URL = credentials('vite-api-url')
+        VITE_WS_URL = credentials('vite-ws-url')
+    }
+    
+    stages {
+        stage('Checkout and Setup') {
+            steps {
+                echo '===== Checkout and Setup Working Directory ====='
+                script {
+                    // GitLab에서 체크아웃 후 EduMeet 디렉토리로 이동
+                    dir('EduMeet') {
+                        sh '''
+                            echo "Working directory: $(pwd)"
+                            echo "Files in directory:"
+                            ls -la
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Environment Check') {
+            steps {
+                dir('EduMeet') {  // EduMeet 디렉토리에서 작업
+                    echo '===== Environment Check ====='
+                    sh '''
+                        echo "Node: $(node --version)"
+                        echo "NPM: $(npm --version)"
+                    '''
+                }
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                dir('EduMeet') {
+                    echo '===== Setup Environment ====='
+                    sh '''
+                        echo "VITE_API_URL=${VITE_API_URL}" > .env.production
+                        echo "VITE_WS_URL=${VITE_WS_URL}" >> .env.production
+                    '''
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                dir('EduMeet') {
+                    echo '===== Install Dependencies ====='
+                    sh '''
+                        npm cache clean --force
+                        npm ci
+                    '''
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                dir('EduMeet') {
+                    echo '===== Build Application ====='
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Prepare Entrypoint') {
+            steps {
+                dir('EduMeet') {
+                    // dos2unix 설치 (Debian/Ubuntu 기반 jenkins 이미지 기준)
+                    sh '''
+                    apt-get update
+                    apt-get install -y dos2unix
+                    dos2unix entrypoint.sh
+                    chmod +x entrypoint.sh
+                    '''
+                }
+            }   
+        }
+        stage('Build Docker Image') {
+            steps {
+                dir('EduMeet') {
+                    echo '===== Build Docker Image ====='
+                    sh '''
+                        docker build \
+                            --build-arg VITE_API_URL=${VITE_API_URL} \
+                            --build-arg VITE_WS_URL=${VITE_WS_URL} \
+                            --build-arg VITE_API_BASE_URL="https://i13c205.p.ssafy.io/api/v1" \
+                            --build-arg VITE_BASE_URL="https://i13c205.p.ssafy.io" \
+                            -t ${FRONTEND_DOCKER_REPO}:${IMAGE_TAG} \
+                            -t ${FRONTEND_DOCKER_REPO}:latest .
+                    '''
+                }
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            steps {
+                echo '===== Push to Docker Hub ====='
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'Docker-Hub-Credential',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker push ${FRONTEND_DOCKER_REPO}:${IMAGE_TAG}
+                            docker push ${FRONTEND_DOCKER_REPO}:latest
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo '===== Deploy Frontend ====='
+                sh '''
+                    docker pull ${FRONTEND_DOCKER_REPO}:latest
+                    docker stop edumeet-nginx || true
+                    docker rm edumeet-nginx || true
+                    
+                    if [ -d "/home/ubuntu/common-project/EduMeet/certbot/conf/live" ]; then
+                        echo "Starting with HTTPS support"
+                        VOLUMES="-v /home/ubuntu/common-project/EduMeet/certbot/conf:/etc/letsencrypt:ro -v /home/ubuntu/common-project/EduMeet/certbot/www:/var/www/certbot:ro"
+                    else
+                        echo "Starting with HTTP only"
+                        VOLUMES=""
+                    fi
+                    
+                    docker run -d \
+                        --name edumeet-nginx \
+                        --network edumeet-network \
+                        -p 80:80 \
+                        -p 443:443 \
+                        $VOLUMES \
+                        ${FRONTEND_DOCKER_REPO}:latest
+                '''
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '===== Health Check ====='
+                sh '''
+                    sleep 10
+                    curl -f https://edumeet-nginx/health -k || exit 1
+                    echo "Frontend is healthy!"
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            sh 'docker logout || true'
+        }
+        failure {
+            sh 'docker logs edumeet-nginx --tail 50 || true'
+        }
+    }
+}

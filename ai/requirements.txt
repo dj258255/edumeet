@@ -1,0 +1,52 @@
+# FastAPI 및 웹 프레임워크 - 2025년 최신 버전
+fastapi==0.115.12
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+starlette==0.40.0
+
+# HTTP 클라이언트 및 환경 변수
+httpx==0.28.1
+python-dotenv==1.0.1
+python-multipart==0.0.20
+
+
+# 추가 유용한 패키지
+redis>=5.2.0
+celery>=5.4.0
+aiofiles>=24.1.0
+Pillow>=11.0.0
+
+# 개발 및 테스트
+pytest>=8.3.4
+pytest-asyncio>=0.25.0
+black>=24.10.0
+isort>=5.13.2
+
+# 로깅 및 모니터링
+loguru>=0.7.2
+rich>=13.9.4
+
+
+
+# --- FastAPI stack ---
+fastapi==0.115.12
+uvicorn[standard]==0.32.1
+starlette==0.40.0
+pydantic==2.10.4
+
+# --- Config / HTTP clients ---
+python-dotenv==1.0.1
+requests==2.32.4
+
+# --- OpenAI SDK (new client: `from openai import OpenAI`) ---
+openai>=1.50.0
+
+# --- PDF ---
+# fpdf2는 import 경로가 `from fpdf import FPDF` 임 (우리 코드와 호환)
+fpdf2>=2.7,<3
+
+# --- FastAPI에서 업로드(form-data) 받을 일 생길 때 필요 (안 써도 무방) ---
+python-multipart==0.0.20
+
+# --- (선택) 비동기 HTTP가 필요할 때 ---
+httpx==0.28.1

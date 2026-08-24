@@ -1,5 +1,33 @@
 # 🖥 Edumeet
 
+## 📦 저장소 구성
+
+**모노레포다.** 팀이 GitLab 에 나눠 두었던 저장소를 이력째 합쳤다.
+
+```
+backend/       Spring Boot 3.5 · Java 17 — API · WebSocket 채팅 · LiveKit 세션
+frontend/      Vue 3 · Vite — 화상강의 · 라이브방송 · 채팅 UI
+ai/            FastAPI · Python — STT 자막 파이프라인
+doc-summary/   Express · Node — 문서 요약 API
+
+docs/          측정 기록과 판단 근거 (전송비용 · HLS · 채팅 용량 · 배포)
+k6/            부하 측정 스크립트
+deploy/  ansible/  observability/  scripts/
+```
+
+**이력을 보존했다.** `filter-repo --to-subdirectory-filter` 로 각 프로젝트의 모든 커밋 경로를
+목적지 기준으로 재작성한 뒤 합쳤다. 그래서 `git log -- frontend/src/App.vue` 도,
+`git blame` 도 2025년 팀 커밋까지 그대로 이어진다.
+
+> `subtree add` 로 붙이면 병합 이전 커밋의 경로가 루트라서 `git log -- frontend/...` 가
+> 아무것도 못 찾는다. **blame 은 되는데 log 는 안 되는** 어정쩡한 상태가 된다.
+
+`.mailmap` 으로 한 사람이 여러 정체성으로 세어지던 것을 합쳤다
+(`범수`/`BeomSu`, `권민환`/`kwonminhwan` 등). 커밋 SHA 는 건드리지 않는다 —
+다시 쓰면 머지된 PR 90여 개의 참조가 전부 깨진다.
+
+---
+
 ## 🪪 개요
 
 ### 교육의 기회는 누구에게나 열려있는 세계에서

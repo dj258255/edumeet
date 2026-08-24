@@ -35,16 +35,18 @@ jobs:
 
       - name: Build
         run: ./gradlew build -x test --no-daemon
+        working-directory: backend
 
       - name: Test
         run: ./gradlew test --no-daemon
+        working-directory: backend
 
       # 실패해도 리포트는 남긴다. 어떤 테스트가 깨졌는지 봐야 하기 때문.
       - name: Publish test report
         if: always()
         uses: mikepenz/action-junit-report@v5
         with:
-          report_paths: build/test-results/test/*.xml
+          report_paths: backend/build/test-results/test/*.xml
           check_name: 테스트 결과
           detailed_summary: true
 
@@ -53,5 +55,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: build/reports/tests/test/
+          path: backend/build/reports/tests/test/
           retention-days: 7

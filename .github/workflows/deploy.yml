@@ -57,7 +57,9 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
+          # 모노레포다. Spring 백엔드만 빌드 컨텍스트로 준다. (#89)
+          # 루트를 주면 frontend/ai 의 수백 MB 자산까지 도커 데몬에 전송된다.
+          context: ./backend
           platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
