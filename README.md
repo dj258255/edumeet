@@ -19,7 +19,7 @@
 | | |
 |---|---|
 | **측정 기록** | [`docs/`](docs/README.md) — 전송 비용·채팅 용량·HLS·배포·프록시 |
-| **테스트** | Java **294** + 파이썬 **23** + 프론트 **8**. 되돌려서 깨지는 것까지 확인 |
+| **테스트** | Java 테스트 클래스 **40개** + 파이썬 **23건** + 프론트 **17건**. 되돌려서 깨지는 것까지 확인 |
 | **채택하지 않은 것** | 검토했지만 안 쓴 기술과 그 이유를 함께 남깁니다 |
 | **틀렸던 것** | 근거가 나온 시점에 문서와 이슈를 고쳐 적었습니다 |
 
@@ -45,7 +45,7 @@
 에러 로그가 안 남고, 개발 중엔 안 보이고, **트래픽이 있으면 가려집니다.**
 → [`docs/performance/10-websocket-behind-proxy.md`](docs/performance/10-websocket-behind-proxy.md)
 
-**"만들었는데 닿지 않는다" 를 일곱 번 만났습니다.**
+**"만들었는데 닿지 않는다" 를 아홉 번 만났습니다.**
 
 | | |
 |---|---|
@@ -53,9 +53,28 @@
 | 컨테이너 2개 | 관측 스택이 한 번도 켜진 적 없음 (compose 프로필) |
 | **서비스 경계** | AI 요약본이 백엔드에 도달한 적 없음 (토큰·경로 불일치) |
 | **제품의 존재 이유** | **AI 자막이 화면에 뜬 적 없음** (프론트에 STOMP 클라이언트 없음) |
+| **인프라·화면** | WebRTC 계층이 운영에 연결되지 않았고, 방송 모드 2개가 서버 코드로만 존재 |
 
-넷 다 **테스트를 통과하고 있었습니다.** 부품은 맞는데 연결이 없었습니다.
+전부 **테스트를 통과하고 있었습니다.** 부품은 맞는데 연결이 없었습니다.
 → [`docs/ops/07-declared-but-unused.md`](docs/ops/07-declared-but-unused.md)
+
+**방송 3모드는 송출과 배포 기준으로 갈랐습니다.**
+
+| 모드 | 송출 구간 | 배포 구간 | 채팅 |
+|---|---|---|---|
+| 화상채팅 | 사용자 ↔ 사용자 | WebRTC SFU(LiveKit) | STOMP/WebSocket |
+| 라이브 방송 | 현재 MediaRecorder HTTP chunk<br>확장 방향 RTMP/SRT/WebRTC ingest | HLS delivery(nginx/hls.js) | STOMP/WebSocket |
+| 오디오 방송 | 현재 MediaRecorder audio chunk<br>확장 방향 RTMP/SRT ingest | audio-only HLS delivery | STOMP/WebSocket |
+
+화상채팅은 양방향 저지연이라 SFU 가 필요합니다.
+반면 방송은 발표자 한 명의 단방향 송출이라 화면 합성이 필요 없고,
+그래서 LiveKit Egress 의 `RoomComposite` 대신 직접 HLS delivery 를 만들었습니다.
+오디오는 "HLS audio mode" 가 아니라 **audio-only HLS delivery** 로 봅니다.
+OCI aarch64 2 OCPU 에서 20초 720p30 입력 기준 H264 리먹싱은 real 0.084초,
+VP8→H264 재인코딩은 real 5.456초였고, 운영 HLS URL 20 VU 측정은 HTTP 실패 0/1,968 이었습니다.
+→ [`docs/plan/04-three-broadcast-modes.md`](docs/plan/04-three-broadcast-modes.md),
+[`docs/plan/05-own-hls.md`](docs/plan/05-own-hls.md),
+[`docs/plan/06-webrtc-sfu-100-policy.md`](docs/plan/06-webrtc-sfu-100-policy.md)
 
 **그래서 모든 수정을 되돌려서 깨지는지 확인합니다.**
 깨지지 않으면 그 테스트는 아무것도 지키지 않는 것입니다.

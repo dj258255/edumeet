@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import com.edu.edumeet.meeting.domain.SessionType;
+
 import java.time.LocalDateTime;
 
 @Getter
@@ -18,4 +20,7 @@ public class ClassMeetingInfoResponseDto {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String s3url;
+    private SessionType sessionType;
+    private String hlsPlaylistUrl;
+    private boolean broadcasting;
 }

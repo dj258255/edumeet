@@ -210,16 +210,25 @@ edumeet:
       # 다시보기는 실시간이 아니므로 몇 초 늦어도 된다.
       # 짧으면 트랜잭션이 잦고 길면 큐가 길어진다. queued/dropped 를 보고 조정한다.
       flush-interval-ms: ${CHAT_ARCHIVE_FLUSH_MS:1000}
-  hls:
-    # egress 인스턴스가 붙어 있을 때만 켠다.
-    # 켜 놓고 인스턴스가 없으면 방송 시작이 "no response from egress service" 로 실패한다.
-    enabled: ${HLS_ENABLED:false}
-    # LiveKit 기본값은 4초다. 지연이 세그먼트 길이에 비례해서 2초로 낮췄다.
-    # 대신 요청 수가 두 배가 되고 키프레임이 잦아져 비트레이트가 오른다. (#75)
-    segment-duration: ${HLS_SEGMENT_DURATION:2}
-    prefix: ${HLS_PREFIX:hls}
-    # 플레이어가 읽을 공개 URL. R2 퍼블릭 도메인이나 CDN 주소를 넣는다.
-    public-base-url: ${HLS_PUBLIC_BASE_URL:}
+  broadcast:
+    # 자체 HLS 송출. LiveKit egress 를 걷어내고 직접 만든다. (#123)
+    #
+    # egress 의 RoomComposite 가 CPU 4를 요구한 이유는 여러 참가자 화면을
+    # 헤드리스 Chrome 으로 렌더링해 "합성" 하기 때문이다. 방송은 발표자 한 명만
+    # 나가므로 합성할 것이 없다. 브라우저가 이미 인코딩한 조각을 받아
+    # 컨테이너만 바꾸면 되고, 그러면 2코어에서도 비디오 방송이 된다.
+    ffmpeg-path: ${BROADCAST_FFMPEG:ffmpeg}
+    # 지연이 여기에 비례한다. 대신 요청 수가 늘고 키프레임이 잦아져 비트레이트가 오른다.
+    segment-seconds: ${BROADCAST_SEGMENT_SECONDS:2}
+    # 0 으로 두면 플레이리스트가 방송 내내 커지고 디스크도 안 지워진다.
+    playlist-size: ${BROADCAST_PLAYLIST_SIZE:6}
+    output-dir: ${BROADCAST_OUTPUT_DIR:/tmp/edumeet-hls}
+    # nginx 가 output-dir 을 이 경로로 서빙한다.
+    public-base-url: ${BROADCAST_PUBLIC_BASE_URL:/hls}
+    # 상한이 없으면 2코어에서 방송 몇 개가 겹치는 순간 전체가 멈춘다.
+    max-concurrent: ${BROADCAST_MAX_CONCURRENT:2}
+    # 발표자가 탭을 닫으면 종료 요청이 안 온다. 그대로 두면 ffmpeg 가 영원히 남는다.
+    idle-timeout: ${BROADCAST_IDLE_TIMEOUT:30s}
   internal:
     # 서버 간 호출용 공유 시크릿. 파이썬 AI 서버가 X-Internal-Token 헤더로 보낸다. (#27)
     # 비어 있으면 /api/v1/internal/** 은 전부 거부된다 (fail-closed).

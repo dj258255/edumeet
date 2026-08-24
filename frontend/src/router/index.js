@@ -74,6 +74,23 @@ const router = createRouter({
       name: 'class-video-room',
       component: ClassVideoRoomView 
     },
+    // 방송 모드 2개. (#123)
+    //
+    // 화상강의(/class/:id/video)와 경로를 나눈 이유 - 프로토콜도 역할도 다르다.
+    // 화상은 모두가 발언하고, 방송은 한 명이 내보내고 나머지는 본다.
+    // 같은 화면에 우겨 넣으면 "지금 내가 말할 수 있는가" 가 화면에서 안 보인다.
+    {
+      path: '/meeting/:meetingId/studio',
+      name: 'broadcast-studio',
+      component: () => import('../views/BroadcastStudioView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/meeting/:meetingId/live',
+      name: 'broadcast-watch',
+      component: () => import('../views/BroadcastWatchView.vue'),
+      meta: { requiresAuth: true }
+    },
     {
       path: '/mypage',
       name: 'mypage',

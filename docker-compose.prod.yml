@@ -65,6 +65,12 @@ services:
     volumes:
       - app_logs:/app/logs
       - app_upload:/app/upload
+      - /var/lib/edumeet/hls:/var/lib/edumeet/hls
+    environment:
+      # nginx 가 같은 호스트 경로를 /hls/ 로 서빙한다. (#123)
+      # 기본값(/tmp/edumeet-hls)을 그대로 두면 앱은 만들지만 사용자는 못 받는다.
+      EDUMEET_BROADCAST_OUTPUT_DIR: /var/lib/edumeet/hls
+      EDUMEET_BROADCAST_PUBLIC_BASE_URL: /hls
     # ★ healthcheck 를 기다린다.
     #   그냥 depends_on 만 쓰면 MySQL 프로세스가 뜬 순간 앱이 시작해서
     #   커넥션 실패로 죽는다. condition: service_healthy 가 있어야 한다.
@@ -171,6 +177,53 @@ services:
       CLOVA_SECRET_KEY: ${CLOVA_SECRET_KEY:-}
     depends_on:
       app:
+        condition: service_healthy
+    networks:
+      - edumeet
+
+  # ── 화상강의용 WebRTC SFU ──────────────────────────────────────────
+  #
+  # 프로필로 가둔다. 켜 놓고 안 쓰면 2코어에서 CPU 여유를 그냥 갉아먹는다.
+  #
+  #   docker compose -f docker-compose.prod.yml --profile livekit up -d
+  #
+  # ★ egress 는 없다. 방송(HLS)은 우리가 직접 만든다. (#123)
+  #   RoomComposite 의 CPU 4 는 "여러 참가자 화면을 합성" 하는 비용인데
+  #   방송은 발표자 한 명만 나가므로 합성할 것이 없다.
+  #   여기 LiveKit 은 화상강의(INTERACTIVE)의 WebRTC SFU 로만 쓴다.
+  #   근거: docs/plan/05-own-hls.md
+  livekit:
+    image: livekit/livekit-server:v1.8.4
+    container_name: edumeet-livekit
+    profiles: [livekit]
+    restart: unless-stopped
+    # 시크릿을 설정 파일에 두지 않는다. 앱이 쓰는 값과 같아야 한다.
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY 가 필요하다}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET 가 필요하다}"
+      # ★ ICE 포트 범위를 반드시 좁혀서 도커 매핑과 맞춘다.
+      #   기본값은 50000~60000 이다. 도커에 그 범위를 통째로 매핑하면 포트당 규칙을
+      #   만드느라 기동이 몇 분씩 걸리고, 좁게 매핑만 하고 여기를 안 고치면
+      #   LiveKit 이 매핑 밖 포트를 골라 연결이 조용히 실패한다.
+      # ★ 이름이 LIVEKIT_CONFIG 다. LIVEKIT_CONFIG_BODY 로 주면
+      #   경고 하나 없이 전부 기본값으로 뜬다. (--config-body 의 EnvVar 가 LIVEKIT_CONFIG)
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 50019
+          use_external_ip: false
+        redis:
+          address: redis:6379
+        logging:
+          level: info
+    command: --bind 0.0.0.0 --node-ip 127.0.0.1
+    ports:
+      # 밖으로 열지 않는다. 측정도 앱 호출도 전부 이 호스트 안에서 한다.
+      - "127.0.0.1:7880:7880"
+      - "127.0.0.1:50000-50019:50000-50019/udp"
+    depends_on:
+      redis:
         condition: service_healthy
     networks:
       - edumeet

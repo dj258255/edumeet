@@ -82,17 +82,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ★ compose 파일과 관측 설정을 서버로 보낸다.
+      # ★ compose 파일, nginx 설정, 관측 설정을 서버로 보낸다.
       #   이전에는 서버의 ~/edumeet 에 있는 파일을 그대로 썼다.
       #   저장소에서 compose 를 고쳐도 서버에는 반영되지 않아서
       #   "머지했는데 왜 안 바뀌지" 가 된다. .env 는 서버에만 두고 건드리지 않는다.
-      - name: Sync compose and observability config
+      #   HLS 는 nginx /hls/ 경로 자체가 기능의 일부라 nginx 설정도 같이 동기화한다. (#123)
+      - name: Sync deploy config
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
-          source: "docker-compose.prod.yml,observability/**"
+          source: "docker-compose.prod.yml,deploy/nginx/edumeet.conf,observability/**"
           target: "~/edumeet"
           overwrite: true
           strip_components: 0
@@ -114,6 +115,17 @@ jobs:
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
             export APP_IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+            # 앱 컨테이너의 spring 사용자는 uid/gid 10001 이다. (#123)
+            # 이 디렉터리가 root 소유면 ffmpeg 는 시작되지만 첫 세그먼트 생성에서 실패한다.
+            # nginx 는 호스트에서 이 경로를 /hls/ 로 서빙한다.
+            sudo install -d -o 10001 -g 10001 -m 0755 /var/lib/edumeet/hls
+
+            # nginx 설정도 배포 단위다. (#123)
+            # /hls/ location 을 코드에만 두면 운영 URL 은 계속 404 다.
+            sudo install -m 0644 deploy/nginx/edumeet.conf /etc/nginx/conf.d/edumeet.conf
+            sudo nginx -t
+            sudo systemctl reload nginx
 
             # ★ --profile observability 를 붙인다. (#83)
             #   prometheus·grafana 는 profiles: [observability] 라
@@ -180,14 +192,19 @@ jobs:
 
       - name: 빌드
         working-directory: frontend
+        env:
+          VITE_API_BASE_URL: https://api.studywithtymee.com/api/v1
+          VITE_BASE_URL: https://api.studywithtymee.com
+          VITE_API_ORIGIN: https://api.studywithtymee.com
+          VITE_LIVEKIT_URL: ${{ vars.VITE_LIVEKIT_URL }}
         run: |
           npm ci
           npm run build
-          # Vite 는 빌드 시점에 .env.production 값을 코드에 박는다.
+          # Vite 는 빌드 시점의 VITE_* 값을 코드에 박는다.
           # 도메인이 실제로 들어갔는지 여기서 확인한다 - 안 들어갔으면
           # 배포는 성공하는데 화면에서 API 호출만 전부 실패한다.
           grep -q "api.studywithtymee.com" dist/assets/*.js \
-            || { echo "::error::빌드 산출물에 API 도메인이 없다. .env.production 확인"; exit 1; }
+            || { echo "::error::빌드 산출물에 API 도메인이 없다. VITE_API_BASE_URL 확인"; exit 1; }
 
       # ★ 산출물은 워크스페이스 안에 둔다. (#99)
       #   scp-action 은 source 를 러너 작업 디렉터리 기준으로 찾는다.
