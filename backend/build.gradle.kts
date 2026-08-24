@@ -148,6 +148,20 @@ configurations["perfAnnotationProcessor"].extendsFrom(configurations.annotationP
 // Lombok 은 compileOnly 다. 이걸 빼면 @Slf4j 부터 못 찾는다.
 configurations["perfCompileOnly"].extendsFrom(configurations.compileOnly.get())
 
+// ★ 공유 계약 파일을 테스트 입력으로 선언한다. (#91)
+//
+//   contracts/internal-api.json 은 backend/ 밖에 있어서 Gradle 이 모른다.
+//   선언하지 않으면 계약만 바꿨을 때 test 태스크가 UP-TO-DATE 로 건너뛴다 -
+//   즉 CI 가 초록인데 Java 와 파이썬의 계약이 갈라져 있는 상태가 된다.
+//
+//   실제로 확인했다. 계약의 헤더 이름을 바꿔도 Java 테스트는 안 돌았고,
+//   --rerun-tasks 를 줘야만 잡혔다. 검출 구조에 난 구멍이었다.
+tasks.named<Test>("test") {
+    inputs.file(rootProject.file("../contracts/internal-api.json"))
+        .withPropertyName("internalApiContract")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 // ★ perf 소스셋을 check 에 묶는다.
 //
 //   묶기 전에는 아무도 컴파일하지 않았다. CI 는 `./gradlew build -x test` 만 돌리는데
