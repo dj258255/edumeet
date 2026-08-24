@@ -35,7 +35,7 @@ management.endpoints.web.exposure.include: health, info, metrics, prometheus
 "액추에이터는 되는데 prometheus 만 안 된다" 로 보여서 보안 설정을 한참 뒤졌다.
 
 **설정 파일만 보고 "관측이 되어 있다" 고 믿으면 안 된다.**
-그래서 [`PrometheusEndpointTest`](../../src/test/java/com/edu/edumeet/integration/observability/PrometheusEndpointTest.java) 로 고정했다.
+그래서 [`PrometheusEndpointTest`](../../backend/src/test/java/com/edu/edumeet/integration/observability/PrometheusEndpointTest.java) 로 고정했다.
 
 ## 2. 곁다리로 나온 진짜 버그 — 모든 에러가 401 로 둔갑했다
 

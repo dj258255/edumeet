@@ -1,4 +1,5 @@
 # main.py
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil, textwrap
@@ -828,60 +829,99 @@ def cleanup_class_dir(class_dir: str) -> dict:
     except Exception as e:
         return {"ok": False, "detail": f"디렉토리 삭제 실패: {e}"}
 
-def send_summary_to_api(class_id: str, meetingId : str ,md_path: str | None, pdf_path: str | None) -> dict:
+def send_summary_to_api(class_id: str, meetingId: str | None,
+                        md_path: str | None, pdf_path: str | None) -> dict:
+    """요약본을 Java 로 올린다.
 
+    Java 계약 (InternalMeetingSummaryController)
+        POST /api/v1/internal/meetings/{meetingId}/summary
+        헤더  X-Internal-Token: <공유 시크릿>
+        본문  multipart: summary_md | summary_pdf
+
+    ★ 여기가 오래 끊겨 있었다. (#91)
+      - {meetingId} 를 치환하지 않아 URL 에 문자 그대로 나갔다.
+        Java 는 %7BmeetingId%7D 를 Long 으로 파싱하려다 400 을 낸다.
+      - meetingId 를 폼 필드로 보냈다. Java 는 경로 변수로 받는다.
+      - X-Internal-Token 이 없었다. #27 에서 Java 에 검사를 붙이며
+        파이썬 쪽을 고치지 않았다. 그 상태로는 전부 403 이다.
+
+      양쪽 다 자기 코드는 맞았다. 맞춰 본 적이 없었을 뿐이라
+      어느 쪽 단위 테스트로도 안 잡혔다. 그래서 요청 자체를 테스트로 고정한다.
+    """
     try:
-        env_path = os.path.join(os.path.dirname(__file__), "../backend/.env")
+        # 설정은 이 서비스 것을 읽는다.
+        # 전에는 "../backend/.env" 를 읽었다 - 다른 프로젝트(Express)의 설정 파일이다.
+        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.env")
         if os.path.exists(env_path):
             load_dotenv(env_path)
 
         url_tpl = os.getenv("SUMMARY_UPLOAD_URL", "").strip()
         if not url_tpl:
             return {"ok": False, "detail": "SUMMARY_UPLOAD_URL 미설정"}
-        
-        url = url_tpl.replace("{classId}", str(class_id)).replace("{class_id}", str(class_id))
 
-        headers = {"Accept": "application/json"}
+        token = os.getenv("INTERNAL_API_TOKEN", "").strip()
+        if not token:
+            # 보내 봐야 403 이다. 403 을 받고 원인을 찾는 것보다
+            # 보내기 전에 설정 문제라고 말하는 편이 원인에 가깝다.
+            return {"ok": False,
+                    "detail": "INTERNAL_API_TOKEN 미설정. Java 의 /api/v1/internal/** 은 "
+                              "X-Internal-Token 없이는 403 이다."}
 
+        mid = _normalize_meeting_id(meetingId)
+        if mid is None:
+            return {"ok": False,
+                    "detail": f"meetingId 가 없다(값={meetingId!r}). Java 는 경로 변수로 요구한다."}
+
+        url = (url_tpl
+               .replace("{meetingId}", str(mid))
+               .replace("{meeting_id}", str(mid))
+               .replace("{classId}", str(class_id))
+               .replace("{class_id}", str(class_id)))
+
+        headers = {
+            "Accept": "application/json",
+            "X-Internal-Token": token,
+        }
 
         files = {}
-        # if md_path and os.path.isfile(md_path):
-        #     files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
-        # else:
-        #     return {"ok": False, "detail": "전송할 Markdown 파일이 없습니다.(summary.md 없음)"}
         if pdf_path and os.path.isfile(pdf_path):
             files["summary_pdf"] = ("summary.pdf", open(pdf_path, "rb"), "application/pdf")
         elif md_path and os.path.isfile(md_path):
-            files["summary_md"] = ("summary.md", open(md_path, "rb"), "text/markdown; charset=utf-8")
+            files["summary_md"] = ("summary.md", open(md_path, "rb"),
+                                   "text/markdown; charset=utf-8")
         else:
             return {"ok": False, "detail": "전송할 파일이 없습니다.(md/pdf 없음)"}
 
+        # class_id 는 참고용으로만 남긴다. Java 가 쓰는 식별자는 경로의 meetingId 다.
+        data = {"class_id": str(class_id)}
 
-        data = {
-            "class_id": str(class_id),
-            #"meeting_id":str(meetingId)
-        }
-
-        if meetingId not in (None, "", "null", "None", "undefined"):
-            data["meeting_id"] = str(meetingId)
         print("[upload:url]", url)
-        print("[upload:data]", data)
+        print("[upload:token]", token[:4] + "…")
         print("[upload:files]", list(files.keys()))
 
         resp = requests.post(url, headers=headers, data=data, files=files, timeout=60)
 
-        # 파일 핸들 닫기
         for f in files.values():
-            try: f[1].close()
-            except: pass
+            try:
+                f[1].close()
+            except Exception:
+                pass
 
         if 200 <= resp.status_code < 300:
-            return {"ok": True, "status": resp.status_code, "text": (resp.text or "")[:200]}
+            # Java 는 최초 기록이면 201, 재시도로 아무것도 안 바뀌었으면 200 을 준다.
+            return {"ok": True, "status": resp.status_code,
+                    "already_existed": resp.status_code == 200,
+                    "text": (resp.text or "")[:200]}
+        if resp.status_code == 403:
+            return {"ok": False, "status": 403,
+                    "detail": "Java 가 403. X-Internal-Token 값이 양쪽에서 다른지 확인할 것.",
+                    "text": (resp.text or "")[:200]}
         return {"ok": False, "status": resp.status_code, "text": (resp.text or "")[:200]}
 
+    except requests.Timeout as e:
+        return {"ok": False, "detail": f"업로드 타임아웃(60s): {e}"}
     except Exception as e:
         return {"ok": False, "detail": f"업로드 실패: {e}"}
-
 
 def _normalize_meeting_id(mid):
     """None, 'null', 'None', 'undefined', '', 공백 등을 None으로.
@@ -897,10 +937,42 @@ def _normalize_meeting_id(mid):
         return s if s.isdigit() else None
     return None
 
+class SttRequest(BaseModel):
+    """요청 본문. 이전에는 Request 를 받아 await request.json() 을 했다.
+
+    핸들러를 def 로 바꾸려면 await 를 쓸 수 없으므로 pydantic 모델로 받는다.
+    부수효과로 meetingId 누락이 500 이 아니라 422 로 나간다 -
+    잘못 보낸 쪽이 무엇을 잘못했는지 알 수 있다.
+    """
+    meetingId: str | None = None
+
+
 @app.post("/STT/{class_id}")
-async def merge_audio(class_id: str, request : Request):
-    body = await request.json()
-    Meeting_id = body.get("meetingId")
+def merge_audio(class_id: str, body: SttRequest):
+    """음성 병합 → STT → 요약 → 업로드.
+
+    ★ async def 가 아니라 def 다. (#91)
+
+      이 함수는 처음부터 끝까지 동기 블로킹이다.
+        merge_wav_files       CPU + 파일 I/O
+        Start_STT             requests.post(timeout=600)   최대 10분
+        summarize_text_auto   OpenAI 동기 호출
+        send_summary_to_api   requests.post(timeout=60)
+
+      FastAPI 는 async def 핸들러를 이벤트 루프에서 직접 돌린다.
+      그 안에서 블로킹하면 그동안 이 워커는 다른 요청을 하나도 못 받는다.
+      실측: 0.5초 블로킹 두 요청이 1.02초 걸렸다 - 완전히 직렬이다.
+      운영에서 그 자리는 10분이다.
+
+      반대로 def 로 두면 FastAPI 가 스레드풀에서 돌린다.
+      async 를 붙인 것이 상황을 악화시키고 있었다.
+
+      진짜 비동기화(requests -> httpx.AsyncClient, 파일 I/O 까지)가 더 낫지만
+      1,022줄 전체를 손대야 하고, 이 서비스는 회의당 1회 호출이라
+      스레드풀로 충분하다. 처리량이 문제가 되면 그때 다시 본다.
+      한계는 tests/test_event_loop_blocking.py 에 적어 뒀다.
+    """
+    Meeting_id = body.meetingId
     #meeting_id = _normalize_base_url(raw_meeting_id)
 
     print("파이썬 merge 합병 처리 -> class_id : ", class_id)
@@ -946,7 +1018,11 @@ async def merge_audio(class_id: str, request : Request):
         stt_result = Start_STT(out_path,class_id)
         # STT 실패 시 즉시 반환
         if not stt_result.get("ok"):
-            return {
+            # ★ 200 이 아니라 502 다. (#91)
+            #   외부 의존(STT 서버) 실패는 우리 잘못이 아니고 재시도 여지가 있다.
+            #   200 에 담아 보내면 프록시·모니터링·재시도 정책이 전부 성공으로 센다 -
+            #   실패율 지표가 0 으로 보이고 알림이 안 울린다.
+            raise HTTPException(status_code=502, detail={
                 "status": "stt_failed",
                 "message": "STT 실패",
                 "class_id": class_id,
@@ -960,12 +1036,13 @@ async def merge_audio(class_id: str, request : Request):
                 "summary_pdf_path": None,
                 "clean_path": None,
                 "summary_detail": "STT 실패로 요약 미수행",
-            }
+            })
 
          # 3) STT 성공 → 요약 실행
         transcript_path = stt_result.get("transcript_path")
         if not transcript_path:
-            return {
+            # STT 가 성공이라 했는데 결과 경로가 없다. 그것도 실패다.
+            raise HTTPException(status_code=502, detail={
                 "status": "stt_ok_no_transcript",
                 "message": "STT는 성공했지만 transcript 경로가 없습니다.",
                 "class_id": class_id,
@@ -973,7 +1050,7 @@ async def merge_audio(class_id: str, request : Request):
                 "stt_ok": True,
                 "transcript_path": None,
                 "summary_ok": False
-            }
+            })
 
         summary_result = summarize_text_auto(transcript_path, os.path.dirname(out_path))
         
@@ -995,7 +1072,7 @@ async def merge_audio(class_id: str, request : Request):
 
 
         
-        return {
+        payload = {
             "status": "summary_done" if (summary_result or {}).get("ok") else "summary_failed",
             "message": "STT 성공 및 요약 처리 완료" if (summary_result or {}).get("ok") else "STT 성공, 요약 실패",
             "class_id": class_id,
@@ -1013,8 +1090,17 @@ async def merge_audio(class_id: str, request : Request):
             "upload_result": upload_result,
             "cleanup_result": cleanup_result,
         }
+
+        # ★ 요약 실패도 502 다. 성공 경로만 200 이다. (#91)
+        if not (summary_result or {}).get("ok"):
+            raise HTTPException(status_code=502, detail=payload)
+        return payload
         
 
+    except HTTPException:
+        # 위에서 의도적으로 던진 502/4xx 를 아래 except Exception 이
+        # 500 으로 덮어쓰면 안 된다. 그러면 상태 코드를 나눈 의미가 없다.
+        raise
     except ValueError as ve:
         # 포맷/파라미터 문제 등
         raise HTTPException(status_code=415, detail=str(ve))

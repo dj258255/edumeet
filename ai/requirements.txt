@@ -29,13 +29,8 @@ rich>=13.9.4
 
 
 # --- FastAPI stack ---
-fastapi==0.115.12
-uvicorn[standard]==0.32.1
-starlette==0.40.0
-pydantic==2.10.4
 
 # --- Config / HTTP clients ---
-python-dotenv==1.0.1
 requests==2.32.4
 
 # --- OpenAI SDK (new client: `from openai import OpenAI`) ---
@@ -46,7 +41,5 @@ openai>=1.50.0
 fpdf2>=2.7,<3
 
 # --- FastAPI에서 업로드(form-data) 받을 일 생길 때 필요 (안 써도 무방) ---
-python-multipart==0.0.20
 
 # --- (선택) 비동기 HTTP가 필요할 때 ---
-httpx==0.28.1
