@@ -181,9 +181,12 @@ jobs:
           grep -q "api.studywithtymee.com" dist/assets/*.js \
             || { echo "::error::빌드 산출물에 API 도메인이 없다. .env.production 확인"; exit 1; }
 
+      # ★ 산출물은 워크스페이스 안에 둔다. (#99)
+      #   scp-action 은 source 를 러너 작업 디렉터리 기준으로 찾는다.
+      #   절대경로(/tmp/...)를 주면 상대경로로 해석해 "tar: empty archive" 가 난다.
+      #   빌드도 압축도 성공한 채로 전송만 빈 파일이 가므로 원인이 안 보인다.
       - name: 산출물 압축
-        working-directory: frontend
-        run: tar -C dist -czf /tmp/fe-dist.tgz .
+        run: tar -C frontend/dist -czf fe-dist.tgz .
 
       - name: 서버로 전송
         uses: appleboy/scp-action@v0.1.7
@@ -191,9 +194,8 @@ jobs:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
-          source: "/tmp/fe-dist.tgz"
+          source: "fe-dist.tgz"
           target: "/tmp"
-          strip_components: 1
 
       - name: 원자적 교체
         uses: appleboy/ssh-action@v1
@@ -206,7 +208,11 @@ jobs:
             set -euo pipefail
             sudo rm -rf /var/www/edumeet.new
             sudo mkdir -p /var/www/edumeet.new
+            # 빈 아카이브가 와도 그대로 배포되면 사이트가 빈 화면이 된다.
+            test -s /tmp/fe-dist.tgz
             sudo tar -C /var/www/edumeet.new -xzf /tmp/fe-dist.tgz
+            # 핵심 파일이 들어왔는지 교체 전에 확인한다.
+            test -f /var/www/edumeet.new/index.html
 
             # 반쯤 복사된 상태가 서비스되지 않게 mv 로 바꾼다.
             sudo rm -rf /var/www/edumeet.old
