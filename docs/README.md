@@ -74,6 +74,20 @@ audioRoomCompositeCpuCost = 1     오디오 방송   2 >= 1  참   → 된다
 
 → [`plan/04-three-broadcast-modes.md`](plan/04-three-broadcast-modes.md)
 
+### nginx 기본값 하나가 WebSocket 을 60초마다 끊는다
+
+같은 코드·같은 부하·같은 경로. 바뀐 것은 설정 한 줄이다.
+
+| `proxy_read_timeout` | 유지 | 조기 종료 |
+|---|---:|---:|
+| 60s (기본값) | **60.9초** | 3/3 |
+| 3600s | 90.1초 | 0/3 |
+
+**에러 로그가 안 남고, 개발 중엔 안 보이고, 트래픽이 있으면 가려진다.**
+그래서 이 시험은 일부러 **조용한 연결**을 만든다 — 부하를 걸면 이 버그는 사라진다.
+
+→ [`performance/10-websocket-behind-proxy.md`](performance/10-websocket-behind-proxy.md)
+
 ### 워크로드 모양이 다르면 무너지는 곳도 다르다
 
 같은 채팅인데 **방송형(fan-out)과 수업형(대칭)이 서로 다른 데서 무너진다.**

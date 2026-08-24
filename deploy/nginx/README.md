@@ -48,9 +48,18 @@ sudo semanage fcontext -a -t httpd_sys_content_t "/var/www/edumeet(/.*)?"
 sudo restorecon -Rv /var/www/edumeet
 ```
 
+## 8080 을 닫았다
+
+nginx 가 서기 전에는 `0.0.0.0/0` 으로 8080 이 열려 있었다(보안 목록 규칙 `kokjip`).
+**원본 IP 로 백엔드에 직접 붙는 우회로**다 — nginx 의 TLS·헤더·타임아웃을 전부 건너뛴다.
+
+```
+지금  원본 IP 로는 80·443·8080 전부 닫힘. Cloudflare 대역에만 80/443 열림
+```
+
+보안 목록은 바꾸기 전에 백업했다(`edumeet-seclist-backup-*.json`).
+
 ## 아직 안 한 것
 
-- **8080 이 `0.0.0.0/0` 으로 열려 있다** (보안 목록 규칙 `kokjip`).
-  원본 IP 로 백엔드에 직접 붙는 우회로다. nginx 가 섰으니 닫는 게 맞다
-- 암호화 모드 `전체(엄격)` + Origin Certificate
-- WebSocket 이 프록시 뒤에서 실제로 유지되는지 **측정**
+- 암호화 모드 `전체(엄격)` + Origin Certificate (지금은 자체서명 + `전체(비엄격)`)
+- STOMP 하트비트. 켜면 `proxy_read_timeout` 을 60초로 되돌려도 된다
