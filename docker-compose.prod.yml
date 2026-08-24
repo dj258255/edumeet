@@ -107,7 +107,12 @@ services:
     restart: unless-stopped
     # 사람이 봐야 하므로 이것만 publish 한다. 비밀번호는 .env 로 준다.
     ports:
-      - "3001:3000"
+      # ★ 127.0.0.1 에만 묶는다. (#88)
+      #   0.0.0.0 이면 OCI 보안 목록 하나만 잘못 열려도 Grafana 가 인터넷에 뜬다.
+      #   이 파일의 나머지(mysql·redis·prometheus)는 전부 expose 로 내부망에만 두고 있고
+      #   actuator 도 사설 IP(10.0.0.11)에만 묶여 있는데 여기만 예외였다.
+      #   보는 방법: ssh -L 3001:localhost:3001 rocky@<host> 뒤 localhost:3001
+      - "127.0.0.1:3001:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD 를 .env 에 설정해야 한다}
       # 익명 접근을 막는다. 지표는 내부 정보다.
