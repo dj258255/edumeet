@@ -1,0 +1,28 @@
+{
+  "name": "document-summary-backend",
+  "version": "1.0.0",
+  "description": "Korean Document Summary API with Morphological Analysis",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "nlp",
+    "korean",
+    "morphological-analysis",
+    "summarization"
+  ],
+  "author": "",
+  "license": "MIT"
+}
