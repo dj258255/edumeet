@@ -1,4 +1,54 @@
-# 🖥 Edumeet
+# EduMeet
+
+**청각장애 학습자를 위한 온라인 교육 플랫폼.** 실시간 음성을 자막으로 바꿉니다.
+
+**https://studywithtymee.com** · [API 문서](https://api.studywithtymee.com/swagger-ui/index.html)
+
+```
+2025.07 ~ 2025.08   6인 팀 개발 (SSAFY)
+2026.08 ~           개인 리팩토링 — 측정 기반으로 성능·장애·운영 기반 재구축
+```
+
+---
+
+## 이 저장소가 기록하는 것
+
+기능을 늘리는 것이 아니라 **"어디서부터 무너지는가" 를 재고 고친 기록**입니다.
+모든 변경에 전/후 측정을 붙였고, **개선이 없으면 없다고 적었습니다.**
+
+| | |
+|---|---|
+| **측정 기록** | [`docs/`](docs/README.md) — 전송 비용·채팅 용량·HLS·배포 |
+| **채택하지 않은 것** | 검토했지만 안 쓴 기술과 그 이유를 함께 남깁니다 |
+| **틀렸던 것** | 근거가 나온 시점에 문서와 이슈를 고쳐 적었습니다 |
+
+### 대표적인 측정
+
+**채팅 상한은 "몇 명이 붙나" 가 아니라 "몇 명까지 채팅답나" 로 결정됩니다.**
+
+| fan-out 구독자 | e2e p95 | 연결오류 |
+|---:|---:|---:|
+| 200 | 45 ms | 0 |
+| 500 | **1,313 ms** | **0** |
+
+연결은 하나도 안 끊겼습니다. 무너진 것은 지연입니다.
+→ [`docs/performance/09-chat-capacity-oci.md`](docs/performance/09-chat-capacity-oci.md)
+
+**nginx 기본값 하나가 WebSocket 을 60초마다 끊습니다.**
+
+| `proxy_read_timeout` | 유지 | 조기 종료 |
+|---|---:|---:|
+| 60s (기본값) | **60.9초** | 3/3 |
+| 3600s | 90.1초 | 0/3 |
+
+에러 로그가 안 남고, 개발 중엔 안 보이고, **트래픽이 있으면 가려집니다.**
+→ [`docs/performance/10-websocket-behind-proxy.md`](docs/performance/10-websocket-behind-proxy.md)
+
+**"선언은 있는데 아무도 안 쓴다" 를 여섯 번 만났습니다.**
+넷은 설정값, 하나는 컨테이너 두 개, 하나는 **서비스 경계**였습니다.
+→ [`docs/ops/07-declared-but-unused.md`](docs/ops/07-declared-but-unused.md)
+
+---
 
 ## 📦 저장소 구성
 
@@ -60,24 +110,56 @@ deploy/  ansible/  observability/  scripts/
 ```bash
 git clone https://github.com/dj258255/edumeet.git
 cd edumeet
-
-# 테스트는 추가 설정 없이 바로 실행됩니다 (H2 인메모리 사용)
-./gradlew test
-
-# 애플리케이션 실행에는 로컬 설정이 필요합니다
-cp src/main/resources/application-local.yml.example src/main/resources/application-local.yml
-# application-local.yml 의 빈 값을 채운 뒤
-./gradlew bootRun
 ```
 
-### 설정 파일 구조
+### 백엔드
 
-| 파일 | 내용 | 커밋 |
-|---|---|---|
-| `application.yml` | 공통 설정 (시크릿 없음) | O |
-| `application-test.yml` | 테스트 전용 (H2, 시크릿 없음) | O |
-| `application-local.yml.example` | 로컬 설정 템플릿 | O |
-| `application-local.yml` | 실제 시크릿 | **X (git 무시)** |
+```bash
+cd backend
+./gradlew test        # Docker 가 떠 있어야 한다 (아래 설명)
+./gradlew bootRun     # 기본 프로필 local
+```
+
+**테스트에 Docker 가 필요합니다.** Testcontainers 로 **MySQL 8 · Redis 7** 을 띄웁니다.
+
+> H2 를 쓰지 않는 이유 — H2 는 MySQL 의 `ENUM` 이나 `engine=InnoDB` 를 재현하지 못하고,
+> 인메모리라 네트워크 왕복이 없어 **N+1 의 실제 비용이 드러나지 않습니다.**
+> 한 번은 로컬에 떠 있던 다른 프로젝트의 Redis 때문에 **테스트가 잘못된 이유로 통과**한 적도 있습니다. (#49)
+
+### 프론트
+
+```bash
+cd frontend
+cp .env.example .env.local     # 값을 채운다
+npm ci && npm run dev
+```
+
+**Node 22 를 쓰세요.** Node 25 에서는 `vite-plugin-vue-devtools` 가 설정 로드 시점에 죽습니다
+(25 의 `localStorage` 는 객체로 존재하지만 `getItem` 이 없습니다).
+
+### AI
+
+```bash
+cd ai
+python -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+pytest -q
+```
+
+**Python 3.10 이상**이 필요합니다 (`str | None`, PEP 604). 3.9 에서는 import 조차 되지 않습니다.
+
+### 설정
+
+**프로필이 `application.yml` 한 파일 안에 있습니다.** 시크릿은 들어 있지 않습니다.
+
+| | |
+|---|---|
+| `application.yml` | `local` · `test` · `perf` · `prod` 를 다중 문서로 (`spring.config.activate.on-profile`) |
+| 값 주입 | 전부 `${ENV_VAR:기본값}` 형태. 안 채워도 로컬 기본값으로 뜬다 |
+| `env.example` | 서버 `.env` 템플릿. 운영 값은 **Ansible vault** 에 있다 |
+
+> 프로필별 파일을 나누지 않은 이유 — `prod` 문서에 `datasource` 를 안 둔 채 배포했다가
+> **조용히 H2 로 뜬 적**이 있습니다. 공통을 한곳에 두고 프로필이 덮어쓰게 했습니다. (#49)
 
 ## 📌 개발 컨벤션
 
