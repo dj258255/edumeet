@@ -128,6 +128,22 @@ HTTP 실패 0/1,968 이었다.
 
 → [`ops/09-realtime-caption-cost-quality.md`](ops/09-realtime-caption-cost-quality.md)
 
+### 실시간 자막과 문서 요약은 같은 원천, 다른 경로다
+
+자막과 요약은 모두 transcript 에서 나오지만 병목이 다르다.
+
+| 기능 | 먼저 보는 것 | 처리 경로 |
+|---|---|---|
+| 실시간 자막 | 지연·장애 격리 | streaming STT → 용어 사전 → STOMP |
+| 문서 요약 | 토큰·장문 문맥·재시도 | final transcript → LLM batch |
+| 검색 색인 | 청킹·메타데이터 | raw/display transcript 분리 후 색인 |
+
+LangChain/LangGraph 는 요약을 map/reduce, 액션 아이템, 검색 색인, 평가 단계로
+쪼갤 때 후보로 둔다. 지금처럼 hot path 자막이나 단일 LLM 호출을 감싸는 용도로는
+도입하지 않는다.
+
+→ [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md)
+
 ### MySQL 은 "새로 고른 DB" 가 아니라 유지한 운영 전제다
 
 EduMeet 에서 DB 를 PostgreSQL 로 바꾸지 않은 이유는 PostgreSQL 이 부족해서가 아니다.
@@ -295,6 +311,9 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`ops/04-observability.md`](ops/04-observability.md) | Prometheus·Grafana. **설정만 있고 동작 안 하던 것들** |
 | [`ops/06-seven-failures.md`](ops/06-seven-failures.md) | **배포가 일곱 번 실패했다** — 처음 보는 실패를 어떻게 좁혀 들어갔는가 |
 | [`ops/05-secrets.md`](ops/05-secrets.md) | Ansible Vault. 무엇이 어디에 있고 **왜 히스토리를 다시 쓰지 않았는가** |
+| [`ops/08-database-choice.md`](ops/08-database-choice.md) | MySQL 유지 결정 — PostgreSQL/MS-SQL 대안과 iMBC 맥락 |
+| [`ops/09-realtime-caption-cost-quality.md`](ops/09-realtime-caption-cost-quality.md) | 실시간 자막 비용·지연·품질 제약 |
+| [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md) | 자막 hot path 와 요약 batch path, LangChain/LangGraph 도입 기준 |
 
 ### 규칙
 
