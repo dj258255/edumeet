@@ -202,6 +202,14 @@ edumeet:
     # 카카오 로그인만 쓰기로 해서 껐다. (#55)
     # 지우지 않고 플래그로 둔 이유는 되살릴 때 다시 짜지 않기 위해서다.
     enabled: ${EMAIL_ENABLED:false}
+  chat:
+    archive:
+      # 방송 채팅을 다시보기용으로 저장한다. (#61)
+      # 끄면 큐에 넣지 않는다 - 부하 측정에서 저장을 배제하고 싶을 때 쓴다.
+      enabled: ${CHAT_ARCHIVE_ENABLED:true}
+      # 다시보기는 실시간이 아니므로 몇 초 늦어도 된다.
+      # 짧으면 트랜잭션이 잦고 길면 큐가 길어진다. queued/dropped 를 보고 조정한다.
+      flush-interval-ms: ${CHAT_ARCHIVE_FLUSH_MS:1000}
   hls:
     # egress 인스턴스가 붙어 있을 때만 켠다.
     # 켜 놓고 인스턴스가 없으면 방송 시작이 "no response from egress service" 로 실패한다.

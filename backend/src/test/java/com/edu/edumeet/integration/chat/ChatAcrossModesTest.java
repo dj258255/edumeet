@@ -145,14 +145,25 @@ class ChatAcrossModesTest {
 
         session.send("/app/rooms/" + fixture.meetingId() + "/send", new ChatSendRequest("저장 확인"));
         received.get(5, TimeUnit.SECONDS);
-        Thread.sleep(200);
 
-        long stored = chatMessageRepository.countByMeetingId(fixture.meetingId());
+        // ★ 이 시험이 재는 것은 "저장되느냐" 가 아니라 "발행 경로에서 저장되느냐" 다. (#61)
+        //
+        //   #61 이 오기 전에는 방송이 아예 저장되지 않아서 "0건" 으로 확인할 수 있었다.
+        //   지금은 배치가 1초마다 큐를 비우므로, 잠시 기다렸다 세면
+        //   들어와 있을 수도 없을 수도 있다 - 경합이다.
+        //
+        //   구독자가 메시지를 받은 직후(= 발행이 끝난 직후)에 세면
+        //   동기 저장인지 아닌지가 갈린다. 기다리지 않는 것이 핵심이다.
+        long storedRightAfterPublish = chatMessageRepository.countByMeetingId(fixture.meetingId());
         if (type.persistsChatInline()) {
-            assertThat(stored).as("%s 는 수업 기록이라 저장한다", type).isEqualTo(1);
+            assertThat(storedRightAfterPublish)
+                    .as("%s 는 수업 기록이라 발행 경로에서 동기 저장한다", type).isEqualTo(1);
         } else {
-            assertThat(stored)
-                    .as("%s 는 발행 경로에서 저장하지 않는다. 다시보기용 비동기 저장은 #61", type)
+            assertThat(storedRightAfterPublish)
+                    .as("""
+                        %s 가 발행 직후 이미 저장돼 있다면 동기 쓰기다.
+                        발행 경로에서 DB 쓰기를 뺀 의미가 없어진다. (#43 측정이 가려진다)
+                        다시보기용 비동기 저장은 ChatArchiveTest 가 따로 본다.""", type)
                     .isZero();
         }
         session.disconnect();
