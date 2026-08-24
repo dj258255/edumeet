@@ -14,7 +14,9 @@ RUN pip install --no-cache-dir -q -r requirements.txt
 # 폰트는 PDF 생성에 쓴다. 없으면 한글이 깨진 채로 나온다 -
 # 예외가 아니라 "글자가 네모로 나오는" 형태라 발견이 늦다.
 COPY fonts ./fonts
-COPY main.py config.env ./
+# main.py imports the backend client and caption normalizer at startup.
+# Keep this list explicit so a missing runtime module is visible in review.
+COPY main.py backend_client.py caption_normalizer.py config.env ./
 
 # 컨테이너 메모리 제한을 파이썬이 알 방법이 없으므로 워커 수로 관리한다.
 # 이 서비스는 한 요청이 수 분 걸리는 대신 동시 요청이 적다.
