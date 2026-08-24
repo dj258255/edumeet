@@ -1,4 +1,5 @@
 # main.py
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil, textwrap
@@ -936,10 +937,42 @@ def _normalize_meeting_id(mid):
         return s if s.isdigit() else None
     return None
 
+class SttRequest(BaseModel):
+    """요청 본문. 이전에는 Request 를 받아 await request.json() 을 했다.
+
+    핸들러를 def 로 바꾸려면 await 를 쓸 수 없으므로 pydantic 모델로 받는다.
+    부수효과로 meetingId 누락이 500 이 아니라 422 로 나간다 -
+    잘못 보낸 쪽이 무엇을 잘못했는지 알 수 있다.
+    """
+    meetingId: str | None = None
+
+
 @app.post("/STT/{class_id}")
-async def merge_audio(class_id: str, request : Request):
-    body = await request.json()
-    Meeting_id = body.get("meetingId")
+def merge_audio(class_id: str, body: SttRequest):
+    """음성 병합 → STT → 요약 → 업로드.
+
+    ★ async def 가 아니라 def 다. (#91)
+
+      이 함수는 처음부터 끝까지 동기 블로킹이다.
+        merge_wav_files       CPU + 파일 I/O
+        Start_STT             requests.post(timeout=600)   최대 10분
+        summarize_text_auto   OpenAI 동기 호출
+        send_summary_to_api   requests.post(timeout=60)
+
+      FastAPI 는 async def 핸들러를 이벤트 루프에서 직접 돌린다.
+      그 안에서 블로킹하면 그동안 이 워커는 다른 요청을 하나도 못 받는다.
+      실측: 0.5초 블로킹 두 요청이 1.02초 걸렸다 - 완전히 직렬이다.
+      운영에서 그 자리는 10분이다.
+
+      반대로 def 로 두면 FastAPI 가 스레드풀에서 돌린다.
+      async 를 붙인 것이 상황을 악화시키고 있었다.
+
+      진짜 비동기화(requests -> httpx.AsyncClient, 파일 I/O 까지)가 더 낫지만
+      1,022줄 전체를 손대야 하고, 이 서비스는 회의당 1회 호출이라
+      스레드풀로 충분하다. 처리량이 문제가 되면 그때 다시 본다.
+      한계는 tests/test_event_loop_blocking.py 에 적어 뒀다.
+    """
+    Meeting_id = body.meetingId
     #meeting_id = _normalize_base_url(raw_meeting_id)
 
     print("파이썬 merge 합병 처리 -> class_id : ", class_id)
@@ -985,7 +1018,11 @@ async def merge_audio(class_id: str, request : Request):
         stt_result = Start_STT(out_path,class_id)
         # STT 실패 시 즉시 반환
         if not stt_result.get("ok"):
-            return {
+            # ★ 200 이 아니라 502 다. (#91)
+            #   외부 의존(STT 서버) 실패는 우리 잘못이 아니고 재시도 여지가 있다.
+            #   200 에 담아 보내면 프록시·모니터링·재시도 정책이 전부 성공으로 센다 -
+            #   실패율 지표가 0 으로 보이고 알림이 안 울린다.
+            raise HTTPException(status_code=502, detail={
                 "status": "stt_failed",
                 "message": "STT 실패",
                 "class_id": class_id,
@@ -999,12 +1036,13 @@ async def merge_audio(class_id: str, request : Request):
                 "summary_pdf_path": None,
                 "clean_path": None,
                 "summary_detail": "STT 실패로 요약 미수행",
-            }
+            })
 
          # 3) STT 성공 → 요약 실행
         transcript_path = stt_result.get("transcript_path")
         if not transcript_path:
-            return {
+            # STT 가 성공이라 했는데 결과 경로가 없다. 그것도 실패다.
+            raise HTTPException(status_code=502, detail={
                 "status": "stt_ok_no_transcript",
                 "message": "STT는 성공했지만 transcript 경로가 없습니다.",
                 "class_id": class_id,
@@ -1012,7 +1050,7 @@ async def merge_audio(class_id: str, request : Request):
                 "stt_ok": True,
                 "transcript_path": None,
                 "summary_ok": False
-            }
+            })
 
         summary_result = summarize_text_auto(transcript_path, os.path.dirname(out_path))
         
@@ -1034,7 +1072,7 @@ async def merge_audio(class_id: str, request : Request):
 
 
         
-        return {
+        payload = {
             "status": "summary_done" if (summary_result or {}).get("ok") else "summary_failed",
             "message": "STT 성공 및 요약 처리 완료" if (summary_result or {}).get("ok") else "STT 성공, 요약 실패",
             "class_id": class_id,
@@ -1052,8 +1090,17 @@ async def merge_audio(class_id: str, request : Request):
             "upload_result": upload_result,
             "cleanup_result": cleanup_result,
         }
+
+        # ★ 요약 실패도 502 다. 성공 경로만 200 이다. (#91)
+        if not (summary_result or {}).get("ok"):
+            raise HTTPException(status_code=502, detail=payload)
+        return payload
         
 
+    except HTTPException:
+        # 위에서 의도적으로 던진 502/4xx 를 아래 except Exception 이
+        # 500 으로 덮어쓰면 안 된다. 그러면 상태 코드를 나눈 의미가 없다.
+        raise
     except ValueError as ve:
         # 포맷/파라미터 문제 등
         raise HTTPException(status_code=415, detail=str(ve))
