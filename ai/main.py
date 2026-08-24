@@ -923,6 +923,113 @@ def send_summary_to_api(class_id: str, meetingId: str | None,
     except Exception as e:
         return {"ok": False, "detail": f"업로드 실패: {e}"}
 
+def _split_into_captions(text: str, max_chars: int = 60) -> list[str]:
+    """전체 텍스트를 자막 조각으로 나눈다. (#113)
+
+    한 화면에 60자가 넘으면 읽기 전에 다음 것으로 넘어간다.
+    문장 부호를 우선 경계로 삼고, 한 문장이 너무 길면 그 안에서 다시 자른다.
+    """
+    import re as _re
+    if not text or not text.strip():
+        return []
+    sentences = [x.strip() for x in _re.split(r"(?<=[.!?。！？])\s+|\n+", text) if x.strip()]
+
+    chunks: list[str] = []
+    for sentence in sentences:
+        if len(sentence) <= max_chars:
+            chunks.append(sentence)
+            continue
+        # 긴 문장은 공백 경계로 자른다. 단어 중간에서 끊으면 읽기 어렵다.
+        current = ""
+        for word in sentence.split(" "):
+            if current and len(current) + 1 + len(word) > max_chars:
+                chunks.append(current)
+                current = word
+            else:
+                current = f"{current} {word}".strip()
+        if current:
+            chunks.append(current)
+    return chunks
+
+
+def send_captions_to_api(meeting_id, text: str, started_at_ms: int | None = None) -> dict:
+    """STT 결과를 자막으로 백엔드에 보낸다. (#113)
+
+    Java 계약 (contracts/internal-api.json 의 captionIngest)
+        POST /api/v1/internal/meetings/{meetingId}/captions
+        헤더  X-Internal-Token
+        본문  {"text": ..., "sequence": ..., "spokenAt": ...}
+
+    ★ 이것은 실시간 자막이 아니다.
+
+      CLOVA STT 를 녹음이 끝난 뒤 파일 하나로 부르므로 전체 텍스트가
+      한 덩어리로 나온다. 회의가 끝나야 텍스트가 나오는데 실시간일 수 없다.
+      실시간으로 하려면 CLOVA 스트리밍 API 로 바꿔야 하고 그것은 별도 작업이다.
+
+      그럼에도 지금 잇는 이유 - 소스를 바꾸는 순간 붙일 곳이 있어야 하고,
+      지금도 쓸 데가 있다. 문장 단위로 보내면 다시보기 자막이 된다.
+
+    :param started_at_ms: 회의 시작 시각(epoch ms). 조각의 발화 시각을 추정하는 기준.
+                          모르면 지금 시각을 쓴다 - 다시보기 위치가 어긋나지만
+                          자막이 아예 없는 것보다는 낫다.
+    """
+    try:
+        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.env")
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+
+        url_tpl = os.getenv("CAPTION_INGEST_URL", "").strip()
+        if not url_tpl:
+            return {"ok": False, "detail": "CAPTION_INGEST_URL 미설정"}
+
+        token = os.getenv("INTERNAL_API_TOKEN", "").strip()
+        if not token:
+            return {"ok": False,
+                    "detail": "INTERNAL_API_TOKEN 미설정. /api/v1/internal/** 은 이 헤더 없이는 403 이다."}
+
+        mid = _normalize_meeting_id(meeting_id)
+        if mid is None:
+            return {"ok": False, "detail": f"meetingId 가 없다(값={meeting_id!r})"}
+
+        chunks = _split_into_captions(text)
+        if not chunks:
+            return {"ok": False, "detail": "보낼 자막이 없다"}
+
+        url = url_tpl.replace("{meetingId}", str(mid)).replace("{meeting_id}", str(mid))
+        headers = {"Accept": "application/json", "X-Internal-Token": token}
+        base = started_at_ms if started_at_ms else int(time.time() * 1000)
+
+        sent, failed = 0, []
+        for i, chunk in enumerate(chunks):
+            body = {
+                "text": chunk,
+                "sequence": i,
+                # 실제 발화 시각을 모르므로 균등 분배한다. 이것이 근사라는 사실은
+                # 반환값의 approximate_timing 으로 알린다 - 조용히 정확한 척하지 않는다.
+                "spokenAt": base + i * 3000,
+            }
+            try:
+                r = requests.post(url, headers=headers, json=body, timeout=10)
+                if 200 <= r.status_code < 300:
+                    sent += 1
+                else:
+                    failed.append({"sequence": i, "status": r.status_code,
+                                   "text": (r.text or "")[:120]})
+            except Exception as e:
+                failed.append({"sequence": i, "detail": str(e)[:120]})
+
+        return {
+            "ok": sent > 0 and not failed,
+            "sent": sent,
+            "total": len(chunks),
+            "failed": failed[:5],
+            "approximate_timing": True,
+            "realtime": False,
+        }
+    except Exception as e:
+        return {"ok": False, "detail": f"자막 전송 실패: {e}"}
+
+
 def _normalize_meeting_id(mid):
     """None, 'null', 'None', 'undefined', '', 공백 등을 None으로.
        숫자/숫자문자열만 허용해서 문자열로 반환."""
@@ -1052,6 +1159,14 @@ def merge_audio(class_id: str, body: SttRequest):
                 "summary_ok": False
             })
 
+        # ★ STT 결과를 자막으로도 보낸다. (#113)
+        #   실시간이 아니다 - 녹음이 끝난 뒤 나온 텍스트를 문장 단위로 나눠 보낸다.
+        #   다시보기 자막으로 쓰인다. 실패해도 요약은 계속한다 -
+        #   자막이 없다고 요약까지 버릴 이유가 없다.
+        caption_result = send_captions_to_api(Meeting_id, stt_result.get("text", ""))
+        if not (caption_result or {}).get("ok"):
+            print("[caption] 전송 실패(요약은 계속):", caption_result)
+
         summary_result = summarize_text_auto(transcript_path, os.path.dirname(out_path))
         
         upload_result = None
@@ -1087,6 +1202,7 @@ def merge_audio(class_id: str, body: SttRequest):
             "summary_pdf_path": (summary_result or {}).get("summary_pdf_path"),
             "clean_path": (summary_result or {}).get("clean_path"),
             "summary_detail": (summary_result or {}).get("detail"),
+            "caption_result": caption_result,
             "upload_result": upload_result,
             "cleanup_result": cleanup_result,
         }

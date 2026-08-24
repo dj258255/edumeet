@@ -15,16 +15,34 @@
     "summaryUpload": {
       "method": "POST",
       "path": "/api/v1/internal/meetings/{meetingId}/summary",
-      "pathVariables": ["meetingId"],
-      "multipartFields": ["summary_md", "summary_pdf"],
-      "successStatus": [200, 201],
+      "pathVariables": [
+        "meetingId"
+      ],
+      "multipartFields": [
+        "summary_md",
+        "summary_pdf"
+      ],
+      "successStatus": [
+        200,
+        201
+      ],
       "$note": "201 최초 기록 / 200 재시도로 아무것도 안 바뀜"
     },
     "captionIngest": {
       "method": "POST",
       "path": "/api/v1/internal/meetings/{meetingId}/captions",
-      "pathVariables": ["meetingId"],
-      "successStatus": [200]
+      "pathVariables": [
+        "meetingId"
+      ],
+      "successStatus": [
+        200
+      ],
+      "jsonFields": [
+        "text",
+        "sequence",
+        "spokenAt"
+      ],
+      "$note": "조각 단위다. sequence 는 방 안에서 증가하고 spokenAt 은 발화 시각(epoch ms)이다"
     }
   }
 }

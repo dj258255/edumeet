@@ -164,6 +164,7 @@ services:
     environment:
       # 계약은 contracts/internal-api.json 이다. 경로 변수는 meetingId 다.
       SUMMARY_UPLOAD_URL: http://app:8080/api/v1/internal/meetings/{meetingId}/summary
+      CAPTION_INGEST_URL: http://app:8080/api/v1/internal/meetings/{meetingId}/captions
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CLOVA_INVOKE_URL: ${CLOVA_INVOKE_URL:-}
