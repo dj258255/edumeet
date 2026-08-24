@@ -25,13 +25,42 @@ sudo nginx -t && sudo systemctl reload nginx
 실제로 `http2 on;`(1.25.1+ 문법)을 1.20.1 서버에 넣었다가 여기서 걸렸고,
 덕분에 사이트가 안 죽었다.
 
-## 인증서
+## 인증서 — Let's Encrypt
 
-Cloudflare Origin Certificate 를 `/etc/nginx/ssl/origin.{crt,key}` 에 둔다.
+```
+/etc/letsencrypt/live/studywithtymee.com/{fullchain,privkey}.pem
+```
 
-지금은 **자체서명**이 들어 있다. 암호화 모드가 `전체(비엄격)` 이라 CF 가
-원본 인증서를 암호화에만 쓰고 신원 검증은 하지 않으므로 동작한다.
-`전체(엄격)` 으로 올리려면 Origin Certificate 로 교체해야 한다.
+### 프록시 뒤인데 Let's Encrypt 가 되는가 — 된다
+
+처음에는 자체서명을 쓰고 *"Cloudflare 뒤라 Let's Encrypt 는 어렵다"* 고 적었다.
+닭-달걀이라고 봤다 — 암호화 모드가 `전체` 면 CF 가 원본 **443** 에 붙으므로
+원본에 인증서가 없으면 HTTP-01 검증이 도달하지 못한다고.
+
+**확인해 보니 아니었다.** Cloudflare 는 프록시가 켜져 있어도
+`http://` 요청을 원본 **80** 으로 넘기고 `/.well-known/acme-challenge/` 를 그대로 통과시킨다.
+프로브 파일을 놓고 밖에서 읽어 확인한 뒤 발급했다.
+
+그래서 **Origin Certificate(대시보드 작업) 없이** 발급할 수 있고,
+공개 CA 인증서라 암호화 모드를 **`전체(엄격)`** 으로 올릴 수 있다.
+
+### 갱신
+
+```
+certbot-renew.timer          매일. is-enabled 만으로는 안 돈다 - start 해야 한다
+renewal-hooks/deploy/        갱신 후 nginx -t && systemctl reload nginx
+```
+
+**deploy 훅이 핵심이다.** 없으면 certbot 은 새 인증서를 받는데 nginx 는
+메모리에 올린 옛 파일을 계속 쓴다. 90일 뒤 **브라우저에서는 만료인데
+서버에는 유효한 파일이 있는** 상태가 된다.
+
+`certbot renew --dry-run` 으로 훅까지 확인했다.
+
+### 80 포트를 계속 열어 둔다
+
+`/.well-known/acme-challenge/` 갱신 경로 때문이다. 막으면 90일 뒤 갱신이 실패한다.
+나머지는 전부 https 로 301 한다.
 
 ## 겪은 것
 
