@@ -105,9 +105,21 @@ services:
     container_name: edumeet-grafana
     profiles: [observability]
     restart: unless-stopped
-    # 사람이 봐야 하므로 이것만 publish 한다. 비밀번호는 .env 로 준다.
+    # ★ 127.0.0.1 에만 묶는다. (#89)
+    #
+    #   이 파일은 노출에 일관되게 조심하고 있는데 여기만 예외였다.
+    #     mysql · redis · prometheus   expose 만 (내부망)
+    #     actuator                     10.0.0.11:9091 (사설 IP 전용)
+    #     grafana                      0.0.0.0:3001    <- 여기
+    #
+    #   지금은 OCI 보안 목록이 막아 준다. 그런데 80/443 을 열려고
+    #   그 목록을 편집해야 하는 시점이라, 3001 이 딸려 열리면
+    #   Grafana 로그인 화면이 그대로 인터넷에 뜬다.
+    #   보안 목록이 잘못돼도 바인딩이 막게 한 겹 더 둔다.
+    #
+    #   보는 방법:  ssh -L 3001:localhost:3001 rocky@<host>
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD 를 .env 에 설정해야 한다}
       # 익명 접근을 막는다. 지표는 내부 정보다.
