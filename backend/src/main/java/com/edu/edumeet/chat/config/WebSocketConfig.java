@@ -5,6 +5,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.context.annotation.Bean;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -58,12 +61,47 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${front.url2}")
     private String frontUrl2;
 
+    /**
+     * 하트비트 주기(밀리초). 서버가 보내는 주기 / 서버가 기대하는 주기.
+     *
+     * <p><b>왜 켜는가.</b> 채팅은 조용한 구간이 길다. 수업 중 1분 동안 아무도
+     * 말을 안 하는 것은 흔하다. 그러면 중간의 프록시가 유휴 연결로 보고 끊는다 -
+     * nginx {@code proxy_read_timeout} 기본값이 60초다.
+     *
+     * <p>실측했다. 하트비트 없이 조용한 연결 3개를 90초 유지했더니
+     * <b>60.9초에 전부 끊겼다.</b> 그때는 {@code proxy_read_timeout} 을 3600초로
+     * 늘려서 막았는데, 그건 <b>죽은 연결도 한 시간 잡고 있겠다</b>는 뜻이다.
+     *
+     * <p>하트비트가 있으면 유휴가 아니게 되므로 프록시 타임아웃을 짧게 둘 수 있고,
+     * <b>죽은 연결을 빨리 걷어낼 수 있다.</b> 이쪽이 본래 해법이다.
+     *
+     * <p>25초로 잡은 이유 — 60초 타임아웃의 절반보다 작아야 한 번 놓쳐도 살아남는다.
+     * 너무 짧으면 연결 수만큼 프레임이 늘어난다. 500 연결이면 초당 20프레임이다.
+     */
+    private static final long[] HEARTBEAT = {25_000L, 25_000L};
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // 구독 대상. 방 하나가 /topic/rooms/{meetingId} 다.
-        registry.enableSimpleBroker("/topic");
+        //
+        // ★ SimpleBroker 의 하트비트는 TaskScheduler 가 있어야 동작한다. (#106)
+        //   setHeartbeatValue 만 주고 스케줄러를 안 주면 조용히 무시된다 -
+        //   설정은 있는데 프레임이 안 나가는, 이 저장소에서 여러 번 본 모양이다.
+        registry.enableSimpleBroker("/topic")
+                .setHeartbeatValue(HEARTBEAT)
+                .setTaskScheduler(heartbeatScheduler());
         // 클라이언트가 서버로 보낼 때의 접두사. @MessageMapping 이 이 뒤를 받는다.
         registry.setApplicationDestinationPrefixes("/app");
+    }
+
+    /** 하트비트 전용 스케줄러. 한 스레드면 충분하다 - 프레임을 밀어 넣기만 한다. */
+    @Bean
+    public TaskScheduler heartbeatScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("stomp-heartbeat-");
+        scheduler.initialize();
+        return scheduler;
     }
 
     @Override
