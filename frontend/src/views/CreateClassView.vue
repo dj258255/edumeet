@@ -244,7 +244,7 @@ async function handleJoinClassConfirm(joinData) {
     }
     
     console.log('🔍 토큰 요청 시작')
-    console.log('🔍 요청 URL:', `https://i13c205.p.ssafy.io/api/v1/meetingroom/token`)
+    console.log('🔍 요청 URL:', `https://api.studywithtymee.com/api/v1/meetingroom/token`)
     console.log('🔍 요청 헤더:', {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken.substring(0, 20)}...`
@@ -257,7 +257,7 @@ async function handleJoinClassConfirm(joinData) {
       classId: joinData.classId
     })
     
-    const response = await fetch(`https://i13c205.p.ssafy.io/api/v1/meetingroom/token`, {
+    const response = await fetch(`https://api.studywithtymee.com/api/v1/meetingroom/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
