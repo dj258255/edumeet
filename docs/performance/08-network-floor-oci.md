@@ -92,7 +92,7 @@ k6 run -e BASE=http://<host>:8080 k6/network-floor.js
 | **채팅 동시 접속 상한** | **OCI** | 이 프로젝트의 중심 질문. WebSocket 이라 페이로드가 작아 대역폭 문제도 없다 |
 | 큐 OOM 재현 | **노트북** | 힙을 512MB 로 **통제**해야 재현된다. 서버에선 통제가 안 된다 |
 | LiveKit RoomComposite egress | **불가** | 여러 화면 합성 비용 때문에 4코어가 필요하다 |
-| 직접 HLS delivery | **별도 측정** | 합성 없이 발표자 조각만 패키징한다. 로컬 ffmpeg 는 검증했고 OCI 실측은 별도 |
+| 직접 HLS delivery | **분리 측정** | ffmpeg 생성 비용은 OCI 2 OCPU 에서, 운영 HLS viewer 는 k6 로 따로 쟀다 |
 
 ---
 

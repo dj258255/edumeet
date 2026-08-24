@@ -212,8 +212,8 @@ Spring 공식 문서 (직접 재확인):
 | | |
 |---|---|
 | **만든다** | WebSocket 채팅(화상강의 + 라이브방송), 부하·백프레셔 측정, 다중 인스턴스 확장 |
-| **만들되 범위를 자른다** | HLS — LiveKit Egress 경유. 세그먼트 길이 ↔ 지연 트레이드오프 측정까지 |
-| **만들지 않는다** | Netty 직접 구현, LL-HLS, FFmpeg 파이프라인 자체 구축, 자체 HLS 파서, Kafka |
+| **만들되 범위를 자른다** | HLS — 발표자 1명 방송은 직접 delivery 로 만들고, ffmpeg 생성 비용과 viewer delivery 비용을 분리 측정 |
+| **만들지 않는다** | Netty 직접 구현, LL-HLS, 자체 HLS 파서, Kafka |
 | **조건부** | NATS(사전 등록 기준 충족 시), ABR, 계측 플레이어 |
 
 ---
@@ -981,7 +981,7 @@ Phase 7  문서                    ★★★  필수
 | **LL-HLS** | **LiveKit egress 출력이 TS 세그먼트라 CMAF가 아니고, 부분 세그먼트를 얹을 경로가 없다.** 서버가 Blocking Playlist Reload를 포함해 5개 메커니즘을 구현해야 하는데 hls.js는 이미 `lowLatencyMode=true`라 기여 여지가 0. §9-5 |
 | **Kafka** | 채팅 실시간 전파에는 지연·운영 부담이 과하다. 우리에겐 Kafka Streams가 필요한 요구사항이 없다 |
 | **HLS 파서 직접 구현** | RFC 8216 태그만 수십 개 + MSE 버퍼 관리(쿼터·갭 점핑·stall 복구). *"동작한다"까지 하루, "엣지 케이스에서 안 깨진다"까지는 영원히.* 방송사 IT는 파서를 짜는 사람이 아니라 파이프라인을 운영·계측하는 사람을 뽑는다 |
-| **FFmpeg 파이프라인 자체 구축** | LiveKit egress가 이미 그 파이프라인이다. 비-Docker 실행은 GStreamer + Chrome + Xvfb + PulseAudio 직접 설치. Apple 7.4 + 1.13 + 7.7을 동시에 만족시키는 GOP/세그먼터 튜닝만으로 며칠이 사라진다 |
+| **범용 FFmpeg 미디어 서버 구축** | OBS/RTMP/SRT/다중 ABR/VOD/DASH 까지 받는 범용 서버는 만들지 않는다. 현재는 브라우저 발표자 1명 조각을 HLS delivery 로 바꾸는 좁은 ffmpeg 경로만 구현했다 |
 | **RabbitMQ STOMP relay 벤치마크** | 설치·플러그인·권한에 1~2일, 결과는 예측 가능("브로커 늘어서 지연 조금 늘고 확장성 좋아짐") |
 | **단일 머신 100만 연결 도전** | 클라이언트 장비가 먼저 죽는다. 노트북 1대 상한은 5,000~10,000 연결 |
 | **JMeter로 WebSocket 부하** | VU당 스레드 1개 → 5,000 연결에 5,000 스레드 → **JMeter가 먼저 죽는다** |
