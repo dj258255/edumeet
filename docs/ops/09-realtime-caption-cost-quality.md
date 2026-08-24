@@ -147,6 +147,8 @@ redis       → Redis
 
 **STT 와 LLM 을 분리한다.**
 STT 는 접근성 hot path 이고, LLM 은 학습 보조·검색·요약 경로다.
+요약 파이프라인과 LangChain/LangGraph 도입 기준은
+[`10-ai-caption-summary-pipeline.md`](10-ai-caption-summary-pipeline.md)에 따로 정리했다.
 
 ## 6. 측정해야 할 것
 
