@@ -54,8 +54,8 @@ public class Meeting {
     private String summaryPdfUrl;
 
     /** 진행 중인 HLS egress 의 id. null 이면 내보내는 중이 아니다. (#75) */
-    @Column(name = "hls_egress_id", length = 100)
-    private String hlsEgressId;
+    @Column(name = "broadcast_session_id", length = 100)
+    private String broadcastSessionId;
 
     /** 플레이어가 여는 라이브 플레이리스트 주소. 방송이 끝나도 지우지 않는다. (#75) */
     @Column(name = "hls_playlist_url", length = 500)
@@ -111,26 +111,30 @@ public class Meeting {
         return this.summaryMdUrl != null || this.summaryPdfUrl != null;
     }
 
-    /** HLS 내보내기를 시작했다고 기록한다. (#75) */
-    public void startHls(String egressId, String playlistUrl) {
-        this.hlsEgressId = egressId;
+    /** 방송 송출을 시작했다고 기록한다. (#75, #123 에서 자체 구현으로 교체) */
+    public void startBroadcast(String sessionId, String playlistUrl) {
+        this.broadcastSessionId = sessionId;
         this.hlsPlaylistUrl = playlistUrl;
     }
 
     /**
-     * HLS 내보내기를 멈췄다고 기록한다.
+     * 방송 송출을 멈췄다고 기록한다.
      *
-     * <p><b>플레이리스트 주소는 지우지 않는다.</b> 방송이 끝나면 {@code live.m3u8} 은
-     * 의미를 잃지만 같은 디렉터리의 {@code index.m3u8} 은 다시보기로 남는다.
-     * 주소를 지우면 다시보기로 가는 길이 끊긴다.
+     * <p><b>플레이리스트 주소는 지우지 않는다.</b> "이 세션은 방송이었다" 는 사실 자체가
+     * 기록이고, 다시보기 채팅이 재생 위치를 기준으로 동작하려면 방송이었다는 것을 알아야 한다.
+     *
+     * <p><b>다만 이 주소로는 다시 볼 수 없다.</b> 송출은 {@code delete_segments} 로 돌아
+     * 오래된 세그먼트를 지운다. 지우지 않으면 방송 내내 디스크가 찬다.
+     * <b>다시보기 영상은 이 경로가 만들지 않는다</b> — 별도 녹화가 필요하고, 아직 없다.
+     * ({@code docs/plan/05-own-hls.md} 의 "안 만든 것")
      */
-    public void stopHls() {
-        this.hlsEgressId = null;
+    public void stopBroadcast() {
+        this.broadcastSessionId = null;
     }
 
-    /** 지금 HLS 로 내보내는 중인가. */
-    public boolean isStreamingHls() {
-        return hlsEgressId != null;
+    /** 지금 방송을 송출 중인가. */
+    public boolean isBroadcasting() {
+        return broadcastSessionId != null;
     }
 
     @PrePersist @PreUpdate

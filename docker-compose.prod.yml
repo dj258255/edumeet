@@ -175,7 +175,85 @@ services:
     networks:
       - edumeet
 
+  # ── 오디오 방송 HLS ────────────────────────────────────────────────
+  #
+  # 프로필로 가둔다. 켜 놓고 안 쓰면 2코어에서 CPU 여유를 그냥 갉아먹는다.
+  #
+  #   docker compose -f docker-compose.prod.yml --profile livekit up -d
+  #
+  # ★ 비디오 방송은 여기서 뜨지 않는다. RoomComposite 는 CPU 4 가 필요하고
+  #   우리는 2 다. egress 프로세스 자체는 정상으로 뜨고 비디오 요청만 거부된다.
+  #   자세한 근거: deploy/livekit/README.md
+  livekit:
+    image: livekit/livekit-server:v1.8.4
+    container_name: edumeet-livekit
+    profiles: [livekit]
+    restart: unless-stopped
+    # 시크릿을 설정 파일에 두지 않는다. 앱이 쓰는 값과 같아야 한다.
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY 가 필요하다}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET 가 필요하다}"
+      # ★ ICE 포트 범위를 반드시 좁혀서 도커 매핑과 맞춘다.
+      #   기본값은 50000~60000 이다. 도커에 그 범위를 통째로 매핑하면 포트당 규칙을
+      #   만드느라 기동이 몇 분씩 걸리고, 좁게 매핑만 하고 여기를 안 고치면
+      #   LiveKit 이 매핑 밖 포트를 골라 연결이 조용히 실패한다.
+      # ★ 이름이 LIVEKIT_CONFIG 다. LIVEKIT_CONFIG_BODY 로 주면
+      #   경고 하나 없이 전부 기본값으로 뜬다. (--config-body 의 EnvVar 가 LIVEKIT_CONFIG)
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          port_range_start: 50000
+          port_range_end: 50019
+          use_external_ip: false
+        redis:
+          address: redis:6379
+        logging:
+          level: info
+    command: --bind 0.0.0.0 --node-ip 127.0.0.1
+    ports:
+      # 밖으로 열지 않는다. 측정도 앱 호출도 전부 이 호스트 안에서 한다.
+      - "127.0.0.1:7880:7880"
+      - "127.0.0.1:50000-50019:50000-50019/udp"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - edumeet
+
+  egress:
+    image: livekit/egress:v1.9.0
+    container_name: edumeet-egress
+    profiles: [livekit]
+    restart: unless-stopped
+    # ★ Chrome 샌드박스 때문에 필요하다. 오디오 전용(SDK 경로)은 Chrome 을 안 띄우지만,
+    #   레이아웃이 들어오면 Web 경로로 넘어가므로 그때 없으면 원인을 찾기 어려운 실패가 난다.
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      EGRESS_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY:?}
+        api_secret: ${LIVEKIT_API_SECRET:?}
+        ws_url: ws://livekit:7880
+        redis:
+          address: redis:6379
+        log_level: info
+        # 세그먼트를 컨테이너 로컬에 쓴다. R2 로 보내려면 앱이 S3 설정을 채워 준다.
+        # 여기서는 지연을 재는 게 목적이라 네트워크를 사이에 두지 않는다.
+    volumes:
+      # 명명 볼륨을 쓴다. 호스트 경로를 바인드하면 SELinux Enforcing 라벨(:z)과
+      # egress 가 root 로 안 도는 문제를 둘 다 떠안는데, 명명 볼륨은 도커가 알아서 한다.
+      - egress_out:/out
+    working_dir: /out
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    networks:
+      - edumeet
+
 volumes:
+  egress_out:
   prometheus_data:
   grafana_data:
   mysql_data:

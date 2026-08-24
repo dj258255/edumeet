@@ -231,6 +231,15 @@ accept   := available >= required        // 아니면 ErrNotEnoughCPU
 | 비디오 방송 HLS | 4 | `2 >= 4` 거짓 | **거부** |
 | 오디오 방송 HLS | 1 | `2 >= 1` 참 | **가능** |
 
+> ## ★ 이 절은 실제로 띄워 보고 절반이 틀렸다는 것이 드러났다 (#123)
+>
+> `minimumCpu` 라는 로그 필드에 **최댓값**이 들어간다. `minimumCpu: 4, available: 2` 를
+> 보고 *"egress 자체가 안 된다"* 로 읽었는데, 오디오는 1이라 2코어에서 돈다.
+>
+> 그리고 더 중요한 것 — **방송은 발표자 한 명만 나가므로 합성이 필요 없다.**
+> `RoomComposite` 의 CPU 4는 합성 비용이다. 합성이 필요 없으면 egress 자체가 과잉이다.
+> 지금은 걷어내고 직접 만든다. → [`05-own-hls.md`](05-own-hls.md)
+
 **그리고 시작 시점 검사(`validateCPUConfig`)는 가장 싼 타입(`trackCpuCost = 0.5`)과만 비교한다.**
 → egress 프로세스는 정상으로 뜨는데 **비디오 방송 시작만 실패한다.**
 

@@ -1,6 +1,5 @@
 package com.edu.edumeet.meeting.config;
 
-import io.livekit.server.EgressServiceClient;
 import io.livekit.server.RoomServiceClient;
 import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,7 +47,6 @@ public class LiveKitConfig {
      * <b>egress 는 돌고 있는데 우리는 실패로 처리하는</b> 상태가 된다 -
      * 그러면 코어를 먹는 고아 egress 가 남는다.
      */
-    private static final Duration EGRESS_READ_TIMEOUT = Duration.ofSeconds(10);
 
     @Bean
     public RoomServiceClient roomServiceClient() {
@@ -56,11 +54,6 @@ public class LiveKitConfig {
                 httpClient(READ_TIMEOUT));
     }
 
-    @Bean
-    public EgressServiceClient egressServiceClient() {
-        return EgressServiceClient.createClient(host, apiKey, apiSecret, () ->
-                httpClient(EGRESS_READ_TIMEOUT));
-    }
 
     private OkHttpClient httpClient(Duration readTimeout) {
         return new OkHttpClient.Builder()
