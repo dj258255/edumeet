@@ -304,3 +304,69 @@ MANAGEMENT_BIND=10.0.0.11
         labels:
           service: edumeet
 ```
+
+---
+
+## ★ 모노레포가 되면서 절반만 자동화돼 있었다 (2026-08-24, #99)
+
+프론트·AI 를 합친 뒤 상태를 세어 보니 이랬다.
+
+| | CI | Deploy |
+|---|---|---|
+| backend | ✅ | ✅ |
+| ai | ✅ | ❌ |
+| **frontend** | **❌ 빌드조차 안 함** | **❌ 손으로 올림** |
+
+**프론트를 손으로 올리고 있었다.** master 에 프론트를 고쳐 push 해도
+서버의 `/var/www/edumeet` 은 그대로다 — *"머지했는데 왜 안 바뀌지"* 가 된다.
+
+그리고 **경로 필터가 없어서** 문서만 고쳐도 백엔드 전체를 빌드·테스트했다.
+
+### 경로 필터를 `on:` 이 아니라 잡 단위로 걸었다
+
+```yaml
+on:
+  push:
+    paths: ['backend/**']     # ← 이렇게 하지 않는다
+```
+
+**워크플로의 `on:` 에 걸면 "돌지 않은 잡" 이 pending 으로 남는다.**
+필수 체크로 지정했다면 PR 이 영원히 머지되지 않는다.
+
+잡 단위로 나누면 해당 없는 잡은 **skip** 되고 체크는 초록으로 끝난다.
+
+```yaml
+jobs:
+  changes:                      # 무엇이 바뀌었는지 먼저 판별
+    outputs: {backend, frontend, ai}
+  build-and-test:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+```
+
+### 빌드 산출물을 검증한다
+
+Vite 는 **빌드 시점에** `.env.production` 값을 코드에 박는다.
+값이 안 들어가도 빌드는 성공하고, **배포도 성공하고, 화면에서 API 호출만 전부 실패한다.**
+
+```bash
+grep -q "api.studywithtymee.com" dist/assets/*.js || exit 1
+```
+
+죽은 SSAFY 주소(`i13c205`)가 늘어나는 것도 막는다.
+(`DocumentSummaryView` 의 2곳은 우리 백엔드에 없는 경로라 의도적으로 남겨 둔 것이므로 상한을 둔다)
+
+### 배포는 원자적으로, SELinux 는 잊지 않게
+
+```bash
+sudo mv /var/www/edumeet.new /var/www/edumeet   # 반쯤 복사된 상태가 서비스되지 않게
+sudo restorecon -R /var/www/edumeet             # 없으면 파일 권한은 멀쩡한데 403
+```
+
+배포 뒤 **실제로 200 을 주는지 확인**한다. 배포 성공과 서비스 정상은 다른 말이다.
+
+## 아직 자동화되지 않은 것
+
+- **AI 서비스 배포.** 테스트는 CI 에서 돌지만 서버에 올리는 경로가 없다.
+  `/STT/{class_id}` 를 부르는 곳이 아직 없어서 급하지 않다
+- 롤백. 지금은 이전 이미지 태그로 수동 재배포한다
