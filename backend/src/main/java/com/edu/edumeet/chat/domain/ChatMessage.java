@@ -19,7 +19,10 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "chat_message",
-       indexes = @Index(name = "idx_chat_message_meeting_sent", columnList = "meeting_id, sent_at"))
+       indexes = {
+               @Index(name = "idx_chat_message_meeting_sent", columnList = "meeting_id, sent_at"),
+               @Index(name = "idx_chat_message_replay", columnList = "meeting_id, offset_millis")
+       })
 @Getter
 @Builder
 @AllArgsConstructor

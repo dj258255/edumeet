@@ -22,6 +22,7 @@ import com.edu.edumeet.meeting.domain.SessionType;
 import com.edu.edumeet.meeting.dto.request.MeetingCreateRequestDto;
 import com.edu.edumeet.meeting.dto.response.ClassMeetingInfoResponseDto;
 import com.edu.edumeet.meeting.dto.response.MeetingCreateResponseDto;
+import com.edu.edumeet.meeting.dto.response.MeetingStatusResponseDto;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ReactiveAdapterRegistry;
@@ -367,11 +368,29 @@ public class MeetingService {
                         .startTime(m.getStartTime())
                         .endTime(m.getEndTime())
                         .s3url(m.getS3url())
+                        .sessionType(m.getSessionType())
+                        .hlsPlaylistUrl(m.getHlsPlaylistUrl())
+                        .broadcasting(m.isBroadcasting())
                         .build())
                 .toList();
         
         log.info("✅ 미팅 목록 조회 완료 - 미팅 수: {}", meetings.size());
         return meetings;
+    }
+
+    /**
+     * 세션 단건 상태를 조회한다.
+     *
+     * <p>라이브·오디오 방송의 시청 화면은 {@code hlsPlaylistUrl} 을 여기서 얻는다. (#124)
+     * 이 계약이 없으면 송출은 켜져도 시청 화면은 플레이리스트를 찾지 못한다.
+     */
+    @Transactional(readOnly = true)
+    public MeetingStatusResponseDto getMeetingStatus(String email, Long meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다: " + meetingId));
+
+        classAccessChecker.requireMember(meeting.getClassRoom().getId(), email);
+        return MeetingStatusResponseDto.from(meeting);
     }
 
     /**

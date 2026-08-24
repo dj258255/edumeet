@@ -11,11 +11,20 @@
  */
 import apiClient from '@/utils/apiClient'
 import { chooseMimeType, isRemuxable } from './codecChoice'
+import {
+  getBroadcastProfile,
+  mediaConstraintsFor,
+  profileSummary,
+  recorderOptionsFor,
+} from './broadcastProfiles'
 
 /** 조각 하나의 길이. 서버의 세그먼트 길이와 맞춘다. */
 export const CHUNK_MS = 2000
 
-export function createPublisher(meetingId, { audioOnly = false, onStatus = () => {} } = {}) {
+export function createPublisher(
+  meetingId,
+  { audioOnly = false, profileId = 'standard', onStatus = () => {} } = {},
+) {
   let recorder = null
   let stream = null
   let seq = 0
@@ -26,14 +35,11 @@ export function createPublisher(meetingId, { audioOnly = false, onStatus = () =>
 
   async function start() {
     const choice = chooseMimeType(audioOnly)
+    const profile = getBroadcastProfile(profileId)
 
-    stream = await navigator.mediaDevices.getUserMedia(
-      audioOnly ? { audio: true } : { audio: true, video: { width: 1280, height: 720 } },
-    )
+    stream = await navigator.mediaDevices.getUserMedia(mediaConstraintsFor({ audioOnly, profileId }))
 
-    recorder = choice.mimeType
-      ? new MediaRecorder(stream, { mimeType: choice.mimeType })
-      : new MediaRecorder(stream)
+    recorder = new MediaRecorder(stream, recorderOptionsFor(choice, { audioOnly, profileId }))
 
     // ★ 요청한 값이 아니라 실제로 정해진 값을 보낸다.
     //   MediaRecorder 는 못 쓰는 mimeType 을 조용히 바꾼다.
@@ -44,6 +50,9 @@ export function createPublisher(meetingId, { audioOnly = false, onStatus = () =>
       state: 'live',
       mimeType: actual,
       remuxable: isRemuxable(actual, audioOnly),
+      profileId: profile.id,
+      profileLabel: profile.label,
+      profileSummary: profileSummary(profile.id, audioOnly),
       playlistUrl: data.playlistUrl,
     })
 
@@ -88,5 +97,10 @@ export function createPublisher(meetingId, { audioOnly = false, onStatus = () =>
     }
   }
 
-  return { start, stop, stats: () => ({ sent, rejected, failed }) }
+  return {
+    start,
+    stop,
+    stats: () => ({ sent, rejected, failed }),
+    mediaStream: () => stream,
+  }
 }

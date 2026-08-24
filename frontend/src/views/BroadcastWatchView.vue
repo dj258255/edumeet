@@ -9,11 +9,16 @@
  * ★ 지연을 화면에 띄운다.
  *   HLS 는 세그먼트 길이만큼 늦는다. 숨기면 "왜 늦지" 가 되고,
  *   보여 주면 "원래 그런 것" 이 된다. 채팅과 방송이 어긋나 보이는 이유이기도 하다.
+ *
+ * ★ 지연과 버퍼는 다르다.
+ *   hls.js 의 latency 는 live edge 와의 거리이고, video.buffered 는 당장 재생 가능한
+ *   버퍼다. 둘을 섞으면 "지연이 줄었다" 와 "버퍼가 줄었다" 를 구분하지 못한다.
  */
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import apiClient from '@/utils/apiClient'
 import { attachHls } from '@/features/broadcast/hlsPlayer'
+import { metricText } from '@/features/broadcast/hlsMetrics'
 import BroadcastChat from '@/components/BroadcastChat.vue'
 
 const route = useRoute()
@@ -23,7 +28,7 @@ const videoEl = ref(null)
 const playlistUrl = ref('')
 const waiting = ref(true)
 const error = ref('')
-const latency = ref(null)
+const metrics = ref(null)
 
 let handle = null
 let timer = null
@@ -43,7 +48,10 @@ onMounted(async () => {
     const url = await findPlaylist()
     if (!url) return false
     playlistUrl.value = url
-    handle = attachHls(videoEl.value, url, { onError: (e) => { error.value = e.message } })
+    handle = await attachHls(videoEl.value, url, {
+      onError: (e) => { error.value = e.message },
+      onMetrics: (m) => { metrics.value = m },
+    })
     waiting.value = false
     return true
   }
@@ -53,13 +61,6 @@ onMounted(async () => {
       if (await tryAttach()) clearInterval(timer)
     }, 3000)
   }
-
-  // 라이브 가장자리에서 얼마나 뒤에 있는지. 이것이 체감 지연이다.
-  setInterval(() => {
-    const v = videoEl.value
-    if (!v || !v.buffered.length) return
-    latency.value = (v.buffered.end(v.buffered.length - 1) - v.currentTime).toFixed(1)
-  }, 1000)
 })
 
 onBeforeUnmount(() => {
@@ -79,9 +80,22 @@ onBeforeUnmount(() => {
       <p v-else-if="error" class="watch__overlay watch__overlay--error" role="alert">{{ error }}</p>
     </section>
 
-    <p v-if="latency !== null" class="watch__latency">
-      라이브 가장자리에서 <strong>{{ latency }}초</strong> 뒤 · HLS 는 세그먼트 길이만큼 늦습니다
-    </p>
+    <section v-if="metrics" class="watch__metrics" aria-label="HLS 품질 지표">
+      <dl>
+        <dt>라이브 지연</dt><dd>{{ metricText(metrics.latency, '초') }}</dd>
+        <dt>목표 지연</dt><dd>{{ metricText(metrics.targetLatency, '초') }}</dd>
+        <dt>버퍼</dt><dd>{{ metricText(metrics.buffer, '초') }}</dd>
+        <dt>대역폭 추정</dt><dd>{{ metricText(metrics.bandwidthKbps, 'kbps') }}</dd>
+        <dt>화질 레벨</dt><dd>{{ metrics.level }}</dd>
+        <dt>조각 로드</dt><dd>{{ metricText(metrics.fragLoadMs, 'ms') }}</dd>
+        <dt>드롭 프레임</dt><dd>{{ metricText(metrics.droppedFrames) }}</dd>
+        <dt>오류</dt><dd :class="{ warn: metrics.errors }">{{ metrics.errors }}</dd>
+      </dl>
+      <p>
+        HLS 는 WebRTC 보다 늦지만 HTTP 캐시와 CDN 으로 많이 뿌리기 쉽습니다.
+        지연·버퍼·로드 시간을 따로 봐야 원인을 분리할 수 있습니다.
+      </p>
+    </section>
 
     <BroadcastChat :meeting-id="meetingId" class="watch__chat" />
   </main>
@@ -97,6 +111,16 @@ onBeforeUnmount(() => {
   color: #fff; margin: 0; background: rgba(0,0,0,.5);
 }
 .watch__overlay--error { color: #ff9a9a; }
-.watch__latency { opacity: .75; font-size: .9em; }
+.watch__metrics {
+  font-size: .9em;
+  border: 1px solid #dde3ea;
+  border-radius: .5rem;
+  padding: .75rem;
+}
+.watch__metrics dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; margin: 0; }
+.watch__metrics dt { opacity: .7; }
+.watch__metrics dd { margin: 0; font-variant-numeric: tabular-nums; }
+.watch__metrics p { margin: .65rem 0 0; opacity: .75; line-height: 1.45; }
+.watch__metrics .warn { color: #b00020; font-weight: 600; }
 .watch__chat { grid-row: 2 / span 3; grid-column: 2; height: 60vh; }
 </style>

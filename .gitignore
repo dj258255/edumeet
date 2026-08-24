@@ -240,9 +240,11 @@ upload/
 *.properties.*
 
 *.sh
+!scripts/bench-hls-codec-paths.sh
 # End of https://www.toptal.com/developers/gitignore/api/java,intellij+all,gradle,windows,macos,visualstudiocode
 ### 개인 작업 메모 — 커밋하지 않는다 ###
 CLAUDE.md
+.serena/
 
 ### 차트/측정 스크립트 ###
 __pycache__/
@@ -283,6 +285,7 @@ id_ed25519*
 # 한 번 들어가면 지우기 어려우므로 양쪽에서 막는다.
 frontend/node_modules/
 frontend/dist/
+backend/bin/
 doc-summary/node_modules/
 ai/__pycache__/
 ai/.venv/

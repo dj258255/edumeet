@@ -9,12 +9,14 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { createPublisher, CHUNK_MS } from '@/features/broadcast/broadcastPublisher'
+import { BROADCAST_PROFILES } from '@/features/broadcast/broadcastProfiles'
 import BroadcastChat from '@/components/BroadcastChat.vue'
 
 const route = useRoute()
 const meetingId = route.params.meetingId
 
 const audioOnly = ref(route.query.mode === 'audio')
+const profileId = ref('standard')
 const status = ref({ state: 'idle' })
 const error = ref('')
 const preview = ref(null)
@@ -27,13 +29,14 @@ async function start() {
   error.value = ''
   publisher = createPublisher(meetingId, {
     audioOnly: audioOnly.value,
+    profileId: profileId.value,
     onStatus: (s) => { status.value = { ...status.value, ...s } },
   })
   try {
     await publisher.start()
     // 비디오면 자기 화면을 보여 준다. 안 보이면 카메라가 켜졌는지 알 수 없다.
     if (!audioOnly.value && preview.value) {
-      preview.value.srcObject = await navigator.mediaDevices.getUserMedia({ video: true })
+      preview.value.srcObject = publisher.mediaStream()
       preview.value.muted = true
       await preview.value.play()
     }
@@ -46,7 +49,6 @@ async function start() {
 async function stop() {
   if (publisher) await publisher.stop()
   if (preview.value?.srcObject) {
-    preview.value.srcObject.getTracks().forEach((t) => t.stop())
     preview.value.srcObject = null
   }
 }
@@ -68,6 +70,19 @@ onBeforeUnmount(stop)
         <input type="checkbox" v-model="audioOnly" /> 오디오만 내보내기
       </label>
 
+      <label v-if="!isLive && !audioOnly" class="studio__profile">
+        화질
+        <select v-model="profileId">
+          <option
+            v-for="profile in BROADCAST_PROFILES"
+            :key="profile.id"
+            :value="profile.id"
+          >
+            {{ profile.label }} — {{ profile.description }}
+          </option>
+        </select>
+      </label>
+
       <button v-if="!isLive" class="studio__go" @click="start">송출 시작</button>
       <button v-else class="studio__stop" @click="stop">송출 중지</button>
     </section>
@@ -82,6 +97,7 @@ onBeforeUnmount(stop)
     <section v-if="isLive" class="studio__meta">
       <dl>
         <dt>코덱</dt><dd><code>{{ status.mimeType }}</code></dd>
+        <dt>송출 프로파일</dt><dd>{{ status.profileLabel || status.profileSummary }}</dd>
         <dt>서버 처리</dt>
         <dd :class="status.remuxable ? 'ok' : 'warn'">
           {{ status.remuxable ? '컨테이너만 변환 (CPU 거의 안 씀)' : '재인코딩 (CPU 많이 씀)' }}
@@ -112,6 +128,8 @@ onBeforeUnmount(stop)
 .studio__preview { width: 100%; height: 100%; object-fit: contain; }
 .studio__audio { color: #fff; font-size: 1.4rem; }
 .studio__controls { display: flex; gap: .75rem; align-items: center; }
+.studio__profile { display: inline-flex; gap: .4rem; align-items: center; }
+.studio__profile select { max-width: 15rem; padding: .35rem .45rem; }
 .studio__go, .studio__stop { padding: .5rem 1.1rem; border-radius: .4rem; border: 0; cursor: pointer; }
 .studio__go { background: #1b6ef3; color: #fff; }
 .studio__stop { background: #b00020; color: #fff; }
