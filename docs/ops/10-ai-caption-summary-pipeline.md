@@ -23,8 +23,11 @@
 녹음 파일 완료
   → CLOVA batch STT
   → transcript.txt
-  ├─ 문장 단위 자막 전송     realtime=false, approximate_timing=true
-  └─ LLM 요약 생성
+  ├─ 문장 단위 final 자막 전송     realtime=false, approximate_timing=true
+  │   └─ Java STOMP 브로드캐스트 + 비동기 저장
+  └─ 저장 자막 transcript 우선 조회
+      └─ 실패 시 transcript.txt 로 fallback
+  → LLM 요약 생성
       → summary.md / summary.pdf
       → Java internal API 업로드
 ```
@@ -85,6 +88,9 @@ redis       → Redis
 
 비용 0원, 네트워크 지연 0ms, 같은 입력에 같은 결과다.
 
+저장도 final 자막만 한다. partial caption 은 계속 바뀌므로 요약 입력에 넣지 않는다.
+중간 결과를 모두 넣으면 같은 발화가 반복되어 토큰을 낭비한다.
+
 ## 3. 선택지
 
 ### 1. batch STT 결과를 자막과 요약에 같이 쓴다
@@ -143,7 +149,8 @@ middleware 를 안내한다. 반대로 `langchain-classic` 의 `load_summarize_c
 |---|---|
 | 실시간 자막 | streaming STT 로 전환할 때까지 현재 경로는 `realtime=false` 로 둔다 |
 | 기술 용어 보정 | hot path 에서는 결정적 사전만 적용한다 |
-| 문서 요약 | 회의 종료 후 batch 경로에서 수행한다 |
+| 자막 저장 | final 자막만 비동기 저장한다. partial 은 화면용으로만 둔다 |
+| 문서 요약 | 저장된 final 자막 transcript 를 우선 쓰고, 없으면 로컬 STT transcript 로 fallback 한다 |
 | LangChain / LangGraph | 지금은 미도입. 요약 파이프라인을 테스트 가능한 단계로 쪼갠 뒤 도입한다 |
 | 검색 색인 | raw transcript 와 display transcript 를 분리한 뒤 검토한다 |
 
@@ -180,7 +187,7 @@ AI 경로에도 같은 방식의 장애 주입이 필요하다.
 아직 못 막은 것도 있다.
 
 - streaming STT 루프가 없다.
-- caption 전송은 현재 동기 POST 이므로, 진짜 streaming 에서는 유계 큐가 필요하다.
+- caption 전송은 현재 동기 POST 이므로, 진짜 streaming 에서는 전송 큐가 필요하다.
 - raw/display transcript 분리가 없다.
 - LLM 요약 함수는 471줄이고 테스트가 거의 없어서, LangGraph 로 감싸기 전에 먼저 쪼개야 한다.
 

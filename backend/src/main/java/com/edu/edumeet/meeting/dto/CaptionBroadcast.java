@@ -19,6 +19,7 @@ package com.edu.edumeet.meeting.dto;
  * @param spokenAt    원본 오디오에서의 발화 시각
  * @param receivedAt  자바가 요청을 받은 시각
  * @param publishedAt 자바가 브로드캐스트한 시각
+ * @param finalSegment 저장·요약에 쓸 수 있는 최종 자막인가
  */
 public record CaptionBroadcast(
         Long meetingId,
@@ -26,5 +27,6 @@ public record CaptionBroadcast(
         Long sequence,
         Long spokenAt,
         Long receivedAt,
-        Long publishedAt
+        Long publishedAt,
+        Boolean finalSegment
 ) {}

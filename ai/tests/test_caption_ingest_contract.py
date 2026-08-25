@@ -27,16 +27,21 @@ with open(CONTRACT_PATH, encoding="utf-8") as f:
     CONTRACT = json.load(f)
 
 CAPTION = CONTRACT["endpoints"]["captionIngest"]
+TRANSCRIPT = CONTRACT["endpoints"]["captionTranscript"]
 AUTH_HEADER = CONTRACT["authHeader"]
 JAVA_URL = "http://java:8080" + CAPTION["path"]
+JAVA_TRANSCRIPT_URL = "http://java:8080" + TRANSCRIPT["path"]
 TOKEN = "test-internal-token"
 TARGET = "http://java:8080/api/v1/internal/meetings/77/captions"
+TRANSCRIPT_TARGET = "http://java:8080/api/v1/internal/meetings/77/captions/transcript"
 
 
 @pytest.fixture
 def env(monkeypatch):
     monkeypatch.setenv("CAPTION_INGEST_URL", JAVA_URL)
+    monkeypatch.setenv("CAPTION_TRANSCRIPT_URL", JAVA_TRANSCRIPT_URL)
     monkeypatch.setenv("INTERNAL_API_TOKEN", TOKEN)
+    monkeypatch.setenv("CAPTION_TRANSCRIPT_RETRIES", "1")
 
 
 def _bodies():
@@ -88,6 +93,7 @@ def test_body_has_the_declared_fields(env):
     _, bodies, _ = _send("한 문장.")
     for field in CAPTION["jsonFields"]:
         assert field in bodies[0], f"계약의 {field} 가 본문에 없다"
+    assert bodies[0]["finalSegment"] is True, "batch STT 결과는 final 자막으로 저장 대상이다"
 
 
 def test_technical_terms_are_normalized_before_sending(env):
@@ -147,3 +153,65 @@ def test_partial_failure_is_reported(env):
     assert result["sent"] == 2
     assert len(result["failed"]) == 1
     assert result["failed"][0]["status"] == 500
+
+
+@responses.activate
+def test_fetch_caption_transcript_uses_internal_contract(env):
+    """★ 저장된 final 자막 transcript 를 Java 에서 읽는다."""
+    import backend_client
+    responses.add(responses.GET, TRANSCRIPT_TARGET, json={
+        "meetingId": 77,
+        "segmentCount": 2,
+        "text": "첫 문장\n두 번째 문장",
+        "generatedAt": 123456,
+    }, status=200)
+
+    result = backend_client.fetch_caption_transcript_from_api("77")
+
+    assert result["ok"] is True
+    assert result["text"] == "첫 문장\n두 번째 문장"
+    assert responses.calls[0].request.headers[AUTH_HEADER] == TOKEN
+    assert responses.calls[0].request.method == TRANSCRIPT["method"]
+
+
+@responses.activate
+def test_choose_summary_transcript_prefers_caption_archive(env, tmp_path):
+    """요약 입력은 저장된 final 자막을 우선 사용한다."""
+    import backend_client
+    local = tmp_path / "transcript.txt"
+    local.write_text("로컬 STT 전문", encoding="utf-8")
+    responses.add(responses.GET, TRANSCRIPT_TARGET, json={
+        "meetingId": 77,
+        "segmentCount": 2,
+        "text": "저장된 자막 1\n저장된 자막 2",
+        "generatedAt": 123456,
+    }, status=200)
+
+    result = backend_client.choose_summary_transcript("77", str(local), str(tmp_path))
+
+    assert result["source"] == "caption_archive"
+    assert result["fallback"] is False
+    assert result["segmentCount"] == 2
+    assert os.path.basename(result["path"]) == "transcript_from_captions.txt"
+    with open(result["path"], encoding="utf-8") as f:
+        assert f.read() == "저장된 자막 1\n저장된 자막 2"
+
+
+@responses.activate
+def test_choose_summary_transcript_falls_back_to_local_transcript(env, tmp_path):
+    """저장 배치가 아직 안 끝났거나 Java 조회가 실패해도 요약 전체는 버리지 않는다."""
+    import backend_client
+    local = tmp_path / "transcript.txt"
+    local.write_text("로컬 STT 전문", encoding="utf-8")
+    responses.add(responses.GET, TRANSCRIPT_TARGET, json={
+        "meetingId": 77,
+        "segmentCount": 0,
+        "text": "",
+        "generatedAt": 123456,
+    }, status=200)
+
+    result = backend_client.choose_summary_transcript("77", str(local), str(tmp_path))
+
+    assert result["source"] == "local_stt_transcript"
+    assert result["fallback"] is True
+    assert result["path"] == str(local)
