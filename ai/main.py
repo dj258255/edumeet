@@ -13,6 +13,7 @@ import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil, 
 from backend_client import (
     send_summary_to_api,
     send_captions_to_api,
+    choose_summary_transcript,
     _split_into_captions,
     _normalize_meeting_id,
 )
@@ -965,7 +966,13 @@ def merge_audio(class_id: str, body: SttRequest):
         if not (caption_result or {}).get("ok"):
             print("[caption] 전송 실패(요약은 계속):", caption_result)
 
-        summary_result = summarize_text_auto(transcript_path, os.path.dirname(out_path))
+        summary_input = choose_summary_transcript(Meeting_id, transcript_path, os.path.dirname(out_path))
+        if summary_input.get("fallback"):
+            print("[summary:transcript] caption archive 대신 local transcript 사용:", summary_input.get("detail"))
+        else:
+            print("[summary:transcript] caption archive 사용:", summary_input.get("segmentCount"), "segments")
+
+        summary_result = summarize_text_auto(summary_input["path"], os.path.dirname(out_path))
         
         upload_result = None
         cleanup_result = None
@@ -1001,6 +1008,7 @@ def merge_audio(class_id: str, body: SttRequest):
             "clean_path": (summary_result or {}).get("clean_path"),
             "summary_detail": (summary_result or {}).get("detail"),
             "caption_result": caption_result,
+            "summary_transcript": summary_input,
             "upload_result": upload_result,
             "cleanup_result": cleanup_result,
         }

@@ -114,6 +114,9 @@ def send_captions_to_api(meeting_id, text: str, started_at_ms: int | None = None
                 # 실제 발화 시각을 모르므로 균등 분배한다. 이것이 근사라는 사실은
                 # 반환값의 approximate_timing 으로 알린다 - 조용히 정확한 척하지 않는다.
                 "spokenAt": base + i * 3000,
+                # batch STT 결과는 이미 최종 텍스트다. streaming STT 의 partial 은
+                # False 로 보내 화면에만 띄우고 저장·요약에서는 제외한다.
+                "finalSegment": True,
             }
             try:
                 r = requests.post(url, headers=headers, json=body, timeout=10)
@@ -135,6 +138,94 @@ def send_captions_to_api(meeting_id, text: str, started_at_ms: int | None = None
         }
     except Exception as e:
         return {"ok": False, "detail": f"자막 전송 실패: {e}"}
+
+
+def fetch_caption_transcript_from_api(meeting_id) -> dict:
+    """Java 에 저장된 final 자막 transcript 를 가져온다. (#131)
+
+    이 경로가 있으면 회의 후 요약 입력을 "STT 파일"이 아니라
+    "사용자에게 보낸 final 자막"으로 맞출 수 있다.
+
+    단, 자막 저장은 비동기 배치다. 지금 호출 시점에 아직 flush 되지 않았을 수 있다.
+    그래서 실패하면 요약 전체를 버리지 않고 local transcript 로 되돌아간다.
+    """
+    try:
+        env_path = _config_path()
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+
+        url_tpl = os.getenv("CAPTION_TRANSCRIPT_URL", "").strip()
+        if not url_tpl:
+            return {"ok": False, "detail": "CAPTION_TRANSCRIPT_URL 미설정"}
+
+        token = os.getenv("INTERNAL_API_TOKEN", "").strip()
+        if not token:
+            return {"ok": False,
+                    "detail": "INTERNAL_API_TOKEN 미설정. /api/v1/internal/** 은 이 헤더 없이는 403 이다."}
+
+        mid = _normalize_meeting_id(meeting_id)
+        if mid is None:
+            return {"ok": False, "detail": f"meetingId 가 없다(값={meeting_id!r})"}
+
+        url = url_tpl.replace("{meetingId}", str(mid)).replace("{meeting_id}", str(mid))
+        headers = {"Accept": "application/json", "X-Internal-Token": token}
+        resp = requests.get(url, headers=headers, timeout=10)
+        if not (200 <= resp.status_code < 300):
+            return {"ok": False, "status": resp.status_code,
+                    "detail": (resp.text or "")[:200]}
+        data = resp.json()
+        text = (data.get("text") or "").strip()
+        if not text:
+            return {"ok": False, "detail": "저장된 final 자막 transcript 가 비어 있음",
+                    "segmentCount": data.get("segmentCount", 0)}
+        return {
+            "ok": True,
+            "meetingId": data.get("meetingId"),
+            "segmentCount": data.get("segmentCount", 0),
+            "text": text,
+            "generatedAt": data.get("generatedAt"),
+        }
+    except Exception as e:
+        return {"ok": False, "detail": f"자막 transcript 조회 실패: {e}"}
+
+
+def choose_summary_transcript(meeting_id, local_transcript_path: str, out_dir: str) -> dict:
+    """요약 입력 transcript 를 고른다. (#131)
+
+    우선순위:
+      1. Java caption archive 에 저장된 final 자막
+      2. STT 가 만든 로컬 transcript.txt
+
+    왜 fallback 이 필요한가:
+      caption archive 는 브로드캐스트를 보호하려고 비동기 저장한다.
+      저장이 늦어졌다고 요약까지 실패시키면 접근성 경로와 학습 보조 경로가 다시 묶인다.
+    """
+    retries = int(os.getenv("CAPTION_TRANSCRIPT_RETRIES", "3"))
+    interval = float(os.getenv("CAPTION_TRANSCRIPT_RETRY_INTERVAL_SEC", "0.5"))
+    archived = {"ok": False, "detail": "조회 전"}
+    for attempt in range(max(1, retries)):
+        archived = fetch_caption_transcript_from_api(meeting_id)
+        if archived.get("ok"):
+            break
+        if attempt < retries - 1:
+            time.sleep(interval)
+    if archived.get("ok"):
+        path = os.path.join(out_dir, "transcript_from_captions.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(archived["text"])
+        return {
+            "path": path,
+            "source": "caption_archive",
+            "fallback": False,
+            "segmentCount": archived.get("segmentCount", 0),
+        }
+    return {
+        "path": local_transcript_path,
+        "source": "local_stt_transcript",
+        "fallback": True,
+        "detail": archived.get("detail"),
+        "segmentCount": archived.get("segmentCount", 0),
+    }
 
 
 def send_summary_to_api(class_id: str, meetingId: str | None,

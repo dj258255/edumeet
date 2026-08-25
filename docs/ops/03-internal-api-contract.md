@@ -55,7 +55,7 @@ POST /api/v1/internal/meetings/{meetingId}/captions
 X-Internal-Token: <공유 시크릿>
 Content-Type: application/json
 
-{ "text": "안녕하세요", "sequence": 42, "spokenAt": 1756000000000 }
+{ "text": "안녕하세요", "sequence": 42, "spokenAt": 1756000000000, "finalSegment": true }
 ```
 
 | 필드 | |
@@ -63,6 +63,7 @@ Content-Type: application/json
 | `text` | 인식된 문장. 최대 500자 |
 | `sequence` | 발화 순서. **클라이언트가 네트워크 재정렬을 감지하려면 필요하다** |
 | `spokenAt` | **원본 오디오에서의 발화 시각**(epoch millis). 서버 수신 시각이 아니다 |
+| `finalSegment` | 저장·요약에 쓸 수 있는 최종 자막인가. 생략하면 `true` 로 본다 |
 
 시청자는 `/topic/rooms/{meetingId}/captions` 를 구독한다.
 **채팅(`/topic/rooms/{meetingId}`)과 목적지가 다르다** — 클라이언트가 자막만 켜거나 끌 수 있어야 한다.
@@ -98,10 +99,37 @@ LLM 호출은 회의 후 요약·검색 색인·자막 정리처럼 지연을 �
 
 → [실시간 자막 비용·지연·품질 제약](09-realtime-caption-cost-quality.md)
 
-### 저장하지 않는다
+### 저장은 발행 경로 밖에서 한다
 
-실시간 자막은 지나가면 끝이다. 다시보기용 저장은 녹음과 함께 다룬다(#61).
-**발행 경로에 DB 쓰기를 넣으면 #43 에서 본 것처럼 브로드캐스트 측정이 쓰기에 묻힌다.**
+처음에는 자막을 저장하지 않았다. 그러면 화면에는 보이지만 회의 후 요약·검색 입력으로
+재사용할 수 없다.
+
+그렇다고 내부 API 요청에서 바로 DB 에 쓰면 자막 표시가 DB 지연을 기다린다.
+그래서 Java 는 먼저 STOMP 로 브로드캐스트하고, `finalSegment=true` 인 자막만
+유계 큐에 넣어 배치 저장한다(#131). `partial` 자막은 계속 바뀌므로 저장하지 않는다.
+요약 입력에 중간 결과를 넣으면 같은 말이 반복되어 토큰을 낭비한다.
+
+## 자막 transcript 조회 (#131)
+
+```http
+GET /api/v1/internal/meetings/{meetingId}/captions/transcript
+X-Internal-Token: <공유 시크릿>
+```
+
+저장된 final 자막을 `sequence` 순서로 이어 회의 후 요약 입력을 만든다.
+
+```json
+{
+  "meetingId": 12,
+  "segmentCount": 2,
+  "text": "첫 번째 문장\n두 번째 문장",
+  "generatedAt": 1756000001000
+}
+```
+
+Python 은 이 경로를 우선 시도하고, 아직 배치 저장이 끝나지 않았거나 조회에 실패하면
+STT 가 만든 로컬 `transcript.txt` 로 되돌아간다. 저장 지연 때문에 요약 전체를
+실패시키면 접근성 경로와 학습 보조 경로가 다시 묶인다.
 
 ---
 
@@ -113,6 +141,7 @@ LLM 호출은 회의 후 요약·검색 색인·자막 정리처럼 지연을 �
 | 인증 없음 | `X-Internal-Token` 헤더 필수 |
 | `class_id`, `meeting_id` 폼 필드 | **`meetingId` 는 경로에 필수.** `class_id` 는 보내지 않는다 |
 | `meeting_id` 생략 가능 | **생략 불가** |
+| 자막 전송 없음 | `captionIngest` 로 final 자막을 보내고, `captionTranscript` 로 요약 입력을 읽는다 |
 
 ### `meeting_id` 를 필수로 바꾼 이유
 
