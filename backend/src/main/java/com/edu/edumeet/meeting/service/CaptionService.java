@@ -40,6 +40,7 @@ public class CaptionService {
     private final MeetingRepository meetingRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatMetrics chatMetrics;
+    private final CaptionArchiveQueue captionArchiveQueue;
 
     /**
      * 자막을 방에 뿌린다.
@@ -58,13 +59,19 @@ public class CaptionService {
             throw new IllegalArgumentException("이미 종료된 회의입니다.");
         }
 
+        boolean finalSegment = request.finalSegment() == null || request.finalSegment();
         String destination = captionDestination(meetingId);
+        long publishedAt = System.currentTimeMillis();
         CaptionBroadcast payload = new CaptionBroadcast(
                 meetingId, text, request.sequence(), request.spokenAt(),
-                receivedAt, System.currentTimeMillis());
+                receivedAt, publishedAt, finalSegment);
 
         messagingTemplate.convertAndSend(destination, payload);
         chatMetrics.published(destination);
+        if (finalSegment) {
+            captionArchiveQueue.offer(
+                    meetingId, text, request.sequence(), request.spokenAt(), receivedAt, publishedAt);
+        }
         return payload;
     }
 

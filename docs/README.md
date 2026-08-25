@@ -299,6 +299,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`performance/07-chat-unbounded-queue-oom.md`](performance/07-chat-unbounded-queue-oom.md) | **무한 큐 OOM.** 큐 107만 → 상한 2만, 84초 OOM → 444초 무중단 |
 | [`performance/11-http-cache-boundaries.md`](performance/11-http-cache-boundaries.md) | SPA asset 과 HLS playlist/segment 의 캐시 경계 분리 |
 | [`performance/12-hls-codec-benchmark.md`](performance/12-hls-codec-benchmark.md) | H264 리먹싱 vs VP8 재인코딩 vs audio-only HLS 의 CPU·세그먼트 길이 비교 |
+| [`performance/13-caption-archive-transcript.md`](performance/13-caption-archive-transcript.md) | final 자막만 비동기 저장해 요약 입력으로 쓰는 경로 |
 | [`refactoring/01-remove-port-adapter.md`](refactoring/01-remove-port-adapter.md) | Port/Adapter 제거. 코드 38% 감소, 최적화 쿼리가 죽어 있었음 |
 
 ### 운영

@@ -2,7 +2,9 @@ package com.edu.edumeet.meeting.controller;
 
 import com.edu.edumeet.meeting.dto.CaptionBroadcast;
 import com.edu.edumeet.meeting.dto.CaptionIngestRequest;
+import com.edu.edumeet.meeting.dto.CaptionTranscriptResponse;
 import com.edu.edumeet.meeting.service.CaptionService;
+import com.edu.edumeet.meeting.service.CaptionTranscriptService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 public class InternalCaptionController {
 
     private final CaptionService captionService;
+    private final CaptionTranscriptService captionTranscriptService;
 
     @PostMapping("/{meetingId}/captions")
     public ResponseEntity<CaptionBroadcast> ingest(
@@ -41,5 +44,10 @@ public class InternalCaptionController {
         // 수신 시각을 가장 먼저 찍는다. 여기서 늦게 찍으면 홉 비용이 실제보다 작게 나온다.
         long receivedAt = System.currentTimeMillis();
         return ResponseEntity.ok(captionService.broadcast(meetingId, request, receivedAt));
+    }
+
+    @GetMapping("/{meetingId}/captions/transcript")
+    public ResponseEntity<CaptionTranscriptResponse> transcript(@PathVariable("meetingId") Long meetingId) {
+        return ResponseEntity.ok(captionTranscriptService.buildTranscript(meetingId));
     }
 }

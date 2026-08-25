@@ -15,10 +15,14 @@
   → transcript 한 덩어리
   → 문장 단위로 쪼개 Java 내부 API 로 전송
   → STOMP 로 화면에 표시
+  → final 자막만 비동기 저장
+  → 저장 자막 transcript 를 요약 입력으로 우선 사용
 ```
 
 그래서 `send_captions_to_api()` 는 `realtime: false`,
 `approximate_timing: true` 를 반환한다. 이걸 숨기면 안 된다.
+다만 저장 대상은 final 자막으로 제한했다. streaming STT 의 partial 자막까지
+요약 입력에 넣으면 같은 발화가 여러 번 들어가 토큰을 낭비한다.
 
 지금 만든 것은 **자막이 Java 와 프론트까지 도달하는 경로**다.
 실시간 STT 소스는 별도 작업이다.
@@ -109,6 +113,10 @@ redis       → Redis
 
 이 보정은 `ai/caption_normalizer.py` 에 있고, Java 로 보내기 전에 적용한다.
 모델 호출이 없으므로 비용 0원, 네트워크 지연 0ms, 결과가 항상 같다.
+
+저장도 같은 기준이다. final 자막만 `caption_segment` 에 남기고 partial 자막은
+화면 표시용으로만 둔다. partial 은 계속 바뀌므로 저장하면 요약 입력이 길어지고,
+같은 발화가 여러 번 들어가 토큰을 낭비한다.
 
 ## 4. 원문과 보정문을 분리해야 한다
 

@@ -8,6 +8,9 @@ import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.domain.MeetingParticipant;
 import com.edu.edumeet.meeting.domain.SessionType;
 import com.edu.edumeet.meeting.dto.CaptionBroadcast;
+import com.edu.edumeet.meeting.dto.CaptionTranscriptResponse;
+import com.edu.edumeet.meeting.repository.CaptionSegmentRepository;
+import com.edu.edumeet.meeting.service.CaptionArchiveQueue;
 import com.edu.edumeet.member.domain.Member;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +45,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>여기서는 <b>자바 쪽 경계까지</b>를 검증한다 — 파이썬 저장소가 이 리포에 없어도
  * 내부 API 로 들어와 방으로 나가는 경로는 전부 확인할 수 있다.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "edumeet.caption.archive.flush-interval-ms=600000")
 @ActiveProfiles("test")
 @DisplayName("실시간 자막")
 class CaptionBroadcastTest {
@@ -54,6 +59,8 @@ class CaptionBroadcastTest {
     @Autowired TestRestTemplate rest;
     @Autowired JwtService jwtService;
     @Autowired TransactionTemplate transactionTemplate;
+    @Autowired CaptionArchiveQueue captionArchiveQueue;
+    @Autowired CaptionSegmentRepository captionSegmentRepository;
     @PersistenceContext EntityManager em;
 
     private WebSocketStompClient stompClient;
@@ -88,6 +95,9 @@ class CaptionBroadcastTest {
     @AfterEach
     void tearDown() {
         if (stompClient != null) stompClient.stop();
+        for (int i = 0; i < 100 && captionArchiveQueue.queuedCount() > 0; i++) {
+            captionArchiveQueue.flush();
+        }
     }
 
     private StompSession connect() throws Exception {
@@ -116,6 +126,16 @@ class CaptionBroadcastTest {
                 new HttpEntity<>(body, headers), CaptionBroadcast.class);
     }
 
+    private ResponseEntity<CaptionTranscriptResponse> getTranscript(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        if (token != null) headers.add(InternalApiTokenFilter.HEADER, token);
+        return rest.exchange(
+                "http://localhost:" + port + "/api/v1/internal/meetings/" + meetingId + "/captions/transcript",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                CaptionTranscriptResponse.class);
+    }
+
     @Test
     @DisplayName("토큰 없이 보내면 401 이다")
     void requires_internal_token() {
@@ -139,7 +159,53 @@ class CaptionBroadcastTest {
         assertThat(caption.sequence())
                 .as("순서가 없으면 클라이언트가 재정렬을 감지할 수 없다")
                 .isEqualTo(42L);
+        assertThat(caption.finalSegment()).isTrue();
         session.disconnect();
+    }
+
+    @Test
+    @DisplayName("★ final 자막은 브로드캐스트 뒤 비동기 저장된다 - 화면 표시가 DB 를 기다리지 않는다")
+    void final_caption_is_archived_after_broadcast() {
+        postCaption(TOKEN, Map.of("text", "저장될 자막", "sequence", 1, "finalSegment", true));
+
+        assertThat(captionArchiveQueue.queuedCount())
+                .as("요청 반환 시점에 큐에 있어야 한다. DB 저장까지 기다리면 hot path 가 느려진다")
+                .isEqualTo(1);
+        assertThat(captionSegmentRepository.countByMeetingId(meetingId))
+                .as("반환 시점에 이미 DB 에 있으면 동기 저장이다")
+                .isZero();
+
+        captionArchiveQueue.flush();
+
+        assertThat(captionSegmentRepository.countByMeetingId(meetingId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("★ partial 자막은 저장하지 않는다 - 요약 토큰을 중간 결과에 쓰지 않는다")
+    void partial_caption_is_not_archived() {
+        postCaption(TOKEN, Map.of("text", "임시 자막", "sequence", 1, "finalSegment", false));
+
+        assertThat(captionArchiveQueue.queuedCount()).isZero();
+        captionArchiveQueue.flush();
+        assertThat(captionSegmentRepository.countByMeetingId(meetingId)).isZero();
+    }
+
+    @Test
+    @DisplayName("★ 저장된 final 자막으로 transcript 를 만든다 - sequence 순서와 중복 제거가 기준이다")
+    void transcript_is_built_from_archived_final_captions() {
+        postCaption(TOKEN, Map.of("text", "두 번째 문장", "sequence", 2, "finalSegment", true));
+        postCaption(TOKEN, Map.of("text", "첫 번째 문장", "sequence", 1, "finalSegment", true));
+        postCaption(TOKEN, Map.of("text", "첫 번째 문장 재시도", "sequence", 1, "finalSegment", true));
+        postCaption(TOKEN, Map.of("text", "임시 중간 결과", "sequence", 3, "finalSegment", false));
+
+        captionArchiveQueue.flush();
+
+        ResponseEntity<CaptionTranscriptResponse> response = getTranscript(TOKEN);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().segmentCount()).isEqualTo(2);
+        assertThat(response.getBody().text()).isEqualTo("첫 번째 문장\n두 번째 문장");
     }
 
     @Test

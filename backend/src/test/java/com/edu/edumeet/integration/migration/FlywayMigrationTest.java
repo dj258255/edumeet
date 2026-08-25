@@ -70,6 +70,7 @@ class FlywayMigrationTest {
      */
     private static final List<String> EXPECTED_TABLES = List.of(
             "assignment", "assignment_file_upload", "board", "board_category", "board_file_upload",
+            "caption_segment",
             "class_invite", "class_member", "class_room", "class_room_seq", "class_room_tags",
             "meeting", "meeting_participant", "member", "reply",
             "student_submission_status", "submission", "submission_file_upload");
@@ -150,6 +151,23 @@ class FlywayMigrationTest {
         assertThat(indexesOf("chat_message"))
                 .as("meeting_id + offset_millis 범위 조회라 sent_at 인덱스로는 질문이 다르다")
                 .contains("idx_chat_message_replay");
+    }
+
+    @Test
+    @DisplayName("★ V9 가 final 자막 저장 테이블과 transcript 조회 인덱스를 만든다")
+    void v9_creates_caption_segment_archive() {
+        assertThat(jdbc.queryForList(
+                "SELECT version FROM flyway_schema_history WHERE success = 1", String.class))
+                .contains("9");
+
+        assertThat(allTables()).contains("caption_segment");
+        assertThat(columnsOf("caption_segment"))
+                .as("partial 자막은 저장하지 않고 final 자막만 요약 입력으로 쓴다")
+                .contains("meeting_id", "sequence", "spoken_at", "received_at",
+                        "published_at", "text", "final_segment");
+        assertThat(indexesOf("caption_segment"))
+                .as("회의별 transcript 는 sequence 순서로 읽는다")
+                .contains("idx_caption_segment_transcript", "ux_caption_segment_meeting_sequence");
     }
 
     private List<String> columnsOf(String table) {
