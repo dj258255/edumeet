@@ -166,6 +166,26 @@ STT   "python 을 배웠습니다"   →   저장   "파이썬 을 배웠습니�
 
 → [`ops/11-mcp-transcript-server.md`](ops/11-mcp-transcript-server.md)
 
+### 닭-달걀은 함수 전체에만 성립한다
+
+`summarize_text_auto` 는 471줄인데 시험이 0개였다. #117 에서 이렇게 적어 뒀다 —
+*"테스트 없이 쪼개면 동작이 바뀌었는지 알 방법이 없고, 471줄이라 테스트를 쓸 수도 없다."*
+
+**뒷 문장이 틀렸다.** 함수 안에 이미 경계가 있었고 그중 셋은 순수 함수였다.
+쪼갤 수 없어서 못 쓴 게 아니라 **쪼갤 순서를 안 정했던 것**이다.
+
+그리고 시험을 쓰자마자 결함이 셋 나왔다. 셋 다 **되돌림 경로**에 있었다.
+
+| | |
+|---|---|
+| 폰트가 없으면 예외가 난다 | 원본은 "네모로 나온다" 를 전제했다. 그래서 되돌림 PDF 가 **존재 이유인 그 조건에서 같이 죽었다** |
+| 그 예외가 요약 전체를 죽였다 | `summary.md` 는 이미 만들어졌는데 버렸다. 다시 하려면 토큰을 처음부터 다시 쓴다 |
+| 되돌림 PDF 는 한 줄 문서에서만 돌았다 | `multi_cell(0, ...)` 뒤에 x 를 안 되돌려서 둘째 줄부터 폭이 0 이 된다 |
+
+**잘 안 도는 길일수록 시험이 유일한 관측 수단이다.**
+
+→ [`refactoring/02-split-summarize.md`](refactoring/02-split-summarize.md)
+
 ### MySQL 은 "새로 고른 DB" 가 아니라 유지한 운영 전제다
 
 EduMeet 에서 DB 를 PostgreSQL 로 바꾸지 않은 이유는 PostgreSQL 이 부족해서가 아니다.
@@ -323,6 +343,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`performance/12-hls-codec-benchmark.md`](performance/12-hls-codec-benchmark.md) | H264 리먹싱 vs VP8 재인코딩 vs audio-only HLS 의 CPU·세그먼트 길이 비교 |
 | [`performance/13-caption-archive-transcript.md`](performance/13-caption-archive-transcript.md) | final 자막만 비동기 저장해 요약 입력으로 쓰는 경로 |
 | [`refactoring/01-remove-port-adapter.md`](refactoring/01-remove-port-adapter.md) | Port/Adapter 제거. 코드 38% 감소, 최적화 쿼리가 죽어 있었음 |
+| [`refactoring/02-split-summarize.md`](refactoring/02-split-summarize.md) | **471줄 · 시험 0.** 쪼개자 결함 3건이 나왔다 — 되돌림 PDF 가 존재 이유인 조건에서 죽고 있었다 |
 
 ### 운영
 
