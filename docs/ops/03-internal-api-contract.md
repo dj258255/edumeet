@@ -1,4 +1,4 @@
-# 서버 간 API 규약 — 파이썬 AI 서버 ↔ Spring
+# 서버 간 API 규약 — Spring ↔ 파이썬 AI 서버 ↔ MCP 서버
 
 > 작성 2026-08-22 · #27
 
@@ -130,6 +130,52 @@ X-Internal-Token: <공유 시크릿>
 Python 은 이 경로를 우선 시도하고, 아직 배치 저장이 끝나지 않았거나 조회에 실패하면
 STT 가 만든 로컬 `transcript.txt` 로 되돌아간다. 저장 지연 때문에 요약 전체를
 실패시키면 접근성 경로와 학습 보조 경로가 다시 묶인다.
+
+---
+
+## 자막 있는 회의 목록 (#133)
+
+```http
+GET /api/v1/internal/meetings/captions?limit=50
+X-Internal-Token: <공유 시크릿>
+```
+
+```json
+{
+  "meetings": [
+    {"meetingId": 12, "title": "스프링 부트 3주차", "segmentCount": 42, "lastSpokenAt": 1756000005000}
+  ],
+  "returned": 1
+}
+```
+
+**부르는 쪽이 파이썬이 아니라 MCP 서버다.** 도구를 쓰는 쪽은 `meetingId` 를 모르고,
+모른 채로 시작할 수 있어야 도구가 쓸모 있다.
+
+| | |
+|---|---|
+| final 자막이 없는 회의는 안 나온다 | 목록에 있는데 열면 비어 있는 것이 제일 나쁘다 |
+| 정렬은 `spokenAt` | `createdAt` 은 저장 시각이다. 자막은 비동기 저장이라 배치가 밀리면 순서가 뒤집힌다 |
+| `limit` 상한 200, `returned` 동봉 | 응답이 그대로 모델 컨텍스트로 간다. 잘렸는지 부르는 쪽이 알아야 한다 |
+
+배열이 아니라 객체로 감싼 이유 — 최상위가 배열이면 커서나 총계를 나중에 붙일 때
+호환을 깨야 한다.
+
+---
+
+## 이 계약을 읽는 쪽이 셋이 됐다 (#133)
+
+```
+contracts/internal-api.json
+   ├── backend/     InternalApiContractTest    노출한 경로가 계약과 같은가
+   ├── ai/          test_*_contract.py         부르는 경로가 계약과 같은가
+   └── mcp-server/  tests/test_contract.py     도구가 부르는 경로가 계약과 같은가
+```
+
+Java 쪽 시험은 **양방향**이라 계약에 없는 내부 엔드포인트를 만들면 거기서 깨진다.
+그래서 계약을 안 고치고 엔드포인트만 늘리는 길이 없다.
+
+자세한 것은 [`11-mcp-transcript-server.md`](11-mcp-transcript-server.md).
 
 ---
 

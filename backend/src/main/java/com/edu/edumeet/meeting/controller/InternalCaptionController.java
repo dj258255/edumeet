@@ -2,6 +2,7 @@ package com.edu.edumeet.meeting.controller;
 
 import com.edu.edumeet.meeting.dto.CaptionBroadcast;
 import com.edu.edumeet.meeting.dto.CaptionIngestRequest;
+import com.edu.edumeet.meeting.dto.CaptionMeetingsResponse;
 import com.edu.edumeet.meeting.dto.CaptionTranscriptResponse;
 import com.edu.edumeet.meeting.service.CaptionService;
 import com.edu.edumeet.meeting.service.CaptionTranscriptService;
@@ -44,6 +45,21 @@ public class InternalCaptionController {
         // 수신 시각을 가장 먼저 찍는다. 여기서 늦게 찍으면 홉 비용이 실제보다 작게 나온다.
         long receivedAt = System.currentTimeMillis();
         return ResponseEntity.ok(captionService.broadcast(meetingId, request, receivedAt));
+    }
+
+    /**
+     * 자막이 있는 회의 목록. (#133)
+     *
+     * <p>MCP 서버가 첫 번째로 부르는 도구다. 이것이 없으면 도구를 쓰는 쪽이
+     * meetingId 를 이미 알고 있어야 해서, 사람이 회의 번호를 손으로 찾아 넣어야 한다.
+     *
+     * <p>경로가 {@code /captions} 라 {@code /{meetingId}/captions} 와 겹치지 않는다 -
+     * 세그먼트 수가 다르다.
+     */
+    @GetMapping("/captions")
+    public ResponseEntity<CaptionMeetingsResponse> meetingsWithCaptions(
+            @RequestParam(name = "limit", defaultValue = "0") int limit) {
+        return ResponseEntity.ok(captionTranscriptService.listMeetingsWithCaptions(limit));
     }
 
     @GetMapping("/{meetingId}/captions/transcript")

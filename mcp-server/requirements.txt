@@ -1,0 +1,8 @@
+# MCP 파이썬 SDK 는 2.0 에서 FastMCP 를 MCPServer 로 바꿨다.
+# 1.x 예제를 그대로 쓰면 import 부터 죽으므로 메이저를 못 박는다.
+mcp>=2,<3
+
+# Java 내부 API 호출. ai/backend_client.py 와 같은 것을 쓴다.
+requests>=2.32,<3
+
+pytest>=8.3.4

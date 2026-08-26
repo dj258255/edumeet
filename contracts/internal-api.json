@@ -7,7 +7,15 @@
     "'파이썬 저장소가 이 리포에 없어서 클라이언트 쪽 변경은 미반영이다' 였다.",
     "",
     "즉 몰라서 안 고친 게 아니라 고칠 수 없는 위치에 있었다.",
-    "그리고 문서는 CI 를 실패시키지 못한다. 그래서 기계가 읽는 형태로 옮긴다."
+    "그리고 문서는 CI 를 실패시키지 못한다. 그래서 기계가 읽는 형태로 옮긴다.",
+    "",
+    "소비자가 셋이 됐다. (#133)",
+    "  backend/  InternalApiContractTest        - 노출한 경로가 계약과 같은가",
+    "  ai/       test_*_contract.py             - 부르는 경로가 계약과 같은가",
+    "  mcp-server/ test_contract.py             - 도구가 부르는 경로가 계약과 같은가",
+    "",
+    "Java 쪽 시험은 양방향이다. 계약에 없는 내부 엔드포인트를 만들면 거기서 깨진다.",
+    "그래서 이 파일에 적지 않고 엔드포인트만 늘리는 길은 없다."
   ],
   "authHeader": "X-Internal-Token",
   "pathPrefix": "/api/v1/internal/",
@@ -44,6 +52,28 @@
         "finalSegment"
       ],
       "$note": "조각 단위다. sequence 는 방 안에서 증가하고 spokenAt 은 발화 시각(epoch ms)이다"
+    },
+    "captionMeetings": {
+      "method": "GET",
+      "path": "/api/v1/internal/meetings/captions",
+      "pathVariables": [],
+      "queryParams": [
+        "limit"
+      ],
+      "successStatus": [
+        200
+      ],
+      "jsonFields": [
+        "meetings",
+        "returned"
+      ],
+      "meetingFields": [
+        "meetingId",
+        "title",
+        "segmentCount",
+        "lastSpokenAt"
+      ],
+      "$note": "final 자막이 있는 회의만 최근 발화(spokenAt) 순. MCP 서버가 첫 번째로 부른다. limit 상한 200"
     },
     "captionTranscript": {
       "method": "GET",

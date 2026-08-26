@@ -1,10 +1,13 @@
 package com.edu.edumeet.meeting.service;
 
 import com.edu.edumeet.meeting.domain.CaptionSegment;
+import com.edu.edumeet.meeting.dto.CaptionMeetingSummary;
+import com.edu.edumeet.meeting.dto.CaptionMeetingsResponse;
 import com.edu.edumeet.meeting.dto.CaptionTranscriptResponse;
 import com.edu.edumeet.meeting.repository.CaptionSegmentRepository;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +24,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CaptionTranscriptService {
 
+    static final int DEFAULT_MEETING_LIMIT = 50;
+    static final int MAX_MEETING_LIMIT = 200;
+
     private final MeetingRepository meetingRepository;
     private final CaptionSegmentRepository captionSegmentRepository;
 
@@ -35,5 +41,22 @@ public class CaptionTranscriptService {
                 .collect(Collectors.joining("\n"));
         return new CaptionTranscriptResponse(
                 meetingId, segments.size(), text, System.currentTimeMillis());
+    }
+
+    /**
+     * final 자막이 있는 회의 목록. (#133)
+     *
+     * <p>상한을 강제하는 이유 - 부르는 쪽이 MCP 도구다. 도구 응답은 그대로
+     * 모델 컨텍스트에 들어가므로 "전부 주기" 가 곧 컨텍스트 낭비다.
+     * 그리고 {@code returned} 를 같이 돌려주므로 잘렸는지 부르는 쪽이 안다.
+     *
+     * @param limit 요청한 개수. 1 미만이면 기본값, {@value #MAX_MEETING_LIMIT} 초과면 잘린다
+     */
+    @Transactional(readOnly = true)
+    public CaptionMeetingsResponse listMeetingsWithCaptions(int limit) {
+        int effective = limit <= 0 ? DEFAULT_MEETING_LIMIT : Math.min(limit, MAX_MEETING_LIMIT);
+        List<CaptionMeetingSummary> meetings =
+                captionSegmentRepository.findMeetingsWithCaptions(PageRequest.of(0, effective));
+        return CaptionMeetingsResponse.of(meetings);
     }
 }

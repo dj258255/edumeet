@@ -28,6 +28,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       ai: ${{ steps.filter.outputs.ai }}
+      mcp: ${{ steps.filter.outputs.mcp }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -44,6 +45,13 @@ jobs:
             ai:
               - 'ai/**'
               - 'contracts/**'
+              - '.github/workflows/ci.yml'
+            # mcp 는 ai/ 에도 걸린다. 용어 사전(ai/caption_normalizer.py)을
+            # 그대로 import 하므로, 사전이 바뀌면 검색 결과가 바뀐다. (#133)
+            mcp:
+              - 'mcp-server/**'
+              - 'contracts/**'
+              - 'ai/caption_normalizer.py'
               - '.github/workflows/ci.yml'
 
   build-and-test:
@@ -118,6 +126,39 @@ jobs:
 
       - name: 테스트
         working-directory: ai
+        run: pytest -q
+
+  # 계약의 세 번째 소비자다. (#133)
+  #
+  #   backend  노출한 경로가 계약과 같은가
+  #   ai       부르는 경로가 계약과 같은가
+  #   mcp      도구가 부르는 경로가 계약과 같은가
+  #
+  #   셋이 같은 contracts/internal-api.json 을 읽으므로, 계약이 바뀌면 셋 다 돈다.
+  mcp-tests:
+    needs: changes
+    if: needs.changes.outputs.mcp == 'true'
+    name: MCP 서버 테스트
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 파이썬 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: mcp-server/.python-version
+
+      - name: 의존성 설치
+        working-directory: mcp-server
+        run: |
+          python -m pip install -q --upgrade pip
+          pip install -q -r requirements.txt
+
+      # 저장소 체크아웃 위에서 돈다 - ai/caption_normalizer.py 를 import 하므로
+      # mcp-server/ 만 체크아웃해서는 시험이 반쪽이 된다.
+      - name: 테스트
+        working-directory: mcp-server
         run: pytest -q
 
   # ★ 프론트도 CI 에 넣는다. (#99)
