@@ -40,19 +40,27 @@ def test_import_alone_creates_no_directory(tmp_path):
     )
 
 
-def test_default_output_dir_stays_inside_ai():
-    """기본 산출물 경로는 ai/ 안이어야 한다 - 저장소 루트로 나가면 안 된다."""
+def test_default_output_dir_stays_inside_ai(monkeypatch):
+    """기본 산출물 경로는 ai/ 안이어야 한다 - 저장소 루트로 나가면 안 된다.
+
+    디스크에 `FastAPIProject/` 가 있는지로 확인하지 않는다. 그 디렉터리는
+    이 저장소의 다른 브랜치를 체크아웃하고 뭔가를 돌리기만 해도 생긴다 -
+    그러면 이 시험이 **이번 실행과 무관한 이유로** 빨개진다.
+
+    확인할 것은 "지금 코드가 어디를 가리키는가" 하나다.
+    import 부수효과는 위의 subprocess 시험이 따로 잡는다.
+    """
+    monkeypatch.delenv("MERGE_OUT_DIR", raising=False)
+    import importlib
+
     import main
+    importlib.reload(main)
 
     default = os.path.realpath(os.path.join(AI_DIR, "var", "output"))
-    # 환경변수가 걸려 있으면(다른 테스트가 monkeypatch 했으면) 기본값을 직접 계산한다
-    actual = os.path.realpath(
-        os.environ.get("MERGE_OUT_DIR") or main.MERGE_OUT_DIR
-    )
-    if "MERGE_OUT_DIR" not in os.environ:
-        assert actual == default
+    actual = os.path.realpath(main.MERGE_OUT_DIR)
 
+    assert actual == default
     repo_root = os.path.realpath(os.path.dirname(AI_DIR))
-    assert not os.path.isdir(os.path.join(repo_root, "FastAPIProject")), (
-        "FastAPIProject/ 가 다시 생겼다. MERGE_OUT_DIR 기본값을 확인한다"
+    assert actual.startswith(os.path.realpath(AI_DIR)), (
+        f"산출물 경로가 ai/ 밖이다: {actual} (저장소 루트={repo_root})"
     )
