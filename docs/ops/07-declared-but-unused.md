@@ -157,6 +157,55 @@ boolean isCreator = classRoom.getMember().getId()...  // ← 통과한다
 
 ---
 
+## 뒤집힌 모양 — 아무도 안 부르는데 실행되고 있었다 (#134)
+
+앞의 일곱은 **선언은 있는데 아무도 안 쓰는** 것이었다. 이번엔 반대다.
+
+```python
+MERGE_OUT_DIR = os.environ.get(
+    "MERGE_OUT_DIR",
+    os.path.normpath(os.path.join(HERE, "..", "FastAPIProject"))   # ← 저장소 루트
+)
+os.makedirs(MERGE_OUT_DIR, exist_ok=True)                          # ← 모듈 최상단
+```
+
+두 줄이 각각 문제였다.
+
+| | |
+|---|---|
+| 기본 경로 | `FastAPIProject` 는 **PyCharm 이 지어 준 프로젝트 이름**이다. 그게 그대로 출력 경로가 됐다 |
+| makedirs 위치 | 모듈 최상단이라 **import 만 해도** 저장소 루트에 디렉터리가 생겼다 |
+
+두 번째가 더 나쁘다. **pytest 가 테스트를 수집하는 것만으로도** 디렉터리가 만들어졌다.
+`import` 에 부수효과가 있으면 *"이 모듈을 읽기만 하는"* 코드가 존재할 수 없다.
+
+그리고 결과가 이력에 남았다 — 실행 한 번의 산출물인 `ai/1/` 이 통째로 커밋돼 있었고,
+그 안에 **1.8MB 짜리 `Merge__1.wav`** 가 있었다.
+
+### 어떻게 고정했나
+
+이것도 앞의 일곱과 같은 함정이 있다 — **같은 프로세스 안에서 확인하면 의미가 없다.**
+다른 테스트가 이미 `import main` 을 해 버린 뒤라 무엇을 봐도 늦다.
+
+```python
+subprocess.run([sys.executable, "-c", "import main"], env={"MERGE_OUT_DIR": tmp, ...})
+assert not out_dir.exists()
+```
+
+**별도 프로세스에서 import 만 시킨다.** 부수효과를 재는 시험은 부수효과가 없는 자리에서 재야 한다.
+
+### 곁가지 — 안 쓰는 의존성 7개
+
+같이 정리했다. `celery` · `redis` · `aiofiles` · `Pillow` · `loguru` · `rich` ·
+`python-multipart` 가 `requirements.txt` 에 있었는데 **`ai/*.py` 어디에서도 import 되지 않는다.**
+
+`docs/README.md` 에는 "검토했지만 쓰지 않은 것" 표가 있다. 그건 **안 넣은 것**의 기록이다.
+이건 **넣어 놓고 안 쓴 것**이라 성격이 다르다 — 기록할 게 아니라 지울 것이다.
+
+> 안 쓰는 의존성은 공급망 표면적이다. 코드는 안 부르는데 CVE 는 따라온다.
+
+---
+
 ## 남은 질문
 
 **이 패턴을 다음에는 어떻게 먼저 잡나.**

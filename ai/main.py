@@ -32,11 +32,22 @@ BASE_AUDIO_DIR = os.environ.get(
     "AUDIO_BASE_DIR",
     os.path.normpath(os.path.join(HERE, "..", "backend", "audio"))
 )
+# 산출물(합친 wav · transcript · summary)이 쌓이는 곳. (#134)
+#
+# 기본값이 저장소 루트의 `FastAPIProject/` 였다 - PyCharm 이 지어 준 프로젝트 이름이
+# 그대로 출력 경로가 된 것이다. 두 가지가 같이 잘못돼 있었다.
+#
+#   1. 이 모듈을 import 만 해도 저장소 루트에 디렉터리가 생겼다.
+#      makedirs 가 모듈 최상단에 있어서 테스트 수집만으로도 실행됐다.
+#   2. 산출물이 저장소 루트로 나가서 `ai/1/` 같은 실행 결과가 커밋됐다.
+#      실제로 1.8MB 짜리 wav 가 이력에 들어가 있었다.
+#
+# 이제 `ai/var/output` 아래로 모으고 .gitignore 로 막는다.
+# makedirs 는 실제로 쓰는 곳(merge_audio)이 이미 하고 있으므로 여기서는 하지 않는다.
 MERGE_OUT_DIR = os.environ.get(
     "MERGE_OUT_DIR",
-    os.path.normpath(os.path.join(HERE, "..", "FastAPIProject"))
+    os.path.join(HERE, "var", "output")
 )
-os.makedirs(MERGE_OUT_DIR, exist_ok=True)
 
 def _numeric_key(path: str) -> int:
     """audio_12.wav -> 12 정렬키"""
