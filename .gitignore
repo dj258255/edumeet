@@ -299,4 +299,6 @@ mcp-server/.venv/
 mcp-server/__pycache__/
 mcp-server/**/__pycache__/
 mcp-server/.pytest_cache/
+# 임베딩 모델 캐시. (#140) 수백 MB 라 커밋 대상이 아니다.
+mcp-server/.models/
 **/.idea/

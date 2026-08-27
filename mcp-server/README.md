@@ -83,6 +83,29 @@ VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 > `hasRole("INTERNAL")` 아래이고 토큰은 Ansible Vault 에 있다.
 > 토큰을 MCP 클라이언트 설정에 넣는다는 것은 **그 기계를 신뢰한다는 뜻**이다.
 
+## 질문 형태로도 찾는다 (#140)
+
+용어로 찾으면 **정확 일치**, 질문 형태로 물으면 **비슷한 조각을 순위로** 준다.
+
+```
+"Redis"                      정확 일치 · 0.0ms · 모델 안 부름
+"트래픽 없을 때 커넥션 끊김"    2-gram 순위
+```
+
+전에는 질의 **문자열 전체**를 부분문자열로 찾아서 질문 형태가 무조건 0건이었다.
+질의 30개로 재 보니 질문형 재현율이 **0%** 였고, 2-gram 으로 바꾸자 **54%** 가 됐다 —
+모델 없이. 측정은 [`docs/ops/13`](../docs/ops/13-semantic-caption-search.md).
+
+### 의미 검색은 선택이다
+
+```bash
+pip install -r requirements-semantic.txt   # + torch (venv 60MB → 857MB)
+export EDUMEET_SEMANTIC_SEARCH=1           # 설치만으로는 안 켜진다
+```
+
+켜면 질문형이 **54% → 70%** 가 되고 질의당 **17ms** 가 붙는다.
+용어로만 찾는 사용자에게 그 비용을 물릴 이유가 없어서 기본은 꺼져 있다.
+
 ## 시험
 
 ```bash
@@ -96,6 +119,8 @@ VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 | `test_contract.py` | 부르는 경로·헤더가 공유 계약과 같은가 (**계약의 세 번째 소비자**) |
 | `test_transcript_search.py` | 무엇을 돌려주는가 — 순수 함수만 |
 | `test_server_tools.py` | 도구가 **실제로 등록**되었는가, 실패가 문장으로 가는가 |
+| `test_ranked_search.py` | 질문 형태가 걸리는가, 정확 일치가 모델을 안 부르는가 |
+| `eval/measure.py` | 다섯 방식을 같은 질의 세트로 비교 (시험이 아니라 측정) |
 
 마지막 것이 있는 이유는 이 저장소가 같은 함정을 일곱 번 만났기 때문이다
 ([`docs/ops/07-declared-but-unused.md`](../docs/ops/07-declared-but-unused.md)) —
