@@ -144,6 +144,30 @@ LangChain/LangGraph 는 요약을 map/reduce, 액션 아이템, 검색 색인, �
 
 → [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md)
 
+### 모델을 넣기 전에 베이스라인부터 고쳐야 했다
+
+자막 검색에 임베딩을 붙일지 정하려고 질의 30개로 쟀다. 재려고 보니
+**비교 대상이 허수아비였다** — 기존 구현은 질의 **문자열 전체**를 부분문자열로 찾고 있어서
+질문 형태는 무조건 0건이었다. 의미 때문이 아니라 구현 때문이다.
+
+그래서 모델 없는 베이스라인을 두 개 더 만들어 같이 쟀다.
+
+| 방식 | 전체 recall@5 | 질문형 | 질의당 | 추가 비용 |
+|---|---:|---:|---:|---|
+| 문자열 전체 (전) | 50% | **0%** | 0.03ms | — |
+| **문자 2-gram** | **77%** | **54%** | 0.06ms | **없음** |
+| 임베딩 단독 | 80% | 60% | 15.4ms | venv 857MB |
+| **하이브리드** | **85%** | **70%** | 16.9ms | venv 857MB |
+
+**54%p 를 공짜로 얻고, 그다음 16%p 에 857MB 를 낸다.**
+그래서 렉시컬을 기본으로 넣고 임베딩은 **선택적 의존성**으로 뒀다.
+
+그리고 처음엔 의미 검색을 *"렉시컬이 0건일 때"* 로 짰는데 **한 번도 안 돌았다** —
+2-gram 은 겹치는 조각이 하나만 있어도 결과를 낸다.
+켜고 쟀는데 숫자가 꺼진 것과 똑같아서 발견했다. **측정이 잡았다.**
+
+→ [`ops/13-semantic-caption-search.md`](ops/13-semantic-caption-search.md)
+
 ### 경보의 임계값은 어디서 오는가
 
 관측 스택은 서 있었는데 **경보가 0건이었다.** Grafana 는 사람이 열어야 보인다 —
@@ -386,6 +410,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md) | 자막 hot path 와 요약 batch path, LangChain/LangGraph 도입 기준 |
 | [`ops/11-mcp-transcript-server.md`](ops/11-mcp-transcript-server.md) | **MCP 서버** — 계약의 세 번째 소비자, 그리고 조용히 0건이 나오던 검색 |
 | [`ops/12-alerting.md`](ops/12-alerting.md) | **경보** — 관측을 세웠는데 아무도 안 봤다. 임계값마다 측정 출처를 붙였다 |
+| [`ops/13-semantic-caption-search.md`](ops/13-semantic-caption-search.md) | **자막 검색** — 재고 나서 붙였다. 가장 큰 개선은 모델이 아니었다 |
 
 ### 규칙
 

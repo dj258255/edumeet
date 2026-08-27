@@ -1,0 +1,14 @@
+# 선택적 의미 검색. (#140)
+#
+# ★ 이것 없이도 서버는 돈다. 넣으면 질문형 재현율이 54% -> 70% 가 되는 대신
+#   질의 지연이 0.06ms -> 17ms, venv 가 약 857MB 로 늘어난다.
+#
+#   30개 질의 측정 결과는 docs/ops/13-semantic-caption-search.md 에 있다.
+#   "질문형이 중요한가" 에 예라고 답할 수 있을 때만 넣는다.
+#
+# 설치 후 환경변수로 켠다 - 설치만으로는 안 켜진다.
+#   EDUMEET_SEMANTIC_SEARCH=1
+
+-r requirements.txt
+
+sentence-transformers>=6,<7
