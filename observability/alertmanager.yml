@@ -1,0 +1,47 @@
+# Alertmanager 설정. (#139)
+#
+# ★ 웹훅 URL 을 파일에 적지 않는다.
+#   Discord/Slack 웹훅은 그 자체가 시크릿이다. 아는 사람은 누구나 그 방에 글을 쓸 수 있다.
+#   그래서 컨테이너가 환경변수를 읽어 이 파일을 만들어 넣는 방식이 아니라,
+#   Ansible 이 배포 시점에 vault 값으로 이 파일을 렌더한다(ansible/templates).
+#   저장소에 커밋되는 이 파일은 기본값(수신자 없음)이다.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  # 라벨이 같은 경보를 묶는다. 500명 방이 무너지면 같은 경보가 연달아 뜨는데
+  # 알림이 100개 오면 아무도 안 본다.
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  # ★ 같은 경보를 4시간마다 다시 보낸다.
+  #   짧게 두면 알림 피로로 사람이 무시하게 되고, 길게 두면 잊는다.
+  repeat_interval: 4h
+  receiver: default
+
+  routes:
+    # critical 은 묶는 시간을 줄인다. 자막 유실은 복구할 원본이 없다.
+    - matchers: [severity="critical"]
+      receiver: default
+      group_wait: 10s
+      repeat_interval: 1h
+
+inhibit_rules:
+  # 앱 지표를 못 긁는 동안에는 다른 경보가 전부 무의미하다.
+  # 그때 나오는 "큐가 안 늘어난다" 는 정상이 아니라 관측이 죽은 것이다.
+  - source_matchers: [alertname="AppMetricsUnreachable"]
+    target_matchers: [severity=~"warning|critical"]
+    equal: [service]
+
+  # 상한에 붙었으면(critical) 50% 경고는 같이 울릴 필요가 없다.
+  - source_matchers: [alertname="ChatOutboundQueueAtCapacity"]
+    target_matchers: [alertname="ChatOutboundQueueGrowing"]
+
+receivers:
+  # 기본값은 "아무 데도 안 보냄" 이다.
+  #
+  # ★ 이것을 그대로 두면 경보가 조용히 사라진다. 그래서 verify-alerting.sh 가
+  #   수신자가 실제로 설정되어 있는지 확인하고, 없으면 실패한다.
+  #   "선언은 있는데 아무도 안 쓴다" 를 여덟 번 만났다 - 아홉 번째로 만들지 않는다.
+  - name: default

@@ -144,6 +144,32 @@ LangChain/LangGraph 는 요약을 map/reduce, 액션 아이템, 검색 색인, �
 
 → [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md)
 
+### 경보의 임계값은 어디서 오는가
+
+관측 스택은 서 있었는데 **경보가 0건이었다.** Grafana 는 사람이 열어야 보인다 —
+새벽 3시에 큐가 차면 아무도 모른다.
+
+붙이려고 보니 **잴 것부터 없었다.** `WebSocketConfig` 의 주석은
+*"느려지는 것은 지표에 드러난다(큐 길이가 상한에 붙는다)"* 라고 적고 있었는데,
+그 실행기가 빈이 아니라 Spring Boot 의 executor 계측이 지나가지 않았다.
+**주석이 존재를 주장한 지표가 없었다** — 아홉 번째다.
+
+그리고 임계값은 이미 잰 값에서 가져왔다.
+
+| 임계값 | 근거 |
+|---|---|
+| 아웃바운드 큐 **상한의 50%** | 정상 최대가 525개(상한의 **2.6%**). 20배 위라 오탐이 아니다 |
+| fan-out p95 **200명** | 200명에서 45ms, 500명에서 **1,313ms(29배)** |
+| 자막 드롭 **> 0** | 화면에는 이미 지나갔다. **복구할 원본이 없다** |
+
+**"이 숫자는 어디서 나왔나" 에 답할 수 있는 경보를 만든다.**
+
+그리고 경보는 조용히 끊길 곳이 네 군데다. 제일 위험한 것은 **없는 지표를 물어보는 것** —
+Prometheus 는 에러가 아니라 **빈 결과**를 내고, 빈 결과는 "정상" 과 구분되지 않는다.
+CI 시험이 규칙 파일과 실제 지표를 대조하고, `verify-alerting.sh` 가 서버에서 네 군데를 훑는다.
+
+→ [`ops/12-alerting.md`](ops/12-alerting.md)
+
 ### 정규화를 저장 쪽에만 걸면 검색이 조용히 0건을 낸다
 
 MCP 서버를 붙이면서 드러났다. 자막은 hot path 에서 용어 사전을 지난다.
@@ -359,6 +385,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`ops/09-realtime-caption-cost-quality.md`](ops/09-realtime-caption-cost-quality.md) | 실시간 자막 비용·지연·품질 제약 |
 | [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md) | 자막 hot path 와 요약 batch path, LangChain/LangGraph 도입 기준 |
 | [`ops/11-mcp-transcript-server.md`](ops/11-mcp-transcript-server.md) | **MCP 서버** — 계약의 세 번째 소비자, 그리고 조용히 0건이 나오던 검색 |
+| [`ops/12-alerting.md`](ops/12-alerting.md) | **경보** — 관측을 세웠는데 아무도 안 봤다. 임계값마다 측정 출처를 붙였다 |
 
 ### 규칙
 

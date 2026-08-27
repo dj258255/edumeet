@@ -10,6 +10,18 @@ global:
   external_labels:
     env: prod
 
+# 경보 규칙. (#139)
+#
+# 파일을 두는 것만으로는 부족하다 - Prometheus 가 실제로 로드했는지는
+# /api/v1/rules 로 물어봐야 안다. 그 확인을 scripts/verify-alerting.sh 가 한다.
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: edumeet-app
     metrics_path: /actuator/prometheus
@@ -22,3 +34,8 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
+
+  # Alertmanager 자신. 경보를 받아 주는 쪽이 죽으면 경보가 조용히 사라진다.
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]

@@ -1,0 +1,163 @@
+# 경보 규칙. (#139)
+#
+# ★ 임계값마다 근거를 적는다.
+#
+#   대부분의 경보는 "CPU > 80%" 처럼 근거 없는 숫자를 쓴다. 그러면 두 가지가 생긴다 -
+#   울려도 무엇을 해야 할지 모르고, 안 울려도 안전한지 알 수 없다.
+#
+#   이 저장소는 붕괴 지점을 이미 쟀다. 그 측정을 임계값의 근거로 쓴다.
+#   근거를 못 대는 규칙은 여기 넣지 않는다.
+#
+# ★ 절대값이 아니라 비율로 묻는다.
+#
+#   큐 상한을 코드에서 바꿨는데 경보가 옛 절대값을 물어보면 경보는 조용히 무의미해진다.
+#   그래서 앱이 capacity 도 지표로 낸다.
+
+groups:
+  - name: edumeet-chat
+    interval: 15s
+    rules:
+      # ────────────────────────────────────────────────────────────────
+      # 근거: performance/07-chat-unbounded-queue-oom.md
+      #
+      #   느린 소비자(Toxiproxy 5KB/s)에서 큐가 1,077,906 까지 쌓여 84초에 OOM.
+      #   같은 부하·같은 힙에서 빠른 소비자는 큐 최대 525 였다.
+      #   상한 2만을 걸어 84초 OOM -> 444초 무중단이 됐다.
+      #
+      #   즉 상한이 있으니 이제 OOM 으로는 안 죽는다. 대신 CallerRunsPolicy 로
+      #   역압이 위로 가서 "발행하는 쪽이 느려진다". 그것을 보려면 큐 점유율을 본다.
+      #
+      #   50% 를 고른 이유 - 빠른 소비자 정상 상태의 최대가 525(상한의 2.6%)였다.
+      #   50% 는 정상 변동의 20배 위라 오탐이 아니고, 상한까지 아직 여유가 있어
+      #   사람이 볼 시간이 남는다.
+      - alert: ChatOutboundQueueGrowing
+        expr: |
+          chat_channel_queued{channel="out"}
+            / chat_channel_capacity{channel="out"} > 0.5
+        for: 1m
+        labels:
+          severity: warning
+          runbook: docs/performance/07-chat-unbounded-queue-oom.md
+        annotations:
+          summary: "채팅 아웃바운드 큐가 상한의 50%를 넘었다"
+          description: >-
+            큐 {{ $value | humanizePercentage }} 점유. 정상 상태 최대는 상한의 2.6%(525개)였다.
+            상한이 있어 OOM 으로 죽지는 않지만, CallerRunsPolicy 때문에 발행 경로가 느려진다.
+            느린 클라이언트가 붙었는지 본다 - 아웃바운드 고갈은 느린 클라 8명부터 시작한다.
+
+      # ────────────────────────────────────────────────────────────────
+      # 근거: 같은 문서. 상한에 붙었다는 것은 역압이 이미 발행 경로에 걸렸다는 뜻이다.
+      - alert: ChatOutboundQueueAtCapacity
+        expr: |
+          chat_channel_queued{channel="out"}
+            / chat_channel_capacity{channel="out"} > 0.9
+        for: 30s
+        labels:
+          severity: critical
+          runbook: docs/performance/07-chat-unbounded-queue-oom.md
+        annotations:
+          summary: "채팅 아웃바운드 큐가 상한에 붙었다"
+          description: >-
+            큐 {{ $value | humanizePercentage }} 점유. 이 시점부터 발행하는 스레드가
+            직접 전송을 떠안는다(CallerRunsPolicy). 메시지는 안 버려지지만 전체가 느려진다.
+
+      # ────────────────────────────────────────────────────────────────
+      # 근거: performance/09-chat-capacity-oci.md
+      #
+      #   fan-out 워크로드에서 200명 -> 500명에 e2e 지연이 45ms -> 1,313ms 로 29배가 됐다.
+      #   그때 연결은 하나도 안 끊겼다. 무너진 것은 지연이다.
+      #   "몇 명이 붙나" 가 아니라 "몇 명까지 채팅답나" 가 상한이다.
+      #
+      #   fan-out 대상 수를 보는 이유 - 발행 1건이 구독자 수만큼 작업을 만든다.
+      #   증폭기가 커지는 것이 지연보다 먼저 보인다.
+      - alert: ChatFanoutAmplificationHigh
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(chat_fanout_recipients_bucket[5m]))) > 200
+        for: 5m
+        labels:
+          severity: warning
+          runbook: docs/performance/09-chat-capacity-oci.md
+        annotations:
+          summary: "발행 1건당 전달 대상이 200을 넘었다 (p95)"
+          description: >-
+            p95 {{ $value | printf "%.0f" }}명. 200명에서 e2e p95 가 45ms 였고
+            500명에서 1,313ms(29배)가 됐다. 이 값이 계속 오르면 지연이 먼저 무너진다.
+
+  - name: edumeet-async-write
+    interval: 15s
+    rules:
+      # ────────────────────────────────────────────────────────────────
+      # 근거: performance/13-caption-archive-transcript.md
+      #
+      #   final 자막은 브로드캐스트 뒤 비동기로 저장한다. 화면 표시가 DB 를 기다리지
+      #   않게 하려는 것이다. 대가는 "저장이 밀리면 요약 입력이 빈다" 이다.
+      #
+      #   드롭은 상한을 넘겨 버린 것이라 0 이 아니면 이미 자막이 유실됐다.
+      #   경고가 아니라 즉시 봐야 한다.
+      - alert: CaptionArchiveDropping
+        expr: increase(caption_archive_dropped_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          runbook: docs/performance/13-caption-archive-transcript.md
+        annotations:
+          summary: "final 자막이 저장 큐에서 버려지고 있다"
+          description: >-
+            5분간 {{ $value | printf "%.0f" }}건 유실. 유실된 자막은 다시보기에도,
+            회의 후 요약 입력에도 들어가지 않는다. 화면에는 이미 지나갔으므로 복구할 원본이 없다.
+
+      # 근거: 같은 문서. 큐가 계속 차 있다는 것은 flush 가 유입을 못 따라간다는 뜻이다.
+      - alert: CaptionArchiveBacklog
+        expr: chat_archive_queued > 0 and caption_archive_queued > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "비동기 저장 큐가 10분째 비지 않는다"
+          description: >-
+            저장이 유입을 못 따라가고 있다. 이 상태가 이어지면 상한에 닿아 유실로 바뀐다.
+
+  - name: edumeet-silent-failures
+    interval: 15s
+    rules:
+      # ────────────────────────────────────────────────────────────────
+      # ★ 근거: performance/10-websocket-behind-proxy.md
+      #
+      #   nginx proxy_read_timeout 기본값 60초가 조용한 WebSocket 연결을 끊는다.
+      #     60s (기본값)  60.9초에 3/3 끊김
+      #     3600s         90.1초에 0/3
+      #
+      #   이 버그의 성질이 중요하다 -
+      #     에러 로그가 안 남는다. 개발 중엔 안 보인다. 트래픽이 있으면 가려진다.
+      #
+      #   그래서 "에러를 세는" 경보로는 절대 안 잡힌다.
+      #   대신 세션 수가 규칙적으로 깎이는 모양을 본다.
+      #   설정이 되돌아가면(재배포·설정 롤백) 이 경보가 잡는다.
+      - alert: WebSocketSessionsDroppingSteadily
+        expr: |
+          chat_sessions_active > 0
+            and delta(chat_sessions_active[3m]) < -5
+            and rate(chat_messages_published_total[3m]) < 0.1
+        for: 3m
+        labels:
+          severity: warning
+          runbook: docs/performance/10-websocket-behind-proxy.md
+        annotations:
+          summary: "조용한 연결이 규칙적으로 끊기고 있다 (프록시 타임아웃 의심)"
+          description: >-
+            3분간 세션 {{ $value | printf "%.0f" }}개 감소. 그동안 발행은 거의 없었다.
+            nginx proxy_read_timeout 이 기본값(60초)으로 되돌아갔는지 확인한다.
+            이 버그는 에러 로그를 남기지 않으므로 로그로는 안 보인다.
+
+      # 관측 자체가 죽는 경우. #83 에서 관측이 시작조차 안 되던 적이 있다.
+      - alert: AppMetricsUnreachable
+        expr: up{job="edumeet-app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          runbook: docs/ops/04-observability.md
+        annotations:
+          summary: "앱 지표를 긁지 못한다"
+          description: >-
+            2분째 스크레이프 실패. 앱이 죽었거나 관리 포트가 닫혔다.
+            이 경보가 울리는 동안 다른 모든 경보는 침묵한다 - 그래서 이것이 critical 이다.
