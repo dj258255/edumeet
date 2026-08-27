@@ -12,6 +12,8 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.ThreadPoolExecutor;
@@ -54,6 +56,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final int OUTBOUND_QUEUE_CAPACITY = 20_000;
 
     private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+    private final MeterRegistry meterRegistry;
 
     @Value("${front.url}")
     private String frontUrl;
@@ -164,6 +167,42 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // 종료 시 큐에 남은 것을 버린다. 죽는 중에 붙잡고 있을 이유가 없다.
         executor.setWaitForTasksToCompleteOnShutdown(false);
         executor.initialize();
+        registerQueueMetrics(prefix, queueCapacity, executor);
         return executor;
+    }
+
+    /**
+     * 큐 길이를 지표로 낸다. (#139)
+     *
+     * <p><b>이 메서드가 없는 동안 위 JavaDoc 은 거짓이었다.</b>
+     * "느려지는 것은 지표에 드러난다(큐 길이가 상한에 붙는다)" 고 적어 뒀는데,
+     * 그 지표가 없었다.
+     *
+     * <p>왜 없었나 - Spring Boot 의 executor 계측 자동 설정은 <b>빈</b>만 계측한다.
+     * 이 실행기는 {@code configureClientOutboundChannel} 안에서 직접 만들어지므로
+     * 빈이 아니고, 따라서 아무도 계측하지 않았다.
+     *
+     * <p>같은 모양을 여덟 번 만났다({@code docs/ops/07-declared-but-unused.md}).
+     * 이번 것은 <b>주석이 존재를 주장한 지표</b>였다.
+     *
+     * <p>{@code capacity} 를 함께 내는 이유 - 경보를 "큐 15,000개" 같은 절대값으로 쓰면
+     * 상한을 바꿀 때 경보가 조용히 무의미해진다. <b>비율로 물어보게</b> 한다.
+     */
+    private void registerQueueMetrics(String prefix, int queueCapacity, ThreadPoolTaskExecutor executor) {
+        String channel = prefix.replace("chat-", "").replace("-", "");
+        Gauge.builder("chat.channel.queued", executor,
+                        e -> e.getThreadPoolExecutor().getQueue().size())
+                .tag("channel", channel)
+                .description("STOMP 채널 실행기에 쌓인 작업 수. 아웃바운드가 붕괴 지점이다")
+                .register(meterRegistry);
+        Gauge.builder("chat.channel.capacity", executor, e -> queueCapacity)
+                .tag("channel", channel)
+                .description("그 채널의 큐 상한. 경보는 절대값이 아니라 이것과의 비율로 본다")
+                .register(meterRegistry);
+        Gauge.builder("chat.channel.active", executor,
+                        e -> e.getThreadPoolExecutor().getActiveCount())
+                .tag("channel", channel)
+                .description("작업 중인 스레드 수. 아웃바운드 고갈은 느린 클라 8명부터 시작한다")
+                .register(meterRegistry);
     }
 }
