@@ -144,6 +144,28 @@ LangChain/LangGraph 는 요약을 map/reduce, 액션 아이템, 검색 색인, �
 
 → [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md)
 
+### 정규화를 저장 쪽에만 걸면 검색이 조용히 0건을 낸다
+
+MCP 서버를 붙이면서 드러났다. 자막은 hot path 에서 용어 사전을 지난다.
+
+```
+STT   "python 을 배웠습니다"   →   저장   "파이썬 을 배웠습니다"
+```
+
+그래서 `python` 으로 찾으면 **오류가 아니라 빈 결과**가 나온다.
+빈 결과라서 더 나쁘다 — *"그 회의에서 파이썬 얘기를 안 했나 보다"* 로 읽힌다.
+
+**쓰는 쪽만 있을 때는 맞는 판단이었다.** 읽는 쪽이 생기면서 비대칭이 드러났다.
+
+사전을 어디에 둘지도 배포 형태가 정했다. `ai/` 는 도커 빌드 컨텍스트가 `./ai` 라
+`contracts/` 를 런타임에 못 읽는다. 그런데 **MCP stdio 서버는 컨테이너가 아니다** —
+저장소 체크아웃 위에서 도니까 `ai/caption_normalizer.py` 를 그대로 import 하면 된다.
+사본도, 새 계약 파일도 필요 없다.
+
+그리고 계약 소비자가 셋이 됐다 — **Java · 파이썬 · MCP 가 같은 파일을 읽는다.**
+
+→ [`ops/11-mcp-transcript-server.md`](ops/11-mcp-transcript-server.md)
+
 ### MySQL 은 "새로 고른 DB" 가 아니라 유지한 운영 전제다
 
 EduMeet 에서 DB 를 PostgreSQL 로 바꾸지 않은 이유는 PostgreSQL 이 부족해서가 아니다.
@@ -315,6 +337,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`ops/08-database-choice.md`](ops/08-database-choice.md) | MySQL 유지 결정 — PostgreSQL/MS-SQL 대안과 iMBC 맥락 |
 | [`ops/09-realtime-caption-cost-quality.md`](ops/09-realtime-caption-cost-quality.md) | 실시간 자막 비용·지연·품질 제약 |
 | [`ops/10-ai-caption-summary-pipeline.md`](ops/10-ai-caption-summary-pipeline.md) | 자막 hot path 와 요약 batch path, LangChain/LangGraph 도입 기준 |
+| [`ops/11-mcp-transcript-server.md`](ops/11-mcp-transcript-server.md) | **MCP 서버** — 계약의 세 번째 소비자, 그리고 조용히 0건이 나오던 검색 |
 
 ### 규칙
 

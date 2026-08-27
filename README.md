@@ -91,8 +91,10 @@ VP8→H264 재인코딩은 real 5.456초였고, 운영 HLS URL 20 VU 측정은 H
 backend/       Spring Boot 3.5 · Java 17 — API · WebSocket 채팅 · LiveKit 세션
 frontend/      Vue 3 · Vite — 화상강의 · 라이브방송 · 채팅 UI
 ai/            FastAPI · Python — STT 자막 파이프라인
+mcp-server/    MCP stdio 서버 — 저장된 강의 자막 검색 (Claude Code · Desktop)
 doc-summary/   Express · Node — 문서 요약 API
 
+contracts/     Java · 파이썬 · MCP 가 함께 읽는 경계 계약
 docs/          측정 기록과 판단 근거 (전송비용 · HLS · 채팅 용량 · 배포)
 k6/            부하 측정 스크립트
 deploy/  ansible/  observability/  scripts/
@@ -180,6 +182,24 @@ pytest -q
 ```
 
 **Python 3.10 이상**이 필요합니다 (`str | None`, PEP 604). 3.9 에서는 import 조차 되지 않습니다.
+
+### MCP 서버
+
+저장된 강의 자막을 Claude Code · Claude Desktop 에서 찾고 읽습니다.
+
+```bash
+cd mcp-server
+uv venv --python 3.12 .venv
+VIRTUAL_ENV=.venv uv pip install -r requirements.txt
+./.venv/bin/python -m pytest -q
+```
+
+도구는 셋입니다 — `list_caption_meetings` · `search_transcript` · `get_transcript`.
+DB 를 직접 읽지 않고 **Java 내부 API 를 경유**합니다. 자막 정렬 규칙이 한 곳에만
+있어야 하기 때문입니다. 그래서 `contracts/internal-api.json` 을
+**Java · 파이썬 · MCP 셋이 함께 읽습니다.**
+
+등록 방법과 환경변수는 [`mcp-server/README.md`](mcp-server/README.md).
 
 ### 설정
 

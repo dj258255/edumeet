@@ -293,4 +293,10 @@ ai/.venv/
 # 파이썬 AI 서비스 산출물 - 합친 wav · transcript · cleaned · summary(md/pdf). (#134)
 # 전에는 저장소 루트의 FastAPIProject/ 로 나갔고 ai/1/ 이 통째로 커밋돼 있었다.
 ai/var/
+
+# MCP 서버. (#133)
+mcp-server/.venv/
+mcp-server/__pycache__/
+mcp-server/**/__pycache__/
+mcp-server/.pytest_cache/
 **/.idea/
