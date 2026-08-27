@@ -2,14 +2,18 @@
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil, textwrap
+import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil
 
 # 백엔드와 말하는 코드는 backend_client.py 로 옮겼다. (#117)
+# 요약 파이프라인은 다섯 조각으로 나눴다. (#135)
 #
-# ★ 나머지는 옮기지 않았다. summarize_text_auto 가 471줄인데 테스트가 0개다.
-#   테스트 없이 쪼개면 "동작이 바뀌었는지 알 방법이 없는 변경" 이 되고,
-#   471줄이라 테스트를 쓸 수도 없다 - 닭-달걀이다.
-#   먼저 그 함수를 시험 가능한 크기로 만드는 작업이 필요하고, 그건 별개다.
+# #117 에서는 summarize_text_auto 를 두고 이렇게 적었다 -
+#   "471줄인데 테스트가 0개다. 테스트 없이 쪼개면 동작이 바뀌었는지 알 방법이
+#    없고, 471줄이라 테스트를 쓸 수도 없다 - 닭-달걀이다."
+#
+# 닭-달걀은 함수 전체에만 성립했다. 함수 안에는 이미 경계가 있었고,
+# 그중 셋은 순수 함수라 옮기기만 하면 바로 시험할 수 있었다.
+# 쪼갤 수 없어서 못 쓴 게 아니라 쪼갤 순서를 안 정했던 것이다.
 from backend_client import (
     send_summary_to_api,
     send_captions_to_api,
@@ -19,7 +23,18 @@ from backend_client import (
 )
 from dotenv import load_dotenv
 from openai import OpenAI
-from fpdf import FPDF
+
+# summarize_text_auto 에서 뗀 조각들. (#135)
+#   #117 에서 "471줄이라 테스트를 쓸 수 없다" 고 적어 둔 그 함수다.
+#   닭-달걀은 함수 전체에만 성립했고 조각에는 성립하지 않았다.
+from summary_llm import (
+    clean_transcript,
+    join_notes,
+    map_summarize,
+    reduce_via_gms,
+    reduce_via_openai,
+)
+from summary_pdf import write_pdf
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -368,469 +383,86 @@ def _load_openai_clients():
 
 
 def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
-   
+    """transcript 를 정제 -> 부분 요약 -> 통합 -> md/pdf 로 만든다. (#135)
+
+    ★ 전에는 이 함수가 471줄이었고 테스트가 0개였다.
+
+      #117 에서 backend_client 를 뗄 때 여기는 일부러 두고 이렇게 적었다 -
+      "테스트 없이 쪼개면 동작이 바뀌었는지 알 방법이 없고, 471줄이라
+       테스트를 쓸 수도 없다. 닭-달걀이다."
+
+      닭-달걀은 **함수 전체에만 성립하고 조각에는 성립하지 않았다.**
+      쪼갤 수 없어서 못 쓴 게 아니라 쪼갤 순서를 안 정했던 것이다.
+      테스트를 먼저 씌울 수 있는 것부터 뗐다.
+
+          transcript_chunker   순수 함수
+          kr_font              파일시스템만
+          markdown_blocks      순수 함수 - 파싱과 그리기를 갈랐다
+          summary_pdf          블록을 받아 그리기만
+          summary_llm          클라이언트를 인자로 받는다
+
+      여기 남은 것은 조립과 파일 입출력이다.
+    """
     try:
-        oai, clean_model, summary_model = _load_openai_clients()
+        client, clean_model, summary_model = _load_openai_clients()
+
         env_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "../backend/.env"))
         if os.path.exists(env_path):
             load_dotenv(env_path)
 
-        use_claude = os.getenv("USE_GMS_CLAUDE", "false").lower() == "true"
-        gms_key    = os.getenv("GMS_KEY", "").strip()
-        
-        gms_base = os.getenv("GMS_ANTHROPIC_BASE", "https://gms.ssafy.io/gmsapi/api.anthropic.com").rstrip("/")
-        
         if not os.path.isfile(transcript_path):
             return {"ok": False, "detail": f"transcript 없음: {transcript_path}"}
 
         with open(transcript_path, "r", encoding="utf-8") as f:
             raw = f.read()
 
-        def chunk_text(text: str, max_chars: int):
-            chunks, buf = [], []
-            for line in text.splitlines(keepends=True):
-                if sum(len(x) for x in buf) + len(line) > max_chars and buf:
-                    chunks.append("".join(buf)); buf = []
-                buf.append(line)
-            if buf: chunks.append("".join(buf))
-            return chunks
-
-        def find_kr_font_paths() -> dict:
-            
-            candidates_dirs = [
-                os.path.join(HERE, "fonts"),
-                os.path.normpath(os.path.join(HERE, "..", "backend", "fonts")),
-            ]
-            names = [
-                "NotoSansKR-Regular.ttf", "NotoSansKR-Regular.otf",
-                "NotoSansKR-Medium.ttf", "NotoSansKR-SemiBold.ttf",
-                "NotoSansKR-Bold.ttf", "NotoSansKR-Black.ttf",
-                "NotoSansKR-Light.ttf", "NotoSansKR-ExtraLight.ttf",
-                "NotoSansKR-ExtraBold.ttf", "NotoSansKR-Thin.ttf",
-            ]
-            found = {}
-            for d in candidates_dirs:
-                if not os.path.isdir(d):
-                    continue
-                lowerfiles = {fn.lower(): os.path.join(d, fn) for fn in os.listdir(d)}
-                for n in names:
-                    for k, p in lowerfiles.items():
-                        if k.endswith(n.lower()):
-                            key = n.split(".")[0]  # e.g. NotoSansKR-Bold
-                            found[key] = p
-            # 대표 regular/bold 결정
-            regular = (found.get("NotoSansKR-Regular") or
-                       next((p for k, p in found.items() if "Regular" in k), None) or
-                       next(iter(found.values()), None))
-            bold    = (found.get("NotoSansKR-Bold") or
-                       found.get("NotoSansKR-SemiBold") or
-                       found.get("NotoSansKR-ExtraBold") or
-                       regular)
-            return {"regular": regular, "bold": bold, "all": found}
-        
-        def markdown_to_pdf(md_text: str, pdf_path: str):
-            fonts = find_kr_font_paths()
-            regular_path = fonts.get("regular")
-            bold_path    = fonts.get("bold")
-
-            class PrettyPDF(FPDF):
-                def __init__(self, *args, **kwargs):
-                    super().__init__(*args, **kwargs)
-                    self.doc_title = ""
-                    self.family_base = "NotoKR" if regular_path else "Helvetica"
-                    self.family_mono = "NotoKR-Mono" if regular_path else "Courier"
-
-                def header(self):
-                    if not self.doc_title:
-                        return
-                    self.set_y(12)
-                    self.set_font(self.family_base, "B", 15)
-                    self.set_text_color(25, 25, 25)
-                    self.cell(0, 8, self.doc_title, ln=1)
-                    # 얇은 구분선
-                    self.set_draw_color(200, 200, 200)
-                    self.set_line_width(0.4)
-                    self.line(self.l_margin, self.get_y()+1, self.w - self.r_margin, self.get_y()+1)
-                    self.ln(5)
-
-                def footer(self):
-                    self.set_y(-15)
-                    self.set_font(self.family_base, "", 10)
-                    self.set_text_color(120, 120, 120)
-                    self.cell(0, 8, f"{self.page_no()}", align="C")
-
-            ACCENT = (34, 197, 94)   # 브랜드 그린
-            CODE_BG = (245, 246, 248)
-            CALL_BG = (248, 250, 246)
-
-            pdf = PrettyPDF(format="A4", unit="mm")
-            pdf.set_left_margin(18)
-            pdf.set_right_margin(18)
-            pdf.set_auto_page_break(auto=True, margin=18)
-            pdf.add_page()
-
-            if regular_path:
-                pdf.add_font("NotoKR", "", regular_path, uni=True)
-                pdf.add_font("NotoKR", "B", bold_path or regular_path, uni=True)
-                # 코드 블록에서도 한글 보이게 동일 폰트 사용
-                pdf.add_font("NotoKR-Mono", "", regular_path, uni=True)
-            # 기본 폰트
-            base_family = pdf.family_base
-            mono_family = pdf.family_mono
-
-            usable_w = pdf.w - pdf.l_margin - pdf.r_margin
-            line_h   = 6.0
-            para_gap = 1.5
-            bullet_indent = 5.5
-            # 문서 제목(H1 첫 줄) 추출 → 헤더에 사용
-            for ln in md_text.splitlines():
-                if ln.startswith("# "):
-                    pdf.doc_title = ln[2:].strip()
-                    break
-
-            pdf.set_font(base_family, "", 12)
-            pdf.set_text_color(20, 20, 20)
-
-            def hr(gap=2):
-                pdf.set_draw_color(230, 230, 230)
-                pdf.set_line_width(0.4)
-                pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
-                pdf.ln(gap)
-
-            def para(text, h=line_h, fill=False):
-                pdf.set_x(pdf.l_margin)
-                pdf.multi_cell(usable_w, h, text, fill=fill)
-                pdf.ln(para_gap)
-
-            def bullet(text):
-                x = pdf.get_x()
-                pdf.set_x(pdf.l_margin)
-                pdf.cell(bullet_indent, line_h, "•")
-                pdf.set_x(pdf.l_margin + bullet_indent)
-                pdf.multi_cell(usable_w - bullet_indent, line_h, text)
-
-            # 코드/수식 박스
-            in_code = False
-            code_is_math = False
-            def open_code(is_math=False):
-                # 배경 박스 느낌으로 줄마다 fill True
-                pdf.ln(0.5)
-                pdf.set_fill_color(*CODE_BG if not is_math else (240, 245, 255))
-                pdf.set_draw_color(220, 220, 220)
-                pdf.set_line_width(0.2)
-                pdf.set_font(mono_family, "", 10)
-                pdf.set_text_color(40, 40, 40 if not is_math else 0)
-
-            def close_code():
-                pdf.set_text_color(20, 20, 20)
-                pdf.set_font(base_family, "", 12)
-                pdf.ln(1.0)
-
-            # 요약(Callout) 박스 모드
-            callout = False
-            def open_callout():
-                pdf.ln(0.5)
-                pdf.set_fill_color(*CALL_BG)
-            def close_callout():
-                pdf.ln(1.0)
-
-            # 본문 렌더링
-            lines = md_text.splitlines()
-            i = 0
-            while i < len(lines):
-                raw = lines[i]
-                line = raw.rstrip("\n")
-
-                # 코드/수식 토글
-                if line.strip().startswith("```"):
-                    if not in_code:
-                        tag = line.strip()[3:].strip().lower()
-                        code_is_math = (tag == "math")
-                        in_code = True
-                        open_code(code_is_math)
-                    else:
-                        in_code = False
-                        close_code()
-                    i += 1
-                    continue
-                    
-                if in_code:
-                    # 줄 단위로 채워진 박스
-                    pdf.set_x(pdf.l_margin + 2)
-                    pdf.multi_cell(usable_w - 4, 5, line, fill=True)
-                    i += 1
-                    continue
-
-                 # 섹션 헤딩
-                if line.startswith("### "):
-                    pdf.set_font(base_family, "B", 13)
-                    para(line[4:].strip())
-                    pdf.set_font(base_family, "", 12)
-                    i += 1
-                    continue
-
-                if line.startswith("## "):
-                    # 요약 헤딩은 Accent 라벨 + Callout 박스 시작
-                    title = line[3:].strip()
-                    pdf.set_font(base_family, "B", 16)
-                    # 액센트 라벨
-                    pdf.set_text_color(*ACCENT)
-                    para(title)
-                    pdf.set_text_color(20, 20, 20)
-                    hr(gap=2)
-
-                    # "요약" 섹션이면 배경 박스 모드
-                    if title.replace(" ", "") in ("요약", "Summary"):
-                        callout = True
-                        open_callout()
-                    else:
-                        if callout:
-                            callout = False
-                            close_callout()
-                    pdf.set_font(base_family, "", 12)
-                    i += 1
-                    continue
-
-                if line.startswith("# "):
-                    pdf.set_font(base_family, "B", 20)
-                    # 큰 타이틀은 아래 여백 조금 더
-                    para(line[2:].strip())
-                    hr(gap=3)
-                    pdf.set_font(base_family, "", 12)
-                    i += 1
-                    continue
-
-                # 불릿
-                if line.strip().startswith("- "):
-                    body = line.strip()[2:]
-                    if callout:
-                        # 콜아웃 내부 불릿은 약간 더 촘촘히 + 배경
-                        pdf.set_fill_color(*CALL_BG)
-                        x = pdf.get_x()
-                        pdf.set_x(pdf.l_margin)
-                        pdf.cell(bullet_indent, line_h, "•", fill=True)
-                        pdf.set_x(pdf.l_margin + bullet_indent)
-                        pdf.multi_cell(usable_w - bullet_indent, line_h, body, fill=True)
-                    else:
-                        bullet(body)
-                    i += 1
-                    continue
-
-                # 빈 줄
-                if not line.strip():
-                    pdf.ln(2 if callout else 1)
-                    i += 1
-                    continue
-
-                # ✅ 일반 문단
-                if callout:
-                    pdf.set_fill_color(*CALL_BG)
-                    para(line, fill=True)
-                else:
-                    para(line)
-                i += 1
-
-            # 마지막에 열어둔 callout 닫기
-            if callout:
-                close_callout()
-
-            pdf.output(pdf_path)
-
-
-        # 1) 전처리(clean) — OpenAI
-        system_clean = (
-            "너는 한국어 전사 텍스트를 정제하는 도우미다. "
-            "원문 의미를 보존하고 환각을 피한다. "
-            "해야 할 일: 문장 경계/문장부호 복원, 띄어쓰기·맞춤법 보정, 중복/잡음 최소화. "
-            "불명확하면 [불명확]로 표기하고 임의로 보충하지 않는다."
-        )
-        o3_max = int(os.getenv("O3_CHUNK_CHARS", "9000"))
-        clean_chunks = []
-        for i, ch in enumerate(chunk_text(raw, o3_max), 1):
-            prompt = (
-                "아래 한국어 텍스트를 의미 왜곡 없이 정리하세요.\n"
-                "- 문장부호/문장 경계 복원, 띄어쓰기/맞춤법 보정\n"
-                "- 명백한 중복/잡음은 간단히 정리(사실 추가/삭제 금지)\n"
-                "- 고유명사가 한국어 음역일 때, 맥락이 명확하면 원어(예: C++)로 복원\n"
-                "- 불명확하면 [불명확] 표기\n\n"
-                f"{ch}"
-
-            )
-            try:
-                resp = oai.responses.create(
-                    model=clean_model,
-                    input=[
-                        {"role":"system","content": system_clean},
-                        {"role":"user","content": prompt}
-                    ],
-                    temperature=0.2,
-                    max_output_tokens=2000,
-                )
-                clean_chunks.append(resp.output_text.strip())
-            except Exception:
-                comp = oai.chat.completions.create(
-                    model=clean_model,
-                    messages=[
-                        {"role":"system","content": system_clean},
-                        {"role":"user","content": prompt}
-                    ],
-                    temperature=0.2,
-                )
-                clean_chunks.append(comp.choices[0].message.content.strip())
-        cleaned = "\n\n".join(clean_chunks)
+        # 1) 정제
+        cleaned = clean_transcript(client, clean_model, raw)
         cleaned_path = os.path.join(out_dir, "cleaned.txt")
         with open(cleaned_path, "w", encoding="utf-8") as fw:
             fw.write(cleaned)
 
-        # 2) 맵 요약 — OpenAI
-        system_summarize = (
-            
-            
-            "너는 정확한 한국어 필기자다. 환각 없이 핵심을 구조화하고, "
-            "수식은 입력에 실제 언급된 경우에만 ```math 블록을 사용한다."
-        )
-        sum_max = int(os.getenv("OAI_SUMMARY_CHARS", "8000"))
-        map_notes = []
-        for i, ch in enumerate(chunk_text(cleaned, sum_max), 1):
-            prompt = (
-                 "아래 텍스트를 한국어 강의 노트로 요약하세요.\n"
-                "- 핵심 포인트 3~6개 불릿\n"
-                "- 수학/과학/공학 등에서 실제 언급된 공식이 있으면 ```math 블록으로 표기\n"
-                "- 입력에 없는 사실 금지, 불명확하면 [불명확]\n\n"
-                f"{ch}"
-            )
-            try:
-                resp = oai.responses.create(
-                    model=summary_model,
-                    input=[
-                        {"role":"system","content": system_summarize},
-                        {"role":"user","content": prompt}
-                    ],
-                    temperature=0.3,
-                    max_output_tokens=2200,
-                )
-                map_notes.append(resp.output_text.strip())
-            except Exception:
-                comp = oai.chat.completions.create(
-                    model=summary_model,
-                    messages=[
-                        {"role":"system","content": system_summarize},
-                        {"role":"user","content": prompt}
-                    ],
-                    temperature=0.3,
-                )
-                map_notes.append(comp.choices[0].message.content.strip())
+        # 2) 부분 요약 (map)
+        notes_joined = join_notes(map_summarize(client, summary_model, cleaned))
 
-        notes_joined = "\n\n---\n\n".join(map_notes)
-
-        # 3) 최종 리듀스 — Claude via GMS (우선)
+        # 3) 통합 (reduce). GMS 를 먼저 보고 안 되면 OpenAI 로 간다 -
+        #    GMS 는 사내 프록시라 없을 수 있고, 없다고 요약을 버릴 이유는 없다.
         final_md = None
-        if use_claude and gms_key:
-            url = f"{gms_base}/v1/messages"
-            headers = {
-                "Content-Type": "application/json",
-                "x-api-key": gms_key,
-                "anthropic-version": "2023-06-01",
-            }
-            payload = {
-                "model": "claude-3-7-sonnet-latest",
-                "max_tokens": 4500,
-                "system": "너는 한국어 기술 문서 작성자다. 부분 요약들을 하나의 일관된 마크다운 문서로 통합하라. 중복 제거, 용어/표기 통일, 사실 보존, 환각 금지.",
-                "messages": [
-                    {"role": "user", "content":
-                        "다음 '부분 요약 노트'를 통합해 하나의 강의 문서를 만들어라.\n"
-                        "- 섹션: # 요약(5~8문장), ## 핵심 개념(불릿으로 리스트), ## 수식/정의(수학/과학 등 수식이 있는 경우만, ```math)\n"
-                        "- 중복 제거, 용어 일관성 유지, 사실 추가/삭제 금지\n\n"
-                        f"{notes_joined}"
-                    }
-                ],
-            }
-            r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=120)
-            if r.status_code == 200:
-                j = r.json()
-                content = j.get("content", [])
-                if content and isinstance(content, list) and isinstance(content[0], dict) and "text" in content[0]:
-                    final_md = content[0]["text"].strip()
-            else:
-                print("[GMS Claude] HTTP", r.status_code, r.text[:200])
-
-        # 폴백 — OpenAI reduce
+        if os.getenv("USE_GMS_CLAUDE", "false").lower() == "true":
+            gms_key = os.getenv("GMS_KEY", "").strip()
+            if gms_key:
+                final_md = reduce_via_gms(
+                    notes_joined,
+                    os.getenv("GMS_ANTHROPIC_BASE",
+                              "https://gms.ssafy.io/gmsapi/api.anthropic.com"),
+                    gms_key,
+                )
         if not final_md:
-            prompt = (
-                "다음 요약 노트 묶음을 하나의 문서로 통합하세요. "
-                "중복 제거, 용어 일관성 유지, 사실추가 금지. "
-                "출력은 Markdown으로 하고 아래 섹션을 포함:\n"
-                "1) 요약(5~8문장)\n"
-                "2) 핵심 개념 리스트\n"
-                "3) 수학, 과학, 공학과 같이 공식이 필요, 언급 되거나 공식이 있으면 설명이 잘 된다면 수식을 표기해줘\n"
-                f"{notes_joined}"
-            )
-            try:
-                resp = oai.responses.create(
-                    model=summary_model,
-                    input=[
-                        {"role":"system","content":
-                         """
-                        내가 한국어로 작성된 방대한 텍스트를 너에게 줄게. 
-                        텍스트 내용은 선생님이 학생들에게 가르친 내용, 즉 수업 내용이야. 
-                        따라서 텍스트는 수학, 언어, 과학, 역사, 경제, 공학 등 초,중,고, 대학교를 포함해 주식, 부동산 등 다양한 내용일 수 있어. 
-                        텍스트는 정말 많은 단어를 포함하고 있기 때문에 나는 텍스트를 잘 요약해서 학생들에게 주고 싶어. 
-                        따라서 텍스트에 있는 수업 내용만을 포함하고, hallucinations를 피하고, 한국어 깔끔한 한국어 Markdown을 작성해줘. 
-                        """},
-                        {"role":"user","content":prompt}
-                    ],
-                    temperature=0.3,
-                    max_output_tokens=3000,
-                )
-                final_md = resp.output_text.strip()
-            except Exception:
-                comp = oai.chat.completions.create(
-                    model=summary_model,
-                    messages=[
-                        {"role":"system","content":"You are a senior Korean technical writer. Merge partial notes into one coherent Markdown document."},
-                        {"role":"user","content":prompt}
-                    ],
-                    temperature=0.3,
-                )
-                final_md = comp.choices[0].message.content.strip()
+            final_md = reduce_via_openai(client, summary_model, notes_joined)
 
-
-
-        # 4) 저장 & PDF
-        summary_md_path  = os.path.join(out_dir, "summary.md")
+        # 4) 저장
+        summary_md_path = os.path.join(out_dir, "summary.md")
         summary_pdf_path = os.path.join(out_dir, "summary.pdf")
         with open(summary_md_path, "w", encoding="utf-8") as fw:
             fw.write(final_md)
 
-        try:
-            markdown_to_pdf(final_md, summary_pdf_path)
-        except Exception as pdf_err:
-            print(f"[PDF] markdown_to_pdf 실패, fallback 실행: {pdf_err}")
-            pdf = FPDF(format="A4", unit="mm")
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.add_page()
-            fonts = find_kr_font_paths()
-            regular_path = fonts.get("regular")
-            if regular_path and os.path.exists(regular_path):
-                pdf.add_font("NotoKR", "", regular_path, uni=True)
-                pdf.set_font("NotoKR", size=12)
-            else:
-                pdf.set_font("Helvetica", size=12)
-
-            for line in final_md.splitlines():
-                # 긴 라인도 끊어서 출력
-                wrapped = textwrap.wrap(line, width=100, break_long_words=True, break_on_hyphens=False) or [""]
-                for seg in wrapped:
-                    pdf.multi_cell(0, 6, seg)
-            pdf.output(summary_pdf_path)
-
-        print("✅ summary 저장:", summary_md_path, " / ", summary_pdf_path)
+        # ★ PDF 실패가 요약 전체를 실패시키지 않는다. (#135)
+        #
+        #   전에는 여기서 난 예외가 바깥 except 까지 올라가 ok:False 가 됐다.
+        #   summary.md 는 이미 만들어져 있는데도 그랬다 - 그러면 다시 하려면
+        #   정제와 요약을 처음부터, 즉 토큰을 처음부터 다시 쓴다.
+        #
+        #   send_summary_to_api 는 pdf_path 가 없어도 md 만 올린다.
+        pdf_mode = write_pdf(final_md, summary_pdf_path)
+        print("summary 저장:", summary_md_path, "/",
+              summary_pdf_path if pdf_mode != "failed" else "(PDF 없음)", f"[{pdf_mode}]")
 
         return {
             "ok": True,
             "summary_path": summary_md_path,
-            "summary_pdf_path": summary_pdf_path,
+            "summary_pdf_path": summary_pdf_path if pdf_mode != "failed" else None,
             "clean_path": cleaned_path,
+            "pdf_mode": pdf_mode,
         }
 
     except Exception as e:
