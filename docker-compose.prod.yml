@@ -98,12 +98,41 @@ services:
       - "9090"
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # 경보 규칙. (#139) 규칙만 고치고 재시작하려면 별도 마운트여야 한다.
+      - ./observability/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       # 개인 서버라 디스크가 넉넉하지 않다. 15일이면 회귀 분석에 충분하다.
       - --storage.tsdb.retention.time=15d
+      # 규칙을 고쳤을 때 컨테이너를 죽이지 않고 다시 읽게 한다. (#139)
+      # 내부망에서만 닿으므로(expose 만 함) 바깥에서 리로드를 부를 수 없다.
+      - --web.enable-lifecycle
     depends_on: [app]
+    networks: [edumeet]
+
+  # 경보를 받아 사람에게 보내는 쪽. (#139)
+  #
+  # ★ 이것이 없으면 규칙은 firing 이 되지만 아무 데도 안 간다.
+  #   Prometheus 는 경보를 "평가" 하고, 보내는 것은 Alertmanager 다.
+  #   규칙 파일만 두고 끝내면 대시보드 안에서만 빨개진다 -
+  #   그건 지금까지와 똑같이 "사람이 열어야 보이는" 상태다.
+  #
+  # 127.0.0.1 에만 묶는 이유는 Grafana 와 같다(#89). Alertmanager UI 는
+  # 인증이 없어서 열려 있으면 누구나 경보를 침묵시킬 수 있다.
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    container_name: edumeet-alertmanager
+    profiles: [observability]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
     networks: [edumeet]
 
   grafana:
@@ -230,6 +259,7 @@ services:
 
 volumes:
   prometheus_data:
+  alertmanager_data:
   grafana_data:
   mysql_data:
   redis_data:
