@@ -109,6 +109,20 @@ tasks.named<Test>("test") {
 
     systemProperty("spring.profiles.active", "test")
 
+    // Testcontainers 가 붙을 Docker API 버전. (#153)
+    //
+    //   Docker 29 는 API 1.40 미만을 거절하는데, Testcontainers 가 쓰는 docker-java 의
+    //   기본값은 1.32 다. 그래서 최신 Docker 가 깔린 곳에서는 시험이 통째로 초기화 실패한다.
+    //
+    //       Docker 19.03  API 1.40
+    //       Docker 20.10  API 1.41   <- 오래된 러너도 커버해야 한다
+    //       Docker 29     API 1.40 이상만 허용
+    //
+    //   1.41 이 두 조건을 동시에 만족하는 값이다. 1.44 로 올리면 오래된 쪽이 깨진다.
+    //   환경변수(DOCKER_API_VERSION)나 ~/.testcontainers.properties 로는 안 먹는다 -
+    //   docker-java 가 읽는 것은 시험 JVM 의 시스템 속성이다.
+    systemProperty("api.version", System.getProperty("api.version") ?: "1.41")
+
     // 테스트 결과 로깅
     testLogging {
         events("passed", "skipped", "failed")
