@@ -27,6 +27,13 @@ const TOKEN = __ENV.TOKEN;
 const MEETING_ID = __ENV.MEETING_ID;
 const INTERNAL_TOKEN = __ENV.INTERNAL_TOKEN || 'test-internal-token';
 const SUBSCRIBERS = parseInt(__ENV.SUBSCRIBERS || '150');
+// 몇 명을 느리게 만들 것인가. 나머지는 토식을 안 지나 정상 속도로 받는다.
+//
+//   SLOW = SUBSCRIBERS  전원이 느리다 (기본. 최악을 만드는 조건)
+//   SLOW = 1            정상 N-1 명 + 느린 1명. 현실에서 흔한 모양이다.
+//                       이때 느린 쪽만 걷히고 나머지는 멀쩡한지를 본다.
+const SLOW = parseInt(__ENV.SLOW || String(SUBSCRIBERS));
+const DIRECT_BASE = __ENV.DIRECT_BASE || 'ws://localhost:8081';
 const CAPTION_RATE = parseInt(__ENV.CAPTION_RATE || '50');
 const PROBE_RATE = parseInt(__ENV.PROBE_RATE || '10');
 const DURATION = __ENV.DURATION || '90s';
@@ -37,6 +44,11 @@ const captionIngest = new Trend('caption_ingest_ms', true);
 const restProbe = new Trend('rest_probe_ms', true);
 const captionSent = new Counter('caption_sent');
 const captionFailed = new Counter('caption_failed');
+// 느린 쪽과 정상 쪽을 나눠 센다. 합쳐 세면 "느린 쪽만 걷혔다" 를 못 본다.
+const fastReceived = new Counter('fast_received');
+const slowReceived = new Counter('slow_received');
+const fastE2e = new Trend('fast_e2e_ms', true);
+const fastClosed = new Counter('fast_closed');
 
 export const options = {
   scenarios: {
@@ -57,7 +69,27 @@ export const options = {
 export function subscriber() {
   const sockets = [];
   for (let i = 0; i < SUBSCRIBERS; i++) {
-    const ws = new WebSocket(`${WS_BASE}/ws`);
+    const slow = i < SLOW;
+    const ws = new WebSocket(`${slow ? WS_BASE : DIRECT_BASE}/ws`);
+    if (!slow) {
+      ws.onclose = () => fastClosed.add(1);
+      ws.onmessage = (e) => {
+        const text = typeof e.data === 'string' ? e.data : '';
+        if (text.indexOf('MESSAGE') !== 0) return;
+        fastReceived.add(1);
+        const split = text.indexOf('\n\n');
+        if (split < 0) return;
+        try {
+          const msg = JSON.parse(text.slice(split + 2).replace(/\0$/, ''));
+          if (msg.publishedAt) fastE2e.add(Date.now() - msg.publishedAt);
+        } catch (err) { /* 잘린 프레임은 버린다 */ }
+      };
+    } else {
+      ws.onmessage = (e) => {
+        const text = typeof e.data === 'string' ? e.data : '';
+        if (text.indexOf('MESSAGE') === 0) slowReceived.add(1);
+      };
+    }
     ws.onopen = () => {
       ws.send(`CONNECT\naccept-version:1.2\nhost:localhost\nAuthorization:Bearer ${TOKEN}\n\n\0`);
       ws.send(`SUBSCRIBE\nid:sub-${i}\ndestination:/topic/rooms/${MEETING_ID}/captions\n\n\0`);
