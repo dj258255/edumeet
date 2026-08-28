@@ -33,6 +33,37 @@
         "current": {}
       },
       {
+        "name": "service",
+        "label": "서비스",
+        "type": "custom",
+        "query": "backend,ai,mcp",
+        "options": [
+          {
+            "text": "전체",
+            "value": ".*",
+            "selected": true
+          },
+          {
+            "text": "backend",
+            "value": "backend"
+          },
+          {
+            "text": "ai",
+            "value": "ai"
+          },
+          {
+            "text": "mcp",
+            "value": "mcp"
+          }
+        ],
+        "current": {
+          "text": "전체",
+          "value": ".*"
+        },
+        "includeAll": false,
+        "description": "JSON 로그의 service 필드로 거른다. 평문 로그(mysql, redis)는 전체에서만 보인다"
+      },
+      {
         "name": "meetingId",
         "label": "회의 번호",
         "type": "textbox",
@@ -202,7 +233,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"edumeet\", container=~\"$container\"} | json | meetingId=~\"$meetingId.*\""
+          "expr": "{job=\"edumeet\", container=~\"$container\"} | json | service=~\"$service\" | meetingId=~\"$meetingId.*\""
         }
       ]
     },

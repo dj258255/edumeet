@@ -23,7 +23,9 @@ DB 를 직접 읽으면 그 규칙을 여기서 한 번 더 구현해야 하고,
 """
 from __future__ import annotations
 
+import logging
 import os
+import sys
 
 from mcp.server.mcpserver import MCPServer
 
@@ -139,7 +141,36 @@ def get_transcript(meeting_id: int) -> str:
     return f"#{meeting_id} — {data.get('segmentCount', 0)}조각\n\n{text}"
 
 
+def _setup_logging() -> None:
+    """로그를 stderr 로만 낸다. (#167)
+
+    ★ stdout 에 한 줄이라도 찍으면 안 된다.
+
+      이 서버는 stdio 로 말한다. stdout 이 곧 프로토콜 채널이라,
+      로그가 거기 섞이면 클라이언트가 프레임을 못 읽는다.
+      증상이 "로그가 지저분하다" 가 아니라 **도구가 통째로 안 붙는다** 이고,
+      원인이 로그라고는 아무도 생각하지 않는다.
+
+      print 를 쓰지 않는 이유도 같다. print 의 기본 출력이 stdout 이다.
+
+    ai/ 와 같은 형식을 쓴다. 필드 이름이 다르면 Loki 에서 서비스마다
+    다른 질의를 짜야 한다.
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "ai"))
+    try:
+        from logging_setup import setup
+        setup("mcp", stream=sys.stderr)
+    except ImportError:
+        # ai/ 없이 단독으로 돌 때. 그래도 stdout 으로는 안 보낸다.
+        logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+
+
 def main() -> None:
+    _setup_logging()
+    logging.getLogger(__name__).info(
+        "MCP 서버 시작", extra={"fields": {
+            "glossary": GLOSSARY_AVAILABLE, "semantic": semantic_available()}})
     server.run(transport=os.environ.get("EDUMEET_MCP_TRANSPORT", "stdio"))
 
 
