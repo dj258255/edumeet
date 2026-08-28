@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  로그 출력 형식. (#166)
+
+  ★ 개발과 운영을 나눈다.
+
+    개발   사람이 읽는다. docker logs / IDE 콘솔에서 바로 보여야 한다
+    운영   Loki 가 읽는다. 필드로 걸러야 하므로 JSON 이다
+
+  하나로 통일하면 한쪽이 불편해진다. 개발에서 JSON 을 보면 눈으로 못 읽고,
+  운영에서 평문을 쓰면 "meetingId=3 인 것만" 같은 질의를 정규식으로 짜야 한다.
+  그리고 그 정규식은 포맷이 조금만 바뀌어도 조용히 0건이 된다.
+
+  ★ MDC 를 JSON 필드로 그대로 올린다.
+
+    코드에서 MDC.put("meetingId", ...) 를 하면 로그에 meetingId 필드가 생기고,
+    Loki 에서 | json | meetingId="3" 으로 바로 걸린다.
+    메시지 문자열에 박아 넣으면 문자열 파싱을 해야 한다.
+
+  ★ 스택 트레이스를 자른다.
+
+    안 자르면 예외 하나가 로그 수백 줄이 된다. Loki 의 청크가 그것으로 차고,
+    정작 보려던 앞뒤 맥락이 보존 기간 밖으로 밀려난다.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 개발·시험·측정: 사람이 읽는다 -->
+    <springProfile name="!prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- 운영: Loki 가 읽는다 -->
+    <springProfile name="prod">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp>
+                        <timeZone>Asia/Seoul</timeZone>
+                    </timestamp>
+                    <logLevel/>
+                    <loggerName>
+                        <!-- com.edu.edumeet.meeting.service.CaptionService 를
+                             c.e.e.m.s.CaptionService 로 줄인다. 필드 길이가 곧 저장 비용이다. -->
+                        <shortenedLoggerNameLength>36</shortenedLoggerNameLength>
+                    </loggerName>
+                    <threadName/>
+                    <message/>
+                    <!-- MDC 를 최상위 필드로. 이래야 Loki 에서 라벨처럼 쓴다 -->
+                    <mdc/>
+                    <stackTrace>
+                        <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                            <maxDepthPerThrowable>20</maxDepthPerThrowable>
+                            <maxLength>3000</maxLength>
+                            <shortenedClassNameLength>32</shortenedClassNameLength>
+                            <!-- 프레임워크 프레임은 원인 파악에 거의 안 쓰인다 -->
+                            <exclude>^org\.springframework\.aop\..*</exclude>
+                            <exclude>^org\.springframework\.cglib\..*</exclude>
+                            <exclude>^java\.util\.concurrent\..*</exclude>
+                            <rootCauseFirst>true</rootCauseFirst>
+                        </throwableConverter>
+                    </stackTrace>
+                    <!-- 어느 서비스에서 나온 로그인지. 파이썬·MCP 와 섞일 때 필요하다 -->
+                    <pattern>
+                        <pattern>{"service":"backend"}</pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+</configuration>

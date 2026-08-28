@@ -34,6 +34,17 @@ dependencies {
     // /actuator/prometheus 는 이 레지스트리가 있어야 생긴다. (#28)
     // exposure.include 에 prometheus 를 적어둬도 레지스트리가 없으면 404 였다.
     implementation("io.micrometer:micrometer-registry-prometheus")
+    // 로그를 JSON 으로 낸다. (#166)
+    //
+    // ★ 왜 필요한가 - 경보가 울린 뒤에 볼 것이 없었다.
+    //   경보 문서에 "급성 구간에서는 사후 기록으로 읽는다" 고 적어 뒀는데,
+    //   그 기록을 보려면 서버에 들어가 docker logs 를 쳐야 했다.
+    //   조용히 실패하는 것들(자막 드롭, 큐 상한)은 로그로만 남는다.
+    //
+    // ★ 왜 JSON 인가 - Loki 가 필드로 걸러야 한다.
+    //   평문이면 "meetingId=3 인 것만" 같은 질의를 정규식으로 짜야 하고,
+    //   포맷이 조금만 바뀌어도 그 질의가 조용히 0건이 된다.
+    implementation("net.logstash.logback:logstash-logback-encoder:8.0")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.data:spring-data-redis:3.2.5")

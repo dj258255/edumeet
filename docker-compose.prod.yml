@@ -135,6 +135,52 @@ services:
       - --storage.path=/alertmanager
     networks: [edumeet]
 
+  # 로그 저장소. (#166)
+  #
+  # ★ 왜 필요한가 - 경보가 울린 뒤에 볼 것이 없었다.
+  #   경보 문서에 "급성 구간에서는 사후 기록으로 읽는다" 고 적어 뒀는데,
+  #   그 기록을 보려면 서버에 들어가 docker logs 를 쳐야 했다.
+  #   컨테이너를 다시 만들면 그 기록도 사라진다.
+  #
+  # 외부 노출 안 한다. Grafana 가 네트워크 안에서 붙는다.
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: edumeet-loki
+    profiles: [observability]
+    restart: unless-stopped
+    user: "10001:10001"
+    expose:
+      - "3100"
+    volumes:
+      - ./observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    command:
+      - -config.file=/etc/loki/loki.yml
+    networks: [edumeet]
+
+  # 컨테이너 로그를 모아 Loki 로 보낸다. (#166)
+  #
+  # ★ 도커 소켓을 읽기 전용으로 준다.
+  #   소켓이 있으면 컨테이너를 만들고 지울 수 있다. :ro 가 그것을 막지는 못하지만
+  #   (도커 API 는 GET 이 아니어도 소켓만 있으면 된다) 의도를 남긴다.
+  #   더 줄이려면 소켓 프록시를 앞에 둬야 하는데, 컨테이너를 하나 더 띄우는
+  #   비용 대비 이득이 이 서버에서는 아직 없다.
+  alloy:
+    image: grafana/alloy:v1.5.1
+    container_name: edumeet-alloy
+    profiles: [observability]
+    restart: unless-stopped
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    depends_on: [loki]
+    networks: [edumeet]
+
   grafana:
     image: grafana/grafana:11.5.1
     container_name: edumeet-grafana
@@ -165,7 +211,7 @@ services:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
-    depends_on: [prometheus]
+    depends_on: [prometheus, loki]
     networks: [edumeet]
 
 
@@ -258,6 +304,8 @@ services:
       - edumeet
 
 volumes:
+  loki_data:
+  alloy_data:
   prometheus_data:
   alertmanager_data:
   grafana_data:
