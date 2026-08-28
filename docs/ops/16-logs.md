@@ -222,6 +222,37 @@ stdio 서버라 **stdout 이 곧 프로토콜 채널**이다. 로그가 섞이�
 
 ---
 
+## 9. 규칙을 고쳐도 그것을 검증하는 시험이 안 돌았다
+
+에러 경보를 넣고 PR 을 올렸더니 CI 가 이렇게 나왔다.
+
+```
+AI 서비스 테스트   pass
+MCP 서버 테스트    pass
+백엔드 테스트      skipping     <- 여기
+```
+
+`observability/rules/edumeet.yml` 을 고쳤는데 **그 파일을 읽는 시험이 안 돌았다.**
+
+```java
+// AlertMetricsExposedTest
+private static final Path RULES = Path.of("..", "observability", "rules", "edumeet.yml");
+```
+
+이 시험은 규칙에 적힌 지표가 **실제 노출 목록에 있는지** 대조한다.
+없는 지표를 물어보면 Prometheus 는 에러가 아니라 빈 결과를 내고,
+**빈 결과는 "정상" 과 구분되지 않기 때문에** 만든 시험이다.
+
+그런데 CI 경로 필터에 `observability/**` 가 없었다. 규칙만 고치면 그 대조가 안 돈다.
+
+> **같은 구멍을 `contracts/` 에서 이미 겪었다.** 계약만 바꿨을 때 Gradle 이
+> `UP-TO-DATE` 로 시험을 건너뛰던 것을 `inputs.file` 로 막았다.
+> 이번에는 Gradle 이 아니라 **CI 경로 필터**에 같은 모양이 있었다.
+
+**시험을 만들어 두는 것과 그 시험이 도는 것은 다르다.**
+
+---
+
 ## 9. 아직 안 한 것
 
 - **분산 추적**(Tempo 등)을 안 붙였다. 자막 경로가 파이썬 → 자바를 건너지만,

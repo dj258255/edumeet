@@ -38,6 +38,16 @@ jobs:
             backend:
               - 'backend/**'
               - 'contracts/**'
+              # ★ 경보 규칙도 백엔드 시험이 읽는다. (#167)
+              #
+              #   AlertMetricsExposedTest 가 ../observability/rules/edumeet.yml 을 열어
+              #   거기 적힌 지표가 실제 노출 목록에 있는지 대조한다.
+              #   이 경로를 빼 두면 규칙만 고쳤을 때 그 대조가 안 돈다.
+              #
+              #   같은 구멍을 contracts/ 에서 이미 겪었다 - 계약만 바꿨을 때
+              #   Gradle 이 UP-TO-DATE 로 건너뛰던 것을 inputs.file 로 막았다.
+              #   여기는 Gradle 이 아니라 CI 경로 필터에 같은 구멍이 있었다.
+              - 'observability/**'
               - '.github/workflows/ci.yml'
             frontend:
               - 'frontend/**'
