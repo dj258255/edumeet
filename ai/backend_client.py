@@ -18,6 +18,17 @@ import os
 import time
 
 import requests
+# 로그를 JSON 으로 낸다. (#167)
+#
+#   print 는 레벨도 맥락도 없고 끌 수도 없다. 동시 요청이 섞이면
+#   어느 줄이 어느 요청인지 모른다. 자바 쪽은 이미 JSON 이라(#166)
+#   파이썬만 평문이면 같은 회의를 두 곳에서 따로 찾아야 한다.
+import logging
+from logging_setup import setup as _setup_logging
+
+_setup_logging("ai")
+log = logging.getLogger(__name__)
+
 from dotenv import load_dotenv
 
 from caption_normalizer import normalize_caption_text
@@ -294,9 +305,9 @@ def send_summary_to_api(class_id: str, meetingId: str | None,
         # class_id 는 참고용으로만 남긴다. Java 가 쓰는 식별자는 경로의 meetingId 다.
         data = {"class_id": str(class_id)}
 
-        print("[upload:url]", url)
-        print("[upload:token]", token[:4] + "…")
-        print("[upload:files]", list(files.keys()))
+        log.info(f"[upload:url] {url}")
+        log.info(f'[upload:token] {token[:4] + "…"}')
+        log.info(f"[upload:files] {list(files.keys())}")
 
         resp = requests.post(url, headers=headers, data=data, files=files, timeout=60)
 

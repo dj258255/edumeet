@@ -21,6 +21,18 @@ from backend_client import (
     _split_into_captions,
     _normalize_meeting_id,
 )
+# 로그를 JSON 으로 낸다. (#167)
+#
+#   print 는 레벨도 맥락도 없고 끌 수도 없다. 동시 요청이 섞이면
+#   어느 줄이 어느 요청인지 모른다. 자바 쪽은 이미 JSON 이라(#166)
+#   파이썬만 평문이면 같은 회의를 두 곳에서 따로 찾아야 한다.
+import logging
+import logging_setup as _log_ctx
+from logging_setup import setup as _setup_logging
+
+_setup_logging("ai")
+log = logging.getLogger(__name__)
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -41,6 +53,25 @@ app.add_middleware(
     allow_origins=["*"], allow_credentials=True,
     allow_methods=["*"], allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def bind_log_context(request: Request, call_next):
+    """이 요청의 모든 로그에 요청 아이디와 회의 번호를 붙인다. (#167)
+
+    자바가 ``X-Request-Id`` 를 실어 보내면 그 값을 쓴다. 그래야
+    **서비스 경계를 넘어 한 줄로 묶인다** - 자바 쪽 로그와 파이썬 쪽 로그를
+    같은 값으로 찾을 수 있다. 없으면 여기서 만들고 응답에 실어 돌려준다.
+
+    회의 번호는 경로에서 뽑는다. 모아 놓기만 하고 거를 것이 없으면 못 쓴다.
+    """
+    request_id = request.headers.get("X-Request-Id") or _log_ctx.new_request_id()
+    meeting = re.search(r"/(?:STT|summary|captions)/(\d+)", request.url.path)
+    _log_ctx.bind(request_id, meeting.group(1) if meeting else "")
+
+    response = await call_next(request)
+    response.headers["X-Request-Id"] = request_id
+    return response
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE_AUDIO_DIR = os.environ.get(
@@ -120,11 +151,11 @@ def merge_wav_files(input_files, out_path):
         raise ValueError("병합할 WAV 파일이 없습니다.")
 
 
-    print("[merge] input_files:")
+    log.info("[merge] input_files:")
     for p in input_files:
         size = os.path.getsize(p) if os.path.exists(p) else -1
         hdr = _peek_header(p, 12)
-        print(f"  - {p} (size={size} bytes, header={hdr})")
+        log.info(f"  - {p} (size={size} bytes, header={hdr})")
 
      # 1) 기준 파라미터 확보 (첫 파일 오픈에서 에러가 나면 WAV가 아닐 가능성 큼)
     try:
@@ -134,7 +165,7 @@ def merge_wav_files(input_files, out_path):
             framerate = w0.getframerate()
             comptype = w0.getcomptype()
             compname = w0.getcompname()
-            print(f"[merge] base params: ch={nchannels}, width={sampwidth}, rate={framerate}, comp={comptype}")
+            log.info(f"[merge] base params: ch={nchannels}, width={sampwidth}, rate={framerate}, comp={comptype}")
     except wave.Error as we:
         # RIFF가 아닌 경우 대부분 여기서 터짐
         raise HTTPException(status_code=415, detail=f"첫 파일이 WAV가 아닙니다: {input_files[0]} ({we})")
@@ -214,11 +245,11 @@ def _normalize_base_url(url: str) -> str:
 
 
 def Start_STT(out_path: str, class_id: str) -> dict:
-    print(f"▶️ [STT] 시작: {out_path} (class_id={class_id})")
+    log.info(f"▶️ [STT] 시작: {out_path} (class_id={class_id})")
 
     # ../backend/.env 로드
     env_path = os.path.join(os.path.dirname(__file__), "../backend/.env")
-    print(f"🧩 env 경로: {env_path} exists= {os.path.exists(env_path)}")
+    log.info(f"🧩 env 경로: {env_path} exists= {os.path.exists(env_path)}")
     load_dotenv(env_path)
 
     raw_url = os.getenv("CLOVA_INVOKE_URL", "")
@@ -231,14 +262,14 @@ def Start_STT(out_path: str, class_id: str) -> dict:
         return {"ok": False, "detail": he.detail}
 
     endpoint = base_url + "/recognizer/upload"
-    print("🌐 BASE_URL:", base_url)
-    print("🔚 ENDPOINT:", endpoint)
-    print("🔑 SECRET_KEY head:", (secret[:6] + "…") if secret else "None")
-    print("🌐 BASE_URL raw repr:", repr(base_url))
+    log.info(f"🌐 BASE_URL: {base_url}")
+    log.info(f"🔚 ENDPOINT: {endpoint}")
+    log.info(f'🔑 SECRET_KEY head: {(secret[:6] + "…") if secret else "None"}')
+    log.info(f"🌐 BASE_URL raw repr: {repr(base_url)}")
     try:
         part = base_url.split("/external/v1/")[1]
         app_id, domain_id = part.split("/")[0], part.split("/")[1]
-        print(f"🔎 app_id={app_id}, domain_id={domain_id}")
+        log.info(f"🔎 app_id={app_id}, domain_id={domain_id}")
     except Exception:
         pass
 
@@ -250,7 +281,7 @@ def Start_STT(out_path: str, class_id: str) -> dict:
     # 파일 헤더/크기 로그
     hdr12 = _peek_header(out_path, 12)
     size = os.path.getsize(out_path)
-    print(f"📦 업로드 파일 크기: {size} bytes, 헤더: {hdr12!r}")
+    log.info(f"📦 업로드 파일 크기: {size} bytes, 헤더: {hdr12!r}")
 
     # A 방법: 화자 인식/워드 얼라인먼트 OFF
     request_body = {
@@ -273,8 +304,8 @@ def Start_STT(out_path: str, class_id: str) -> dict:
 
     # 재현용 curl
     safe_path = out_path.replace("\\", "/")
-    print("🐚 curl 예시:")
-    print(
+    log.info("🐚 curl 예시:")
+    log.info(
         'curl -X POST "{url}" '
         '-H "X-CLOVASPEECH-API-KEY: {key}" '
         '-H "Accept: application/json;UTF-8" '
@@ -294,21 +325,21 @@ def Start_STT(out_path: str, class_id: str) -> dict:
             }
             resp = requests.post(endpoint, headers=headers, files=files, timeout=600)
     except requests.Timeout as e:
-        print("⏱️ 타임아웃:", e)
+        log.warning(f"⏱️ 타임아웃: {e}")
         return {"ok": False, "detail": f"요청 타임아웃: {e}"}
     except Exception as e:
-        print("⚠️ 요청 예외:", e)
+        log.warning(f"⚠️ 요청 예외: {e}")
         return {"ok": False, "detail": f"요청 실패: {e}"}
 
     took = time.time() - started
     ctype = resp.headers.get("content-type", "")
-    print(f"✅ 응답: status={resp.status_code}, content-type={ctype}, took={took:.2f}s")
+    log.info(f"✅ 응답: status={resp.status_code}, content-type={ctype}, took={took:.2f}s")
     try:
-        print("🔁 resp headers:", dict(resp.headers))
+        log.info(f"🔁 resp headers: {dict(resp.headers)}")
     except Exception:
         pass
     preview = (resp.text or "")[:300].replace("\n", " ")
-    print("📝 응답 미리보기:", preview)
+    log.info(f"📝 응답 미리보기: {preview}")
 
     # 응답 덤프
     transcript_dir = os.path.dirname(out_path)
@@ -317,9 +348,9 @@ def Start_STT(out_path: str, class_id: str) -> dict:
         with open(debug_path, "w", encoding="utf-8") as fw:
             fw.write(f"HTTP {resp.status_code}\nContent-Type: {ctype}\nTook: {took:.2f}s\n\n")
             fw.write(resp.text or "")
-        print("💾 응답 덤프:", debug_path)
+        log.info(f"💾 응답 덤프: {debug_path}")
     except Exception as e:
-        print("⚠️ 응답 덤프 저장 실패:", e)
+        log.warning(f"⚠️ 응답 덤프 저장 실패: {e}")
 
     # 에러 처리 (메시지 보강)
     if resp.status_code == 404:
@@ -346,9 +377,9 @@ def Start_STT(out_path: str, class_id: str) -> dict:
     try:
         with open(transcript_path, "w", encoding="utf-8") as fw:
             fw.write(text)
-        print("✅ transcript 저장:", transcript_path)
+        log.info(f"✅ transcript 저장: {transcript_path}")
     except Exception as e:
-        print("⚠️ transcript 저장 실패:", e)
+        log.warning(f"⚠️ transcript 저장 실패: {e}")
         return {"ok": True, "text": text, "detail": f"저장 실패: {e}"}
 
     return {"ok": True, "text": text, "transcript_path": transcript_path}
@@ -360,7 +391,7 @@ def _load_openai_clients():
     env_path = os.path.join(os.path.dirname(__file__), "../backend/.env")
     if os.path.exists(env_path):
         load_dotenv(env_path)
-    print("env_path in _load_openai_clients:", env_path)
+    log.info(f"env_path in _load_openai_clients: {env_path}")
 
     use_gms_openai = os.getenv("USE_GMS_OPENAI", "false").lower() == "true"
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -454,8 +485,7 @@ def summarize_text_auto(transcript_path: str, out_dir: str) -> dict:
         #
         #   send_summary_to_api 는 pdf_path 가 없어도 md 만 올린다.
         pdf_mode = write_pdf(final_md, summary_pdf_path)
-        print("summary 저장:", summary_md_path, "/",
-              summary_pdf_path if pdf_mode != "failed" else "(PDF 없음)", f"[{pdf_mode}]")
+        log.info(f'summary 저장: {summary_md_path} / {summary_pdf_path if pdf_mode != "failed" else "(PDF 없음)"} {f"[{pdf_mode}]"}')
 
         return {
             "ok": True,
@@ -524,12 +554,12 @@ def merge_audio(class_id: str, body: SttRequest):
     Meeting_id = body.meetingId
     #meeting_id = _normalize_base_url(raw_meeting_id)
 
-    print("파이썬 merge 합병 처리 -> class_id : ", class_id)
-    print("meetingId : " , Meeting_id)
+    log.info(f"파이썬 merge 합병 처리 -> class_id :  {class_id}")
+    log.info(f"meetingId :  {Meeting_id}")
     #print(f"meetingId(raw)={raw_meeting_id!r} -> meeting_id(norm)={meeting_id!r}")
 
     in_dir = os.path.join(BASE_AUDIO_DIR, str(class_id))
-    print("in_dir : ", in_dir)
+    log.info(f"in_dir :  {in_dir}")
     if not os.path.isdir(in_dir):
         raise HTTPException(status_code=400, detail=f"Directory not found: {in_dir}")
 
@@ -549,7 +579,7 @@ def merge_audio(class_id: str, body: SttRequest):
     class_out_dir = os.path.join(MERGE_OUT_DIR, str(class_id))
     os.makedirs(class_out_dir, exist_ok=True)
     out_path = os.path.join(class_out_dir, f"Merge__{class_id}.wav")
-    print("out_path : ", out_path)
+    log.info(f"out_path :  {out_path}")
 
     try:
         wav_ready = [ensure_wav(p) for p in files]
@@ -558,11 +588,11 @@ def merge_audio(class_id: str, body: SttRequest):
             size = os.path.getsize(p)
             with open(p, "rb") as f:
                 hdr = f.read(12)
-            print(f"  - {p} (size={size}, header={hdr})")  # 여기서는 꼭 b'RIFF'가 찍혀야 함
+            log.info(f"  - {p} (size={size}, header={hdr})")  # 여기서는 꼭 b'RIFF'가 찍혀야 함
 
         #1) 음성 파일 Merge
         merged = merge_wav_files(wav_ready, out_path)
-        print("merged => ", merged)
+        log.info(f"merged =>  {merged}")
         #2) STT
         stt_result = Start_STT(out_path,class_id)
         # STT 실패 시 즉시 반환
@@ -607,13 +637,13 @@ def merge_audio(class_id: str, body: SttRequest):
         #   자막이 없다고 요약까지 버릴 이유가 없다.
         caption_result = send_captions_to_api(Meeting_id, stt_result.get("text", ""))
         if not (caption_result or {}).get("ok"):
-            print("[caption] 전송 실패(요약은 계속):", caption_result)
+            log.warning(f"[caption] 전송 실패(요약은 계속): {caption_result}")
 
         summary_input = choose_summary_transcript(Meeting_id, transcript_path, os.path.dirname(out_path))
         if summary_input.get("fallback"):
-            print("[summary:transcript] caption archive 대신 local transcript 사용:", summary_input.get("detail"))
+            log.info(f'[summary:transcript] caption archive 대신 local transcript 사용: {summary_input.get("detail")}')
         else:
-            print("[summary:transcript] caption archive 사용:", summary_input.get("segmentCount"), "segments")
+            log.info(f'[summary:transcript] caption archive 사용: {summary_input.get("segmentCount")} segments')
 
         summary_result = summarize_text_auto(summary_input["path"], os.path.dirname(out_path))
         
