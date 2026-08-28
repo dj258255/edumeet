@@ -54,6 +54,23 @@ jobs:
               - 'ai/caption_normalizer.py'
               - '.github/workflows/ci.yml'
 
+  # ★ 문서가 가리키는 재현 파일이 저장소에 있는지 본다. (#162)
+  #
+  #   두 번 빠졌다. #156 squash 에서 k6 스크립트가 통째로 빠졌고,
+  #   .gitignore 의 *.sh 가 scripts/ 의 재현 스크립트 6개를 먹고 있었다.
+  #   둘 다 로컬에는 파일이 있어서 아무도 눈치채지 못했다.
+  #   재현 경로가 저장소에 없으면 그 측정은 다시 못 돌린다.
+  #
+  #   경로 필터를 안 건다. 이 검사는 30초짜리이고, 무엇을 고쳐도
+  #   문서와 파일의 짝이 깨질 수 있다.
+  doc-refs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: 문서가 가리키는 파일 존재
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/verify-doc-refs.sh
+
   build-and-test:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
