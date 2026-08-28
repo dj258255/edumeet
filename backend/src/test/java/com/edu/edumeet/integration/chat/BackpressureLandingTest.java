@@ -5,6 +5,9 @@ import com.edu.edumeet.config.internal.InternalApiTokenFilter;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.domain.MeetingParticipant;
 import com.edu.edumeet.meeting.domain.SessionType;
+import com.edu.edumeet.meeting.dto.CaptionBroadcast;
+import com.edu.edumeet.meeting.service.CaptionBroadcastQueue;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.edu.edumeet.member.domain.Member;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +28,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -32,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /**
  * 역압이 어느 스레드에 착지하는지 고정한다. (#143)
@@ -83,6 +88,8 @@ class BackpressureLandingTest {
     @Autowired @Qualifier("clientInboundChannel") ExecutorSubscribableChannel inbound;
     @Autowired @Qualifier("clientOutboundChannel") ExecutorSubscribableChannel outbound;
     @Autowired @Qualifier("brokerChannel") ExecutorSubscribableChannel broker;
+    @Autowired CaptionBroadcastQueue captionBroadcastQueue;
+    @Autowired MeterRegistry meterRegistry;
     @PersistenceContext EntityManager em;
 
     private Long meetingId;
@@ -135,8 +142,8 @@ class BackpressureLandingTest {
     }
 
     @Test
-    @DisplayName("★ 자막 브로드캐스트는 Tomcat HTTP 요청 스레드에서 시작한다")
-    void caption_broadcast_starts_on_the_http_request_thread() {
+    @DisplayName("★ 자막 브로드캐스트는 요청 스레드가 아니라 전용 스레드에서 나간다 (#151)")
+    void caption_broadcast_leaves_the_http_request_thread() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add(InternalApiTokenFilter.HEADER, TOKEN);
@@ -150,15 +157,70 @@ class BackpressureLandingTest {
                 String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(brokerEntryThread.get()).isNotNull());
+
         assertThat(brokerEntryThread.get())
                 .as("""
-                    자막은 HTTP 요청 스레드에서 브로드캐스트를 시작한다.
-                    brokerChannel 에 실행기가 없으므로 이 스레드가 그대로
-                    clientOutboundChannel.send() 까지 간다 - 아웃바운드가 포화하면
-                    CallerRunsPolicy 로 이 스레드가 전송을 떠안고,
-                    Tomcat 요청 스레드가 소진되면 자막이 아니라 REST API 전체가 막힌다.""")
-                .isNotNull()
-                .startsWith("http-nio-");
+                    전에는 http-nio- 로 시작했다. brokerChannel 에 실행기가 없어서
+                    요청 스레드가 그대로 clientOutboundChannel.send() 까지 갔고,
+                    아웃바운드가 포화하면 CallerRunsPolicy 로 그 스레드가 전송을 떠안았다.
+                    Tomcat 요청 스레드가 소진되면 자막이 아니라 REST API 전체가 막힌다.
+                    이제 전용 스레드가 떠안는다 - 여기가 다시 http-nio- 가 되면 그 문제가 돌아온 것이다.""")
+                .startsWith("caption-out-");
+    }
+
+    @Test
+    @DisplayName("★ 요청 스레드는 발행을 기다리지 않는다 - 큐에 넣고 바로 돌아온다 (#151)")
+    void ingest_returns_without_waiting_for_the_send() {
+        int before = captionBroadcastQueue.queuedCount() + 1;
+
+        ResponseEntity<String> response = postCaption("던지고 잊는다");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(before)
+                .as("요청이 돌아온 시점에는 이미 큐를 지났거나 큐에 있다. 어느 쪽이든 전송을 기다리지 않았다")
+                .isPositive();
+    }
+
+    @Test
+    @DisplayName("★ 자막 발행 큐는 차면 가장 오래된 것을 버리고 센다 - 채팅과 정책이 다르다 (#151)")
+    void caption_queue_drops_oldest_and_counts_it() {
+        double dropsBefore = droppedCount();
+
+        // 상한(256)을 넘겨 밀어 넣는다. 워커가 빼 가므로 정확한 경계 대신
+        // "넘치게 넣으면 버리고 센다" 를 본다.
+        for (int i = 0; i < 2_000; i++) {
+            captionBroadcastQueue.offer("/topic/rooms/0/captions",
+                    new CaptionBroadcast(0L, "밀어넣기 " + i, (long) i, 0L, 0L, 0L, true));
+        }
+
+        assertThat(captionBroadcastQueue.queuedCount())
+                .as("상한을 넘겨 쌓이지 않는다. 깊은 큐는 오래된 자막을 오래 붙잡겠다는 뜻이다")
+                .isLessThanOrEqualTo(256);
+        assertThat(droppedCount())
+                .as("""
+                    버린 것은 반드시 센다. 조용히 버리면 "자막이 원래 띄엄띄엄 나오나 보다" 가 된다.
+                    전사는 CaptionArchiveQueue 가 따로 들고 있으므로 여기서 버려도 원본은 남는다.""")
+                .isGreaterThan(dropsBefore);
+    }
+
+    private double droppedCount() {
+        return meterRegistry.get("caption.broadcast.dropped").counter().count();
+    }
+
+    private ResponseEntity<String> postCaption(String text) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add(InternalApiTokenFilter.HEADER, TOKEN);
+        return rest.postForEntity(
+                "http://localhost:" + port + "/api/v1/internal/meetings/" + meetingId + "/captions",
+                // 이 시험이 보는 것은 발행 경로다. final 로 보내면 저장 큐에 남아
+                // 같은 컨텍스트를 쓰는 다른 시험의 큐 길이 단언을 깨뜨린다.
+                new HttpEntity<>(Map.of("text", text, "sequence", 1,
+                        "spokenAt", System.currentTimeMillis(), "finalSegment", false), headers),
+                String.class);
     }
 
     @Test
@@ -179,7 +241,10 @@ class BackpressureLandingTest {
         assertThat(poolOf(inbound).getRejectedExecutionHandler())
                 .isInstanceOf(ThreadPoolExecutor.CallerRunsPolicy.class);
         assertThat(poolOf(outbound).getRejectedExecutionHandler())
-                .as("DiscardPolicy 로 바뀌면 조용히 메시지가 사라진다")
+                .as("""
+                    DiscardPolicy 로 바뀌면 조용히 메시지가 사라진다.
+                    다만 이 정책은 채팅 기준이다 - 자막은 최신성이 중요해서
+                    CaptionBroadcastQueue 로 갈라 "버리고 센다" 를 따로 쓴다. (#151)""")
                 .isInstanceOf(ThreadPoolExecutor.CallerRunsPolicy.class);
     }
 }

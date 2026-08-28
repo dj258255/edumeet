@@ -1,13 +1,11 @@
 package com.edu.edumeet.meeting.service;
 
-import com.edu.edumeet.chat.metrics.ChatMetrics;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.dto.CaptionBroadcast;
 import com.edu.edumeet.meeting.dto.CaptionIngestRequest;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,8 +36,7 @@ public class CaptionService {
     private static final int MAX_TEXT_LENGTH = 500;
 
     private final MeetingRepository meetingRepository;
-    private final SimpMessagingTemplate messagingTemplate;
-    private final ChatMetrics chatMetrics;
+    private final CaptionBroadcastQueue captionBroadcastQueue;
     private final CaptionArchiveQueue captionArchiveQueue;
 
     /**
@@ -48,6 +45,16 @@ public class CaptionService {
      * <p><b>저장하지 않는다.</b> 실시간 자막은 지나가면 끝이고,
      * 다시보기용 저장은 녹음과 함께 다룬다(#61). 발행 경로에 DB 쓰기를 넣으면
      * #43 에서 본 것처럼 <b>브로드캐스트 측정이 쓰기에 묻힌다.</b>
+     *
+     * <p><b>여기서 직접 내보내지 않는다.</b> (#151) {@code convertAndSend} 를 이 스레드에서
+     * 부르면 아웃바운드가 포화했을 때 {@code CallerRunsPolicy} 로 <b>이 스레드가 전송을 떠안는다.</b>
+     * 이 메서드를 부르는 것은 파이썬 STT 의 HTTP 요청이므로, 그 스레드는 Tomcat 요청 스레드다 -
+     * 자막이 밀리면 REST API 전체가 막혔다. 그래서 발행은 {@link CaptionBroadcastQueue} 에 맡긴다.
+     *
+     * <p>그 대가로 {@code publishedAt} 의 뜻이 바뀐다.
+     * <b>"실제로 내보낸 시각" 이 아니라 "발행 경로에 넘긴 시각"</b> 이다.
+     * 넘긴 뒤 실제로 나가기까지의 대기는 {@code caption.broadcast.queued} 로 따로 본다 -
+     * 숨기지 않고 지표를 하나 더 낸다.
      */
     @Transactional(readOnly = true)
     public CaptionBroadcast broadcast(Long meetingId, CaptionIngestRequest request, long receivedAt) {
@@ -66,8 +73,7 @@ public class CaptionService {
                 meetingId, text, request.sequence(), request.spokenAt(),
                 receivedAt, publishedAt, finalSegment);
 
-        messagingTemplate.convertAndSend(destination, payload);
-        chatMetrics.published(destination);
+        captionBroadcastQueue.offer(destination, payload);
         if (finalSegment) {
             captionArchiveQueue.offer(
                     meetingId, text, request.sequence(), request.spokenAt(), receivedAt, publishedAt);
