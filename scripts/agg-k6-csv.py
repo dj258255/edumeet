@@ -15,11 +15,12 @@ for path in sys.argv[1:]:
     vals=defaultdict(list); cnt=defaultdict(float)
     for r in csv.DictReader(open(path)):
         n,v=r['metric_name'],float(r['metric_value'])
-        if n in ('caption_ingest_ms','rest_probe_ms'): vals[n].append(v)
-        elif n in ('caption_sent','caption_failed'): cnt[n]+=v
+        if n in ('caption_ingest_ms','rest_probe_ms','fast_e2e_ms'): vals[n].append(v)
+        elif n in ('caption_sent','caption_failed','fast_received','slow_received','fast_closed'): cnt[n]+=v
     print(f'== {path} ==')
-    for n in ('rest_probe_ms','caption_ingest_ms'):
+    for n in ('rest_probe_ms','caption_ingest_ms','fast_e2e_ms'):
         v=vals[n]
+        if not v: continue
         print(f'  {n:18s} n={len(v):5d} avg={sum(v)/len(v):8.2f} p50={q(v,.5):8.2f} '
               f'p95={q(v,.95):9.2f} p99={q(v,.99):9.2f} max={max(v):9.2f}')
     # 500ms 를 넘긴 프로브가 몇 건인가. 꼬리는 분위수보다 건수로 보는 게 정확하다.
@@ -29,3 +30,7 @@ for path in sys.argv[1:]:
     target = float(os.environ.get('TARGET', '4050'))
     print(f'  자막 전송 {cnt["caption_sent"]:.0f}/{target:.0f} '
           f'({cnt["caption_sent"]/target*100:.1f}%) · 실패 {cnt["caption_failed"]:.0f}')
+    # 느린 쪽과 정상 쪽을 나눠 잰 회차에서만 나온다.
+    if cnt['fast_received'] or cnt['slow_received']:
+        print(f'  정상 쪽 수신 {cnt["fast_received"]:.0f} · 느린 쪽 수신 {cnt["slow_received"]:.0f}'
+              f' · 정상 쪽 끊김 {cnt["fast_closed"]:.0f}')
