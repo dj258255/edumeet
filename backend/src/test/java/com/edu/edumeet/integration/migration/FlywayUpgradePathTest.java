@@ -19,6 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 기존 DB 를 올리는 경로를 검증한다. (#149)
  *
+ * <p><b>시험이 하나인 이유.</b> 처음에는 "업그레이드가 도는가" 와 "스키마가 그 상태인가" 를
+ * 둘로 나눴는데, 뒤의 것이 먼저 실행되면 아직 아무것도 마이그레이션되지 않은 빈 DB 를 본다.
+ * JUnit 은 실행 순서를 보장하지 않는다. <b>한 시나리오는 한 시험에 둔다.</b>
+ *
  * <p><b>왜 따로 두는가.</b> {@link FlywayMigrationTest} 는 <b>빈 DB 에 V1 부터 전부
  * 적용하는 경로</b>만 본다. 그런데 운영에서 실제로 일어나는 일은 그것이 아니다 -
  * 스키마는 이미 있고 Flyway 이력 테이블만 없는 상태에서 시작한다.
@@ -106,13 +110,9 @@ class FlywayUpgradePathTest {
                 .as("baseline 이후 마이그레이션은 전부 적용되어야 한다")
                 .contains("2", "3", "4", "5", "6", "7", "8", "9")
                 .doesNotContain("1");
-    }
 
-    @Test
-    @DisplayName("업그레이드를 마친 스키마가 최신 마이그레이션의 결과를 갖는다")
-    void upgraded_schema_has_latest_columns() {
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource());
-
+        // 5) 이력만이 아니라 스키마가 실제로 그 상태인지 본다.
+        //    이력 테이블에 줄이 생기는 것과 DDL 이 실제로 도는 것은 다른 얘기다.
         assertThat(tables(jdbc))
                 .as("V9 가 만드는 자막 저장 테이블")
                 .contains("caption_segment");
