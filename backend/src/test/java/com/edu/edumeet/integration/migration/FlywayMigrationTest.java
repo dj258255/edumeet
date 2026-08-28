@@ -40,7 +40,9 @@ class FlywayMigrationTest {
         registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
         registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.MySQLDialect");
         // 스키마는 Flyway 가 만든다. Hibernate 가 손대면 무엇이 만들었는지 알 수 없다.
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "none");
+        // 다만 none 은 "손대지 않는다" 이지 "확인한다" 가 아니다. 엔티티와 스키마가
+        // 어긋나도 부팅은 되고 첫 질의에서 죽는다. validate 로 부팅에서 실패시킨다. (#149)
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.flyway.enabled", () -> "true");
     }
 
@@ -102,10 +104,10 @@ class FlywayMigrationTest {
     }
 
     @Test
-    @DisplayName("Hibernate 가 이 스키마를 그대로 쓸 수 있다 - 컨텍스트가 뜨면 검증된 것")
+    @DisplayName("Hibernate 가 이 스키마를 그대로 쓸 수 있다 - ddl-auto=validate 로 부팅에서 확인한다")
     void hibernate_accepts_the_migrated_schema() {
-        // ddl-auto=none 인데 컨텍스트가 떴다는 것은
-        // Flyway 가 만든 스키마로 EntityManagerFactory 가 구성됐다는 뜻이다.
+        // ddl-auto=validate 이므로 컨텍스트가 떴다는 것은 Hibernate 가 매핑과 스키마를
+        // 실제로 대조하고 통과시켰다는 뜻이다. none 이었을 때는 아무것도 안 보고 떴다. (#149)
         // 컬럼 개수를 세는 단언은 마이그레이션이 추가될 때마다 깨진다.
         // 개수가 아니라 "엔티티가 요구하는 컬럼이 있는가" 를 본다.
         assertThat(columnsOf("meeting"))
