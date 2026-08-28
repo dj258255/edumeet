@@ -20,6 +20,10 @@ package com.edu.edumeet.meeting.dto;
  * @param receivedAt  자바가 요청을 받은 시각
  * @param publishedAt 자바가 브로드캐스트한 시각
  * @param finalSegment 저장·요약에 쓸 수 있는 최종 자막인가
+ * @param replay       끊겼다 다시 붙은 사람에게 구멍을 메우려고 다시 보낸 것인가. (#165)
+ *                     <b>받는 쪽이 이것을 실시간 자막 줄에 띄우면 안 된다.</b>
+ *                     지나간 구간을 채우는 것이라 전사 영역에 붙어야 한다.
+ *                     표시가 없으면 받는 쪽이 실시간과 복구본을 구분할 방법이 없다.
  */
 public record CaptionBroadcast(
         Long meetingId,
@@ -28,5 +32,20 @@ public record CaptionBroadcast(
         Long spokenAt,
         Long receivedAt,
         Long publishedAt,
-        Boolean finalSegment
-) {}
+        Boolean finalSegment,
+        Boolean replay
+) {
+    /** 실시간 발행용. 복구본이 아니다. */
+    public static CaptionBroadcast live(Long meetingId, String text, Long sequence,
+                                        Long spokenAt, Long receivedAt, Long publishedAt,
+                                        Boolean finalSegment) {
+        return new CaptionBroadcast(meetingId, text, sequence, spokenAt,
+                receivedAt, publishedAt, finalSegment, false);
+    }
+
+    /** 같은 내용을 복구본으로 표시해 되돌려 준다. */
+    public CaptionBroadcast asReplay() {
+        return new CaptionBroadcast(meetingId, text, sequence, spokenAt,
+                receivedAt, publishedAt, finalSegment, true);
+    }
+}

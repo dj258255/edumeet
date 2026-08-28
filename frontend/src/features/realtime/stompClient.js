@@ -95,6 +95,23 @@ export function createRealtimeClient({
         console.warn('자막 프레임 해석 실패', e)
       }
     })
+
+    // 끊겼다 붙는 사이의 자막은 서버가 재전송하지 않는다. 실측으로 확인했다 -
+    // 3초 끊기면 그 구간 63건이 전부 사라졌다. (#164)
+    //
+    // 이 목적지를 구독하면 서버가 최근 자막을 이 연결로만, 한 프레임에 담아 보낸다.
+    // 나눠 보내면 순서가 안 지켜져서(실측 뒤집힘 80.71%) 전사가 뒤섞인다. (#165)
+    //
+    // 여기 오는 것에는 replay=true 가 박혀 있다. 실시간 자막 줄에 띄우면 안 된다 -
+    // 사용자는 그동안 다음 말을 이미 놓쳤고, 이건 지나간 구간을 채우는 것이다.
+    client.subscribe(`/topic/rooms/${meetingId}/captions/gap`, (frame) => {
+      try {
+        const gap = JSON.parse(frame.body)
+        if (Array.isArray(gap)) gap.forEach(onCaption)
+      } catch (e) {
+        console.warn('자막 복구본 해석 실패', e)
+      }
+    })
   }
 
   // 서버가 보내는 ERROR 프레임. 구독 권한이 없을 때 여기로 온다.

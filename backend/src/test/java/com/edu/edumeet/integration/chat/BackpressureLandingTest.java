@@ -193,7 +193,7 @@ class BackpressureLandingTest {
         // "넘치게 넣으면 버리고 센다" 를 본다.
         for (int i = 0; i < 2_000; i++) {
             captionBroadcastQueue.offer("/topic/rooms/0/captions",
-                    new CaptionBroadcast(0L, "밀어넣기 " + i, (long) i, 0L, 0L, 0L, true));
+                    CaptionBroadcast.live(0L, "밀어넣기 " + i, (long) i, 0L, 0L, 0L, true));
         }
 
         assertThat(captionBroadcastQueue.queuedCount())

@@ -38,6 +38,7 @@ public class CaptionService {
     private final MeetingRepository meetingRepository;
     private final CaptionBroadcastQueue captionBroadcastQueue;
     private final CaptionArchiveQueue captionArchiveQueue;
+    private final CaptionReplayBuffer captionReplayBuffer;
 
     /**
      * 자막을 방에 뿌린다.
@@ -69,11 +70,13 @@ public class CaptionService {
         boolean finalSegment = request.finalSegment() == null || request.finalSegment();
         String destination = captionDestination(meetingId);
         long publishedAt = System.currentTimeMillis();
-        CaptionBroadcast payload = new CaptionBroadcast(
+        CaptionBroadcast payload = CaptionBroadcast.live(
                 meetingId, text, request.sequence(), request.spokenAt(),
                 receivedAt, publishedAt, finalSegment);
 
         captionBroadcastQueue.offer(destination, payload);
+        // 끊겼다 붙은 사람의 구멍을 메우려면 최근 것을 들고 있어야 한다. (#165)
+        captionReplayBuffer.remember(payload);
         if (finalSegment) {
             captionArchiveQueue.offer(
                     meetingId, text, request.sequence(), request.spokenAt(), receivedAt, publishedAt);
