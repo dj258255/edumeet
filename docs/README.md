@@ -411,6 +411,7 @@ DEFAULT_BLOCKING_SEND_TIMEOUT = 20 * 1000;
 | [`ops/11-mcp-transcript-server.md`](ops/11-mcp-transcript-server.md) | **MCP 서버** — 계약의 세 번째 소비자, 그리고 조용히 0건이 나오던 검색 |
 | [`ops/12-alerting.md`](ops/12-alerting.md) | **경보** — 관측을 세웠는데 아무도 안 봤다. 임계값마다 측정 출처를 붙였다 |
 | [`ops/13-semantic-caption-search.md`](ops/13-semantic-caption-search.md) | **자막 검색** — 재고 나서 붙였다. 가장 큰 개선은 모델이 아니었다 |
+| [`ops/14-three-questions-measured.md`](ops/14-three-questions-measured.md) | **답 못 할 것 같다고 지목된 질문 셋** — 역압 착지점 · 경보 lead time · 하이브리드 이득의 원인 |
 
 ### 규칙
 
