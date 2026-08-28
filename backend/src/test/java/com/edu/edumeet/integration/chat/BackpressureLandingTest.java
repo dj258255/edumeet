@@ -143,8 +143,10 @@ class BackpressureLandingTest {
 
         ResponseEntity<String> response = rest.postForEntity(
                 "http://localhost:" + port + "/api/v1/internal/meetings/" + meetingId + "/captions",
+                // final 로 보내면 저장 큐에 남아, 같은 컨텍스트를 쓰는 다른 시험의
+                // 큐 길이 단언을 깨뜨린다. 이 시험이 보는 것은 발행 경로다.
                 new HttpEntity<>(Map.of("text", "역압 확인", "sequence", 1,
-                        "spokenAt", System.currentTimeMillis(), "finalSegment", true), headers),
+                        "spokenAt", System.currentTimeMillis(), "finalSegment", false), headers),
                 String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
