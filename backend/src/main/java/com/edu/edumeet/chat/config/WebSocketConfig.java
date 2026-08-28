@@ -83,6 +83,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     private static final long[] HEARTBEAT = {25_000L, 25_000L};
 
+    /** 세션 안 발행 순서를 지킬지. 대가는 처리량이라 재고 정한다. (#157) */
+    @Value("${edumeet.chat.preserve-publish-order:false}")
+    private boolean preservePublishOrder;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // 구독 대상. 방 하나가 /topic/rooms/{meetingId} 다.
@@ -93,6 +97,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.enableSimpleBroker("/topic")
                 .setHeartbeatValue(HEARTBEAT)
                 .setTaskScheduler(heartbeatScheduler());
+        // 세션 안 발행 순서 보장. 기본은 끔.
+        //
+        //   아웃바운드 채널은 스레드 풀이라 같은 세션으로 가는 메시지의 순서가 보장되지 않는다.
+        //   켜면 세션마다 직렬화해 순서를 지키는 대신 처리량을 낸다.
+        //   상수로 두면 켜고 끄며 잴 수 없어서 설정으로 뺐다. (#157)
+        registry.setPreservePublishOrder(preservePublishOrder);
         // 클라이언트가 서버로 보낼 때의 접두사. @MessageMapping 이 이 뒤를 받는다.
         registry.setApplicationDestinationPrefixes("/app");
     }
