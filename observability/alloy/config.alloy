@@ -1,0 +1,79 @@
+// 컨테이너 로그를 모아 Loki 로 보낸다. (#166)
+//
+// ★ 왜 Promtail 이 아닌가
+//   Promtail 은 2025년에 폐기 예고됐고 지원이 끝났다. Alloy 가 후속이다.
+//
+// ★ 왜 Loki 도커 드라이버가 아닌가
+//   에이전트 컨테이너 없이 도커가 직접 보내는 방법도 있다. 메모리는 덜 먹는다.
+//   그런데 호스트에 플러그인을 깔아야 해서 compose 파일만으로 재현이 안 된다.
+//   이 저장소는 "다시 세울 수 있는가" 를 기준으로 골라 왔다.
+//
+// ★ 라벨을 적게 둔다
+//   Loki 는 라벨 조합마다 스트림을 만든다. 라벨이 많으면 스트림이 쪼개져
+//   인덱스가 커지고 질의가 느려진다. 거를 것만 라벨로 두고
+//   나머지(meetingId, requestId 같은 것)는 JSON 필드로 남겨 질의 시점에 푼다.
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // edumeet- 로 시작하는 컨테이너만 모은다.
+  // 이 서버에는 다른 프로젝트 컨테이너도 돌고 있어서, 다 모으면
+  // 남의 로그가 보존 기간과 디스크를 나눠 먹는다.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(edumeet-.*)"
+    target_label  = "container"
+    action        = "keep"
+    replacement   = "$1"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(edumeet-.*)"
+    target_label  = "container"
+  }
+  // 관측 스택 자신의 로그까지 모으면 되먹임이 생긴다.
+  // Loki 가 느려지면 그 로그가 또 Loki 로 가서 더 느려진다.
+  rule {
+    source_labels = ["container"]
+    regex         = "edumeet-(loki|alloy|grafana|prometheus|alertmanager)"
+    action        = "drop"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = { job = "edumeet" }
+  forward_to = [loki.process.app.receiver]
+}
+
+loki.process "app" {
+  // 앱은 JSON 으로 찍는다. level 만 라벨로 올린다 -
+  // "에러만 보여줘" 가 가장 자주 하는 질의이고, 값의 가짓수가 적어 스트림이 안 쪼개진다.
+  stage.json {
+    expressions = { level = "level" }
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+  // JSON 이 아닌 로그(MySQL, Redis, nginx)는 위 단계가 조용히 통과한다.
+  // 그 경우 level 라벨이 비는데, 빈 라벨은 Loki 가 알아서 뺀다.
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+  // Loki 가 잠깐 죽어도 로그를 버리지 않는다.
+  // 다만 무한히 쌓지는 않는다 - 그러면 Alloy 가 메모리를 먹고 같이 죽는다.
+  wal {
+    enabled           = true
+    max_segment_age   = "1h"
+  }
+}
