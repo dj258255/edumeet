@@ -146,6 +146,37 @@ jobs:
             done
             echo "관측 스택 기동 확인"
 
+            # ★ 설정 파일만 바꾸면 Prometheus 는 모른다. (#173)
+            #
+            #   규칙과 스크레이프 설정은 볼륨으로 마운트돼 있다. scp 로 새 파일을
+            #   올려도 컨테이너는 정의가 그대로라 compose 가 다시 만들지 않고,
+            #   Prometheus 는 뜰 때 읽은 것을 계속 쓴다.
+            #
+            #   실제로 그렇게 됐다 - 8월 27일에 뜬 프로세스가 그날의 규칙 7개를
+            #   들고 있었고, 그 뒤 커밋한 규칙 9개는 파일에만 있었다.
+            #   #139 에서 --web.enable-lifecycle 을 켠 이유가 바로 이 리로드인데
+            #   부르는 곳을 안 만들었다. 켜 놓고 안 쓴 것이다.
+            #
+            #   ★ 리로드를 부르는 것만으로는 부족하다. 확인까지 해야 한다 -
+            #     문법이 틀리면 Prometheus 는 새 설정을 버리고 옛것으로 계속 돈다.
+            #     200 만 보고 넘어가면 "고쳤는데 안 바뀐" 상태를 또 못 본다.
+            PROM="docker exec edumeet-prometheus wget -qO- "
+            declared=$(grep -c '^      - alert:' observability/rules/edumeet.yml)
+
+            $PROM --post-data='' http://localhost:9090/-/reload
+            sleep 10
+
+            loaded=$($PROM http://localhost:9090/api/v1/rules \
+                     | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len([r for g in d["data"]["groups"] for r in g["rules"]]))')
+
+            if [ "$loaded" != "$declared" ]; then
+              echo "경보 규칙이 파일과 다르다 - 파일 ${declared}개, 로드 ${loaded}개"
+              echo "문법 오류면 Prometheus 가 새 설정을 버리고 옛것으로 돈다. 로그를 본다"
+              docker logs --tail 30 edumeet-prometheus
+              exit 1
+            fi
+            echo "경보 규칙 ${loaded}개 로드 확인 (파일과 일치)"
+
             # ★ 호스트에서 curl 하지 않는다.
             #   actuator 는 관리 포트(9090)로 옮겨갔고 그 포트는 publish 하지 않는다.
             #   Dockerfile 의 HEALTHCHECK 가 컨테이너 안에서 이미 그 포트를 부르고 있으므로
