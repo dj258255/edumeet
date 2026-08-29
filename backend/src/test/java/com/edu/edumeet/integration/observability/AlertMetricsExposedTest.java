@@ -208,12 +208,25 @@ class AlertMetricsExposedTest {
             "rate", "irate", "increase", "delta", "deriv", "changes", "absent",
             "sum", "avg", "max", "min", "count", "topk", "bottomk", "quantile",
             "histogram_quantile", "predict_linear", "clamp_max", "clamp_min",
-            "by", "without", "on", "ignoring", "offset", "and", "or", "unless");
+            "by", "without", "on", "ignoring", "offset", "and", "or", "unless",
+            // *_over_time 계열. 하나를 쓰면 나머지도 곧 쓰게 되므로 같이 적는다.
+            "count_over_time", "avg_over_time", "sum_over_time", "min_over_time",
+            "max_over_time", "last_over_time", "present_over_time",
+            "stddev_over_time", "stdvar_over_time", "quantile_over_time",
+            "absent_over_time", "time", "vector", "scalar", "round", "abs");
+
+    /** {@code by (job, instance)} 처럼 괄호 안에 라벨 이름을 나열하는 절. */
+    private static final Pattern GROUPING = Pattern.compile(
+            "\\b(by|without|on|ignoring|group_left|group_right)\\s*\\([^)]*\\)");
 
     private void collectMetricNames(String expr, List<String> into) {
         // 라벨 셀렉터 안({...})은 지표 이름이 아니다. 통째로 지운 뒤 식별자를 본다.
-        String withoutLabels = expr.replaceAll("\\{[^}]*}", " ");
-        Matcher ident = Pattern.compile("\\b([a-z][a-z0-9_]{4,})\\b").matcher(withoutLabels);
+        String cleaned = expr.replaceAll("\\{[^}]*}", " ");
+        // ★ 집계 절의 라벨 목록도 지운다.
+        //   sum by (job, instance) (...) 에서 job·instance 는 라벨이지 지표가 아닌데,
+        //   중괄호 밖이라 위에서 안 걸린다. 실제로 이걸 안 지워서 시험이 빨개졌다.
+        cleaned = GROUPING.matcher(cleaned).replaceAll(" ");
+        Matcher ident = Pattern.compile("\\b([a-z][a-z0-9_]{4,})\\b").matcher(cleaned);
         while (ident.find()) {
             String name = ident.group(1);
             if (!PROMQL_FUNCTIONS.contains(name) && !into.contains(name)) {
