@@ -1,7 +1,6 @@
 # main.py
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 import os, re, glob, wave, traceback, subprocess, requests, time, json, shutil
 
 # 백엔드와 말하는 코드는 backend_client.py 로 옮겼다. (#117)
@@ -48,11 +47,29 @@ from summary_llm import (
 )
 from summary_pdf import write_pdf
 app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
-)
+
+# ★ CORS 미들웨어를 두지 않는다. (#179)
+#
+#   있었다. 그리고 위험한 조합이었다 -
+#
+#       allow_origins=["*"], allow_credentials=True
+#
+#   Starlette 은 이 조합에서 쿠키가 붙은 요청에 대해 **요청이 보낸 origin 을
+#   그대로 되돌려 준다**(cors.py 의 allow_all_origins and has_cookie).
+#   즉 아무 사이트나 이 API 를 인증된 채로 부를 수 있다는 뜻이다.
+#
+#   그런데 지웠지 고치지 않은 이유는 따로 있다 - **브라우저가 여기 닿을 수 없다.**
+#
+#       프론트 코드      이 서비스를 부르는 곳이 없다
+#       nginx            이 서비스로 보내는 location 이 없다
+#       compose          expose 만 한다. 호스트 포트를 열지 않는다
+#
+#   부르는 것은 백엔드뿐이고 서버 간 호출에는 CORS 가 관여하지 않는다.
+#   즉 이 설정은 **존재하지 않는 사용자를 위한 것**이었다.
+#   존재하지 않는 사용자를 위해 위험한 기본값을 들고 있을 이유가 없다.
+#
+#   브라우저가 정말 필요해지면 그때 origin 을 명시해서 넣는다.
+#   와일드카드로 다시 넣는 것은 tests/test_no_wildcard_cors.py 가 막는다.
 
 
 @app.middleware("http")
