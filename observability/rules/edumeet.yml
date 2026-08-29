@@ -270,8 +270,22 @@ groups:
       #
       #   앱은 부하가 없어도 최소한 무언가는 찍는다(스케줄러, 커넥션 풀 등).
       #   10분간 한 줄도 안 늘었으면 로그 경로가 끊긴 것이다.
+      #
+      # ★ 반드시 합친 뒤에 0 인지 묻는다. (#178)
+      #
+      #   logback_events_total 에는 level 라벨이 있다. 합치지 않으면
+      #   Prometheus 가 수준마다 따로 평가한다 - 그러면
+      #   "ERROR 가 10분간 0건" 이 경보가 된다. 그건 정상이다.
+      #   실제로 debug·trace·warn·error 네 개가 상시 firing 이었다.
+      #
+      #   상시 울리는 경보는 안 울리는 것보다 나쁘다. 사람이 채널을 끄면
+      #   그 뒤로는 진짜 경보도 같이 안 보인다.
+      #
+      #   이 결함이 오늘 드러난 이유가 있다 - 이 규칙은 #167 에 쓰였지만
+      #   Prometheus 가 설정을 다시 읽은 적이 없어(#174) 한 번도 평가된 적이
+      #   없었다. 리로드를 고치자 그날로 드러났다.
       - alert: NoLogsFromApp
-        expr: increase(logback_events_total[10m]) == 0
+        expr: sum by (job, instance) (increase(logback_events_total[10m])) == 0
         for: 5m
         labels:
           severity: warning
@@ -378,9 +392,31 @@ groups:
       #   4일 전에 알면 11GB 를 치울 시간이 있고, 지울 것은 항상 있었다.
       #
       #   6h 창을 쓰는 이유 - 짧게 잡으면 배포 한 번의 계단이 추세로 읽혀 오탐이 된다.
+      #
+      # ★ 조건이 두 개 더 붙어 있다. 둘 다 오탐을 본 뒤에 붙였다. (#178)
+      #
+      #   ① 창이 실제로 차 있어야 한다.
+      #      수집기를 붙인 지 40분 만에 이 경보가 울렸다.
+      #      6시간 창에 40분치만 있으면 그 짧은 구간의 기울기를 4일로 늘리는 것이고,
+      #      그러면 아무 숫자나 나온다 - 실제로 "4일 뒤 -145GB" 가 나왔다.
+      #      scrape 가 15초이므로 6시간이면 표본 1,440개다. 절반(3시간)은 차야
+      #      추세라고 부른다.
+      #
+      #   ② 여유가 이미 적어야 한다.
+      #      실측한 최악의 증가 속도가 2.9GB/일이다. 4일이면 11.6GB.
+      #      여유가 그보다 많은데 "4일 뒤 0" 이 나온다면 그건 우리가 관측한 적
+      #      없는 속도라는 뜻이고, 그런 기울기는 추세가 아니라 계단이다
+      #      (정리 직후처럼). 12GB 를 문턱으로 둔다.
+      #
+      #   즉 "빨리 줄고 있다" 만으로는 안 울린다. "빨리 줄고 있고, 이미 얼마 없다" 여야 한다.
       - alert: DiskFillingUp
         expr: |
-          predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 4 * 24 * 3600) < 0
+          (
+            predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 4 * 24 * 3600) < 0
+            and node_filesystem_avail_bytes{mountpoint="/"} < 12e9
+          )
+          and on (device, mountpoint, instance)
+            count_over_time(node_filesystem_avail_bytes{mountpoint="/"}[6h]) > 720
         for: 30m
         labels:
           severity: warning
