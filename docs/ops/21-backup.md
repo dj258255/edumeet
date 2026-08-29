@@ -104,6 +104,35 @@ ERROR 1045 (28000): Access denied for user 'root'@'localhost'
 
 기다리는 조건을 **우리가 실제로 할 일**로 바꿨다 — 비밀번호로 붙어 질의해 본다.
 
+### SELinux 가 홈 디렉터리의 스크립트를 실행시켜 주지 않았다
+
+유닛 파일이 저장소의 스크립트를 그대로 부르게 했다. 실행 비트도 있었다.
+
+```
+Failed to locate executable /home/rocky/edumeet/scripts/restore-drill.sh: Permission denied
+edumeet-restore-drill.service: Failed at step EXEC ... status=203/EXEC
+```
+
+이 서버는 SELinux 가 **Enforcing** 이고 `/home` 아래 파일에는 `user_home_t` 라벨이 붙는다.
+systemd 는 그 라벨의 파일을 실행하지 못한다.
+
+```
+unconfined_u:object_r:user_home_t:s0  /home/rocky/edumeet/scripts/restore-drill.sh
+```
+
+nginx 설정·유닛 파일과 같은 방식으로 시스템 경로에 설치하도록 바꿨다.
+`/usr/local/bin` 아래로 `install` 하면 `bin_t` 를 상속한다.
+
+```
+system_u:object_r:bin_t:s0  /usr/local/bin/edumeet-backup
+```
+
+**그리고 배포가 실제로 한 번 떠 본다.** 타이머가 걸린 것과 스크립트가 도는 것은
+다른 일이다. 이 확인이 없었으면 "타이머는 걸렸는데 새벽마다 조용히 실패" 를
+며칠 뒤에나 알았을 것이다 — 이번에는 손으로 돌려 봐서 알았다.
+
+---
+
 ### 배포 확인이 `list-timers` 를 grep 하다 실패했다
 
 타이머를 설치한 뒤 "정말 걸렸나" 를 확인하려고 `systemctl list-timers` 를 grep 했다.
@@ -135,6 +164,11 @@ node-exporter 의 **textfile 수집기**를 쓴다 — 스크립트가 `.prom` �
 경보가 네 개인 이유도 같다. `BackupMetricsMissing` 은 **경보에 대한 경보**다.
 지표 자체가 없으면 `BackupStale` 은 빈 결과를 내고,
 빈 결과는 "정상" 과 구분되지 않는다.
+
+처음엔 그 경보가 백업 지표만 봤다. 배포하고 확인해 보니 훈련 지표가 0개였고,
+그러면 `RestoreDrillStale` 도 똑같이 빈 결과를 낸다 —
+**막으려던 함정을 규칙 하나 옆에 그대로 다시 판 것이다.**
+둘 다 보게 고쳤다.
 
 ### 임계값의 근거
 
