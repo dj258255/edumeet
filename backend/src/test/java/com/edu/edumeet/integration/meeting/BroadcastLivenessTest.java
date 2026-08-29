@@ -52,10 +52,12 @@ class BroadcastLivenessTest {
     @PersistenceContext EntityManager em;
 
     private Long meetingId;
+    private Long classRoomId;
+    private String email;
 
     @BeforeEach
     void setUp() {
-        String email = "broadcast-liveness-" + SEQ.incrementAndGet() + "@test";
+        email = "broadcast-liveness-" + SEQ.incrementAndGet() + "@test";
         transactionTemplate.executeWithoutResult(s -> {
             Member owner = Member.builder().email(email).nickname("발표자").password("x").build();
             em.persist(owner);
@@ -68,13 +70,31 @@ class BroadcastLivenessTest {
             em.persist(meeting);
             em.flush();
             meetingId = meeting.getId();
+            classRoomId = room.getId();
         });
     }
 
     @AfterEach
     void tearDown() {
-        transactionTemplate.executeWithoutResult(s ->
-                em.createQuery("DELETE FROM Meeting").executeUpdate());
+        // ★ 이 시험이 만든 회의만 지운다.
+        //
+        //   DELETE FROM Meeting 처럼 전체를 지우면 같은 컨텍스트를 쓰는 다른 시험의
+        //   픽스처까지 날아간다. 실제로 그렇게 해서 시험 12개를 더 깨뜨렸다.
+        //   정리는 자기가 만든 것까지만 한다.
+        transactionTemplate.executeWithoutResult(s -> {
+            em.createQuery("DELETE FROM CaptionSegment c WHERE c.meeting.id = :id")
+                    .setParameter("id", meetingId).executeUpdate();
+            em.createQuery("DELETE FROM MeetingParticipant p WHERE p.meeting.id = :id")
+                    .setParameter("id", meetingId).executeUpdate();
+            em.createQuery("DELETE FROM Meeting m WHERE m.id = :id")
+                    .setParameter("id", meetingId).executeUpdate();
+            // 클래스와 회원까지 치운다. 남겨 두면 다른 시험이 스키마를 다시 만들 때
+            // class_room_seq 가 되감기면서 PK 가 부딪힌다. 실제로 12개를 깨뜨렸다.
+            em.createQuery("DELETE FROM ClassRoom c WHERE c.id = :id")
+                    .setParameter("id", classRoomId).executeUpdate();
+            em.createQuery("DELETE FROM Member m WHERE m.email = :email")
+                    .setParameter("email", email).executeUpdate();
+        });
     }
 
     @Test

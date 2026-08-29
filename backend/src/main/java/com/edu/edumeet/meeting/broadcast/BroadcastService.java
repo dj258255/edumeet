@@ -16,6 +16,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,6 +48,7 @@ public class BroadcastService {
 
     private final MeterRegistry meterRegistry;
     private final com.edu.edumeet.chat.metrics.ChatMetrics chatMetrics;
+    private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
     private final Map<Long, BroadcastSession> sessions = new ConcurrentHashMap<>();
 
     /**
@@ -57,10 +59,21 @@ public class BroadcastService {
      */
     private Counter staleReconciled;
 
+    /**
+     * 정리를 시도했다가 실패한 횟수. (#169)
+     *
+     * <p>정리가 기동을 막으면 안 되므로 예외를 삼킨다. <b>그런데 삼키기만 하면
+     * 유령이 쌓이는 것을 아무도 모른다.</b> 그래서 세고 경보한다.
+     */
+    private Counter reconcileFailed;
+
     @PostConstruct
     void registerMetrics() {
         this.staleReconciled = Counter.builder("broadcast.stale.reconciled")
                 .description("기동 때 정리한 유령 방송 수. 0 이 아니면 직전 배포가 방송을 끊었다")
+                .register(meterRegistry);
+        this.reconcileFailed = Counter.builder("broadcast.stale.reconcile.failed")
+                .description("기동 시 유령 방송 정리에 실패한 횟수. 0 이 아니면 유령이 남아 있다")
                 .register(meterRegistry);
         io.micrometer.core.instrument.Gauge
                 .builder("broadcast.active", sessions, Map::size)
@@ -210,20 +223,45 @@ public class BroadcastService {
      * 되살릴 수가 없다. 송출은 <b>발표자 브라우저가 조각을 밀어 넣어야</b> 이어진다.
      * 서버 혼자 다시 시작할 수 있는 것이 아니다. 그러니 <b>상태를 사실에 맞추는 것</b>이
      * 할 수 있는 전부다. 발표자는 다시 시작 버튼을 눌러야 한다.
+     *
+     * <h3>정리가 실패해도 기동은 막지 않는다</h3>
+     * 이건 <b>청소 작업이지 기동 조건이 아니다.</b> 여기서 예외가 새면
+     * 정리하려다 앱 자체가 안 뜬다. 고치려던 것보다 나쁜 결과다.
+     *
+     * <p>실제로 걸렸다 — {@code SchemaExportTest} 는 DDL 을 <b>파일로만</b> 뽑는 시험이라
+     * H2 에는 테이블이 없다. 거기서 이 조회가 터져 <b>컨텍스트 로딩이 통째로 실패</b>했다.
+     *
+     * <h3>왜 {@code @Transactional} 을 떼고 {@link TransactionTemplate} 을 쓰나</h3>
+     * 메서드에 {@code @Transactional} 을 붙이고 안에서 잡으면 <b>안 잡힌다.</b>
+     * 조회가 실패하면 트랜잭션이 롤백 전용으로 표시되고, 예외를 삼켜도
+     * <b>커밋 단계에서 다시 터진다.</b> 그 예외는 메서드 밖이라 {@code catch} 가 못 본다.
+     *
+     * <p>같은 메서드를 자기가 부르는 방법({@code this.doReconcile()})도 안 된다 —
+     * 프록시를 안 거쳐 {@code @Transactional} 이 무시된다. 이 저장소가 이미 잡은 함정이다.
+     * 그래서 <b>트랜잭션 경계를 코드로 직접</b> 긋는다.
+     *
+     * <p><b>다만 조용히 삼키지는 않는다.</b> 못 했으면 못 했다고 세고 남긴다.
+     * 정리가 계속 실패하면 유령이 계속 쌓이는 것이고, 그건 알아야 한다.
      */
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void reconcileOnStartup() {
-        List<Meeting> stale = meetingRepository.findAllByBroadcastSessionIdIsNotNull();
-        if (stale.isEmpty()) return;
+        try {
+            transactionTemplate.executeWithoutResult(status -> {
+                List<Meeting> stale = meetingRepository.findAllByBroadcastSessionIdIsNotNull();
+                if (stale.isEmpty()) return;
 
-        for (Meeting meeting : stale) {
-            log.warn("재시작 전에 방송 중이던 회의를 정리한다 - meetingId={}. "
-                            + "송출 프로세스는 재시작과 함께 죽었고 되살릴 수 없다",
-                    meeting.getId());
-            meeting.stopBroadcast();
+                for (Meeting meeting : stale) {
+                    log.warn("재시작 전에 방송 중이던 회의를 정리한다 - meetingId={}. "
+                                    + "송출 프로세스는 재시작과 함께 죽었고 되살릴 수 없다",
+                            meeting.getId());
+                    meeting.stopBroadcast();
+                }
+                staleReconciled.increment(stale.size());
+            });
+        } catch (Exception e) {
+            reconcileFailed.increment();
+            log.warn("기동 시 유령 방송 정리에 실패했다. 유령이 남아 있을 수 있다", e);
         }
-        staleReconciled.increment(stale.size());
     }
 
     /** 지금 돌고 있는 방송 수. 측정과 시험에서 본다. */
