@@ -2,6 +2,9 @@
 #
 # 백업 파일이 쌓이는 것과 그 파일로 DB 를 세울 수 있는 것은 다른 일이다.
 # 확인하는 날이 이미 늦은 날이 되지 않게 정기적으로 세워 본다.
+#
+# ★ 실행 파일은 /usr/local/bin 에 있다. SELinux 가 /home 아래 파일의 실행을 막는다
+#   (edumeet-backup.service 의 주석 참고).
 [Unit]
 Description=EduMeet 백업 복구 훈련
 Requires=docker.service
@@ -10,4 +13,4 @@ After=docker.service
 [Service]
 Type=oneshot
 User=rocky
-ExecStart=/home/rocky/edumeet/scripts/restore-drill.sh
+ExecStart=/usr/local/bin/edumeet-restore-drill

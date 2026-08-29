@@ -457,18 +457,25 @@ groups:
       #   백업 스크립트는 실패해도 지표를 쓴다(성공 0). 그러니 지표 자체가
       #   없다는 것은 스크립트가 한 번도 안 돌았거나 textfile 경로가 끊겼다는 뜻이다.
       #   이 경우 BackupStale 은 영원히 안 울린다 - 빈 결과는 "정상" 과 같다.
+      # ★ 훈련 지표도 같이 본다.
+      #
+      #   처음엔 백업 지표만 봤다. 그런데 훈련 지표가 없으면
+      #   RestoreDrillStale 도 똑같이 빈 결과를 낸다 - 훈련이 한 번도
+      #   안 돌아도 조용하다. 막으려던 함정을 규칙 하나 옆에 그대로 다시 팠다.
       - alert: BackupMetricsMissing
         expr: |
           absent(edumeet_backup_last_success_timestamp_seconds)
+            or absent(edumeet_restore_drill_timestamp_seconds)
         for: 30m
         labels:
           severity: warning
           runbook: docs/ops/21-backup.md
         annotations:
-          summary: "백업 지표가 없다 - 백업 경보가 무의미해졌다"
+          summary: "백업 또는 복구 훈련 지표가 없다 - 그쪽 경보가 무의미해졌다"
           description: >-
             타이머가 한 번도 안 돌았거나 node-exporter 의 textfile 경로가 끊겼다.
-            이 상태에서는 BackupStale 이 빈 결과를 내므로 영원히 안 울린다.
+            이 상태에서는 BackupStale·RestoreDrillStale 이 빈 결과를 내므로
+            영원히 안 울린다. 빈 결과는 "정상" 과 구분되지 않는다.
 
       # ────────────────────────────────────────────────────────────────
       # 근거: 복구 훈련은 매주 일요일 05:00 이다. 흩는 폭이 30분이다.

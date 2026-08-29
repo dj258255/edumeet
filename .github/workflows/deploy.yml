@@ -132,9 +132,15 @@ jobs:
             # ★ 유닛 파일을 배포 단위로 둔다 - nginx 설정과 같은 이유다.
             #   서버에 손으로 만들어 두면 재설치할 때 사라지고, 사라진 것을
             #   아무도 모른다. 백업은 특히 그렇다 - 없어도 평소에는 아무 일이 없다.
-            chmod +x scripts/backup-mysql.sh scripts/restore-drill.sh
             sudo install -d -o rocky -g rocky -m 0755 \
                 /var/lib/edumeet/backup /var/lib/edumeet/node-exporter-textfile
+
+            # ★ 스크립트를 홈에서 직접 실행시키지 않는다.
+            #   SELinux 가 Enforcing 이고 /home 아래는 user_home_t 라벨이라
+            #   systemd 가 실행하지 못한다 - 실행 비트가 있어도 203/EXEC 로 죽는다.
+            #   /usr/local/bin 아래로 install 하면 bin_t 를 상속한다.
+            sudo install -m 0755 scripts/backup-mysql.sh  /usr/local/bin/edumeet-backup
+            sudo install -m 0755 scripts/restore-drill.sh /usr/local/bin/edumeet-restore-drill
             sudo install -m 0644 deploy/systemd/edumeet-backup.service       /etc/systemd/system/
             sudo install -m 0644 deploy/systemd/edumeet-backup.timer         /etc/systemd/system/
             sudo install -m 0644 deploy/systemd/edumeet-restore-drill.service /etc/systemd/system/
@@ -162,6 +168,18 @@ jobs:
               fi
               echo "타이머 확인: $t -> 다음 실행 $next"
             done
+
+            # ★ 타이머가 걸린 것과 스크립트가 도는 것은 다른 일이다.
+            #   실제로 백업을 한 번 떠 본다 - 여기서 실패하면 배포가 실패한다.
+            #   이게 없으면 "타이머는 걸렸는데 새벽마다 조용히 실패" 를 며칠 뒤에 안다.
+            #   실제로 SELinux 때문에 그렇게 죽었다(203/EXEC).
+            sudo systemctl start edumeet-backup.service
+            if [ "$(systemctl show edumeet-backup.service -p ExecMainStatus --value)" != "0" ]; then
+              echo "백업이 실패했다"
+              journalctl -u edumeet-backup -n 30 --no-pager
+              exit 1
+            fi
+            echo "백업 실행 확인: $(ls -1 /var/lib/edumeet/backup/edumeet-*.sql.gz | wc -l)개 보관 중"
 
             # ★ --profile observability 를 붙인다. (#83)
             #   prometheus·grafana 는 profiles: [observability] 라
