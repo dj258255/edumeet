@@ -413,3 +413,100 @@ groups:
           description: >-
             node-exporter 를 못 긁고 있다. 이 상태에서는 위의 디스크 경보가
             빈 결과를 내므로 영원히 안 울린다. 경보가 조용한 것이 안전하다는 뜻이 아니다.
+
+  # ══════════════════════════════════════════════════════════════════
+  #  백업. (#175)
+  #
+  #  ★ 백업은 "선언은 있는데 안 쓴다" 의 교과서다.
+  #    덤프가 매일 쌓이는 것을 보면 일이 된 것 같은데, 그 파일로 DB 를
+  #    세울 수 있는지는 아무도 확인하지 않는다. 확인하는 날은 이미 늦은 날이다.
+  #
+  #    그래서 두 가지를 따로 묻는다 - 뜨고 있나, 그리고 그것으로 세워지나.
+  #
+  #  지표는 systemd 타이머가 파일로 쓰고 node-exporter 가 읽어 올린다
+  #  (textfile 수집기). 컨테이너가 아닌 것의 상태를 Prometheus 로 올리는 통로다.
+  # ══════════════════════════════════════════════════════════════════
+  - name: edumeet-backup
+    interval: 60s
+    rules:
+      # ────────────────────────────────────────────────────────────────
+      # 근거: 타이머가 매일 04:00 에 돈다. 흩는 폭이 15분이다.
+      #
+      #   하루를 건너뛴 것은 서버가 꺼져 있었을 수 있다(Persistent=true 라
+      #   다음 부팅에 한 번 돈다). 이틀을 건너뛰면 그것으로 설명되지 않는다.
+      #
+      #   36시간 - 하루 주기에서 한 회차를 놓친 것은 봐주고,
+      #   두 회차째부터 울린다. 매일 04:00 기준으로 다음 날 16:00 쯤이다.
+      - alert: BackupStale
+        expr: |
+          time() - edumeet_backup_last_success_timestamp_seconds > 36 * 3600
+        for: 10m
+        labels:
+          severity: critical
+          runbook: docs/ops/21-backup.md
+        annotations:
+          summary: "백업이 36시간째 성공하지 않았다"
+          description: >-
+            마지막 성공이
+            {{ $value | humanizeDuration }} 전이다. 타이머가 죽었거나 덤프가 실패하고 있다.
+            systemctl status edumeet-backup.timer 와 journalctl -u edumeet-backup 을 본다.
+
+      # ────────────────────────────────────────────────────────────────
+      # 근거: 지표가 아예 없으면 위 규칙도 빈 결과를 낸다.
+      #
+      #   백업 스크립트는 실패해도 지표를 쓴다(성공 0). 그러니 지표 자체가
+      #   없다는 것은 스크립트가 한 번도 안 돌았거나 textfile 경로가 끊겼다는 뜻이다.
+      #   이 경우 BackupStale 은 영원히 안 울린다 - 빈 결과는 "정상" 과 같다.
+      - alert: BackupMetricsMissing
+        expr: |
+          absent(edumeet_backup_last_success_timestamp_seconds)
+        for: 30m
+        labels:
+          severity: warning
+          runbook: docs/ops/21-backup.md
+        annotations:
+          summary: "백업 지표가 없다 - 백업 경보가 무의미해졌다"
+          description: >-
+            타이머가 한 번도 안 돌았거나 node-exporter 의 textfile 경로가 끊겼다.
+            이 상태에서는 BackupStale 이 빈 결과를 내므로 영원히 안 울린다.
+
+      # ────────────────────────────────────────────────────────────────
+      # 근거: 복구 훈련은 매주 일요일 05:00 이다. 흩는 폭이 30분이다.
+      #
+      #   9일 - 한 주를 통째로 놓친 것을 잡는다. 주 주기라 하루 이틀 밀리는 것은
+      #   정상 범위이고, 9일이면 확실히 한 회차를 건너뛴 것이다.
+      #
+      # ★ 이 경보가 왜 별도인가 - 백업이 매일 성공해도 그 파일로 DB 를
+      #   세울 수 없으면 백업이 없는 것과 같다. 실제로 확인해 봤을 때만
+      #   "있다" 고 말할 수 있다.
+      - alert: RestoreDrillStale
+        expr: |
+          time() - edumeet_restore_drill_timestamp_seconds > 9 * 24 * 3600
+        for: 30m
+        labels:
+          severity: warning
+          runbook: docs/ops/21-backup.md
+        annotations:
+          summary: "복구 훈련이 9일째 안 돌았다"
+          description: >-
+            덤프는 쌓이고 있어도 그것으로 DB 를 세울 수 있는지는 확인되지 않았다.
+            systemctl start edumeet-restore-drill 로 지금 돌려 본다.
+
+      # ────────────────────────────────────────────────────────────────
+      # 근거: 훈련은 복구본과 운영의 행 수를 표마다 대조한다.
+      #       하나라도 다르면 0 을 쓴다.
+      #
+      #   for 를 짧게 잡은 이유 - 이 값은 주 1회만 바뀐다. 오래 기다릴 이유가 없고,
+      #   기다리는 동안 다음 훈련까지 일주일이 지나간다.
+      - alert: RestoreDrillFailed
+        expr: |
+          edumeet_restore_drill_success == 0
+        for: 5m
+        labels:
+          severity: critical
+          runbook: docs/ops/21-backup.md
+        annotations:
+          summary: "백업으로 DB 를 세우지 못했다"
+          description: >-
+            덤프는 있는데 복구본이 운영과 다르다. 지금 있는 백업으로는
+            돌아갈 수 없다고 봐야 한다. journalctl -u edumeet-restore-drill 을 본다.

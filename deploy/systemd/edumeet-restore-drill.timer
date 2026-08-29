@@ -1,0 +1,17 @@
+# 매주 일요일 새벽 5시. (#175)
+#
+# ★ 왜 매일이 아닌가 - 훈련은 MySQL 컨테이너를 하나 더 띄운다.
+#   2코어에서 매일 돌릴 만큼 자주 깨지는 것이 아니고, 깨지는 원인
+#   (덤프 방식·스키마 변경)은 주 단위로 충분히 잡힌다.
+#
+# ★ 백업(04:00) 뒤에 둔다. 방금 뜬 것으로 훈련해야 의미가 있다.
+[Unit]
+Description=EduMeet 백업 복구 훈련 (매주)
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00
+Persistent=true
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target

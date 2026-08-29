@@ -206,10 +206,14 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+      # 백업 스크립트가 여기에 지표 파일을 쓴다. (#175)
+      # 컨테이너가 아닌 것(systemd 타이머)의 상태를 Prometheus 로 올리는 표준 통로다.
+      - /var/lib/edumeet/node-exporter-textfile:/textfile:ro
     command:
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
       - --path.rootfs=/rootfs
+      - --collector.textfile.directory=/textfile
       # 컨테이너·오버레이 마운트까지 세면 같은 디스크가 수십 번 잡힌다.
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
     networks: [edumeet]

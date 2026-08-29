@@ -1,0 +1,13 @@
+# 복구 훈련. (#175)
+#
+# 백업 파일이 쌓이는 것과 그 파일로 DB 를 세울 수 있는 것은 다른 일이다.
+# 확인하는 날이 이미 늦은 날이 되지 않게 정기적으로 세워 본다.
+[Unit]
+Description=EduMeet 백업 복구 훈련
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=rocky
+ExecStart=/home/rocky/edumeet/scripts/restore-drill.sh

@@ -93,7 +93,7 @@ jobs:
           host: ${{ secrets.OCI_HOST }}
           username: ${{ secrets.OCI_USER }}
           key: ${{ secrets.OCI_SSH_KEY }}
-          source: "docker-compose.prod.yml,deploy/nginx/edumeet.conf,observability/**"
+          source: "docker-compose.prod.yml,deploy/nginx/edumeet.conf,observability/**,deploy/systemd/*,scripts/backup-mysql.sh,scripts/restore-drill.sh"
           target: "~/edumeet"
           overwrite: true
           strip_components: 0
@@ -126,6 +126,32 @@ jobs:
             sudo install -m 0644 deploy/nginx/edumeet.conf /etc/nginx/conf.d/edumeet.conf
             sudo nginx -t
             sudo systemctl reload nginx
+
+            # 백업. (#175) 저장소 어디에도 없었다.
+            #
+            # ★ 유닛 파일을 배포 단위로 둔다 - nginx 설정과 같은 이유다.
+            #   서버에 손으로 만들어 두면 재설치할 때 사라지고, 사라진 것을
+            #   아무도 모른다. 백업은 특히 그렇다 - 없어도 평소에는 아무 일이 없다.
+            chmod +x scripts/backup-mysql.sh scripts/restore-drill.sh
+            sudo install -d -o rocky -g rocky -m 0755 \
+                /var/lib/edumeet/backup /var/lib/edumeet/node-exporter-textfile
+            sudo install -m 0644 deploy/systemd/edumeet-backup.service       /etc/systemd/system/
+            sudo install -m 0644 deploy/systemd/edumeet-backup.timer         /etc/systemd/system/
+            sudo install -m 0644 deploy/systemd/edumeet-restore-drill.service /etc/systemd/system/
+            sudo install -m 0644 deploy/systemd/edumeet-restore-drill.timer   /etc/systemd/system/
+            sudo systemctl daemon-reload
+            sudo systemctl enable --now edumeet-backup.timer edumeet-restore-drill.timer
+
+            # ★ enable 했다고 도는 것이 아니다. 활성 타이머 목록에서 확인한다.
+            #   유닛 파일에 오타가 있으면 enable 은 성공하고 타이머는 안 걸린다.
+            for t in edumeet-backup edumeet-restore-drill; do
+              if ! systemctl list-timers --all | grep -q "$t"; then
+                echo "타이머가 등록되지 않았다: $t"
+                systemctl status "$t.timer" --no-pager || true
+                exit 1
+              fi
+              echo "타이머 확인: $(systemctl list-timers "$t.timer" --no-pager | sed -n 2p)"
+            done
 
             # ★ --profile observability 를 붙인다. (#83)
             #   prometheus·grafana 는 profiles: [observability] 라
