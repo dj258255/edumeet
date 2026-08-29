@@ -142,15 +142,25 @@ jobs:
             sudo systemctl daemon-reload
             sudo systemctl enable --now edumeet-backup.timer edumeet-restore-drill.timer
 
-            # ★ enable 했다고 도는 것이 아니다. 활성 타이머 목록에서 확인한다.
+            # ★ enable 했다고 도는 것이 아니다. 다음 실행 시각이 잡혔는지 본다.
             #   유닛 파일에 오타가 있으면 enable 은 성공하고 타이머는 안 걸린다.
+            #
+            # ★ list-timers 를 grep 하지 않는다.
+            #   그렇게 짰다가 배포가 실패했다 - 타이머는 정상이었는데
+            #   list-timers 는 사람이 보는 표라 터미널 폭에 맞춰 열을 자른다.
+            #   CI 에는 tty 가 없어 80칸으로 접히면서 유닛 이름이 잘려 나갔다.
+            #   사람이 읽는 출력을 grep 하는 검사는 그 출력의 서식만큼만 믿을 수 있다.
             for t in edumeet-backup edumeet-restore-drill; do
-              if ! systemctl list-timers --all | grep -q "$t"; then
-                echo "타이머가 등록되지 않았다: $t"
+              active=$(systemctl is-active "$t.timer" || true)
+              enabled=$(systemctl is-enabled "$t.timer" || true)
+              next=$(systemctl show "$t.timer" -p NextElapseUSecRealtime --value)
+              if [ "$active" != "active" ] || [ "$enabled" != "enabled" ] \
+                 || [ -z "$next" ] || [ "$next" = "n/a" ]; then
+                echo "타이머가 걸리지 않았다: $t (active=$active enabled=$enabled next=$next)"
                 systemctl status "$t.timer" --no-pager || true
                 exit 1
               fi
-              echo "타이머 확인: $(systemctl list-timers "$t.timer" --no-pager | sed -n 2p)"
+              echo "타이머 확인: $t -> 다음 실행 $next"
             done
 
             # ★ --profile observability 를 붙인다. (#83)

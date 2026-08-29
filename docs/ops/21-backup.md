@@ -104,6 +104,21 @@ ERROR 1045 (28000): Access denied for user 'root'@'localhost'
 
 기다리는 조건을 **우리가 실제로 할 일**로 바꿨다 — 비밀번호로 붙어 질의해 본다.
 
+### 배포 확인이 `list-timers` 를 grep 하다 실패했다
+
+타이머를 설치한 뒤 "정말 걸렸나" 를 확인하려고 `systemctl list-timers` 를 grep 했다.
+배포가 실패했다. 그런데 서버에서 보면 타이머는 멀쩡했다.
+
+```
+edumeet-backup: is-active=active is-enabled=enabled next=[Sun 2026-08-30 04:13:26 UTC]
+```
+
+`list-timers` 는 **사람이 보는 표**라 터미널 폭에 맞춰 열을 자른다.
+CI 에는 tty 가 없어 80칸으로 접히면서 유닛 이름이 잘려 나갔다.
+
+**사람이 읽는 출력을 grep 하는 검사는 그 출력의 서식만큼만 믿을 수 있다.**
+`is-active` · `is-enabled` · 다음 실행 시각을 직접 묻는 것으로 바꿨다.
+
 ---
 
 ## 지표가 없으면 경보도 없다
