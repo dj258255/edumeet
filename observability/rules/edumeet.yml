@@ -212,8 +212,15 @@ groups:
             이 버그는 에러 로그를 남기지 않으므로 로그로는 안 보인다.
 
       # 관측 자체가 죽는 경우. #83 에서 관측이 시작조차 안 되던 적이 있다.
+      #
+      # ★ 슬롯마다 묻지 않고 합쳐서 묻는다. (#180)
+      #   앱은 blue/green 두 슬롯이고 한 번에 하나만 돈다.
+      #   안 도는 쪽은 늘 up=0 이라, 슬롯마다 물으면 상시 울린다 -
+      #   #178 에서 로그 경보가 딱 그 모양으로 상시 울리고 있었다.
+      #   묻고 싶은 것은 "**하나도 안 뜬다**" 이지 "하나가 안 뜬다" 가 아니다.
       - alert: AppMetricsUnreachable
-        expr: up{job="edumeet-app"} == 0
+        expr: |
+          sum(up{job="edumeet-app"}) == 0 or absent(up{job="edumeet-app"})
         for: 2m
         labels:
           severity: critical

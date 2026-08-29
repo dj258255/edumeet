@@ -23,10 +23,19 @@ alerting:
         - targets: ["alertmanager:9093"]
 
 scrape_configs:
+  # ★ 슬롯 둘을 다 긁는다. (#180)
+  #
+  #   앱은 blue/green 두 슬롯이고 한 번에 하나만 돈다. 안 도는 쪽은
+  #   스크레이프가 실패해 up=0 이 되는데, 그게 정상이다.
+  #   그래서 "앱을 못 긁는다" 경보는 하나가 0인지가 아니라
+  #   **둘 다 0인지**를 묻는다.
+  #
+  #   별칭(app)으로 긁지 않는 이유 - 전환 중에는 둘 다 떠 있어서
+  #   DNS 가 번갈아 답한다. 그러면 지표가 두 프로세스 사이를 오간다.
   - job_name: edumeet-app
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ["app:9090"]
+      - targets: ["app-blue:9090", "app-green:9090"]
         labels:
           service: edumeet
 
