@@ -49,7 +49,16 @@ echo "지금 서비스: $active (:$active_port)  ->  새 슬롯: $next (:$next_p
 # ── 2. 새 슬롯을 띄운다 ───────────────────────────────────────────
 #
 # --no-deps 를 쓰지 않는다. mysql·redis 가 healthy 여야 앱이 뜬다.
-$COMPOSE --profile "$next" up -d "app-$next"
+#
+# ★ 여기서 실패해도 옛 슬롯은 그대로다. 다만 반쯤 만들어진 컨테이너가 남으면
+#   다음 배포가 그것을 물려받아 헷갈리므로 치우고 그만둔다.
+#   실제로 첫 배포가 여기서 실패했다(관리 포트 충돌). 서비스는 안 끊겼지만
+#   Created 상태의 컨테이너가 남았다.
+if ! $COMPOSE --profile "$next" up -d "app-$next"; then
+    echo "새 슬롯을 띄우지 못했다. nginx 는 그대로다 - 서비스는 $active 가 계속한다"
+    $COMPOSE --profile "$next" rm -sf "app-$next" >/dev/null 2>&1 || true
+    exit 1
+fi
 
 # ── 3. 건강해질 때까지 기다린다 ───────────────────────────────────
 #
