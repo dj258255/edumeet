@@ -104,6 +104,24 @@ class AlertMetricsExposedTest {
                 .containsPattern("chat_channel_capacity\\{[^}]*channel=\"out\"[^}]*\\}\\s+20000");
     }
 
+    /**
+     * 앱이 내지 <b>않는</b> 지표를 쓰는 규칙군. (#173)
+     *
+     * <p>디스크 경보는 호스트 수집기(node-exporter)가 내는 값을 본다.
+     * 앱의 {@code /actuator/prometheus} 에는 당연히 없다.
+     *
+     * <p><b>여기 이름을 적는 것으로 검사를 면제하지 않는다.</b> 면제하면
+     * 이 시험이 막으려던 바로 그 구멍이 다시 열린다 - 규칙은 있는데 지표가 없고,
+     * 빈 결과는 "정상" 과 구분되지 않는다.
+     * 대신 <b>보증하는 곳을 옮긴다</b>. 그 지표는 실행 중인 Prometheus 에
+     * 직접 물어봐야 확인되므로 {@code scripts/verify-alerting.sh} 가 맡는다.
+     * 아래 시험이 "옮겼는지" 를 검사한다.
+     */
+    private static final Set<String> HOST_RULE_GROUPS = Set.of("edumeet-host");
+
+    /** 실행 중인 Prometheus 에 직접 물어보는 쪽. */
+    private static final Path VERIFY_SCRIPT = Path.of("..", "scripts", "verify-alerting.sh");
+
     @Test
     @DisplayName("★ 경보 규칙이 물어보는 지표가 전부 노출 목록에 있다")
     void every_metric_used_by_alert_rules_exists() throws Exception {
@@ -112,7 +130,7 @@ class AlertMetricsExposedTest {
                 .isTrue();
 
         String body = scrape();
-        List<String> used = metricNamesIn(Files.readString(RULES));
+        List<String> used = metricNamesIn(Files.readString(RULES), false);
 
         assertThat(used)
                 .as("규칙 파일에서 지표 이름을 하나도 못 찾았다 - 파서가 깨졌을 수 있다")
@@ -123,6 +141,34 @@ class AlertMetricsExposedTest {
                     .as("""
                         경보 규칙이 %s 를 물어보는데 앱이 그 지표를 내지 않는다.
                         규칙을 고쳤으면 지표도 같이 확인해야 한다.""", metric)
+                    .contains(metric);
+        }
+    }
+
+    @Test
+    @DisplayName("★ 앱이 안 내는 지표는 검사를 면제하는 게 아니라 확인하는 곳을 옮긴다")
+    void host_metrics_are_verified_somewhere_else() throws Exception {
+        List<String> hostMetrics = metricNamesIn(Files.readString(RULES), true);
+
+        assertThat(hostMetrics)
+                .as("""
+                    호스트 규칙군에서 지표를 하나도 못 찾았다.
+                    규칙군 이름을 바꿨다면 HOST_RULE_GROUPS 도 같이 고쳐야 한다 -
+                    안 고치면 그 지표들이 위 시험에서 앱 지표로 취급돼 빨개진다.""")
+                .isNotEmpty();
+
+        assertThat(Files.exists(VERIFY_SCRIPT))
+                .as("확인을 넘긴 곳이 없다: %s", VERIFY_SCRIPT.toAbsolutePath().normalize())
+                .isTrue();
+
+        String script = Files.readString(VERIFY_SCRIPT);
+        for (String metric : hostMetrics) {
+            assertThat(script)
+                    .as("""
+                        %s 는 앱이 내지 않으므로 여기서는 확인할 수 없다.
+                        그러면 아무도 확인하지 않는 지표가 된다 -
+                        규칙은 있는데 값이 없고, 빈 결과는 "정상" 과 구분되지 않는다.
+                        scripts/verify-alerting.sh 의 확인 목록에 넣어야 한다.""", metric)
                     .contains(metric);
         }
     }
@@ -139,11 +185,14 @@ class AlertMetricsExposedTest {
      * <b>"규칙과 지표가 같이 움직이는가"</b> 이므로 그 정도로 충분하다.
      */
     @SuppressWarnings("unchecked")
-    private List<String> metricNamesIn(String yaml) {
+    private List<String> metricNamesIn(String yaml, boolean hostGroupsOnly) {
         Map<String, Object> root = new Yaml().load(yaml);
         List<String> names = new ArrayList<>();
 
         for (Map<String, Object> group : (List<Map<String, Object>>) root.get("groups")) {
+            if (HOST_RULE_GROUPS.contains(String.valueOf(group.get("name"))) != hostGroupsOnly) {
+                continue;
+            }
             for (Map<String, Object> rule : (List<Map<String, Object>>) group.get("rules")) {
                 Object expr = rule.get("expr");
                 if (expr != null) {

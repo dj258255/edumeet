@@ -181,6 +181,39 @@ services:
     depends_on: [loki]
     networks: [edumeet]
 
+  # 호스트 자원(디스크·CPU·메모리). (#173)
+  #
+  # ★ 왜 필요해졌나 - 디스크가 86% 까지 찼는데 경보가 없었다.
+  #   배포할 때마다 이미지가 945MB 씩 쌓이고 지우는 곳이 없었다(96개 중 9.2GB 가
+  #   한 번 쓰고 버린 것). 디스크가 차면 앱만 죽는 게 아니라 MySQL·Loki·Prometheus 가
+  #   같이 멈춘다. 그런데 우리가 긁는 것은 앱의 관리 포트뿐이라
+  #   호스트 디스크는 물어볼 지표조차 없었다.
+  #
+  # ★ 왜 Alloy 로 안 하나 - Alloy 에도 같은 수집기가 들어 있다(prometheus.exporter.unix).
+  #   다만 Alloy 의 수집기는 스크레이프가 아니라 remote_write 로 내보내는 구조라
+  #   Prometheus 쪽에 수신기를 열어야 한다. 12MB 짜리 컨테이너 하나를
+  #   지금까지와 똑같이 긁는 편이 움직이는 부품이 적다.
+  #
+  # 읽기 전용 마운트만 준다. 호스트 파일시스템을 rootfs 로 보고 크기만 읽는다.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: edumeet-node-exporter
+    profiles: [observability]
+    restart: unless-stopped
+    expose:
+      - "9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      # 컨테이너·오버레이 마운트까지 세면 같은 디스크가 수십 번 잡힌다.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
+    networks: [edumeet]
+
   grafana:
     image: grafana/grafana:11.5.1
     container_name: edumeet-grafana

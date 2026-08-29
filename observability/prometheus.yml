@@ -39,3 +39,11 @@ scrape_configs:
   - job_name: alertmanager
     static_configs:
       - targets: ["alertmanager:9093"]
+
+  # 호스트 자원. (#173)
+  # 앱 지표만 긁으면 "디스크가 찼다" 를 물어볼 지표가 아예 없다.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: edumeet
