@@ -31,4 +31,14 @@ public interface MeetingRepository extends JpaRepository<Meeting, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM Meeting m WHERE m.id = :id")
     Optional<Meeting> findByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * DB 상 아직 방송 중인 회의. 기동 시 정리에 쓴다. (#168)
+     *
+     * <p>송출 세션은 {@code ConcurrentHashMap} 이라 <b>메모리에만 있다.</b>
+     * 앱이 재시작되면 ffmpeg 는 죽는데 이 플래그는 true 로 남는다.
+     * 발표자 화면은 계속 "방송 중" 이고 시청자는 세그먼트가 안 늘어나는데
+     * <b>에러가 한 줄도 안 난다.</b>
+     */
+    List<Meeting> findAllByBroadcastSessionIdIsNotNull();
 }

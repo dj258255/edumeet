@@ -281,3 +281,48 @@ groups:
           description: >-
             로그 경로가 끊겼거나 로깅 설정이 바뀌었다. 빈 대시보드는
             "아무 일도 없었다" 와 구분되지 않으므로 지표 쪽에서 따로 묻는다.
+
+  - name: edumeet-broadcast
+    interval: 15s
+    rules:
+      # ────────────────────────────────────────────────────────────────
+      # 재시작이 방송을 끊었다. (#168)
+      #
+      #   송출 세션은 메모리에만 있어서 앱이 재시작되면 ffmpeg 가 같이 죽는다.
+      #   DB 플래그는 남아 발표자 화면이 계속 "방송 중" 으로 보이고,
+      #   시청자는 세그먼트가 안 늘어나는데 에러가 한 줄도 안 난다.
+      #
+      #   기동 시 정리가 그 상태를 사실에 맞춘다. 다만 정리했다는 것은
+      #   "직전 배포가 누군가의 방송을 끊었다" 는 뜻이므로 알아야 한다.
+      #   되살릴 수는 없다 - 발표자 브라우저가 조각을 밀어 넣어야 이어진다.
+      - alert: BroadcastKilledByRestart
+        expr: increase(broadcast_stale_reconciled_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          runbook: docs/ops/17-broadcast-liveness.md
+        annotations:
+          summary: "재시작이 진행 중이던 방송을 끊었다"
+          description: >-
+            {{ $value | printf "%.0f" }}건을 정리했다. 발표자가 다시 시작해야 한다.
+            배포 창을 방송 시간과 겹치지 않게 잡는 것이 근본 대책이다.
+
+      # ────────────────────────────────────────────────────────────────
+      # 아무도 안 듣는데 인코딩 중. (#168)
+      #
+      #   2코어에서 방송 하나가 CPU 를 쓴다. 동시 상한이 2라
+      #   안 보는 방송이 하나 있으면 볼 사람이 있는 방송이 못 시작할 수 있다.
+      #
+      #   for 를 길게 잡은 이유 - 방송을 켜고 시청자가 들어오기까지는
+      #   비어 있는 것이 정상이다. 10분이면 그 구간이 아니다.
+      - alert: BroadcastUnwatched
+        expr: broadcast_unwatched > 0
+        for: 10m
+        labels:
+          severity: warning
+          runbook: docs/ops/17-broadcast-liveness.md
+        annotations:
+          summary: "10분째 아무도 안 듣는 방송이 있다"
+          description: >-
+            {{ $value | printf "%.0f" }}개. 세그먼트를 만들어 두고 아무도 안 가져간다.
+            자동으로 멈추지 않는다 - 발표자가 의도해서 켠 것이므로 끄는 판단은 사람이 한다.

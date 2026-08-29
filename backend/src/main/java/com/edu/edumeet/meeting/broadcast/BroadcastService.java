@@ -7,6 +7,11 @@ import com.edu.edumeet.meeting.domain.SessionType;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -40,7 +45,65 @@ public class BroadcastService {
     private final BroadcastProperties properties;
     private final MeetingRepository meetingRepository;
 
+    private final MeterRegistry meterRegistry;
+    private final com.edu.edumeet.chat.metrics.ChatMetrics chatMetrics;
     private final Map<Long, BroadcastSession> sessions = new ConcurrentHashMap<>();
+
+    /**
+     * 기동 때 정리한 유령 방송 수. (#168)
+     *
+     * <p>0 이 아니면 <b>직전 배포가 방송을 끊었다</b>는 뜻이다.
+     * 로그로만 남기면 배포 로그를 뒤져야 알 수 있어 지표로도 낸다.
+     */
+    private Counter staleReconciled;
+
+    @PostConstruct
+    void registerMetrics() {
+        this.staleReconciled = Counter.builder("broadcast.stale.reconciled")
+                .description("기동 때 정리한 유령 방송 수. 0 이 아니면 직전 배포가 방송을 끊었다")
+                .register(meterRegistry);
+        io.micrometer.core.instrument.Gauge
+                .builder("broadcast.active", sessions, Map::size)
+                .description("지금 송출 중인 방송 수. 상한은 maxConcurrent 다")
+                .register(meterRegistry);
+
+        // ★ 아무도 안 듣는데 인코딩 중인 방. (#168)
+        //
+        //   2코어에서 방송 하나가 CPU 를 쓴다. 시청자가 0인데 계속 돌면
+        //   그 CPU 가 통째로 낭비되고, 다른 방송이 상한(maxConcurrent)에 막힌다.
+        //
+        //   시청자를 어떻게 세나 - HLS 세그먼트는 nginx 가 직접 내주므로
+        //   앱이 그 요청을 못 본다. nginx 는 호스트에서 돌아 로그 수집기도 안 닿는다.
+        //   대신 시청 화면이 어차피 STOMP 를 열고 방을 구독한다.
+        //   그 구독자 수가 시청자 수의 근사다.
+        //
+        //   ★ 자동으로 멈추지는 않는다. 발표자가 의도해서 켠 것이고,
+        //     아직 아무도 안 들어왔을 뿐일 수 있다. 끄는 판단은 사람이 한다.
+        io.micrometer.core.instrument.Gauge
+                .builder("broadcast.unwatched", this, BroadcastService::unwatchedCount)
+                .description("송출 중인데 구독자가 0인 방 수. CPU 를 아무도 안 보는 데 쓰고 있다")
+                .register(meterRegistry);
+    }
+
+    /**
+     * 송출 중인데 아무도 안 듣는 방 수. (#168)
+     *
+     * <p>시청 화면은 자막과 채팅을 받으려고 STOMP 로 방을 구독한다.
+     * 그 구독자가 0이면 <b>세그먼트를 만들어 두고 아무도 안 가져가는 상태</b>다.
+     *
+     * <p><b>근사다.</b> 브라우저를 닫지 않고 탭만 백그라운드로 둔 사람도 구독자로 세고,
+     * 반대로 채팅을 끄고 영상만 보는 클라이언트가 생기면 못 센다.
+     * 지금 프론트는 접속하면 무조건 둘 다 구독하므로 그 경우는 없다.
+     */
+    public int unwatchedCount() {
+        int unwatched = 0;
+        for (Long meetingId : sessions.keySet()) {
+            if (chatMetrics.subscriberCount("/topic/rooms/" + meetingId) == 0) {
+                unwatched++;
+            }
+        }
+        return unwatched;
+    }
 
     /**
      * 방송을 시작한다.
@@ -126,6 +189,41 @@ public class BroadcastService {
                 closeSession(meetingId);
             }
         });
+    }
+
+    /**
+     * 기동하면서 DB 에 남은 유령 방송을 정리한다. (#168)
+     *
+     * <h3>왜 필요한가</h3>
+     * 송출 세션은 {@code sessions} 맵이라 <b>메모리에만 있다.</b> 앱이 재시작되면
+     * ffmpeg 는 같이 죽는데 DB 의 {@code broadcastSessionId} 는 그대로 남는다.
+     *
+     * <p><b>배포할 때마다 난다.</b> 그런데 증상이 조용하다 —
+     * 발표자 화면은 계속 <i>"방송 중"</i> 이고, 시청자는 세그먼트가 안 늘어난다.
+     * 에러가 한 줄도 안 나서 <b>아무도 이상하다고 느끼지 않는다.</b>
+     *
+     * <p>{@link #reapIdleSessions()} 는 이걸 못 잡는다. 그 수거기는 <b>메모리에 있는
+     * 세션</b>을 훑는데, 재시작 뒤에는 그 맵이 비어 있다.
+     * <b>훑을 것이 없으니 아무것도 안 한다.</b>
+     *
+     * <h3>왜 되살리지 않고 정리만 하나</h3>
+     * 되살릴 수가 없다. 송출은 <b>발표자 브라우저가 조각을 밀어 넣어야</b> 이어진다.
+     * 서버 혼자 다시 시작할 수 있는 것이 아니다. 그러니 <b>상태를 사실에 맞추는 것</b>이
+     * 할 수 있는 전부다. 발표자는 다시 시작 버튼을 눌러야 한다.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void reconcileOnStartup() {
+        List<Meeting> stale = meetingRepository.findAllByBroadcastSessionIdIsNotNull();
+        if (stale.isEmpty()) return;
+
+        for (Meeting meeting : stale) {
+            log.warn("재시작 전에 방송 중이던 회의를 정리한다 - meetingId={}. "
+                            + "송출 프로세스는 재시작과 함께 죽었고 되살릴 수 없다",
+                    meeting.getId());
+            meeting.stopBroadcast();
+        }
+        staleReconciled.increment(stale.size());
     }
 
     /** 지금 돌고 있는 방송 수. 측정과 시험에서 본다. */
