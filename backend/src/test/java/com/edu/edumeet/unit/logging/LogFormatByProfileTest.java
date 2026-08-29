@@ -123,5 +123,3 @@ class LogFormatByProfileTest {
                 .toList();
     }
 }
-// 보호가 실제로 막는지 확인하려고 일부러 깨뜨린 줄. 확인 뒤 지운다.
-class 일부러깨뜨린것 { @org.junit.jupiter.api.Test void 반드시_실패한다() { org.junit.jupiter.api.Assertions.fail("보호가 막는지 확인용"); } }
