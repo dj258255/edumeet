@@ -3,6 +3,8 @@ package com.edu.edumeet.chat.controller;
 import com.edu.edumeet.chat.dto.ChatReplayResponse;
 import com.edu.edumeet.chat.service.ChatService;
 import com.edu.edumeet.member.domain.SecurityMember;
+import com.edu.edumeet.chat.dto.ChatMessageResponse;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -42,6 +44,27 @@ public class ChatReplayController {
      * @param from 구간 시작(포함), 회의 시작 기준 밀리초
      * @param to   구간 끝(제외)
      */
+    /**
+     * 입장 시 보여줄 지난 대화. (#170)
+     *
+     * <pre>
+     *   GET /api/v1/meeting/7/chat/recent
+     * </pre>
+     *
+     * <p><b>{@code /replay} 와 다른 질문이다.</b> 그쪽은 <i>"그때 무슨 얘기 했나"</i> 라
+     * 재생 위치를 받고, 이쪽은 <i>"지금 들어왔는데 방금 무슨 얘기 했나"</i> 라 인자가 없다.
+     *
+     * <p>이 엔드포인트가 없어서 <b>새로고침하면 채팅이 통째로 비었다.</b>
+     * 읽는 코드는 예전부터 있었는데 부르는 곳이 없었다.
+     */
+    @GetMapping("/recent")
+    public ResponseEntity<List<ChatMessageResponse>> recent(
+            @AuthenticationPrincipal SecurityMember member,
+            @PathVariable Long meetingId) {
+
+        return ResponseEntity.ok(chatService.recentMessages(meetingId, member.getEmail()));
+    }
+
     @GetMapping("/replay")
     public ResponseEntity<ChatReplayResponse> replay(
             @AuthenticationPrincipal SecurityMember member,

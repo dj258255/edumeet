@@ -77,7 +77,43 @@ public class ChatService {
                 meetingId, senderEmail, trimmed, System.currentTimeMillis());
     }
 
-    /** 입장 시 보여줄 지난 대화. 저장하지 않는 BROADCAST 는 항상 빈 목록이다. */
+    /**
+     * 입장 시 보여줄 지난 대화. (#170)
+     *
+     * <h3>왜 필요한가</h3>
+     * 이 메서드는 오래 전부터 있었는데 <b>아무도 안 불렀다.</b> 컨트롤러도 시험도
+     * 프론트도 안 부르고 주석에서만 언급됐다. 그래서 새로고침하면 채팅이 통째로 비었고,
+     * <b>사용자에게는 그게 고장으로 보인다.</b>
+     *
+     * <p>이 저장소가 반복해 잡은 모양이다 — 만들어 놓고 연결하지 않은 것.
+     * 이번에는 없는 기능을 만든 게 아니라 <b>있는 것을 연결했다.</b>
+     *
+     * <h3>끊긴 동안 놓친 것은 메우지 않는다</h3>
+     * 자막은 재접속 시 놓친 구간을 밀어 준다(#165). <b>채팅은 안 한다.</b>
+     * 성격이 다르기 때문이다.
+     *
+     * <pre>
+     *   자막을 놓치면   강의 내용을 놓친다. 청각장애 학습자에게 3초는 자막 63건이다
+     *   채팅을 놓치면   남의 코멘트를 놓친다. 라이브에서는 원래 그렇다
+     * </pre>
+     *
+     * 라이브 채팅은 <b>들어온 시점부터 보는 것</b>이 표준 동작이다.
+     * 여기서 하는 것은 그 표준에 맞추는 것뿐이다 — 화면이 비어 보이지 않을 만큼만 채운다.
+     *
+     * <h3>BROADCAST 도 나온다</h3>
+     * 예전 주석에 <i>"저장하지 않는 BROADCAST 는 항상 빈 목록"</i> 이라고 적혀 있었는데
+     * <b>#61 이후로 틀린 말이다.</b> 방송 채팅도 저장한다 — 발행 경로가 아니라 큐를 거칠 뿐이다.
+     */
+    @Transactional(readOnly = true)
+    public List<ChatMessageResponse> recentMessages(Long meetingId, String email) {
+        Meeting meeting = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회의입니다: " + meetingId));
+        // 구독과 같은 권한을 본다. 실시간으로 볼 수 있는 것을 조회로 우회하면 안 된다.
+        classAccessChecker.requireMember(meeting.getClassRoom().getId(), email);
+        return recentMessages(meetingId);
+    }
+
+    /** 권한 확인 없이 읽는다. 위 메서드와 시험에서만 쓴다. */
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> recentMessages(Long meetingId) {
         return chatMessageRepository.findRecent(meetingId, PageRequest.of(0, RECENT_LIMIT))
