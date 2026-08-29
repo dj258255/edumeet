@@ -268,8 +268,26 @@ spring:
   flyway:
     enabled: false
 
+  # ★ 컨텍스트마다 다른 데이터베이스를 준다. (#172)
+  #
+  #   이름을 고정하면(jdbc:h2:mem:edumeet) 스프링 컨텍스트가 여럿일 때
+  #   전부 같은 데이터베이스를 쓴다. 이 저장소에는 설정이 다른 시험이 14개라
+  #   컨텍스트가 여러 벌 뜬다.
+  #
+  #   그러면 이렇게 된다 -
+  #     컨텍스트 A 가 스키마를 만들고 class_room_seq 에서 1~50 을 미리 받아 둔다
+  #     컨텍스트 B 가 뜨면서 create-drop 이 그 시퀀스를 다시 만든다
+  #     B 도 1~50 을 받는다
+  #     둘이 같은 id 로 INSERT 한다  ->  PRIMARY KEY 위반
+  #
+  #   증상이 고약하다. 시험 코드에는 아무 문제가 없고, 어느 시험이 깨지는지가
+  #   실행 순서에 따라 바뀐다. "가끔 빨간" 상태가 되고, 그러면 사람이
+  #   재실행부터 누르게 된다 - 진짜 실패도 같이 묻힌다.
+  #
+  #   ${random.uuid} 는 컨텍스트마다 한 번 풀린다. 컨텍스트가 캐시되면
+  #   같은 값이 유지되므로 한 컨텍스트 안의 시험들은 데이터를 공유한다.
   datasource:
-    url: jdbc:h2:mem:edumeet;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:edumeet-${random.uuid};MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
