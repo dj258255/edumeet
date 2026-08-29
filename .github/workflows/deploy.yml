@@ -170,6 +170,56 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
 
+      # ★ 배포할 때마다 이미지가 쌓인다. 지우는 곳이 없었다. (#173)
+      #
+      #   증상이 늦게 온다 - 46GB 디스크가 86% 까지 차 있었고,
+      #   그중 9.2GB 가 한 번 쓰고 버린 이미지였다(96개). 배포 한 번에 약 106MB 씩
+      #   늘고 있었으니 남은 여유로는 6일치였다. 디스크가 차면 MySQL 도
+      #   Loki 도 Prometheus 도 같이 멈춘다.
+      #
+      #   최근 3개를 남긴다 - 지금 것과 되돌릴 것 둘. 지운 것도 GHCR 에 있으니
+      #   더 옛것이 필요하면 pull 로 가져온다.
+      #
+      #   배포가 성공한 뒤에만 돈다(needs 아니라 같은 job 의 다음 step).
+      #   실패한 배포에서 되돌릴 이미지를 지우면 안 된다.
+      - name: 오래된 이미지 정리
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            before=$(df --output=pcent / | tail -1 | tr -dc '0-9')
+
+            KEEP=$(docker images ghcr.io/${{ github.repository }} \
+                   --format '{{.ID}} {{.CreatedAt}}' | sort -k2 -r | head -3 | cut -d' ' -f1)
+            INUSE=$(docker ps -a --format '{{.Image}}' | while read -r i; do
+                      docker inspect "$i" --format '{{.Id}}' 2>/dev/null || true
+                    done | sed 's/sha256://' | cut -c1-12)
+
+            DEL=$(docker images ghcr.io/${{ github.repository }} --format '{{.ID}}' | sort -u)
+            for k in $KEEP $INUSE; do DEL=$(echo "$DEL" | grep -v "^$k" || true); done
+
+            n=$(echo "$DEL" | grep -c . || true)
+            if [ "$n" -gt 0 ]; then
+              echo "$DEL" | grep . | xargs -r docker rmi -f >/dev/null 2>&1 || true
+            fi
+            docker builder prune -af >/dev/null 2>&1 || true
+
+            after=$(df --output=pcent / | tail -1 | tr -dc '0-9')
+            echo "이미지 ${n}개 정리 · 디스크 ${before}% -> ${after}%"
+
+            # ★ 정리하고도 여유가 없으면 배포를 실패시킨다.
+            #   경보(#139)가 따로 있지만 그건 사람이 보고 움직이는 경로다.
+            #   배포는 자동으로 도는데 그때 디스크가 없으면 그 배포부터 깨진다.
+            if [ "$after" -ge 90 ]; then
+              echo "정리 후에도 디스크가 ${after}% 다. 이미지 말고 다른 것이 차고 있다"
+              df -h /
+              docker system df
+              exit 1
+            fi
+
   # ★ 프론트 배포. (#99)
   #
   #   지금까지 손으로 올렸다. master 에 프론트를 고쳐 push 해도
