@@ -68,7 +68,9 @@ head "② 규칙이 물어보는 지표가 실제로 나오는가"
 for metric in chat_channel_queued chat_channel_capacity chat_fanout_recipients_bucket \
               caption_archive_dropped_total chat_archive_queued caption_archive_queued \
               chat_sessions_active chat_messages_published_total \
-              node_filesystem_avail_bytes; do
+              node_filesystem_avail_bytes \
+              edumeet_backup_last_success_timestamp_seconds edumeet_backup_success \
+              edumeet_restore_drill_success edumeet_restore_drill_timestamp_seconds; do
   cnt=$(curl -sf --get "$PROM/api/v1/query" --data-urlencode "query=$metric" \
         | jq '.data.result | length' 2>/dev/null || echo 0)
   if [ "$cnt" -gt 0 ]; then ok "$metric (시계열 ${cnt}개)"; else

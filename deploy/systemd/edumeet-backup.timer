@@ -1,0 +1,19 @@
+# 매일 새벽 4시. (#175)
+#
+# ★ 왜 새벽인가 - 덤프는 --single-transaction 이라 잠그지는 않지만
+#   204MB 를 읽어 압축하는 동안 2코어 중 하나를 쓴다. 수업 시간과 겹치지 않게 한다.
+#
+# ★ Persistent=true - 서버가 꺼져 있어 회차를 놓치면 다음 부팅 직후에 한 번 돈다.
+#   없으면 "그날은 백업이 없다" 가 조용히 생긴다.
+#
+# ★ RandomizedDelaySec - 다른 정기 작업과 같은 순간에 몰리지 않게 흩는다.
+[Unit]
+Description=EduMeet MySQL 백업 (매일)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

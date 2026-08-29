@@ -108,6 +108,7 @@ class AlertMetricsExposedTest {
      * 앱이 내지 <b>않는</b> 지표를 쓰는 규칙군. (#173)
      *
      * <p>디스크 경보는 호스트 수집기(node-exporter)가 내는 값을 본다.
+     * 백업 경보는 systemd 타이머가 파일로 쓰고 그 수집기가 읽어 올린 값을 본다.
      * 앱의 {@code /actuator/prometheus} 에는 당연히 없다.
      *
      * <p><b>여기 이름을 적는 것으로 검사를 면제하지 않는다.</b> 면제하면
@@ -117,7 +118,7 @@ class AlertMetricsExposedTest {
      * 직접 물어봐야 확인되므로 {@code scripts/verify-alerting.sh} 가 맡는다.
      * 아래 시험이 "옮겼는지" 를 검사한다.
      */
-    private static final Set<String> HOST_RULE_GROUPS = Set.of("edumeet-host");
+    private static final Set<String> HOST_RULE_GROUPS = Set.of("edumeet-host", "edumeet-backup");
 
     /** 실행 중인 Prometheus 에 직접 물어보는 쪽. */
     private static final Path VERIFY_SCRIPT = Path.of("..", "scripts", "verify-alerting.sh");

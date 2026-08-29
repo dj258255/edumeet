@@ -1,0 +1,15 @@
+# MySQL 백업. (#175)
+#
+# 저장소의 scripts/backup-mysql.sh 를 그대로 부른다 -
+# 로직을 유닛 파일에 적으면 저장소에서 검토되지 않는 코드가 서버에만 생긴다.
+[Unit]
+Description=EduMeet MySQL 백업
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=rocky
+ExecStart=/home/rocky/edumeet/scripts/backup-mysql.sh
+# 실패해도 타이머는 계속 돈다. 다음 회차에 성공할 수 있고,
+# 실패 자체는 지표(edumeet_backup_success)로 경보가 나간다.
