@@ -28,6 +28,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.lang.reflect.Type;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -110,10 +111,18 @@ class ChatStompTest {
         if (stompClient != null) {
             stompClient.stop();
         }
+        // ★ 이 시험이 만든 회의만 지운다. 조건 없는 DELETE 는 같은 컨텍스트를
+        //   쓰는 다른 시험의 회의까지 지워, 엉뚱한 시험을 실행마다 다르게 깬다. (#172)
+        List<Long> mine = java.util.stream.Stream.of(interactiveMeetingId, broadcastMeetingId)
+                .filter(java.util.Objects::nonNull).toList();
+        if (mine.isEmpty()) return;
         transactionTemplate.executeWithoutResult(status -> {
-            em.createQuery("DELETE FROM ChatMessage").executeUpdate();
-            em.createQuery("DELETE FROM MeetingParticipant").executeUpdate();
-            em.createQuery("DELETE FROM Meeting").executeUpdate();
+            em.createQuery("DELETE FROM ChatMessage c WHERE c.meeting.id IN :ids")
+                    .setParameter("ids", mine).executeUpdate();
+            em.createQuery("DELETE FROM MeetingParticipant p WHERE p.meeting.id IN :ids")
+                    .setParameter("ids", mine).executeUpdate();
+            em.createQuery("DELETE FROM Meeting m WHERE m.id IN :ids")
+                    .setParameter("ids", mine).executeUpdate();
         });
     }
 

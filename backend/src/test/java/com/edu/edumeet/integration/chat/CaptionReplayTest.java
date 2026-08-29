@@ -96,11 +96,18 @@ class CaptionReplayTest {
     void tearDown() {
         if (meetingId != null) replayBuffer.forget(meetingId);
         if (stompClient != null) stompClient.stop();
+        // ★ 이 시험이 만든 회의만 지운다. 조건 없는 DELETE 는 같은 컨텍스트를
+        //   쓰는 다른 시험의 회의까지 지워, 엉뚱한 시험을 실행마다 다르게 깬다. (#172)
+        if (meetingId == null) return;
+        Long id = meetingId;
         transactionTemplate.executeWithoutResult(s -> {
             // 자막은 비동기로 저장되므로 회의보다 먼저 지워야 FK 가 안 걸린다.
-            em.createQuery("DELETE FROM CaptionSegment").executeUpdate();
-            em.createQuery("DELETE FROM MeetingParticipant").executeUpdate();
-            em.createQuery("DELETE FROM Meeting").executeUpdate();
+            em.createQuery("DELETE FROM CaptionSegment c WHERE c.meeting.id = :id")
+                    .setParameter("id", id).executeUpdate();
+            em.createQuery("DELETE FROM MeetingParticipant p WHERE p.meeting.id = :id")
+                    .setParameter("id", id).executeUpdate();
+            em.createQuery("DELETE FROM Meeting m WHERE m.id = :id")
+                    .setParameter("id", id).executeUpdate();
         });
     }
 

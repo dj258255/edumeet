@@ -17,8 +17,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -51,9 +56,13 @@ class SessionCapacityConcurrencyTest {
     @Autowired private MeetingParticipantRepository participantRepository;
     @Autowired private ClassRepository classRepository;
     @Autowired private MemberRepository memberRepository;
+    @Autowired private TransactionTemplate transactionTemplate;
+    @PersistenceContext private EntityManager em;
 
     private Long interactiveMeetingId;
     private Long broadcastMeetingId;
+    private Long classRoomId;
+    private Long ownerId;
 
     @BeforeEach
     void setUp() {
@@ -63,12 +72,15 @@ class SessionCapacityConcurrencyTest {
                 .nickname("강사")
                 .build());
 
+        ownerId = owner.getId();
+
         ClassRoom classRoom = classRepository.save(ClassRoom.builder()
                 .member(owner)
                 .title("동시성 테스트 강의실")
                 .description("정원 " + CAPACITY + "명")
                 .participantLimit(CAPACITY)
                 .build());
+        classRoomId = classRoom.getId();
 
         interactiveMeetingId = meetingRepository.save(Meeting.builder()
                 .classRoom(classRoom)
@@ -85,12 +97,33 @@ class SessionCapacityConcurrencyTest {
                 .build()).getId();
     }
 
+    /**
+     * ★ 자기가 만든 것만 지운다. (#172)
+     *
+     * <p>전에는 {@code deleteAll()} 로 표를 통째로 비웠다. {@code @AfterEach} 안에
+     * 있으니 이 시험 안의 일처럼 보이지만, 스프링 컨텍스트는 시험 클래스끼리
+     * 공유되므로 <b>다른 시험이 쓰는 중인 행까지 지운다.</b>
+     *
+     * <p>그래서 이렇게 깨졌다 - 다른 시험이 수강생이 딸린 강의실을 남겨 두면
+     * 여기서 그 강의실을 지우려다 외래키에 걸린다
+     * ({@code CLASS_MEMBER -> CLASS_ROOM}). 이 시험은 수강생을 만들지도 않는데
+     * 이 시험이 실패한다. 남의 데이터가 있느냐에 따라 갈리니 <b>실행마다 다르다.</b>
+     *
+     * <p>"가끔 빨간" 시험은 재실행을 부르고, 재실행은 진짜 실패까지 같이 묻는다.
+     */
     @AfterEach
     void tearDown() {
-        participantRepository.deleteAll();
-        meetingRepository.deleteAll();
-        classRepository.deleteAll();
-        memberRepository.deleteAll();
+        List<Long> meetingIds = List.of(interactiveMeetingId, broadcastMeetingId);
+        transactionTemplate.executeWithoutResult(status -> {
+            em.createQuery("DELETE FROM MeetingParticipant p WHERE p.meeting.id IN :ids")
+                    .setParameter("ids", meetingIds).executeUpdate();
+            em.createQuery("DELETE FROM Meeting m WHERE m.id IN :ids")
+                    .setParameter("ids", meetingIds).executeUpdate();
+            em.createQuery("DELETE FROM ClassRoom c WHERE c.id = :id")
+                    .setParameter("id", classRoomId).executeUpdate();
+            em.createQuery("DELETE FROM Member m WHERE m.id = :id")
+                    .setParameter("id", ownerId).executeUpdate();
+        });
     }
 
     @Test
