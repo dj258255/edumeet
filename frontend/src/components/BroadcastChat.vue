@@ -10,6 +10,7 @@
  */
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { createRealtimeClient } from '@/features/realtime/stompClient'
+import { fetchRecentChat } from '@/features/chat/recentChatApi'
 
 const props = defineProps({
   meetingId: { type: [Number, String], required: true },
@@ -34,12 +35,27 @@ function push(bucket, item) {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
   const token = localStorage.getItem('token') || localStorage.getItem('accessToken')
   if (!token) {
     state.value = 'error'
     return
   }
+
+  // 지난 대화를 먼저 채운다. (#170)
+  //
+  // 이게 없으면 새로고침할 때마다 채팅이 통째로 비어서 고장처럼 보인다.
+  // 라이브 채팅은 들어온 시점부터 보는 게 표준이지만, 화면이 완전히 비는 것과
+  // "방금까지 이런 얘기가 오갔다" 가 보이는 것은 다르다.
+  //
+  // ★ 연결보다 먼저 부르되 기다리지 않는다.
+  //   서버가 느리면 실시간 채팅 연결이 그만큼 늦어진다. 지난 대화는 있으면
+  //   좋은 것이고, 실시간은 없으면 못 쓰는 것이다. 급한 쪽을 안 막는다.
+  fetchRecentChat(props.meetingId).then((past) => {
+    // 그 사이 실시간 메시지가 먼저 왔을 수 있다. 지난 것을 앞에 붙인다.
+    if (past.length) messages.value.unshift(...past)
+  })
+
   client = createRealtimeClient({
     baseUrl: import.meta.env.VITE_API_ORIGIN || window.location.origin,
     token,
