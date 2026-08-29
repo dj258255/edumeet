@@ -236,3 +236,35 @@ jobs:
             echo "::error::없어진 SSAFY 서버 주소가 늘었다. 새 하드코딩을 확인할 것."
             exit 1
           fi
+
+  # ★ 필수 체크로 걸 관문. (#171)
+  #
+  #   오늘 실패한 CI 가 master 에 들어갔다. gh pr merge 는 체크가 빨개도 머지한다 -
+  #   브랜치 보호가 없으면 아무도 안 막는다.
+  #
+  #   그런데 위 잡들을 그대로 필수로 걸 수 없다. 경로 필터로 건너뛰기 때문이다.
+  #   문서만 고친 PR 에서는 백엔드 테스트가 skipped 인데, GitHub 이 그것을
+  #   어떻게 세는지가 설정과 버전에 따라 달라진다. 잘못 걸면 문서 PR 이
+  #   영영 머지 안 된다 - 막으려던 것보다 나쁜 결과다.
+  #
+  #   그래서 항상 도는 관문을 하나 두고 그것만 필수로 건다.
+  #   여기서 "건너뜀은 통과, 실패는 차단" 을 명시적으로 판정한다.
+  ci-gate:
+    name: CI 통과
+    needs: [changes, doc-refs, build-and-test, ai-tests, mcp-tests, frontend-build]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 실패한 잡이 있는지 본다
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS"
+          # skipped 와 success 는 통과로 본다. 경로 필터로 안 돈 잡은 막을 이유가 없다.
+          # failure 와 cancelled 는 막는다.
+          if echo "$RESULTS" | grep -qE '"result": *"(failure|cancelled)"'; then
+            echo "::error::실패했거나 취소된 잡이 있다. 머지하면 안 된다"
+            exit 1
+          fi
+          echo "실패한 잡 없음"
