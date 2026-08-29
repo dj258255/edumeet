@@ -4,6 +4,35 @@
 #
 # 필요한 환경변수는 .env 에 둔다. (저장소에 커밋하지 않는다)
 
+x-app-common: &app-common
+  # ★ 기본값을 두지 않는다. (#83)
+  #   :latest 로 두면 APP_IMAGE export 를 잊은 채 compose up 을 했을 때
+  #   운영이 핀 태그에서 떠다니는 태그로 조용히 바뀐다. 경고도 없다.
+  image: ${APP_IMAGE:?APP_IMAGE 를 지정해야 한다. 기본값을 :latest 로 두면 export 를 잊었을 때 운영이 조용히 떠다니는 태그로 바뀐다}
+  env_file: .env
+  restart: unless-stopped
+  volumes:
+    - app_logs:/app/logs
+    - app_upload:/app/upload
+    - /var/lib/edumeet/hls:/var/lib/edumeet/hls
+  environment:
+    # nginx 가 같은 호스트 경로를 /hls/ 로 서빙한다. (#123)
+    # 기본값(/tmp/edumeet-hls)을 그대로 두면 앱은 만들지만 사용자는 못 받는다.
+    EDUMEET_BROADCAST_OUTPUT_DIR: /var/lib/edumeet/hls
+    EDUMEET_BROADCAST_PUBLIC_BASE_URL: /hls
+  # ★ healthcheck 를 기다린다.
+  #   그냥 depends_on 만 쓰면 MySQL 프로세스가 뜬 순간 앱이 시작해서
+  #   커넥션 실패로 죽는다. condition: service_healthy 가 있어야 한다.
+  depends_on:
+    mysql:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    edumeet:
+      # 파이썬 서비스가 http://app:8080 으로 부른다. 슬롯 이름을 모르게 둔다.
+      aliases: [app]
+
 services:
   mysql:
     image: mysql:8.0
@@ -44,42 +73,39 @@ services:
       retries: 10
     networks: [edumeet]
 
-  app:
-    # ★ 기본값을 두지 않는다. (#83)
-    #   :latest 로 두면 APP_IMAGE export 를 잊은 채 compose up 을 했을 때
-    #   운영이 핀 태그에서 떠다니는 태그로 조용히 바뀐다. 경고도 없다.
-    #   같은 파일의 GRAFANA_PASSWORD 와 같은 기준으로 맞춘다.
-    image: ${APP_IMAGE:?APP_IMAGE 를 지정해야 한다. 기본값을 :latest 로 두면 export 를 잊었을 때 운영이 조용히 떠다니는 태그로 바뀐다}
-    container_name: edumeet-app
-    env_file: .env
-    restart: unless-stopped
-    # ★ 관리 포트(9090)는 공인 IP 에 열지 않는다.
-    #   지표는 URI 패턴·호출량·커넥션 수 같은 내부 정보를 담는다.
-    #
-    #   다만 기존 관측 스택(balruno-monitoring)이 별도 compose 네트워크에 있어
-    #   서비스명으로는 닿지 못한다. 그래서 사설 IP 에만 바인딩해 노출한다.
-    #   독립 스택(--profile observability)만 쓸 거면 127.0.0.1 로 두면 된다.
+  # ── 앱은 슬롯 두 개다 (blue / green). (#180) ────────────────────
+  #
+  # ★ 왜 두 개인가 - 배포할 때마다 서비스가 20.5초 끊겼다(실측, #173).
+  #   컨테이너를 지우고 다시 만드는 방식이라 그 사이에 아무것도 없다.
+  #
+  #   한 슬롯이 서비스하는 동안 다른 슬롯에 새 이미지를 띄우고,
+  #   그쪽이 건강해진 것을 확인한 뒤에 nginx 를 옮긴다.
+  #   그러고 나서 옛 슬롯을 내린다.  (scripts/deploy-app.sh)
+  #
+  # ★ 덤으로 얻는 것이 더 중요할 수 있다 - 새 이미지가 안 뜨면
+  #   nginx 를 안 옮기고 그냥 그만둔다. **옛 슬롯은 내려간 적이 없다.**
+  #   지금 방식은 새 것이 뜨는지 알기 전에 옛 것을 이미 지운다.
+  #
+  # ★ 프로필로 가둔다. 프로필 없이 `up -d` 하면 둘 다 안 뜬다 -
+  #   앱 슬롯은 배포 스크립트만 건드리게 하려는 것이다.
+  #   둘이 동시에 오래 떠 있으면 채팅 중개자가 메모리에 있어 방이 갈린다.
+  app-blue:
+    <<: *app-common
+    container_name: edumeet-app-blue
+    profiles: [blue]
+    # ★ 127.0.0.1 에만 묶는다. nginx 가 같은 호스트에서 붙는다.
+    #   전에는 8080 이 0.0.0.0 이라 보안 목록만 믿고 있었다.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8081:8080"
       - "${MANAGEMENT_BIND:-127.0.0.1}:9091:9090"
-    volumes:
-      - app_logs:/app/logs
-      - app_upload:/app/upload
-      - /var/lib/edumeet/hls:/var/lib/edumeet/hls
-    environment:
-      # nginx 가 같은 호스트 경로를 /hls/ 로 서빙한다. (#123)
-      # 기본값(/tmp/edumeet-hls)을 그대로 두면 앱은 만들지만 사용자는 못 받는다.
-      EDUMEET_BROADCAST_OUTPUT_DIR: /var/lib/edumeet/hls
-      EDUMEET_BROADCAST_PUBLIC_BASE_URL: /hls
-    # ★ healthcheck 를 기다린다.
-    #   그냥 depends_on 만 쓰면 MySQL 프로세스가 뜬 순간 앱이 시작해서
-    #   커넥션 실패로 죽는다. condition: service_healthy 가 있어야 한다.
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks: [edumeet]
+
+  app-green:
+    <<: *app-common
+    container_name: edumeet-app-green
+    profiles: [green]
+    ports:
+      - "127.0.0.1:8082:8080"
+      - "${MANAGEMENT_BIND:-127.0.0.1}:9092:9090"
 
   # ★ 서버에 이미 다른 프로젝트(balruno)의 Prometheus/Grafana 가 돌고 있다.
   #   2 vCPU 서버에 Prometheus 를 두 벌 띄우는 것은 낭비다.
@@ -108,7 +134,10 @@ services:
       # 규칙을 고쳤을 때 컨테이너를 죽이지 않고 다시 읽게 한다. (#139)
       # 내부망에서만 닿으므로(expose 만 함) 바깥에서 리로드를 부를 수 없다.
       - --web.enable-lifecycle
-    depends_on: [app]
+    # ★ depends_on 을 안 건다. (#180)
+    #   앱은 슬롯 두 개(app-blue / app-green)이고 프로필로 가려져 있어
+    #   여기서 이름으로 가리킬 수 없다. Prometheus 는 앱이 없어도 떠야 한다 -
+    #   앱이 죽은 것을 알려 주는 것이 이쪽 일이다.
     networks: [edumeet]
 
   # 경보를 받아 사람에게 보내는 쪽. (#139)
@@ -287,9 +316,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CLOVA_INVOKE_URL: ${CLOVA_INVOKE_URL:-}
       CLOVA_SECRET_KEY: ${CLOVA_SECRET_KEY:-}
-    depends_on:
-      app:
-        condition: service_healthy
+    # ★ depends_on 을 안 건다. (#180)
+    #   앱은 슬롯 두 개이고 프로필로 가려져 있어 이름으로 가리킬 수 없다.
+    #   http://app:8080 은 네트워크 별칭으로 닿는다.
     networks:
       - edumeet
 
