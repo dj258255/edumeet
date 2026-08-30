@@ -81,6 +81,23 @@ jobs:
       - uses: actions/checkout@v4
       - run: ./scripts/verify-doc-refs.sh
 
+  # ★ .env 템플릿이 한 줄에 설정 하나씩 내는지 본다. (#186)
+  #
+  #   Ansible 은 Jinja 를 trim_blocks=True 로 돌려서 블록 태그 뒤의 줄바꿈을
+  #   지운다. 조건문을 한 줄로 쓰면 인접한 설정이 붙어, 앞의 값은 오염되고
+  #   뒤의 변수는 사라진다. 운영에서 FRONT_URL 이 FRONT_URL2 를 삼켰다.
+  #
+  #   값이 비어 있으면 안 터지므로 잠복한다. 그래서 더미 값으로 모든 조건을
+  #   참으로 만들어 렌더링해 본다 - 채워졌을 때의 모양을 봐야 잡힌다.
+  env-template:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: env 템플릿이 줄을 안 합치는가
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx install --include-deps ansible-core || pip install ansible-core
+      - run: ./scripts/verify-env-template.sh
+
   build-and-test:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -251,7 +268,7 @@ jobs:
   #   여기서 "건너뜀은 통과, 실패는 차단" 을 명시적으로 판정한다.
   ci-gate:
     name: CI 통과
-    needs: [changes, doc-refs, build-and-test, ai-tests, mcp-tests, frontend-build]
+    needs: [changes, doc-refs, env-template, build-and-test, ai-tests, mcp-tests, frontend-build]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

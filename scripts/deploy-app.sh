@@ -119,6 +119,38 @@ if [ "$code" = "000" ] || [ "$code" = "502" ]; then
 fi
 echo "  전환 확인 (nginx 경유 응답 $code)"
 
+# ── 4-2. 브라우저와 같은 모양으로 한 번 붙어 본다 ─────────────────
+#
+# ★ 이 검사가 없어서 운영이 조용히 망가져 있었다. (#186)
+#
+#   허용 출처 설정이 개발용으로 남아 있었는데 아무것도 그걸 못 잡았다 -
+#   부하 도구도, 헬스체크도, 통합 시험도 **Origin 헤더를 안 보낸다.**
+#   동일 출처 정책은 그 헤더가 있을 때만 검사하므로 전부 통과했고,
+#   진짜 브라우저만 403 을 받았다. 채팅도 실시간 자막도 안 됐다.
+#
+#   그래서 배포가 사람이 하는 것과 같은 요청을 한 번 보낸다.
+#   Origin 을 붙이고, HTTP/1.1 로, WebSocket 업그레이드를 요청한다.
+#   (HTTP/2 로는 WebSocket 업그레이드가 안 된다 - 브라우저도 이때는 1.1 을 쓴다)
+SITE="https://studywithtymee.com"
+ws_code=$(curl -sk --http1.1 -o /dev/null -w '%{http_code}' -m 10 \
+    -H "Host: api.studywithtymee.com" -H "Origin: $SITE" \
+    -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
+    -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
+    https://127.0.0.1/ws || echo 000)
+
+cors_code=$(curl -sk --http1.1 -o /dev/null -w '%{http_code}' -m 10 -X OPTIONS \
+    -H "Host: api.studywithtymee.com" -H "Origin: $SITE" \
+    -H 'Access-Control-Request-Method: POST' \
+    https://127.0.0.1/api/v1/members/login || echo 000)
+
+if [ "$ws_code" != "101" ] || { [ "$cors_code" != "200" ] && [ "$cors_code" != "204" ]; }; then
+    echo "브라우저 모양의 요청이 막힌다 - WebSocket=$ws_code CORS=$cors_code"
+    echo "허용 출처(FRONT_URL / FRONT_URL2)가 운영 도메인인지 본다."
+    echo "이 상태로 두면 부하 도구와 헬스체크는 전부 통과하는데 사람만 못 쓴다."
+    exit 1
+fi
+echo "  브라우저 모양 확인 (WebSocket $ws_code · CORS $cors_code)"
+
 # ── 5. 옛 슬롯을 내린다 ───────────────────────────────────────────
 sleep "$DRAIN"
 if [ "$active" = "legacy" ]; then

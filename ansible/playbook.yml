@@ -48,6 +48,32 @@
       no_log: true
       register: env_result
 
+    # ★ 만든 파일이 실제로 한 줄에 하나씩인지 본다. (#186)
+    #
+    #   Ansible 은 Jinja 를 trim_blocks=True 로 돌려서 블록 태그 뒤의 줄바꿈을
+    #   지운다. 조건문을 한 줄로 쓰면 인접한 설정이 서로 붙는다 -
+    #   앞의 변수는 값이 오염되고 뒤의 변수는 아예 사라진다.
+    #
+    #   실제로 FRONT_URL 이 FRONT_URL2 를 삼켰고, 그 상태로 운영이 돌았다.
+    #   템플릿을 고쳤지만 같은 실수를 다시 할 수 있으므로 결과물을 검사한다.
+    #
+    #   대문자 키만 본다. DB_URL 의 serverTimezone= 같은 것은 소문자라 안 걸린다.
+    - name: .env 에 한 줄에 두 개가 들어가지 않았는지 확인
+      ansible.builtin.shell:
+        cmd: |
+          grep -nE '^[A-Z][A-Z0-9_]*=.*[A-Z][A-Z0-9_]{2,}=' {{ app_dir }}/.env || true
+      register: env_merged
+      changed_when: false
+
+    - name: 붙은 줄이 있으면 멈춘다
+      ansible.builtin.assert:
+        that: env_merged.stdout | trim == ""
+        fail_msg: >-
+          .env 에 한 줄에 설정이 두 개 이상 들어간 줄이 있다.
+          템플릿의 조건문을 한 줄로 쓰면 Jinja 가 줄바꿈을 지워 이렇게 된다.
+          태그를 각자 줄에 두어야 한다. (줄 번호는 서버에서 확인한다 - 값은 안 찍는다)
+        success_msg: ".env 의 모든 설정이 한 줄에 하나씩이다"
+
     - name: .env 결과
       ansible.builtin.debug:
         msg: "{{ '.env 갱신됨' if env_result.changed else '.env 변경 없음' }}"
