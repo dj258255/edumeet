@@ -129,3 +129,47 @@ X Pull request #171 is not mergeable: the base branch policy prohibits the merge
 | **돌긴 하는데 결과가 무시된다** | **이번 (#171)** |
 
 세 번째가 제일 늦게 드러난다. **앞의 둘을 고쳐 놓은 뒤에야 보이기 때문이다.**
+
+---
+
+## 뒷이야기 — 보호가 절반만 걸려 있었다 (#192)
+
+#170·#171 에서 *"실제로 막히는지"* 를 확인했다. 확인한 것은 **PR 머지 경로 하나**였다.
+
+그런데 나중에 실수로 `master` 에 직접 커밋하고 push 했더니 **그냥 통과했다.**
+
+```
+required_status_checks: ['CI 통과']
+enforce_admins: False          <- 여기
+```
+
+필수 체크는 걸려 있었지만 `enforce_admins` 가 꺼져 있어서
+**저장소 소유자의 직접 push 는 검사를 통째로 건너뛰었다.**
+
+즉 보호는 *"PR 로 들어오는 것"* 만 막고 있었고, 직접 push 경로는 한 번도 확인된 적이 없었다.
+**있다고 믿은 상태에서 뚫린 것이라 없는 것보다 나빴다.**
+
+이 저장소가 반복해서 만난 모양(선언은 있는데 안 돈다,
+[`07-declared-but-unused.md`](07-declared-but-unused.md))이 브랜치 보호에도 있었다.
+
+### 켜고, 실제로 막히는지 확인했다
+
+```
+$ gh api -X POST .../branches/master/protection/enforce_admins
+{"enabled":true}
+```
+
+설정이 켜졌다는 것과 실제로 막힌다는 것은 다른 일이므로,
+확인용 커밋을 만들어 직접 push 해 봤다.
+
+```
+remote: error: GH006: Protected branch update failed for refs/heads/master.
+remote: - Required status check "CI 통과" is expected.
+ ! [remote rejected] master -> master (protected branch hook declined)
+```
+
+이제 소유자도 PR 과 초록 CI 없이는 못 들어간다.
+
+**막는 장치를 넣을 때는 막히는 경로를 전부 세어 본다.** 여기서는 둘이었다 —
+PR 머지와 직접 push. 하나만 확인하고 "막았다" 고 적었다.
+
