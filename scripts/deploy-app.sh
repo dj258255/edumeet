@@ -144,7 +144,11 @@ SITE="https://studywithtymee.com"
 #   업그레이드가 성공하면 curl 은 평범한 HTTP 응답을 못 받아 0 이 아닌 코드로
 #   끝난다. 그래서 || 가 항상 타서 "101000" 이 됐고, 성공한 배포가 실패했다.
 #   상태 코드만 앞 세 자리로 읽고, 아무것도 못 받았으면 빈 값을 000 으로 본다.
-probe() { curl -sk --http1.1 -o /dev/null -w '%{http_code}' -m 10 "$@" 2>/dev/null | head -c 3; }
+# ★ 실패를 삼켜야 한다. curl 은 업그레이드가 성공해도 0 이 아닌 코드로 끝나고
+#   (평범한 HTTP 응답을 못 받는다) 우리는 -m 으로 끊으므로 28(timeout)이 난다.
+#   set -e + pipefail 아래에서는 그게 스크립트를 죽인다 - 실제로 그렇게 죽었다.
+#   우리가 보려는 것은 종료 코드가 아니라 **상태 줄**이다.
+probe() { { curl -sk --http1.1 -o /dev/null -w '%{http_code}' -m 5 "$@" 2>/dev/null | head -c 3; } || true; }
 
 ws_code=$(probe -H "Host: api.studywithtymee.com" -H "Origin: $SITE" \
     -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
