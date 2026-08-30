@@ -92,11 +92,14 @@ jobs:
   env-template:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    name: env 템플릿이 줄을 안 합치는가
+    name: 배포 설정 검사
     steps:
       - uses: actions/checkout@v4
       - run: pipx install --include-deps ansible-core || pip install ansible-core
       - run: ./scripts/verify-env-template.sh
+      # ★ 배포가 안 켜는 서비스가 배포 전체를 막지 않는지. (#187)
+      #   Compose 는 프로필이 꺼진 서비스도 변수 보간을 먼저 한다.
+      - run: ./scripts/verify-compose-profiles.sh
 
   build-and-test:
     needs: changes
