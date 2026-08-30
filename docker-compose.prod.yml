@@ -95,9 +95,15 @@ services:
     profiles: [blue]
     # ★ 127.0.0.1 에만 묶는다. nginx 가 같은 호스트에서 붙는다.
     #   전에는 8080 이 0.0.0.0 이라 보안 목록만 믿고 있었다.
+    # ★ 관리 포트가 9091 이 아니다.
+    #   blue/green 이전의 단일 컨테이너가 9091 을 쥐고 있어서, 첫 전환 때
+    #   그 컨테이너가 아직 살아 있는 채로 blue 를 띄우면 포트가 겹친다.
+    #   실제로 첫 배포가 거기서 실패했다 - "port is already allocated".
+    #   무중단이려면 옛 것이 살아 있는 동안 새 것이 떠야 하므로,
+    #   겹칠 수 있는 포트는 애초에 피한다.
     ports:
       - "127.0.0.1:8081:8080"
-      - "${MANAGEMENT_BIND:-127.0.0.1}:9091:9090"
+      - "${MANAGEMENT_BIND:-127.0.0.1}:9092:9090"
 
   app-green:
     <<: *app-common
@@ -105,7 +111,7 @@ services:
     profiles: [green]
     ports:
       - "127.0.0.1:8082:8080"
-      - "${MANAGEMENT_BIND:-127.0.0.1}:9092:9090"
+      - "${MANAGEMENT_BIND:-127.0.0.1}:9093:9090"
 
   # ★ 서버에 이미 다른 프로젝트(balruno)의 Prometheus/Grafana 가 돌고 있다.
   #   2 vCPU 서버에 Prometheus 를 두 벌 띄우는 것은 낭비다.
