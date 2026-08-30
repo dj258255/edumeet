@@ -67,8 +67,20 @@ public final class FfmpegCommand {
         // delete_segments  오래된 파일을 지운다. 없으면 디스크가 방송 내내 찬다
         // omit_endlist     라이브라는 뜻. 없으면 플레이어가 VOD 로 보고 처음부터 튼다
         // independent_segments 각 세그먼트가 스스로 열린다고 선언한다
+        //
+        // ★ program_date_time — 세그먼트마다 "이 장면이 몇 시 것인가" 를 적는다. (#185)
+        //
+        //   이게 없으면 플레이어가 아는 것은 "재생 위치 12.3초" 뿐이고,
+        //   그 화면이 몇 시에 촬영된 것인지는 모른다.
+        //
+        //   자막은 WebSocket 으로 1초 안에 도착하는데 영상은 HLS 라 몇 초 뒤에 온다.
+        //   그래서 자막이 화면보다 **먼저** 뜬다 - 말하는 입 모양과 글자가 어긋난다.
+        //   맞추려면 "지금 보여 주는 화면이 몇 시 것인가" 를 알아야 하는데,
+        //   그걸 알려 주는 것이 이 태그다(EXT-X-PROGRAM-DATE-TIME).
+        //
+        //   비용이 거의 없다 - 세그먼트마다 한 줄이 늘 뿐이고 인코딩은 그대로다.
         cmd.add("-hls_flags");
-        cmd.add("delete_segments+omit_endlist+independent_segments");
+        cmd.add("delete_segments+omit_endlist+independent_segments+program_date_time");
 
         cmd.add("-hls_segment_type");
         cmd.add("mpegts");

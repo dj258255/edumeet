@@ -21,6 +21,10 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
         videoEl.removeAttribute('src')
         videoEl.load()
       },
+      // ★ 기본 재생(Safari)에서는 화면 시각을 못 구한다. (#185)
+      //   null 을 주면 자막을 붙잡지 않고 바로 띄운다 -
+      //   어긋난 자막이 없는 자막보다 낫다.
+      getPlayingDate: () => null,
       native: true,
     }
   }
@@ -77,6 +81,16 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
       clearInterval(timer)
       hls.destroy()
     },
+    /**
+     * 지금 화면에 보이는 장면의 시각. (#185)
+     *
+     * <p>매니페스트에 EXT-X-PROGRAM-DATE-TIME 이 있어야 값이 나온다.
+     * 없으면 null 이고, 그 경우 자막을 맞출 방법이 없으니 그냥 바로 띄운다.
+     *
+     * <p>이 값이 필요한 이유 - 자막은 1초 안에 오는데 영상은 몇 초 뒤에 온다.
+     * "재생 위치 12.3초" 만으로는 그 화면이 몇 시 것인지 알 수 없어 맞출 수 없다.
+     */
+    getPlayingDate: () => hls.playingDate ?? null,
     native: false,
   }
 }
