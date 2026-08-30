@@ -34,7 +34,7 @@ Origin: https://studywithtymee.com             403
 
 ---
 
-## 원인은 줄바꿈 하나
+## 원인은 줄바꿈 하나 — 그런데 사람이 친 게 아니었다
 
 운영 `.env` 48번째 줄이다.
 
@@ -57,6 +57,48 @@ $ printenv FRONT_URL2
 (없음)
 ```
 
+### 그 줄바꿈은 템플릿이 먹고 있었다
+
+`.env` 는 Ansible 이 만든다. 템플릿은 이렇게 생겼다.
+
+```jinja
+{% raw %}{% if front_url %}FRONT_URL={{ front_url }}{% endif %}
+{% if front_url2 %}FRONT_URL2={{ front_url2 }}{% endif %}{% endraw %}
+```
+
+Ansible 의 `template` 모듈은 Jinja 를 **`trim_blocks=True`** 로 돌린다.
+블록 태그 **바로 뒤의 줄바꿈을 지우는** 옵션이다.
+그래서 `{% raw %}{% endif %}{% endraw %}` 로 끝나는 한 줄짜리 조건문은 전부 다음 줄과 붙는다.
+
+더미 값으로 모든 조건을 참으로 만들어 렌더링해 보니, **설정 13개가 5줄로 합쳐졌다.**
+
+```
+MAIL_USERNAME + MAIL_PASSWORD
+AWS_S3_ENDPOINT + AWS_ACCESS_KEY + AWS_SECRET_KEY + AWS_S3_BUCKET
+KAKAO_CLIENT_ID + KAKAO_CLIENT_SECRET
+LIVEKIT_URL + LIVEKIT_API_KEY + LIVEKIT_API_SECRET
+FRONT_URL + FRONT_URL2
+```
+
+운영에서 `FRONT_URL` 만 터진 이유가 여기 있다 — **다른 묶음은 값이 비어 있어
+한 줄만 렌더링됐다.** 즉 이 함정은 **인접한 선택 설정이 둘 다 채워질 때만** 나타난다.
+AWS 키를 채우는 순간 S3 도, LiveKit 자격증명을 채우는 순간 화상강의도 같은 모양이 된다.
+
+그리고 템플릿 맨 위에는 이렇게 적혀 있었다.
+
+> ★ 값이 비면 줄 자체를 쓰지 않는다. (#51)
+
+**빈 값을 조심하려고 넣은 그 조건문이 줄바꿈을 먹는 장치였다.**
+
+태그를 각자 줄에 두면 없어진다 — 고친 뒤 다시 렌더링하니 합쳐진 줄 0개, 설정 31개가
+전부 제 줄에 나왔다.
+
+### 공개 도메인을 vault 에서 꺼냈다
+
+프론트 주소는 비밀이 아니다. 그런데 vault 안에 있으면 **코드 검토에서 안 보인다.**
+개발용 `localhost` 가 운영에 남아 있는 것을 아무도 못 본 이유다.
+`vars.yml` 로 옮겨 평문으로 뒀다 — 보이는 곳에 둬야 틀린 것이 보인다.
+
 ---
 
 ## 두 겹으로 막았다
@@ -78,6 +120,20 @@ $ printenv FRONT_URL2
 
 무중단 배포(#180)와 맞물려 **안전하게** 실패한다 — 새 슬롯이 안 뜨면
 nginx 를 안 옮기고 그만두므로, 잘못된 설정으로 배포해도 **서비스는 옛 슬롯이 계속한다.**
+
+### ①-2 템플릿이 줄을 합치면 CI 가 막는다
+
+값이 비어 있으면 안 터지므로 이 함정은 잠복한다.
+그래서 **더미 값으로 모든 조건을 참으로 만들어** 렌더링해 본다 —
+채워졌을 때의 모양을 봐야 잡힌다.
+
+`scripts/verify-env-template.sh` 가 CI 에서 돌고, Ansible 도 서버에서
+**만든 파일을 다시 검사**한다. 규칙을 넣고 위반을 심어 실제로 빨개지는 것을 먼저 봤다.
+
+```
+한 줄에 설정이 둘 이상 들어간다:
+  76:FRONT_URL=(값)RL2=(값)
+```
 
 ### ② 배포가 브라우저처럼 한 번 붙어 본다
 
