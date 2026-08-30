@@ -346,7 +346,19 @@ services:
     restart: unless-stopped
     # 시크릿을 설정 파일에 두지 않는다. 앱이 쓰는 값과 같아야 한다.
     environment:
-      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY 가 필요하다}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET 가 필요하다}"
+      # ★ :? 를 쓰지 않는다. (#187)
+      #
+      #   Compose 는 프로필이 꺼진 서비스라도 **변수 보간을 먼저 한다** -
+      #   프로필 필터링은 그 다음 단계다. 그래서 :? 를 쓰면 livekit 을 켜지 않는
+      #   평범한 배포까지 "required variable LIVEKIT_API_KEY is missing" 으로 죽는다.
+      #
+      #   이 저장소는 같은 함정을 ai 서비스의 AI_IMAGE 에서 이미 한 번 만났다(#110).
+      #   거기만 고치고 여기를 안 고쳐서, 값이 비는 순간 배포 전체가 멈췄다.
+      #   **한 번 만난 함정은 같은 모양을 전부 찾아야 한다.**
+      #
+      #   :- 로 자리표시자를 준다. --profile livekit 으로 켤 때 값을 안 주면
+      #   LiveKit 이 그 키로 토큰 검증에 실패하므로 조용히 엉뚱하게 뜨지는 않는다.
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-set-LIVEKIT_API_KEY-to-run}: ${LIVEKIT_API_SECRET:-set-LIVEKIT_API_SECRET-to-run}"
       # ★ ICE 포트 범위를 반드시 좁혀서 도커 매핑과 맞춘다.
       #   기본값은 50000~60000 이다. 도커에 그 범위를 통째로 매핑하면 포트당 규칙을
       #   만드느라 기동이 몇 분씩 걸리고, 좁게 매핑만 하고 여기를 안 고치면
