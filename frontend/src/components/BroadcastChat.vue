@@ -12,12 +12,25 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { createRealtimeClient } from '@/features/realtime/stompClient'
 import { fetchRecentChat } from '@/features/chat/recentChatApi'
 
+/**
+ * ★ 자막을 위로 넘긴다. (#185)
+ *
+ *   전에는 여기서 마지막 자막 한 줄을 직접 띄웠다. 두 가지가 문제였다 -
+ *   영상이 아니라 옆 칸이라 시선을 옮겨야 했고, 도착하는 대로 띄워서
+ *   **화면보다 6초쯤 먼저** 나갔다.
+ *
+ *   이제 영상 위 자막이 화면 시각에 맞춰 띄운다. 여기서 같은 문장을
+ *   맞추지 않은 채로 또 띄우면 **한 화면에 어긋난 자막이 둘** 생긴다.
+ *
+ *   연결은 여기 것을 그대로 쓴다. 하나 더 열면 시청자당 연결이 두 개가 된다.
+ */
+const emit = defineEmits(['caption'])
+
 const props = defineProps({
   meetingId: { type: [Number, String], required: true },
 })
 
 const messages = ref([])
-const captions = ref([])
 const draft = ref('')
 const state = ref('disconnected')
 const listEl = ref(null)
@@ -61,7 +74,7 @@ onMounted(async () => {
     token,
     meetingId: props.meetingId,
     onChat: (m) => push(messages, m),
-    onCaption: (c) => push(captions, c),
+    onCaption: (c) => emit('caption', c),
     onState: (s) => { state.value = s },
   })
   client.connect()
@@ -90,10 +103,6 @@ function send() {
       자막을 채팅과 나눠 보여 준다. 섞으면 자막이 채팅에 밀려 올라가는데,
       이 서비스에서 자막은 "놓치면 안 되는 것" 이다.
     -->
-    <div v-if="captions.length" class="bchat__caption" aria-live="polite">
-      {{ captions[captions.length - 1].text }}
-    </div>
-
     <ol ref="listEl" class="bchat__list">
       <li v-for="(m, i) in messages" :key="i">
         <strong>{{ m.sender }}</strong><span>{{ m.content }}</span>
@@ -114,10 +123,6 @@ function send() {
 .bchat__head { display: flex; align-items: baseline; justify-content: space-between; }
 .bchat__state { font-size: .85em; opacity: .7; }
 .bchat__state[data-state="error"] { color: #b00020; }
-.bchat__caption {
-  background: #111; color: #fff; padding: .5rem .75rem; border-radius: .4rem;
-  font-size: 1.05em; line-height: 1.4;
-}
 .bchat__list {
   list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto;
   display: flex; flex-direction: column; gap: .3rem;

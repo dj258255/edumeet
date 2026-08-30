@@ -53,6 +53,21 @@ class FfmpegCommandTest {
         }
 
         @Test
+        @DisplayName("★ program_date_time 이 없으면 자막을 화면에 맞출 수 없다")
+        void manifest_must_carry_wall_clock() {
+            String flags = flagValue(buildFor("video/mp4;codecs=avc1", SessionType.BROADCAST), "-hls_flags");
+            assertThat(flags)
+                    .as("""
+                        이게 없으면 플레이어가 아는 것은 "재생 위치 12.3초" 뿐이고
+                        그 화면이 몇 시에 촬영된 것인지는 모른다.
+
+                        자막은 WebSocket 으로 1초 안에 오는데 영상은 HLS 라 몇 초 뒤에 온다.
+                        그래서 자막이 화면보다 먼저 뜬다. 맞추려면
+                        "지금 보여 주는 화면이 몇 시 것인가" 가 필요하다.""")
+                    .contains("program_date_time");
+        }
+
+        @Test
         @DisplayName("★ delete_segments 가 없으면 디스크가 방송 내내 찬다")
         void old_segments_must_be_deleted() {
             String flags = flagValue(buildFor("video/mp4;codecs=avc1", SessionType.BROADCAST), "-hls_flags");

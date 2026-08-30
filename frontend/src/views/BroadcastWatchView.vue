@@ -20,6 +20,7 @@ import apiClient from '@/utils/apiClient'
 import { attachHls } from '@/features/broadcast/hlsPlayer'
 import { metricText } from '@/features/broadcast/hlsMetrics'
 import BroadcastChat from '@/components/BroadcastChat.vue'
+import BroadcastCaption from '@/components/BroadcastCaption.vue'
 
 const route = useRoute()
 const meetingId = route.params.meetingId
@@ -32,6 +33,31 @@ const metrics = ref(null)
 
 let handle = null
 let timer = null
+
+// ★ 자막을 영상 위로 올리고, 화면 시각에 맞춘다. (#185)
+//
+//   자막이 아예 없던 것은 아니다 - 채팅 칸에 한 줄로 나오고 있었다.
+//   두 가지가 문제였다.
+//
+//   하나. 영상이 아니라 옆 칸에 있었다. 자막이 곧 내용인 사용자가
+//        화면과 글자 사이로 시선을 옮겨야 한다.
+//   둘. 도착하는 대로 띄웠다. 자막은 1초 안에 오고 영상은 6초쯤 뒤에 오므로
+//        **글자가 화면보다 먼저 나간다.**
+//
+//   연결은 새로 열지 않는다. 채팅 컴포넌트가 이미 같은 회의로 붙어 있고,
+//   거기에 하나 더 열면 시청자당 연결이 두 개가 된다 -
+//   fan-out 상한을 300명으로 재 뒀는데 그러면 150명이 된다.
+const captionBox = ref(null)
+
+/**
+ * 지금 화면에 보이는 장면의 시각.
+ *
+ * <p>자막을 여기에 맞춘다. 플레이어가 아직 안 붙었으면 null 이고,
+ * 그러면 자막은 붙잡히지 않고 바로 뜬다.
+ */
+function playingDate() {
+  return handle?.getPlayingDate?.() ?? null
+}
 
 async function findPlaylist() {
   try {
@@ -78,6 +104,12 @@ onBeforeUnmount(() => {
 
       <p v-if="waiting" class="watch__overlay">방송이 시작되기를 기다리는 중입니다…</p>
       <p v-else-if="error" class="watch__overlay watch__overlay--error" role="alert">{{ error }}</p>
+
+      <BroadcastCaption
+        ref="captionBox"
+        :get-playing-date="playingDate"
+        class="watch__caption"
+      />
     </section>
 
     <section v-if="metrics" class="watch__metrics" aria-label="HLS 품질 지표">
@@ -97,7 +129,11 @@ onBeforeUnmount(() => {
       </p>
     </section>
 
-    <BroadcastChat :meeting-id="meetingId" class="watch__chat" />
+    <BroadcastChat
+      :meeting-id="meetingId"
+      class="watch__chat"
+      @caption="captionBox?.accept($event)"
+    />
   </main>
 </template>
 
@@ -111,6 +147,8 @@ onBeforeUnmount(() => {
   color: #fff; margin: 0; background: rgba(0,0,0,.5);
 }
 .watch__overlay--error { color: #ff9a9a; }
+/* 자막은 영상 위에 얹는다. 시선을 옮기지 않아도 읽히게. */
+.watch__caption { position: absolute; left: 1rem; right: 1rem; bottom: 3.2rem; }
 .watch__metrics {
   font-size: .9em;
   border: 1px solid #dde3ea;
