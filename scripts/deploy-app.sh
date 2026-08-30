@@ -46,6 +46,14 @@ next_container=$(container_of "$next")
 
 echo "지금 서비스: $active (:$active_port)  ->  새 슬롯: $next (:$next_port)"
 
+# ★ 지난 배포가 실패해 반대 슬롯이 남아 있을 수 있다.
+#   두 슬롯이 같이 떠 있으면 채팅 중개자가 메모리에 있어 방이 갈린다.
+#   새로 띄우기 전에 치운다 - 어차피 이번에 다시 만든다.
+if docker ps -q -f "name=^$next_container$" | grep -q .; then
+    echo "  지난 배포가 남긴 $next 슬롯을 치운다"
+    $COMPOSE --profile "$next" rm -sf "app-$next" >/dev/null 2>&1 || true
+fi
+
 # ── 2. 새 슬롯을 띄운다 ───────────────────────────────────────────
 #
 # --no-deps 를 쓰지 않는다. mysql·redis 가 healthy 여야 앱이 뜬다.
@@ -132,21 +140,35 @@ echo "  전환 확인 (nginx 경유 응답 $code)"
 #   Origin 을 붙이고, HTTP/1.1 로, WebSocket 업그레이드를 요청한다.
 #   (HTTP/2 로는 WebSocket 업그레이드가 안 된다 - 브라우저도 이때는 1.1 을 쓴다)
 SITE="https://studywithtymee.com"
-ws_code=$(curl -sk --http1.1 -o /dev/null -w '%{http_code}' -m 10 \
-    -H "Host: api.studywithtymee.com" -H "Origin: $SITE" \
+# ★ 101 뒤에 || echo 000 을 붙이면 안 된다.
+#   업그레이드가 성공하면 curl 은 평범한 HTTP 응답을 못 받아 0 이 아닌 코드로
+#   끝난다. 그래서 || 가 항상 타서 "101000" 이 됐고, 성공한 배포가 실패했다.
+#   상태 코드만 앞 세 자리로 읽고, 아무것도 못 받았으면 빈 값을 000 으로 본다.
+probe() { curl -sk --http1.1 -o /dev/null -w '%{http_code}' -m 10 "$@" 2>/dev/null | head -c 3; }
+
+ws_code=$(probe -H "Host: api.studywithtymee.com" -H "Origin: $SITE" \
     -H 'Upgrade: websocket' -H 'Connection: Upgrade' \
     -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' \
-    https://127.0.0.1/ws || echo 000)
-
-cors_code=$(curl -sk --http1.1 -o /dev/null -w '%{http_code}' -m 10 -X OPTIONS \
-    -H "Host: api.studywithtymee.com" -H "Origin: $SITE" \
+    https://127.0.0.1/ws)
+cors_code=$(probe -X OPTIONS -H "Host: api.studywithtymee.com" -H "Origin: $SITE" \
     -H 'Access-Control-Request-Method: POST' \
-    https://127.0.0.1/api/v1/members/login || echo 000)
+    https://127.0.0.1/api/v1/members/login)
+ws_code=${ws_code:-000}; cors_code=${cors_code:-000}
 
 if [ "$ws_code" != "101" ] || { [ "$cors_code" != "200" ] && [ "$cors_code" != "204" ]; }; then
     echo "브라우저 모양의 요청이 막힌다 - WebSocket=$ws_code CORS=$cors_code"
     echo "허용 출처(FRONT_URL / FRONT_URL2)가 운영 도메인인지 본다."
     echo "이 상태로 두면 부하 도구와 헬스체크는 전부 통과하는데 사람만 못 쓴다."
+
+    # ★ 옛 슬롯이 아직 살아 있으므로 되돌린다.
+    #   여기서 그냥 멈추면 nginx 는 새 슬롯을 가리킨 채로 남는다 -
+    #   실제로 그렇게 돼서 슬롯 두 개가 같이 떠 있었다(방이 갈리는 상태).
+    if [ "$active" != "legacy" ]; then
+        sudo sed -i "s/127\.0\.0\.1:$next_port/127.0.0.1:$active_port/" "$UPSTREAM"
+        sudo nginx -t && sudo systemctl reload nginx
+        echo "  nginx 를 $active (:$active_port) 로 되돌렸다"
+        $COMPOSE --profile "$next" rm -sf "app-$next" >/dev/null 2>&1 || true
+    fi
     exit 1
 fi
 echo "  브라우저 모양 확인 (WebSocket $ws_code · CORS $cors_code)"
