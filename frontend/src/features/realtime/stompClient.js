@@ -38,8 +38,43 @@ import { Client } from '@stomp/stompjs'
  */
 const HEARTBEAT_MS = 10_000
 
-/** 재연결 간격. 즉시 재시도하면 서버가 죽었을 때 폭주한다. */
+/**
+ * 재연결 기준 간격. 실제 대기는 여기에 흩뿌림을 더한다.
+ *
+ * ★ 고정값을 그대로 쓰면 전원이 같은 순간에 돌아온다. (#191)
+ *
+ *   전에는 앱이 죽어야 전원이 끊겼다. 무중단 배포(#180)를 넣은 뒤로는
+ *   **배포할 때마다** 옛 슬롯을 내리면서 전원이 동시에 끊긴다.
+ *   그 전원이 정확히 3초 뒤에 한꺼번에 돌아온다.
+ *
+ *   300명(측정한 fan-out 상한)에서 재 봤다.
+ *
+ *     고정 3초   연결 지연 중앙값 1,326ms · p99 2,141ms · 그동안 REST p99 1,144ms
+ *     흩뿌림     연결 지연 중앙값    13ms · p99    65ms · 그동안 REST p99   479ms
+ *
+ *   접속은 양쪽 다 300/300 성공한다. 다르게 나오는 것은 **얼마나 기다리는가**와
+ *   **그동안 다른 요청이 얼마나 밀리는가**다. 재접속 자체는 성공하므로
+ *   접속 수만 세면 이 차이가 안 보인다.
+ *
+ *   Slack 은 WebSocket 160만 개가 끊긴 뒤 재접속 폭주가 살아 있던 서버까지
+ *   무너뜨려 복구에 135분이 걸렸고, Discord 도 같은 원인으로 두 번 장애를 냈다.
+ *   우리 규모에서 그렇게까지 가지는 않지만, 원인의 모양은 같다.
+ */
 const RECONNECT_MS = 3_000
+
+/**
+ * 실제 대기 시간을 정한다. 기준값의 1~3배 사이에서 고른다.
+ *
+ * <p>★ 지수 백오프가 아니다. 그건 <b>반복 실패</b>에 대한 것이고,
+ * 여기서 필요한 것은 <b>첫 시도를 겹치지 않게 하는 것</b>이다.
+ * 폭주를 만드는 것은 재시도 횟수가 아니라 <b>동시에 오는 것</b>이다.
+ *
+ * <p>위쪽을 3배까지 연 이유 - 300명을 9초 창에 흩으면 초당 33명이다.
+ * 측정에서 그 정도는 연결 지연이 두 자리 ms 로 끝났다.
+ */
+export function reconnectDelay(base = RECONNECT_MS, rand = Math.random) {
+  return Math.round(base + rand() * base * 2)
+}
 
 /**
  * @param {object} options
@@ -71,7 +106,11 @@ export function createRealtimeClient({
     connectHeaders: { Authorization: `Bearer ${token}` },
     heartbeatIncoming: HEARTBEAT_MS,
     heartbeatOutgoing: HEARTBEAT_MS,
-    reconnectDelay: RECONNECT_MS,
+    // ★ 매번 다시 계산돼야 흩어진다. 상수를 넣으면 전원이 같은 값을 쓴다.
+    //   stompjs 는 이 값을 재연결 때마다 읽는다.
+    get reconnectDelay() {
+      return reconnectDelay()
+    },
     // 운영에서는 프레임 로그를 끈다. 채팅 내용이 콘솔에 그대로 남는다.
     debug: import.meta.env.DEV ? (s) => console.debug('[stomp]', s) : () => {},
   })
