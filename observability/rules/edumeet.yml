@@ -291,8 +291,19 @@ groups:
       #   이 결함이 오늘 드러난 이유가 있다 - 이 규칙은 #167 에 쓰였지만
       #   Prometheus 가 설정을 다시 읽은 적이 없어(#174) 한 번도 평가된 적이
       #   없었다. 리로드를 고치자 그날로 드러났다.
+      #
+      # ★ instance 도 남기면 안 된다. (#184)
+      #
+      #   처음엔 `sum by (job, instance)` 로 고쳤다. 슬롯이 하나일 때는 맞았다.
+      #   그런데 무중단 배포(#180)로 슬롯이 둘이 되자 **그 라벨이 다시 갈랐다** -
+      #   갓 뜬 슬롯은 카운터가 0에서 시작해 잠깐 증가분이 0으로 잡힌다.
+      #   배포마다 그 순간이 온다.
+      #
+      #   묻고 싶은 것은 "이 인스턴스가 로그를 남기나" 가 아니라
+      #   **"앱이 로그를 남기나"** 다. 라벨을 남길 때마다
+      #   "이 라벨로 갈라서 물어도 뜻이 같은가" 를 봐야 한다.
       - alert: NoLogsFromApp
-        expr: sum by (job, instance) (increase(logback_events_total[10m])) == 0
+        expr: sum by (job) (increase(logback_events_total[10m])) == 0
         for: 5m
         labels:
           severity: warning
