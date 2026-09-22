@@ -1,0 +1,65 @@
+rule_files:
+  - ../edumeet.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_persist_failed_total{instance="blue"}'
+        values: '0 200'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ChatArchiveLosing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/performance/07-chat-unbounded-queue-oom.md
+            exp_annotations:
+              summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
+              description: "5분간 200건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것이고 persist_failed 면 DB 문제다."
+
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_dropped_total{instance="blue"}'
+        values: '0 4'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ChatArchiveLosing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/performance/07-chat-unbounded-queue-oom.md
+            exp_annotations:
+              summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
+              description: "5분간 4건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것이고 persist_failed 면 DB 문제다."
+
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_dropped_total{instance="blue"}'
+        values: '0 0 0'
+      - series: 'chat_archive_dropped_total{instance="green"}'
+        values: '0 0 0'
+      - series: 'chat_archive_persist_failed_total{instance="blue"}'
+        values: '0 0 0'
+      - series: 'chat_archive_persist_failed_total{instance="green"}'
+        values: '0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ChatArchiveLosing
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_dropped_total{instance="blue"}'
+        values: '0 0 0'
+      - series: 'chat_archive_dropped_total{instance="green"}'
+        values: '_ 0 0'
+      - series: 'chat_archive_persist_failed_total{instance="blue"}'
+        values: '0 0 0'
+      - series: 'chat_archive_persist_failed_total{instance="green"}'
+        values: '_ 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ChatArchiveLosing
+        exp_alerts: []

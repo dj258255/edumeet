@@ -11,7 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;
@@ -63,18 +64,26 @@ public class ChatArchiveQueue {
 
     private final MeetingRepository meetingRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final TransactionTemplate transactionTemplate;
     private final Counter enqueued;
     private final Counter dropped;
+    /**
+     * 큐 가득 참은 처리량 문제이고 저장 실패는 DB 문제라 대응이 다르다.
+     * dropped 에 사유 태그를 붙이지 않고 별도 지표로 두어야 경보를 받은 사람이 어느 쪽인지 안다.
+     */
+    private final Counter persistFailed;
     private final Counter persisted;
 
     private final boolean enabled;
 
     public ChatArchiveQueue(MeetingRepository meetingRepository,
                             ChatMessageRepository chatMessageRepository,
+                            PlatformTransactionManager transactionManager,
                             MeterRegistry registry,
                             @Value("${edumeet.chat.archive.enabled:true}") boolean enabled) {
         this.meetingRepository = meetingRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.enabled = enabled;
 
         Gauge.builder("chat.archive.queued", queue, java.util.Collection::size)
@@ -87,6 +96,9 @@ public class ChatArchiveQueue {
                 .description("큐에 넣은 수").register(registry);
         this.dropped = Counter.builder("chat.archive.dropped")
                 .description("큐가 가득 차 버린 수. 0 이 아니면 배치가 못 따라가고 있다")
+                .register(registry);
+        this.persistFailed = Counter.builder("chat.archive.persist.failed")
+                .description("DB 저장 실패로 버린 수. dropped 와 원인이 다르다 - 이쪽은 DB 문제")
                 .register(registry);
         this.persisted = Counter.builder("chat.archive.persisted")
                 .description("실제로 저장한 수").register(registry);
@@ -123,16 +135,20 @@ public class ChatArchiveQueue {
             return;
         }
         try {
-            persist(batch);
+            transactionTemplate.executeWithoutResult(status -> persist(batch));
         } catch (Exception e) {
             // 저장 실패로 브로드캐스트가 멈추면 안 된다. 다시보기가 반쪽이 되는 것과
             // 방송이 죽는 것 중 무엇이 나쁜지는 분명하다.
+            persistFailed.increment(batch.size());
             log.warn("다시보기 채팅 배치 저장 실패 - {}건 유실. {}", batch.size(), e.toString());
         }
     }
 
-    @Transactional
-    protected void persist(List<Pending> batch) {
+    /**
+     * {@code @Transactional} 은 걸려 있다고 주장했지만 적용되지 않았다.
+     * 같은 클래스 안에서 부르면 스프링 프록시를 거치지 않으므로 템플릿으로 경계를 만든다.
+     */
+    private void persist(List<Pending> batch) {
         // 회의는 배치 안에서 몇 개 안 된다. 건마다 조회하면 N+1 이다.
         Map<Long, Meeting> meetings = new HashMap<>();
         List<ChatMessage> rows = new ArrayList<>(batch.size());

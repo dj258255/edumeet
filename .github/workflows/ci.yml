@@ -122,6 +122,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # 경보가 울려야 할 때 울리고 조용해야 할 때 조용한지 (#178, #196)
+      # 이미지 버전은 운영(docker-compose.prod.yml)과 같게 맞춘다
+      # 와일드카드는 호스트가 아니라 컨테이너 안에서 펼친다
+      - name: 경보 규칙 시험
+        run: |
+          docker run --rm -v "$PWD/observability/rules:/rules:ro" --entrypoint sh \
+            prom/prometheus:v3.1.0 -c 'promtool test rules /rules/tests/*.test.yml'
+
       - name: Build
         run: ./gradlew build -x test --no-daemon
         working-directory: backend
