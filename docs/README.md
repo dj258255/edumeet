@@ -13,6 +13,7 @@
 | 오디오 방송 (라디오 + 자막) | [`plan/03-audio-broadcast.md`](plan/03-audio-broadcast.md) |
 | HLS | [`plan/02-hls-optional.md`](plan/02-hls-optional.md) — 선택 |
 | **방송 모드 3개 (공통/분기)** | [`plan/04-three-broadcast-modes.md`](plan/04-three-broadcast-modes.md) |
+| **시청 품질 → 결정 → 보호 (진행 중, #202)** | [`plan/07-playback-quality-roadmap.md`](plan/07-playback-quality-roadmap.md) |
 
 ---
 
