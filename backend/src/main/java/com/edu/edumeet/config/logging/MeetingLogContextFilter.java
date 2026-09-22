@@ -11,8 +11,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 로그에 요청 아이디와 회의 번호를 붙인다. (#166)
@@ -34,6 +32,9 @@ import java.util.regex.Pattern;
  * <p>클라이언트가 {@code X-Request-Id} 를 보내면 그것을 쓴다.
  * 프론트·파이썬이 같은 값을 실어 보내면 <b>서비스 경계를 넘어 한 줄로 묶인다.</b>
  *
+ * <p>회의 번호는 {@link MeetingIdLogInterceptor} 가 붙인다. 필터에서 경로를
+ * 추측했을 때 사용자 경로에 한 번도 안 붙었다 (#205).
+ *
  * <h3>반드시 지운다</h3>
  * 톰캣은 스레드를 재사용한다. MDC 를 안 지우면 <b>다음 요청이 남의 회의 번호를 달고 찍힌다.</b>
  * 그러면 로그가 틀린 답을 주고, 그게 아무 답도 없는 것보다 나쁘다.
@@ -43,11 +44,8 @@ import java.util.regex.Pattern;
 public class MeetingLogContextFilter extends OncePerRequestFilter {
 
     private static final String REQUEST_ID = "requestId";
-    private static final String MEETING_ID = "meetingId";
+    public static final String MEETING_ID = "meetingId";
     private static final String HEADER = "X-Request-Id";
-
-    /** {@code /api/v1/.../meetings/{id}/...} 에서 번호만 뽑는다. */
-    private static final Pattern MEETING_PATH = Pattern.compile("/meetings/(\\d+)(?:/|$)");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -58,11 +56,6 @@ public class MeetingLogContextFilter extends OncePerRequestFilter {
         }
         MDC.put(REQUEST_ID, requestId);
 
-        Matcher m = MEETING_PATH.matcher(request.getRequestURI());
-        if (m.find()) {
-            MDC.put(MEETING_ID, m.group(1));
-        }
-
         // 클라이언트도 같은 값을 볼 수 있어야 문의가 들어왔을 때 로그를 찾는다.
         response.setHeader(HEADER, requestId);
         try {
@@ -70,7 +63,6 @@ public class MeetingLogContextFilter extends OncePerRequestFilter {
         } finally {
             // 톰캣이 스레드를 재사용한다. 안 지우면 다음 요청이 남의 값을 달고 찍힌다.
             MDC.remove(REQUEST_ID);
-            MDC.remove(MEETING_ID);
         }
     }
 }
