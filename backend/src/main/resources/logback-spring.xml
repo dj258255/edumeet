@@ -56,6 +56,8 @@
                     <message/>
                     <!-- MDC 를 최상위 필드로. 이래야 Loki 에서 라벨처럼 쓴다 -->
                     <mdc/>
+                    <!-- StructuredArguments.kv(...) 를 필드로. 없으면 kv 인자가 조용히 사라진다. (#197) -->
+                    <arguments/>
                     <stackTrace>
                         <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
                             <maxDepthPerThrowable>20</maxDepthPerThrowable>

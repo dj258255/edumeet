@@ -19,6 +19,7 @@ import { useRoute } from 'vue-router'
 import apiClient from '@/utils/apiClient'
 import { attachHls } from '@/features/broadcast/hlsPlayer'
 import { metricText } from '@/features/broadcast/hlsMetrics'
+import { createQoeReporter, sendViaApi, sendKeepalive } from '@/features/broadcast/qoeReporter'
 import BroadcastChat from '@/components/BroadcastChat.vue'
 import BroadcastCaption from '@/components/BroadcastCaption.vue'
 
@@ -33,6 +34,12 @@ const metrics = ref(null)
 
 let handle = null
 let timer = null
+let reporter = null
+
+// 탭을 닫거나 뒤로 가면 마지막 요약을 보낸다. fetch keepalive 라 언로드 중에도 나간다.
+function onPageHide() {
+  reporter?.finalFlush()
+}
 
 // ★ 자막을 영상 위로 올리고, 화면 시각에 맞춘다. (#185)
 //
@@ -69,6 +76,8 @@ async function findPlaylist() {
 }
 
 onMounted(async () => {
+  window.addEventListener('pagehide', onPageHide)
+
   // 방송이 아직 안 켜졌을 수 있다. 몇 초마다 다시 본다.
   const tryAttach = async () => {
     const url = await findPlaylist()
@@ -77,6 +86,17 @@ onMounted(async () => {
     handle = await attachHls(videoEl.value, url, {
       onError: (e) => { error.value = e.message },
       onMetrics: (m) => { metrics.value = m },
+      // 시청 품질 보고. (#197) 서버가 값을 검증하고 합계 지표·세션 로그로 남긴다.
+      onQoe: (tracker, { native }) => {
+        reporter = createQoeReporter({
+          meetingId,
+          tracker,
+          native,
+          send: sendViaApi,
+          sendFinal: sendKeepalive,
+        })
+        reporter.start()
+      },
     })
     waiting.value = false
     return true
@@ -90,6 +110,12 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('pagehide', onPageHide)
+  // SPA 안에서 화면을 떠나는 경우다. pagehide 와 겹쳐도 final 은 리포터가 한 번만 보낸다.
+  if (reporter) {
+    reporter.finalFlush()
+    reporter.stop()
+  }
   if (timer) clearInterval(timer)
   if (handle) handle.destroy()
 })

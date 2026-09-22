@@ -10,14 +10,17 @@
  *   정적 import 로 묶으면 모바일 사용자가 처음부터 400KB 짜리 플레이어를 받는다.
  */
 import { snapshotHlsMetrics, snapshotNativeMetrics } from './hlsMetrics'
+import { createQoeTracker } from './playbackQoe'
 
-export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMetrics = () => {} } = {}) {
+export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMetrics = () => {}, onQoe } = {}) {
   if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
     videoEl.src = playlistUrl
     const timer = setInterval(() => onMetrics(snapshotNativeMetrics(videoEl)), 1000)
+    const qoe = wireQoe(videoEl, onQoe, { native: true })
     return {
       destroy: () => {
         clearInterval(timer)
+        qoe.destroy()
         videoEl.removeAttribute('src')
         videoEl.load()
       },
@@ -44,6 +47,8 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
   })
   hls.loadSource(playlistUrl)
   hls.attachMedia(videoEl)
+
+  const qoe = wireQoe(videoEl, onQoe, { native: false })
 
   const state = {
     fragLoadMs: null,
@@ -73,12 +78,18 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
       hls.recoverMediaError()
       return
     }
+    // ★ 복구 못 한 오류만 시청 품질 오류로 센다(여기까지 왔다는 것이 그 뜻이다).
+    //   NETWORK_ERROR·MEDIA_ERROR fatal 은 위에서 startLoad·recoverMediaError 로 복구를 시도하므로
+    //   여기 오지 않는다 - 방송 시작 전 플레이리스트 404 도 NETWORK fatal 로 오지만 그건 대기다.
+    //   복구되는 동안의 영향은 끊김 시간으로 잡힌다.
+    qoe.tracker?.error()
     onError(new Error(data.details || '재생 오류'))
   })
 
   return {
     destroy: () => {
       clearInterval(timer)
+      qoe.destroy()
       hls.destroy()
     },
     /**
@@ -105,3 +116,40 @@ function loadTimeMs(stats) {
   }
   return null
 }
+
+/**
+ * 시청 품질 트래커를 <video> 이벤트에 연결한다. (#197)
+ *
+ * <p>{@code onQoe} 가 없으면 아무 일도 하지 않는다. 품질을 안 재는 화면은 그대로 동작한다.
+ *
+ * <p><b>오류는 경로마다 다르다.</b> Safari 네이티브는 <video> 의 error 이벤트가 전부이고,
+ * hls.js 는 복구 가능한 오류를 스스로 처리하므로 치명적인 것만 호출자가 센다.
+ * 그래서 여기서는 네이티브일 때만 error 이벤트를 듣는다 - 안 그러면 같은 오류를 두 번 센다.
+ *
+ * <p>끊김(waiting → playing)은 두 경로 모두 <video> 이벤트로 잡힌다.
+ * hls.js 의 버퍼 이벤트에 기대지 않으므로 Safari 네이티브에서도 세진다.
+ */
+function wireQoe(videoEl, onQoe, { native }) {
+  if (typeof onQoe !== 'function') return { tracker: null, destroy: () => {} }
+
+  const tracker = createQoeTracker()
+  const handlers = {
+    playing: () => tracker.playing(),
+    waiting: () => tracker.waiting(),
+    pause: () => tracker.paused(),
+    seeking: () => tracker.seeking(),
+    seeked: () => tracker.resumedBySeekEnd(),
+  }
+  if (native) handlers.error = () => tracker.error()
+
+  Object.entries(handlers).forEach(([event, handler]) => videoEl.addEventListener(event, handler))
+  tracker.attached()
+  onQoe(tracker, { native })
+
+  return {
+    tracker,
+    destroy: () => Object.entries(handlers)
+        .forEach(([event, handler]) => videoEl.removeEventListener(event, handler)),
+  }
+}
+

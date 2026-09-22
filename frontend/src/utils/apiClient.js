@@ -1,7 +1,8 @@
 import axios from 'axios'
 
 // API 기본 설정 (환경변수가 없으면 /api/v1)
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL
+// keepalive 전송(qoeReporter)이 같은 주소를 써야 한다. (#197)
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL
   ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
   : '/api/v1')
 
