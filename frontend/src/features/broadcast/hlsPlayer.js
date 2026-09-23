@@ -11,6 +11,7 @@
  */
 import { snapshotHlsMetrics, snapshotNativeMetrics } from './hlsMetrics'
 import { createQoeTracker } from './playbackQoe'
+import { createRingLog, HLS_LOG_LIMIT } from './hlsDiagnostics'
 
 export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMetrics = () => {}, onQoe } = {}) {
   if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
@@ -50,6 +51,36 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
 
   const qoe = wireQoe(videoEl, onQoe, { native: false })
 
+  // ★ hls.js 가 왜 죽는지 보이게 한다. (#210)
+  //   개수만 세면 종류·시점·앱이 한 조치를 알 수 없다. 최근 50건만 고리 버퍼에 남긴다.
+  //   재생 동작은 건드리지 않는다 - 아래 분기의 결정은 그대로이고 기록만 늘었다.
+  //   hls 인스턴스는 노출하지 않는다(순환 참조가 있고 크다). 로그만 노출한다.
+  const hlsLog = createRingLog(HLS_LOG_LIMIT)
+  const record = (entry) => {
+    hlsLog.push(entry)
+    window.__edumeetHlsLog = hlsLog.snapshot()
+  }
+
+  hls.on(Hls.Events.MANIFEST_LOADED, (_event, data) => {
+    record({
+      t: Math.round(performance.now()),
+      type: 'MANIFEST_LOADED',
+      levels: data?.levels?.length ?? null,
+    })
+  })
+
+  hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+    const details = data?.details
+    record({
+      t: Math.round(performance.now()),
+      type: 'LEVEL_LOADED',
+      live: details?.live ?? null,
+      startSN: details?.startSN ?? null,
+      endSN: details?.endSN ?? null,
+      fragments: details?.fragments?.length ?? null,
+    })
+  })
+
   const state = {
     fragLoadMs: null,
     fragBytes: null,
@@ -68,13 +99,19 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
   hls.on(Hls.Events.ERROR, (_event, data) => {
     state.errors += 1
     emitMetrics()
-    if (!data.fatal) return
+    if (!data.fatal) {
+      // 치명적이지 않은 오류도 종류를 남긴다. 앱이 한 일은 없다.
+      record(errorEntry(data, 'none'))
+      return
+    }
     // 방송 시작 직전에는 플레이리스트가 아직 없어 404 가 난다. 그건 오류가 아니라 대기다.
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+      record(errorEntry(data, 'startLoad'))
       hls.startLoad()
       return
     }
     if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+      record(errorEntry(data, 'recoverMediaError'))
       hls.recoverMediaError()
       return
     }
@@ -82,6 +119,7 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
     //   NETWORK_ERROR·MEDIA_ERROR fatal 은 위에서 startLoad·recoverMediaError 로 복구를 시도하므로
     //   여기 오지 않는다 - 방송 시작 전 플레이리스트 404 도 NETWORK fatal 로 오지만 그건 대기다.
     //   복구되는 동안의 영향은 끊김 시간으로 잡힌다.
+    record(errorEntry(data, 'gaveUp'))
     qoe.tracker?.error()
     onError(new Error(data.details || '재생 오류'))
   })
@@ -91,6 +129,7 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
       clearInterval(timer)
       qoe.destroy()
       hls.destroy()
+      delete window.__edumeetHlsLog
     },
     /**
      * 지금 화면에 보이는 장면의 시각. (#185)
@@ -103,6 +142,23 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
      */
     getPlayingDate: () => hls.playingDate ?? null,
     native: false,
+  }
+}
+
+/**
+ * hls.js 오류 한 건을 로그 항목으로 만든다. (#210)
+ *
+ * <p>{@code action} 은 앱이 그 오류에 한 일이다. 무엇을 할지 정하는 분기는 호출부에 그대로 있고,
+ * 여기서는 이름만 붙인다 - 기록이 재생 동작을 바꾸지 않는다는 것을 이 모양으로 보인다.
+ */
+function errorEntry(data, action) {
+  return {
+    t: Math.round(performance.now()),
+    type: data?.type ?? null,
+    details: data?.details ?? null,
+    fatal: Boolean(data?.fatal),
+    responseCode: data?.response?.code ?? null,
+    action,
   }
 }
 

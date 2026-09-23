@@ -91,6 +91,20 @@ const rows = viewerFiles.map((file) => {
   const firstStartup = v.reports.find((r) => r.startupMs != null)?.startupMs ?? null
   const finalReport = v.reports.find((r) => r.final)
 
+  // ★ 플레이어가 살아 있는가. (#210) 앱이 남긴 hls.js 진단 로그와 복구 뒤 스냅샷에서 읽는다.
+  const hlsLog = v.finalState?.hlsLog ?? []
+  const fatals = hlsLog.filter((entry) => entry && entry.fatal === true)
+  const lastFatal = fatals.length > 0 ? fatals[fatals.length - 1] : null
+
+  const offlineSnapshots = (v.snapshots ?? []).filter((s) =>
+    String(s.label ?? '').startsWith('offline-end'))
+  const lastOf = (list, matches) => {
+    const hits = list.filter(matches)
+    return hits.length > 0 ? hits[hits.length - 1] : null
+  }
+  const afterRecovery = lastOf(offlineSnapshots, (s) => String(s.label).includes('+10s'))
+  const recoveryState = afterRecovery?.state ?? null
+
   return {
     viewer: v.viewer,
     endMode: v.endMode,
@@ -116,6 +130,21 @@ const rows = viewerFiles.map((file) => {
     finalReceivedVia: finalReport ? '보고 본문' : null,
     lastUrl: v.lastUrl ?? null,
     dialogs: v.dialogs ?? [],
+    // 플레이어 생존 (#210)
+    errorCode: v.finalState?.errorCode ?? null,
+    playerGaveUp: hlsLog.some((entry) => entry && entry.action === 'gaveUp'),
+    lastFatalDetails: lastFatal?.details ?? null,
+    lastFatalType: lastFatal?.type ?? null,
+    lastFatalAction: lastFatal?.action ?? null,
+    lastFatalResponseCode: lastFatal?.responseCode ?? null,
+    hlsLogLines: hlsLog.length,
+    stoppedAtSec: v.finalState?.currentTime ?? null,
+    bufferedEndSec: v.finalState?.bufferedEnd ?? null,
+    afterRecoveryPaused: recoveryState?.paused ?? null,
+    afterRecoveryCurrentTimeSec: recoveryState?.currentTime ?? null,
+    resumedAfterRecovery: recoveryState
+      ? recoveryState.paused === false && recoveryState.ended === false
+      : null,
   }
 })
 
@@ -202,6 +231,12 @@ const lines = rows.map(
     `${r.finalSent ? 'O' : 'X'} | ${r.finalReceived ? 'O' : 'X'} | ${r.endMode} |`,
 )
 
+/** 플레이어 생존 절에서 쓴다. (#210) */
+const died = rows.filter((r) => r.errorCode !== null || r.playerGaveUp)
+const resumedCount = rows.filter((r) => r.resumedAfterRecovery === true)
+const secText = (value) => (typeof value === 'number' ? `${Math.round(value * 10) / 10}초` : '-')
+const tri = (value) => (value === null || value === undefined ? '-' : value ? 'O' : 'X')
+
 const md = [
   // 조건 불성립이면 표보다 먼저, 크게 보여 준다.
   ...warning,
@@ -232,6 +267,24 @@ const md = [
   '| 시청자 | 정답(ms) | 보낸 값(ms) |',
   '|---|---|---|',
   ...rows.map((r) => `| ${r.viewer} | ${r.startupTruthMs ?? '-'} | ${r.startupSentMs ?? '-'} |`),
+  '',
+  '## 플레이어 생존',
+  '',
+  `- error(MediaError) 로 끝난 시청자: ${died.length}/${rows.length}${
+    died.length > 0
+      ? ' · ' + died.map((r) => `${r.viewer}(code ${r.errorCode ?? '-'}${r.playerGaveUp ? ', gaveUp' : ''})`).join(' · ')
+      : ''
+  }`,
+  `- 복구 10초 뒤 재생이 재개된 시청자: ${resumedCount.length}/${rows.length}`,
+  '',
+  '| 시청자 | errorCode | 마지막 fatal | 조치 | hls 로그 | 멈춘 위치 | 버퍼 끝 | 복구 10초 뒤 | 재생 재개 |',
+  '|---|---|---|---|---|---|---|---|---|',
+  ...rows.map(
+    (r) =>
+      `| ${r.viewer} | ${r.errorCode ?? '-'} | ${r.lastFatalDetails ?? '-'} | ${r.lastFatalAction ?? '-'} | ` +
+      `${r.hlsLogLines}줄 | ${secText(r.stoppedAtSec)} | ${secText(r.bufferedEndSec)} | ` +
+      `${r.afterRecoveryPaused === null ? '-' : `paused=${r.afterRecoveryPaused}`} | ${tri(r.resumedAfterRecovery)} |`,
+  ),
   '',
 ].join('\n')
 
