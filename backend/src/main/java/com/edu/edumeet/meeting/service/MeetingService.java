@@ -331,6 +331,15 @@ public class MeetingService {
         }
     }
 
+    /**
+     * 수업의 회의 목록.
+     *
+     * <p><b>{@code @Transactional} 이 필요하다.</b> {@code open-in-view: false} 라
+     * {@code classRoom.getMember()} 를 트랜잭션 밖에서 건드리면
+     * {@code LazyInitializationException} 이 나고, 그 예외가 필터에서 삼켜져
+     * <b>200 · 0바이트</b>로 나가고 있었다. (#209)
+     */
+    @Transactional(readOnly = true)
     public List<ClassMeetingInfoResponseDto> getMeetingList(String email, Long classId) {
         log.info("📋 미팅 목록 조회 시작 - email: {}, classId: {}", email, classId);
         
