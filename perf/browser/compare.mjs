@@ -41,6 +41,28 @@ const sec = (ms) => Math.round((ms / 1000) * 100) / 100
 const duration = (range) => Math.max(0, range.end - range.start)
 
 /**
+ * #212 재전송은 서버가 (sessionId, seq) 하나로 한 번만 받는다.
+ * 전송 시도 수는 원본 그대로 보존하고, 계측 합계에는 첫 보고만 쓴다.
+ */
+function dedupeReports(reports) {
+  const seen = new Set()
+  const unique = []
+  let retransmissions = 0
+  for (const report of reports) {
+    const key = report?.sessionId && report.seq != null
+      ? `${report.sessionId}|${report.seq}`
+      : null
+    if (key !== null && seen.has(key)) {
+      retransmissions += 1
+      continue
+    }
+    if (key !== null) seen.add(key)
+    unique.push(report)
+  }
+  return { unique, retransmissions }
+}
+
+/**
  * 워밍업(첫 60초) 정답 끊김.
  *
  * 경계는 시청자의 스로틀 일정 기준 시각(t0Wall)이다 - 비디오가 붙은 시각이 아니다.
@@ -69,6 +91,14 @@ try {
 
 const rows = viewerFiles.map((file) => {
   const v = readJson(join(dir, file))
+  const { unique: uniqueReports, retransmissions } = dedupeReports(v.reports ?? [])
+  const scheduleEnds = (v.scheduleApplied ?? [])
+    .map((segment) => Number(segment.to))
+    .filter(Number.isFinite)
+  const scheduleEndS = scheduleEnds.length > 0 ? Math.max(...scheduleEnds) : null
+  const scheduledEndAt = Number.isFinite(v.t0) && scheduleEndS !== null
+    ? v.t0 + scheduleEndS * 1000
+    : null
 
   // 한 시청자의 보고에 세션이 여럿일 수 있다. 전부 모아서 합친다.
   const sessionIds = [...new Set(v.reports.map((r) => r.sessionId).filter(Boolean))]
@@ -109,17 +139,23 @@ const rows = viewerFiles.map((file) => {
     viewer: v.viewer,
     endMode: v.endMode,
     error: v.error,
+    t0: v.t0 ?? null,
+    endedAt: v.endedAt ?? null,
+    scheduleEndS,
+    scheduledEndAt,
     sessionIds,
     truthEventSec: sec(sum((v.truth?.stallsEvent ?? []).map(duration))),
     truthEventCount: (v.truth?.stallsEvent ?? []).length,
     truthProgressSec: sec(sum((v.truth?.stallsProgress ?? []).map(duration))),
     discontinuities: (v.truth?.discontinuities ?? []).length,
     warmupTruthEventSec: warmupStallSec(v.truth, v.t0),
-    sentStallSec: sec(sum(v.reports.map((r) => r.stallMs ?? 0))),
-    sentStallCount: sum(v.reports.map((r) => r.stallCount ?? 0)),
+    sentStallSec: sec(sum(uniqueReports.map((r) => r.stallMs ?? 0))),
+    sentStallCount: sum(uniqueReports.map((r) => r.stallCount ?? 0)),
     receivedStallSec: lokiSessions.length ? sec(sum(lokiSessions.map((s) => s.stallMs))) : null,
     receivedStallCount: lokiSessions.length ? sum(lokiSessions.map((s) => s.stallCount)) : null,
-    sentReports: v.reports.length,
+    sentReports: uniqueReports.length,
+    transmissionAttempts: (v.reports ?? []).length,
+    retransmissions,
     receivedLines: sum(lokiSessions.map((s) => s.lines)),
     missingReports: missing.length,
     startupTruthMs: v.truth?.startupMs ?? null,
@@ -149,12 +185,19 @@ const rows = viewerFiles.map((file) => {
   }
 })
 
+const broadcastEndedAt = broadcast?.endedAt ? Date.parse(broadcast.endedAt) : NaN
+const earlyBroadcastRows = Number.isFinite(broadcastEndedAt)
+  ? rows.filter((row) => Number.isFinite(row.scheduledEndAt) && broadcastEndedAt < row.scheduledEndAt)
+  : []
+
 const totals = {
   truthEventSec: sec(sum(rows.map((r) => r.truthEventSec * 1000))),
   truthProgressSec: sec(sum(rows.map((r) => r.truthProgressSec * 1000))),
   sentStallSec: sec(sum(rows.map((r) => r.sentStallSec * 1000))),
   receivedStallSec: sec(sum(rows.map((r) => (r.receivedStallSec ?? 0) * 1000))),
   sentReports: sum(rows.map((r) => r.sentReports)),
+  transmissionAttempts: sum(rows.map((r) => r.transmissionAttempts)),
+  retransmissions: sum(rows.map((r) => r.retransmissions)),
   receivedLines: sum(rows.map((r) => r.receivedLines)),
   missingReports: sum(rows.map((r) => r.missingReports)),
   discontinuities: sum(rows.map((r) => r.discontinuities)),
@@ -189,6 +232,12 @@ if (!server) {
 if (failedViewers.length > 0) {
   reasons.push(
     `영상이 한 번도 재생되지 않은 시청자가 ${failedViewers.length}/${rows.length}명이다 (startupMs 없음)`,
+  )
+}
+if (earlyBroadcastRows.length > 0) {
+  reasons.push(
+    '측정 조건 불성립 - 시청 도중 방송이 끝났다: ' +
+      earlyBroadcastRows.map((row) => `시청자 ${row.viewer}`).join(', '),
   )
 }
 const conditionFailed = reasons.length > 0
@@ -258,7 +307,8 @@ const md = [
   '## 합계',
   '',
   `- 정답(이벤트) 끊김: ${totals.truthEventSec}초 · 정답(진행) 끊김: ${totals.truthProgressSec}초`,
-  `- 보낸 값 끊김: ${totals.sentStallSec}초 (보고 ${totals.sentReports}건)`,
+  `- 보낸 값 끊김: ${totals.sentStallSec}초 (중복 제거 보고 ${totals.sentReports}건)`,
+  `- 전송 시도 ${totals.transmissionAttempts}건(재전송 ${totals.retransmissions}건)`,
   `- 받은 값 끊김: ${totals.receivedStallSec}초 (Loki ${totals.receivedLines}줄)`,
   `- 보낸 값 ↔ 받은 값 차이: ${totals.sentVsReceivedDiffSec}초 (${totals.sentVsReceivedDiffPct})`,
   `- 정답 ↔ 보낸 값 차이: ${totals.truthVsSentDiffSec}초`,

@@ -18,7 +18,7 @@
  *   node server-side.mjs --run <이름> [--from <epoch초>] [--to <epoch초>]
  */
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadEnv, outDir, parseArgs } from './lib/env.mjs'
 
@@ -51,9 +51,52 @@ function broadcastWindow() {
   }
 }
 
+const VIEWER_FROM_MARGIN_MS = 60_000
+const DRAIN_MS = 30_000
+
+function wallMs(value) {
+  if (Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+/** 새 원격·로컬 회차는 시청자 산출물의 벽시계로 조회 창을 잡는다. */
+function viewerWindow() {
+  let files
+  try {
+    files = readdirSync(dir).filter((file) => /^viewer-\d+\.json$/.test(file))
+  } catch {
+    return null
+  }
+  const records = files.map((file) => {
+    try {
+      return JSON.parse(readFileSync(join(dir, file), 'utf8'))
+    } catch {
+      return null
+    }
+  }).filter(Boolean)
+  const starts = records.map((record) => wallMs(record.t0)).filter((value) => value !== null)
+  const ends = records.map((record) => wallMs(record.endedAt)).filter((value) => value !== null)
+  if (starts.length === 0 || ends.length === 0) return null
+
+  return {
+    from: Math.floor((Math.min(...starts) - VIEWER_FROM_MARGIN_MS) / 1000),
+    to: Math.ceil((Math.max(...ends) + DRAIN_MS) / 1000),
+  }
+}
+
 const fallback = broadcastWindow()
-const from = Number(args.from ?? fallback?.from)
-const to = Number(args.to ?? fallback?.to)
+const byViewer = viewerWindow()
+const from = Number(args.from ?? byViewer?.from ?? fallback?.from)
+const to = Number(args.to ?? byViewer?.to ?? fallback?.to)
+const windowSource = args.from !== undefined || args.to !== undefined
+  ? 'argument'
+  : byViewer
+    ? 'viewer-wall-clock'
+    : 'broadcast'
 if (!Number.isFinite(from) || !Number.isFinite(to)) {
   throw new Error('측정 창을 모른다. --from/--to 를 주거나 broadcast.json 이 있어야 한다')
 }
@@ -148,7 +191,7 @@ for (const stream of lokiData.data?.result ?? []) {
 
 const result = {
   run,
-  window: { from, to, windowSeconds, collectedAt: new Date().toISOString() },
+  window: { from, to, windowSeconds, source: windowSource, collectedAt: new Date().toISOString() },
   lokiLabel: LOKI_LABEL,
   meetingId,
   note: PROMETHEUS_NOTE,
