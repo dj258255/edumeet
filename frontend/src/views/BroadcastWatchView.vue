@@ -79,6 +79,7 @@ async function findPlaylist() {
 onMounted(async () => {
   const enteredAt = performance.now()
   loadHls()
+  window.__edumeetPlayingDate = () => handle?.getPlayingDate?.()?.getTime() ?? null
   window.addEventListener('pagehide', onPageHide)
 
   // 방송이 아직 안 켜졌을 수 있다. 몇 초마다 다시 본다.
@@ -123,6 +124,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('pagehide', onPageHide)
+  delete window.__edumeetPlayingDate
   // SPA 안에서 화면을 떠나는 경우다. pagehide 와 겹쳐도 final 은 리포터가 한 번만 보낸다.
   if (reporter) {
     reporter.finalFlush()

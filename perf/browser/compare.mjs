@@ -40,6 +40,31 @@ const sum = (arr) => arr.reduce((a, b) => a + b, 0)
 const sec = (ms) => Math.round((ms / 1000) * 100) / 100
 const duration = (range) => Math.max(0, range.end - range.start)
 
+function percentile(values, p) {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const index = (sorted.length - 1) * p
+  const lower = Math.floor(index)
+  const upper = Math.ceil(index)
+  if (lower === upper) return sorted[lower]
+  return Math.round(sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower))
+}
+
+/** 화면 지연 표본은 시청자 벽시계 기준으로 워밍업 60초를 뺀다. */
+function screenLatencyStats(samples, t0) {
+  const boundary = Number.isFinite(t0) ? t0 + WARMUP_MS : Infinity
+  const values = (samples ?? [])
+    .filter((sample) => Number.isFinite(sample?.at) && sample.at >= boundary)
+    .map((sample) => Number(sample.latencyMs))
+    .filter(Number.isFinite)
+  return {
+    values,
+    count: values.length,
+    p50: percentile(values, 0.5),
+    p95: percentile(values, 0.95),
+  }
+}
+
 /**
  * #212 재전송은 서버가 (sessionId, seq) 하나로 한 번만 받는다.
  * 전송 시도 수는 원본 그대로 보존하고, 계측 합계에는 첫 보고만 쓴다.
@@ -120,6 +145,7 @@ const rows = viewerFiles.map((file) => {
 
   const firstStartup = v.reports.find((r) => r.startupMs != null)?.startupMs ?? null
   const finalReport = v.reports.find((r) => r.final)
+  const screenLatency = screenLatencyStats(v.latencySamples, v.t0)
 
   // ★ 플레이어가 살아 있는가. (#210) 앱이 남긴 hls.js 진단 로그와 복구 뒤 스냅샷에서 읽는다.
   const hlsLog = v.finalState?.hlsLog ?? []
@@ -143,6 +169,10 @@ const rows = viewerFiles.map((file) => {
     endedAt: v.endedAt ?? null,
     scheduleEndS,
     scheduledEndAt,
+    screenLatencyValues: screenLatency.values,
+    screenLatencySampleCount: screenLatency.count,
+    screenLatencyP50Ms: screenLatency.p50,
+    screenLatencyP95Ms: screenLatency.p95,
     sessionIds,
     truthEventSec: sec(sum((v.truth?.stallsEvent ?? []).map(duration))),
     truthEventCount: (v.truth?.stallsEvent ?? []).length,
@@ -205,6 +235,10 @@ const totals = {
   broadcastRejected429: broadcast?.chunksRejected ?? null,
   prometheusNote: server?.note ?? null,
 }
+const allScreenLatencyValues = rows.flatMap((row) => row.screenLatencyValues)
+totals.screenLatencySampleCount = allScreenLatencyValues.length
+totals.screenLatencyP50Ms = percentile(allScreenLatencyValues, 0.5)
+totals.screenLatencyP95Ms = percentile(allScreenLatencyValues, 0.95)
 const pct = (received, sent) =>
   sent > 0 ? `${Math.round(((received - sent) / sent) * 1000) / 10}%` : '-'
 totals.sentVsReceivedDiffSec = sec((totals.receivedStallSec - totals.sentStallSec) * 1000)
@@ -320,6 +354,16 @@ const md = [
   '## 워밍업(첫 60초) 정답 끊김',
   '',
   ...rows.map((r) => `- 시청자 ${r.viewer}: ${r.warmupTruthEventSec}초`),
+  '',
+  '## 화면 지연 (워밍업 60초 제외)',
+  '',
+  '| 시청자 | 표본 수 | p50(ms) | p95(ms) |',
+  '|---|---:|---:|---:|',
+  ...rows.map((r) =>
+    `| ${r.viewer} | ${r.screenLatencySampleCount} | ${r.screenLatencyP50Ms ?? '-'} | ${r.screenLatencyP95Ms ?? '-'} |`,
+  ),
+  '',
+  `- 전체: 표본 ${totals.screenLatencySampleCount}개 · p50 ${totals.screenLatencyP50Ms ?? '-'}ms · p95 ${totals.screenLatencyP95Ms ?? '-'}ms`,
   '',
   '## 첫 화면 시간',
   '',

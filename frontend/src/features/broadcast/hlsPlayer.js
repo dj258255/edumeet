@@ -78,7 +78,7 @@ export async function attachHls(
   const hls = new Hls({
     // 라이브에서 뒤로 밀리지 않게. 기본값은 버퍼를 크게 잡아 지연이 계속 늘어난다.
     lowLatencyMode: true,
-    liveSyncDurationCount: 2,     // 최신에서 2세그먼트 뒤를 따라간다
+    liveSyncDurationCount: liveSyncDurationCount(), // 진단용: 최신에서 N세그먼트 뒤를 따라간다
     backBufferLength: 30,
     // 첫 화면 중앙값 네이티브 1,625ms · hls.js 2,243ms. 미디어 소스가 붙기 전에 첫 조각을 미리 받는다.
     startFragPrefetch: true,
@@ -180,6 +180,16 @@ export async function attachHls(
      */
     getPlayingDate: () => hls.playingDate ?? null,
     native: false,
+  }
+}
+
+/** 진단용 liveSyncDurationCount. 사용자 설정이 아니며 허용한 값만 읽는다. */
+export function liveSyncDurationCount(storage) {
+  try {
+    const value = (storage ?? globalThis.localStorage)?.getItem('edumeet.hls.liveSyncDurationCount')
+    return value === '1' || value === '2' || value === '3' ? Number(value) : 2
+  } catch {
+    return 2
   }
 }
 

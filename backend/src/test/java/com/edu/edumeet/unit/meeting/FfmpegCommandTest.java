@@ -35,6 +35,17 @@ class FfmpegCommandTest {
         return FfmpegCommand.build(props, BroadcastCodecPlan.of(mimeType, type), "/tmp/out");
     }
 
+    private List<String> buildFor(String mimeType, SessionType type, String segmentType, int hlsTimeSec) {
+        return FfmpegCommand.build(
+                props, BroadcastCodecPlan.of(mimeType, type), "/tmp/out", segmentType, hlsTimeSec);
+    }
+
+    private List<String> buildFor(
+            String mimeType, SessionType type, String segmentType, int hlsTimeSec, String sessionId) {
+        return FfmpegCommand.build(
+                props, BroadcastCodecPlan.of(mimeType, type), "/tmp/out", segmentType, hlsTimeSec, sessionId);
+    }
+
     private static String flagValue(List<String> cmd, String flag) {
         int i = cmd.indexOf(flag);
         return i < 0 || i + 1 >= cmd.size() ? null : cmd.get(i + 1);
@@ -110,6 +121,40 @@ class FfmpegCommandTest {
     @Nested
     @DisplayName("세그먼트 길이")
     class SegmentDuration {
+
+        @Test
+        @DisplayName("fMP4·1초 조합은 init 조각과 m4s 이름을 쓴다")
+        void fmp4_uses_one_second_segments() {
+            List<String> cmd = buildFor("video/mp4;codecs=avc1", SessionType.BROADCAST, "fmp4", 1);
+
+            assertThat(flagValue(cmd, "-hls_time")).isEqualTo("1");
+            assertThat(flagValue(cmd, "-hls_segment_type")).isEqualTo("fmp4");
+            assertThat(flagValue(cmd, "-hls_fmp4_init_filename")).isEqualTo("init_legacy.mp4");
+            assertThat(flagValue(cmd, "-hls_segment_filename"))
+                    .isEqualTo("/tmp/out/seg_legacy_%05d.m4s");
+        }
+
+        @Test
+        @DisplayName("세션 식별자가 mpegts·fMP4 플레이리스트의 파일명을 분리한다")
+        void session_id_is_in_playlist_references() {
+            List<String> ts = buildFor("video/mp4;codecs=avc1", SessionType.BROADCAST, "mpegts", 1, "Ab19xZ");
+            List<String> fmp4 = buildFor("video/mp4;codecs=avc1", SessionType.BROADCAST, "fmp4", 1, "Ab19xZ");
+
+            assertThat(flagValue(ts, "-hls_segment_filename"))
+                    .isEqualTo("/tmp/out/seg_Ab19xZ_%05d.ts");
+            assertThat(flagValue(fmp4, "-hls_segment_filename"))
+                    .isEqualTo("/tmp/out/seg_Ab19xZ_%05d.m4s");
+            assertThat(flagValue(fmp4, "-hls_fmp4_init_filename"))
+                    .isEqualTo("init_Ab19xZ.mp4");
+        }
+
+        @Test
+        @DisplayName("세션 식별자는 ffmpeg 인자로 안전한 영숫자만 허용한다")
+        void session_id_rejects_path_characters() {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                    buildFor("video/mp4;codecs=avc1", SessionType.BROADCAST, "fmp4", 1, "../old"))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
 
         @Test
         @DisplayName("★ 기본값을 그대로 쓰지 않는다 - 지연이 세그먼트 길이에 비례한다")
