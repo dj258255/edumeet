@@ -115,7 +115,8 @@ public final class FfmpegCommand {
         cmd.add(segmentType);
         cmd.add("-hls_segment_filename");
         if ("fmp4".equals(segmentType)) {
-            cmd.add(outputDir + "/seg_" + sessionId + "_%05d.m4s");
+            // Cloudflare 무료 요금제는 확장자 목록으로 캐시한다. .m4s 는 실측에서 DYNAMIC 이었다.
+            cmd.add(outputDir + "/seg_" + sessionId + "_%05d.mp4");
             cmd.add("-hls_fmp4_init_filename");
             cmd.add("init_" + sessionId + ".mp4");
         } else {
