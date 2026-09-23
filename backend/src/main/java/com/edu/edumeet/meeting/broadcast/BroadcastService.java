@@ -17,6 +17,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
@@ -164,7 +166,7 @@ public class BroadcastService {
         BroadcastCodecPlan plan = BroadcastCodecPlan.of(mimeType, type);
         admit(plan);
 
-        Path dir = Path.of(properties.getOutputDir(), "meeting-" + meetingId);
+        Path dir = outputDirectory(meetingId);
         prepareDirectory(dir);
 
         String sessionId = newSessionId();
@@ -178,9 +180,9 @@ public class BroadcastService {
         String playlistUrl = "%s/meeting-%d/live.m3u8".formatted(trimTrailingSlash(properties.getPublicBaseUrl()), meetingId);
 
         sessions.put(meetingId, new BroadcastSession(
-                meetingId, process, plan, playlistUrl, properties.getReorderWindow()));
+                meetingId, sessionId, process, plan, playlistUrl, properties.getReorderWindow()));
 
-        meeting.startBroadcast("self-" + meetingId, playlistUrl);
+        meeting.startBroadcast(sessionId, playlistUrl);
         return playlistUrl;
     }
 
@@ -208,8 +210,13 @@ public class BroadcastService {
     @Transactional
     public void stop(String email, Long meetingId) {
         Meeting meeting = requireHost(email, meetingId);
-        closeSession(meetingId);
-        meeting.stopBroadcast();
+        BroadcastSession session = closeSession(meetingId);
+        String sessionId = session != null ? session.getSessionId() : meeting.getBroadcastSessionId();
+        if (!meeting.stopBroadcastIf(sessionId)) {
+            log.warn("다른 세대가 이미 방송 중이라 종료 상태를 바꾸지 않는다 - meetingId={}, closedSessionId={}, currentSessionId={}",
+                    meetingId, sessionId, meeting.getBroadcastSessionId());
+        }
+        removeSessionFilesAfterStop(meetingId, sessionId);
     }
 
     /**
@@ -224,13 +231,15 @@ public class BroadcastService {
         sessions.forEach((meetingId, session) -> {
             if (!session.isAlive()) {
                 log.warn("방송 프로세스가 죽어 있다 - meetingId={}. 정리한다", meetingId);
-                closeSession(meetingId);
+                BroadcastSession closed = closeSession(meetingId);
+                finishReapedSession(meetingId, closed == null ? null : closed.getSessionId());
                 return;
             }
             if (session.idleMillis() > limit) {
                 log.warn("방송이 {}ms 동안 조용하다 - meetingId={}. 발표자가 사라진 것으로 본다",
                         session.idleMillis(), meetingId);
-                closeSession(meetingId);
+                BroadcastSession closed = closeSession(meetingId);
+                finishReapedSession(meetingId, closed == null ? null : closed.getSessionId());
             }
         });
     }
@@ -254,6 +263,11 @@ public class BroadcastService {
      * 되살릴 수가 없다. 송출은 <b>발표자 브라우저가 조각을 밀어 넣어야</b> 이어진다.
      * 서버 혼자 다시 시작할 수 있는 것이 아니다. 그러니 <b>상태를 사실에 맞추는 것</b>이
      * 할 수 있는 전부다. 발표자는 다시 시작 버튼을 눌러야 한다.
+     *
+     * <p><b>HLS 파일은 여기서 지우지 않는다.</b> 블루/그린 배포에서는 새 슬롯이 먼저
+     * 기동되는 동안 옛 슬롯의 ffmpeg 가 아직 송출 중일 수 있다. 새 슬롯이 파일을 지우면
+     * 살아 있는 방송을 끊는다. 이전 파일은 다음 방송 시작의 {@link #prepareDirectory(Path)} 가
+     * 정리한다.
      *
      * <h3>정리가 실패해도 기동은 막지 않는다</h3>
      * 이건 <b>청소 작업이지 기동 조건이 아니다.</b> 여기서 예외가 새면
@@ -304,10 +318,39 @@ public class BroadcastService {
         return sessions.get(meetingId);
     }
 
-    private void closeSession(Long meetingId) {
+    private BroadcastSession closeSession(Long meetingId) {
         BroadcastSession session = sessions.remove(meetingId);
         if (session != null) {
             session.close();
+        }
+        return session;
+    }
+
+    /**
+     * 유휴·사망 세션을 DB에서도 끝낸다. 스케줄러에는 트랜잭션이 없으므로 기동 정리와 같이
+     * TransactionTemplate 으로 경계를 만들고, 커밋이 성공한 뒤에만 파일 정리를 예약한다.
+     */
+    private void finishReapedSession(Long meetingId, String sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        try {
+            transactionTemplate.executeWithoutResult(status -> {
+                Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+                if (meeting == null) {
+                    log.warn("유휴 방송 정리 중 회의를 찾지 못했다 - meetingId={}, sessionId={}", meetingId, sessionId);
+                    return;
+                }
+                if (!meeting.stopBroadcastIf(sessionId)) {
+                    log.warn("다른 세대가 이미 방송 중이라 유휴 세션의 종료 상태를 바꾸지 않는다 - "
+                                    + "meetingId={}, closedSessionId={}, currentSessionId={}",
+                            meetingId, sessionId, meeting.getBroadcastSessionId());
+                }
+                removeSessionFilesAfterStop(meetingId, sessionId);
+            });
+        } catch (Exception e) {
+            log.warn("유휴 방송의 종료 상태를 기록하지 못했다 - meetingId={}, sessionId={}",
+                    meetingId, sessionId, e);
         }
     }
 
@@ -336,13 +379,45 @@ public class BroadcastService {
     private void prepareDirectory(Path dir) {
         try {
             Files.createDirectories(dir);
-            // 이전 방송의 세그먼트가 남아 있으면 플레이어가 옛 조각을 재생한다.
-            try (var stream = Files.list(dir)) {
-                stream.forEach(p -> p.toFile().delete());
-            }
+            HlsOutputFiles.removeAll(dir);
         } catch (IOException e) {
             throw new UncheckedIOException("방송 출력 디렉터리를 준비하지 못했습니다: " + dir, e);
         }
+    }
+
+    /**
+     * 방송이 끝난 뒤 <em>그 세션</em>의 HLS 산출물만 치운다.
+     * stop 은 트랜잭션 안에서 호출되므로 DB 종료 상태를 커밋한 뒤에만 실행한다.
+     */
+    private void removeSessionFilesAfterStop(Long meetingId, String sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        Runnable cleanup = () -> {
+            Path dir = outputDirectory(meetingId);
+            try {
+                HlsOutputFiles.removeSession(dir, sessionId);
+            } catch (IOException e) {
+                // 파일 삭제 실패가 이미 끝난 방송의 DB 상태를 되돌리면 안 된다.
+                log.warn("종료된 방송의 HLS 파일을 지우지 못했다 - meetingId={}, sessionId={}, dir={}",
+                        meetingId, sessionId, dir, e);
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    cleanup.run();
+                }
+            });
+            return;
+        }
+        cleanup.run();
+    }
+
+    private Path outputDirectory(Long meetingId) {
+        return Path.of(properties.getOutputDir(), "meeting-" + meetingId);
     }
 
     private Process spawn(List<String> cmd, Long meetingId) {

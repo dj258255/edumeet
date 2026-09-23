@@ -45,6 +45,8 @@ public class BroadcastSession {
     private static final byte[] POISON = new byte[0];
 
     private final Long meetingId;
+    /** 이 ffmpeg 가 만든 init·segment 파일의 식별자. 재시작 경쟁에서 이전 파일만 지운다. */
+    private final String sessionId;
     private final Process process;
     private final BroadcastCodecPlan codecPlan;
     private final String playlistUrl;
@@ -59,9 +61,10 @@ public class BroadcastSession {
     private final Thread writer;
     private final Thread stderrDrain;
 
-    public BroadcastSession(Long meetingId, Process process, BroadcastCodecPlan codecPlan,
+    public BroadcastSession(Long meetingId, String sessionId, Process process, BroadcastCodecPlan codecPlan,
                             String playlistUrl, int reorderWindow) {
         this.meetingId = meetingId;
+        this.sessionId = sessionId;
         this.process = process;
         this.codecPlan = codecPlan;
         this.playlistUrl = playlistUrl;

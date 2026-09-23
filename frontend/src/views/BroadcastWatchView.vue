@@ -20,6 +20,7 @@ import apiClient from '@/utils/apiClient'
 import { attachHls, loadHls } from '@/features/broadcast/hlsPlayer'
 import { metricText } from '@/features/broadcast/hlsMetrics'
 import { createQoeReporter, sendViaApi, sendKeepalive } from '@/features/broadcast/qoeReporter'
+import { createEndWatcher, livePlaylistUrl } from '@/features/broadcast/liveStatus'
 import BroadcastChat from '@/components/BroadcastChat.vue'
 import BroadcastCaption from '@/components/BroadcastCaption.vue'
 
@@ -32,10 +33,14 @@ const waiting = ref(true)
 const error = ref('')
 const reconnecting = ref(false)
 const metrics = ref(null)
+const ended = ref(false)
 
 let handle = null
 let timer = null
+let endStatusTimer = null
 let reporter = null
+let unmounted = false
+const endWatcher = createEndWatcher()
 
 // 탭을 닫거나 뒤로 가면 마지막 요약을 보낸다. fetch keepalive 라 언로드 중에도 나간다.
 function onPageHide() {
@@ -70,13 +75,38 @@ function playingDate() {
 async function findPlaylist() {
   try {
     const { data } = await apiClient.get(`/meeting/${meetingId}`)
-    return data.hlsPlaylistUrl || null
+    return livePlaylistUrl(data)
   } catch {
     return null
   }
 }
 
+function endPlayback() {
+  if (ended.value) return
+  ended.value = true
+  if (endStatusTimer) clearInterval(endStatusTimer)
+  endStatusTimer = null
+  reporter?.finalFlush()
+  reporter?.stop()
+  reporter = null
+  handle?.destroy()
+  handle = null
+}
+
+async function watchForBroadcastEnd() {
+  if (unmounted) return
+  try {
+    const { data } = await apiClient.get(`/meeting/${meetingId}`)
+    if (unmounted) return
+    if (endWatcher.observe(data)) endPlayback()
+  } catch {
+    // 조회 실패를 종료 신호로 오해하지 않는다. 연속 false 판정도 여기서 끊긴다.
+    if (!unmounted) endWatcher.observe(null)
+  }
+}
+
 onMounted(async () => {
+  unmounted = false
   const enteredAt = performance.now()
   loadHls()
   window.__edumeetPlayingDate = () => handle?.getPlayingDate?.()?.getTime() ?? null
@@ -85,22 +115,30 @@ onMounted(async () => {
   // 방송이 아직 안 켜졌을 수 있다. 몇 초마다 다시 본다.
   let firstLookup = true
   const tryAttach = async () => {
+    if (unmounted) return false
     const lookupStartedAt = performance.now()
     const url = await findPlaylist()
+    if (unmounted) return false
     const startAt = firstLookup ? enteredAt : lookupStartedAt
     firstLookup = false
     if (!url) return false
     playlistUrl.value = url
-    handle = await attachHls(videoEl.value, url, {
+    const attached = await attachHls(videoEl.value, url, {
       startAt,
-      onError: (e) => { error.value = e.message },
+      onError: (e) => {
+        if (!unmounted) error.value = e.message
+      },
       onStatus: (status) => {
+        if (unmounted) return
         reconnecting.value = status?.state === 'reconnecting'
         if (status?.state === 'playing') error.value = ''
       },
-      onMetrics: (m) => { metrics.value = m },
+      onMetrics: (m) => {
+        if (!unmounted) metrics.value = m
+      },
       // 시청 품질 보고. (#197) 서버가 값을 검증하고 합계 지표·세션 로그로 남긴다.
       onQoe: (tracker, { native }) => {
+        if (unmounted) return
         reporter = createQoeReporter({
           meetingId,
           tracker,
@@ -111,11 +149,20 @@ onMounted(async () => {
         reporter.start()
       },
     })
+    // attachHls 가 동적으로 hls.js 를 불러오는 동안 화면을 떠날 수 있다.
+    // 늦게 완료한 핸들은 화면 상태·타이머에 넣지 말고 그 자리에서 정리한다.
+    if (unmounted) {
+      attached.destroy()
+      return false
+    }
+    handle = attached
     waiting.value = false
+    // 재생을 붙인 뒤에도 상태를 본다. 종료된 옛 HLS 조각을 계속 틀지 않는다.
+    endStatusTimer = setInterval(watchForBroadcastEnd, 10_000)
     return true
   }
 
-  if (!(await tryAttach())) {
+  if (!(await tryAttach()) && !unmounted) {
     timer = setInterval(async () => {
       if (await tryAttach()) clearInterval(timer)
     }, 3000)
@@ -123,6 +170,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  unmounted = true
   window.removeEventListener('pagehide', onPageHide)
   delete window.__edumeetPlayingDate
   // SPA 안에서 화면을 떠나는 경우다. pagehide 와 겹쳐도 final 은 리포터가 한 번만 보낸다.
@@ -131,6 +179,7 @@ onBeforeUnmount(() => {
     reporter.stop()
   }
   if (timer) clearInterval(timer)
+  if (endStatusTimer) clearInterval(endStatusTimer)
   if (handle) handle.destroy()
 })
 </script>
@@ -142,7 +191,8 @@ onBeforeUnmount(() => {
     <section class="watch__stage">
       <video ref="videoEl" controls autoplay playsinline muted class="watch__video"></video>
 
-      <p v-if="waiting" class="watch__overlay">방송이 시작되기를 기다리는 중입니다…</p>
+      <p v-if="ended" class="watch__overlay" role="status">방송이 끝났습니다</p>
+      <p v-else-if="waiting" class="watch__overlay">방송이 시작되기를 기다리는 중입니다…</p>
       <p v-else-if="reconnecting" class="watch__overlay" role="status">연결이 끊겨 다시 연결하는 중…</p>
       <p v-else-if="error" class="watch__overlay watch__overlay--error" role="alert">{{ error }}</p>
 
