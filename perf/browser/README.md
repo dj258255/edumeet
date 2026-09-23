@@ -109,6 +109,14 @@ BITRATE_K=1200 RUN=c199-1200 ./scripts/run-qoe-crosscheck.sh
 원본 한 줄씩은 같은 폴더의 `chunks.csv`(`seq,startedAt,ms,status,error`)에 남는다.
 게이트 실행은 `scripts/run-chunk-under-fanout.sh` 가 한다.
 
+측정 앱은 **2코어 컨테이너**로 띄운다 - `#200` 의 질문이 "2코어에서" 이기 때문이다.
+띄우는 법·한계·프로파일 덮어쓰기는 `perf/app/README.md` 에 있다.
+
+```bash
+./scripts/run-perf-app-2cpu.sh            # 앱 (health UP 까지)
+eval "$(node perf/app/provision.mjs)"     # TOKEN·MEETING_ID
+```
+
 - `ms` 는 **fetch 왕복만**이다. 409 뒤의 재시작·백오프는 빼야 한다 - 포함하면 실제 POST 가
   짧아도 p99 가 수 초로 부풀려진다(#200 검토).
 - 게이트는 `chunks.csv` 를 **k6 부하 창 안으로 잘라** 집계한다(방송이 창보다 오래 살아 있다).

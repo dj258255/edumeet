@@ -181,7 +181,17 @@ run_round() {
   mkdir -p "$dir"
   log "== 조건 $tag — 채팅 부하 ${chat} · 창 ${WINDOW_S}초 · 산출물 $dir =="
   start_broadcast "$dir" "$tag"
-  [ "$DRY_RUN" != 1 ] && sleep 5     # 방송이 붙어 첫 조각을 올릴 때까지
+
+  # ★ 방송이 **조각을 받아들이기 시작할 때까지** 기다린다 (#200e 에서 확인).
+  #   시작 직후 몇 초는 앱의 HLS 파이프라인이 아직 안 서서 429 가 난다 - 그 실패가 부하 창
+  #   안에 들어오면 게이트가 "밀린다" 로 잘못 판정한다. 5초 고정 대기로는 부족했다.
+  if [ "$DRY_RUN" != 1 ]; then
+    for _ in $(seq 1 30); do
+      sent=$(jget "$dir/broadcast.json" "d.get('chunksSent',0) or 0")
+      [ -n "$sent" ] && [ "$sent" -gt 0 ] 2>/dev/null && break
+      sleep 1
+    done
+  fi
 
   # ★ 조각 집계를 자를 구간. k6 가 실제로 도는 창과 같게 잡는다 (#200 검토 4).
   WINDOW_FROM="$(now_iso)"
@@ -212,13 +222,28 @@ run_round() {
       problem "${names[$i]} 요약 파일이 없다 ($summary) - 그 조건은 측정되지 않았다"
     fi
   done
-  WINDOW_TO="$(date -u -v+"${WINDOW_S}"S +%Y-%m-%dT%H:%M:%S.000Z 2>/dev/null \
-    || date -u -d "+${WINDOW_S} seconds" +%Y-%m-%dT%H:%M:%S.000Z)"
+  # ★ 창의 끝은 **k6 가 끝난 지금**이다. 처음엔 WINDOW_FROM + WINDOW_S 로 계산했는데,
+  #   그 시점의 now 가 이미 창이 끝난 뒤라 창이 두 배가 됐고, 종료 DELETE 뒤에 도착한 조각의
+  #   409 까지 창 안에 들어왔다(#200e 에서 환경을 띄우고 스모크를 돌려 보고 찾았다).
+  WINDOW_TO="$(now_iso)"
   printf '%s %s\n' "$WINDOW_FROM" "$WINDOW_TO" > "$dir/window.txt"
 
   check_broadcast_alive
   stop_broadcast
-  [ "$DRY_RUN" != 1 ] && sleep 3     # 마지막 조각 응답이 파일에 반영될 시간
+
+  # ★ 방송 세션이 **실제로 사라진 것**을 보고 다음 회차로 간다 (#200e 에서 확인).
+  #   종료 DELETE 가 늦게 도착하면 다음 회차 세션을 지워 그 조각이 409 로 실패한다 -
+  #   그 실패가 부하 창에 들어오면 게이트가 "밀린다" 로 잘못 판정한다.
+  if [ "$DRY_RUN" != 1 ]; then
+    for _ in $(seq 1 20); do
+      live=$(curl -fsS --max-time 3 -H "Authorization: Bearer $TOKEN" \
+        "$BASE_URL/api/v1/meeting/$MEETING_ID" 2>/dev/null \
+        | python3 -c "import json,sys; print(json.load(sys.stdin).get('broadcasting'))" 2>/dev/null)
+      [ "$live" != "True" ] && break
+      sleep 1
+    done
+    sleep 3     # 마지막 조각 응답이 파일에 반영될 시간
+  fi
 
   if remote "$BROADCAST_HOST"; then
     # ★ 회차가 끝난 **뒤에** 가져온다 (#200 검토 3). 시작 직후에 가져오면 아직 없다.
