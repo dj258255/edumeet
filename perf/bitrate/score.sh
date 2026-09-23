@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: score.sh --source FILE --encoded FILE --duration-s N --out FILE [--ocr --truth-dir DIR]" >&2
+  echo "usage: score.sh --source FILE --encoded FILE --duration-s N --out FILE [--metadata FILE] [--ocr --truth-dir DIR]" >&2
   exit 2
 }
 
@@ -11,6 +11,7 @@ ENCODED=
 TRUTH_DIR=
 DURATION=
 OUT=
+METADATA=
 DO_OCR=0
 SKIP_SECONDS=${SKIP_SECONDS:-2}
 while [[ $# -gt 0 ]]; do
@@ -20,6 +21,7 @@ while [[ $# -gt 0 ]]; do
     --truth-dir) TRUTH_DIR=$2; shift 2 ;;
     --duration-s) DURATION=$2; shift 2 ;;
     --out) OUT=$2; shift 2 ;;
+    --metadata) METADATA=$2; shift 2 ;;
     --ocr) DO_OCR=1; shift ;;
     *) usage ;;
   esac
@@ -29,6 +31,7 @@ TRUTH_FAILURE_REASON=
 if [[ "$DO_OCR" == 1 && ( -z "$TRUTH_DIR" || ! -d "$TRUTH_DIR" ) ]]; then
   TRUTH_FAILURE_REASON='채점 실패(OCR 정답 디렉터리 없음)'
 fi
+METADATA_PATH=${METADATA:-${OUT}.recording.json}
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/edumeet-bitrate-score.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
@@ -59,23 +62,23 @@ ENCODED_WIDTH=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(proce
 ENCODED_HEIGHT=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).streams?.[0]?.height ?? 0)' "$WORK/encoded-probe.json")
 if [[ "$ENCODED_WIDTH" -ne 1280 || "$ENCODED_HEIGHT" -ne 720 ]]; then
   node "$SCRIPT_DIR/failure-result.mjs" "$OUT" "채점 실패(해상도 ${ENCODED_WIDTH}x${ENCODED_HEIGHT})" \
-    "$WORK/source-probe.json" "$WORK/encoded-probe.json"
+    "$WORK/source-probe.json" "$WORK/encoded-probe.json" - "$METADATA_PATH"
   exit 1
 fi
 if [[ -n "$TRUTH_FAILURE_REASON" ]]; then
   node "$SCRIPT_DIR/failure-result.mjs" "$OUT" "$TRUTH_FAILURE_REASON" \
-    "$WORK/source-probe.json" "$WORK/encoded-probe.json"
+    "$WORK/source-probe.json" "$WORK/encoded-probe.json" - "$METADATA_PATH"
   exit 1
 fi
 ffmpeg -hide_banner -loglevel error -y -i "$SOURCE" \
   -vf "crop=${BAND_WIDTH}:${BAND_HEIGHT}:${BAND_X}:${BAND_Y},format=gray" \
-  -frames:v "$SOURCE_FRAMES" -f rawvideo "$WORK/source-band.gray"
+  -vsync 0 -frames:v "$SOURCE_FRAMES" -f rawvideo "$WORK/source-band.gray"
 ffmpeg -hide_banner -loglevel error -y -i "$ENCODED" \
   -vf "crop=${BAND_WIDTH}:${BAND_HEIGHT}:${BAND_X}:${BAND_Y},format=gray" \
-  -frames:v "$ENCODED_FRAMES" -f rawvideo "$WORK/encoded-band.gray"
+  -vsync 0 -frames:v "$ENCODED_FRAMES" -f rawvideo "$WORK/encoded-band.gray"
 if ! node "$SCRIPT_DIR/decode-band.mjs" "$WORK/source-band.gray" "$SOURCE_FRAMES" "$SOURCE_FRAMES" "$WORK/source-decode.json" - source; then
   node "$SCRIPT_DIR/failure-result.mjs" "$OUT" '채점 실패(원본 프레임 띠 self-check)' \
-    "$WORK/source-probe.json" "$WORK/encoded-probe.json" "$WORK/source-decode.json"
+    "$WORK/source-probe.json" "$WORK/encoded-probe.json" "$WORK/source-decode.json" "$METADATA_PATH"
   exit 1
 fi
 node "$SCRIPT_DIR/decode-band.mjs" "$WORK/encoded-band.gray" "$ENCODED_FRAMES" "$SOURCE_FRAMES" \
@@ -154,13 +157,13 @@ ENCODED_SELECT=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(proc
 if [[ "$PAIR_COUNT" -eq 0 ]]; then
   # 빈 결과도 호출자에게 보이는 실패 행으로 남긴다. 그래야 21개 사다리 중
   # 한 항목이 조용히 사라져 채점 성공처럼 보이지 않는다.
-  node --input-type=module - "$OUT" "$WORK/encoded-probe.json" "$PAIR_PATH" <<'NODE'
+  node --input-type=module - "$OUT" "$WORK/encoded-probe.json" "$PAIR_PATH" "$METADATA_PATH" <<'NODE'
 import { readFile, writeFile } from 'node:fs/promises'
 
-const [outPath, encodedProbePath, pairPath] = process.argv.slice(2)
+const [outPath, encodedProbePath, pairPath, metadataPath] = process.argv.slice(2)
 const encodedProbe = JSON.parse(await readFile(encodedProbePath, 'utf8')).streams?.[0] ?? {}
 const pairing = JSON.parse(await readFile(pairPath, 'utf8'))
-const meta = JSON.parse(await readFile(`${outPath}.recording.json`, 'utf8').catch(() => '{}'))
+const meta = JSON.parse(await readFile(metadataPath, 'utf8').catch(() => '{}'))
 const duration = Number(encodedProbe.duration)
 const actualKbps = Number.isFinite(meta.bytes) && duration > 0 ? meta.bytes * 8 / duration / 1000 : null
 const result = {
@@ -207,6 +210,50 @@ ffmpeg -hide_banner -loglevel error -y -i "$ENCODED" \
 ffmpeg -hide_banner -loglevel error -y -i "$SOURCE" \
   -vf "${SOURCE_SELECT},setpts=N/30/TB,format=yuv420p" -frames:v "$PAIR_COUNT" \
   -an -c:v rawvideo -r 30 -f yuv4mpegpipe "$WORK/source-paired.y4m"
+
+# 실제 VMAF/PSNR 입력으로 만들어진 두 영상의 띠를 다시 읽어, select 결과가
+# 중복 지점에서 서로 밀리지 않았는지 채점 전에 확인한다.
+PAIR_BAND_CHECK="$WORK/pair-band-check.json"
+ffmpeg -hide_banner -loglevel error -y -i "$WORK/encoded-paired.y4m" \
+  -vf "crop=${BAND_WIDTH}:${BAND_HEIGHT}:${BAND_X}:${BAND_Y},format=gray" \
+  -frames:v "$PAIR_COUNT" -f rawvideo "$WORK/encoded-paired-band.gray"
+ffmpeg -hide_banner -loglevel error -y -i "$WORK/source-paired.y4m" \
+  -vf "crop=${BAND_WIDTH}:${BAND_HEIGHT}:${BAND_X}:${BAND_Y},format=gray" \
+  -frames:v "$PAIR_COUNT" -f rawvideo "$WORK/source-paired-band.gray"
+node "$SCRIPT_DIR/decode-band.mjs" "$WORK/encoded-paired-band.gray" "$PAIR_COUNT" "$SOURCE_FRAMES" \
+  "$WORK/encoded-paired-decode.json" - >/dev/null
+node "$SCRIPT_DIR/decode-band.mjs" "$WORK/source-paired-band.gray" "$PAIR_COUNT" "$SOURCE_FRAMES" \
+  "$WORK/source-paired-decode.json" - >/dev/null
+node --input-type=module - "$WORK/encoded-paired-decode.json" "$WORK/source-paired-decode.json" "$PAIR_BAND_CHECK" <<'NODE'
+import { readFile, writeFile } from 'node:fs/promises'
+
+const [encodedPath, sourcePath, outPath] = process.argv.slice(2)
+const encoded = JSON.parse(await readFile(encodedPath, 'utf8'))
+const source = JSON.parse(await readFile(sourcePath, 'utf8'))
+const length = Math.max(encoded.frames.length, source.frames.length)
+const mismatches = []
+for (let index = 0; index < length; index += 1) {
+  const left = encoded.frames[index]
+  const right = source.frames[index]
+  if (!left?.valid || !right?.valid || left.sourceIndex !== right.sourceIndex) {
+    mismatches.push({
+      pairIndex: index,
+      encoded: left?.sourceIndex ?? null,
+      source: right?.sourceIndex ?? null,
+    })
+  }
+}
+const result = {
+  ok: encoded.decodeFailures === 0 && source.decodeFailures === 0 && mismatches.length === 0,
+  frames: length,
+  mismatches: mismatches.slice(0, 20),
+  mismatchCount: mismatches.length,
+  encodedDecodeFailures: encoded.decodeFailures,
+  sourceDecodeFailures: source.decodeFailures,
+}
+await writeFile(outPath, JSON.stringify(result, null, 2) + '\n')
+console.log(JSON.stringify(result))
+NODE
 
 PSNR_LOG="$WORK/psnr.log"
 ffmpeg -hide_banner -loglevel error -y -i "$WORK/encoded-paired.y4m" -i "$WORK/source-paired.y4m" \
@@ -268,16 +315,17 @@ if [[ "$DO_OCR" == 1 ]]; then
   done
 fi
 
-node --input-type=module - "$VMAF_JSON" "$TRUTH_DIR" "$WORK" "$OUT" "$WORK/source-probe.json" "$WORK/encoded-probe.json" "$PAIR_PATH" "$PSNR_LOG" "$DO_OCR" "$LOW_VMAF_JSON" "$LOW_VMAF_DIR" <<'NODE'
+node --input-type=module - "$VMAF_JSON" "$TRUTH_DIR" "$WORK" "$OUT" "$WORK/source-probe.json" "$WORK/encoded-probe.json" "$PAIR_PATH" "$PSNR_LOG" "$DO_OCR" "$LOW_VMAF_JSON" "$LOW_VMAF_DIR" "$METADATA_PATH" "$PAIR_BAND_CHECK" <<'NODE'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 
-const [vmafPath, truthDir, workDir, outPath, sourceProbePath, encodedProbePath, pairPath, psnrPath, doOcrArg, lowVmafPath, lowVmafDir] = process.argv.slice(2)
+const [vmafPath, truthDir, workDir, outPath, sourceProbePath, encodedProbePath, pairPath, psnrPath, doOcrArg, lowVmafPath, lowVmafDir, metadataPath, pairBandCheckPath] = process.argv.slice(2)
 const vmaf = JSON.parse(await readFile(vmafPath, 'utf8'))
 const sourceProbe = JSON.parse(await readFile(sourceProbePath, 'utf8')).streams?.[0] ?? {}
 const encodedProbe = JSON.parse(await readFile(encodedProbePath, 'utf8')).streams?.[0] ?? {}
 const pairing = JSON.parse(await readFile(pairPath, 'utf8'))
 const lowVmaf = JSON.parse(await readFile(lowVmafPath, 'utf8'))
+const pairBandCheck = JSON.parse(await readFile(pairBandCheckPath, 'utf8'))
 const psnrLines = (await readFile(psnrPath, 'utf8')).split('\n')
 const psnrValues = psnrLines.map((line) => Number(line.match(/psnr_avg:([0-9.]+)/u)?.[1])).filter(Number.isFinite)
 const psnrMean = psnrValues.length ? psnrValues.reduce((sum, value) => sum + value, 0) / psnrValues.length : null
@@ -355,7 +403,7 @@ for (const name of sceneFiles) {
   })
 }
 const average = (key) => sceneScores.length ? sceneScores.reduce((sum, row) => sum + row[key], 0) / sceneScores.length : null
-const meta = JSON.parse(await readFile(`${outPath}.recording.json`, 'utf8').catch(() => '{}'))
+const meta = JSON.parse(await readFile(metadataPath, 'utf8').catch(() => '{}'))
 const sourceInfo = probeInfo(sourceProbe)
 const encodedInfo = probeInfo(encodedProbe)
 const actualKbps = meta.bytes != null && encodedInfo.durationSeconds > 0
@@ -365,6 +413,7 @@ const failureReasons = []
 if (!pairing.pairFrames) failureReasons.push('짝 0개')
 if (!values.length) failureReasons.push('VMAF 프레임 0개')
 if (doOcrArg === '1' && !sceneFiles.length) failureReasons.push('OCR 정답 파일 없음')
+if (!pairBandCheck.ok) failureReasons.push('정렬 실패(VMAF/PSNR 입력 띠 불일치)')
 const result = {
   requestedKbps: meta.requestedKbps ?? null,
   actualKbps,
@@ -396,6 +445,7 @@ const result = {
     sourceFailureCounts: pairing.sourceFailureCounts,
     ptsResidualMedian: pairing.ptsResidualMedian,
   },
+  pairBandCheck,
   pairing: {
     frames: pairing.pairFrames,
     droppedFrames: pairing.droppedFrames,
@@ -406,7 +456,7 @@ const result = {
   },
   pairedPsnrMean: psnrMean,
   vmafLowDiagnostics,
-  alignmentStatus: failureReasons.length ? '채점 실패' : '정렬 확인',
+  alignmentStatus: !pairBandCheck.ok ? '정렬 실패' : failureReasons.length ? '채점 실패' : '정렬 확인',
   failureReasons,
   status: failureReasons.length ? '채점 실패' : '완료',
 }

@@ -6,61 +6,124 @@ SCRIPT_DIR="$ROOT/perf/bitrate"
 RUN_ID=${1:-}
 RECORD_SECONDS=${2:-${RECORD_SECONDS:-40}}
 FONT_PATH=${3:-${FONT_PATH:-}}
+RESCORE=${RESCORE:-0}
 if [[ -z "$RUN_ID" ]]; then
   echo "usage: run.sh RUN_ID [RECORD_SECONDS] [FONT_PATH]" >&2
   echo "  RECORD_SECONDS is the duration of each browser recording (use 40 to cover all four 10-second slides)." >&2
+  exit 2
+fi
+if [[ "$RESCORE" != 0 && "$RESCORE" != 1 ]]; then
+  echo 'RESCORE must be 0 or 1' >&2
   exit 2
 fi
 
 OUT="$SCRIPT_DIR/out/$RUN_ID"
 SOURCES="$OUT/sources"
 RECORDINGS="$OUT/recordings"
-RESULTS="$OUT/results"
-mkdir -p "$OUT" "$RECORDINGS" "$RESULTS"
+if [[ "$RESCORE" == 1 ]]; then
+  RESCORE_STAMP=${RESCORE_TIMESTAMP:-$(date +%Y%m%d%H%M%S)}
+  candidate_stamp=$RESCORE_STAMP
+  suffix=1
+  while [[ -e "$OUT/results-$candidate_stamp" || -e "$OUT/table-$candidate_stamp.md" ]]; do
+    candidate_stamp="${RESCORE_STAMP}-${suffix}"
+    suffix=$((suffix + 1))
+  done
+  RESCORE_STAMP=$candidate_stamp
+  RESULTS="$OUT/results-$RESCORE_STAMP"
+  TABLE_PATH="$OUT/table-$RESCORE_STAMP.md"
+  mkdir -p "$OUT" "$RESULTS"
+else
+  RESULTS="$OUT/results"
+  TABLE_PATH="$OUT/table.md"
+  mkdir -p "$OUT" "$RECORDINGS" "$RESULTS"
+fi
 
-command -v ffmpeg >/dev/null || { echo 'blocked: ffmpeg is required' >&2; exit 2; }
-FFMPEG_FILTERS=$(ffmpeg -filters 2>/dev/null)
-[[ "$FFMPEG_FILTERS" == *libvmaf* ]] || { echo 'blocked: ffmpeg libvmaf filter is required' >&2; exit 2; }
-command -v tesseract >/dev/null || { echo 'blocked: tesseract is required' >&2; exit 2; }
-tesseract --list-langs 2>&1 | grep -qx 'kor' || {
-  echo 'blocked: tesseract kor language data is required (eng alone is not enough for the Korean slides)' >&2
-  exit 2
-}
+NEEDS_SCORING=1
+if [[ "$RESCORE" == 1 ]]; then
+  NEEDS_SCORING=0
+  if [[ -d "$SOURCES" && -d "$RECORDINGS" && -f "$SOURCES/slides.y4m" ]] \
+    && compgen -G "$RECORDINGS/*/*.webm" >/dev/null; then
+    NEEDS_SCORING=1
+  fi
+fi
+if [[ "$NEEDS_SCORING" == 1 ]]; then
+  command -v ffmpeg >/dev/null || { echo 'blocked: ffmpeg is required' >&2; exit 2; }
+  FFMPEG_FILTERS=$(ffmpeg -filters 2>/dev/null)
+  [[ "$FFMPEG_FILTERS" == *libvmaf* ]] || { echo 'blocked: ffmpeg libvmaf filter is required' >&2; exit 2; }
+  command -v tesseract >/dev/null || { echo 'blocked: tesseract is required' >&2; exit 2; }
+  requested_ocr_lang=${OCR_LANG:-kor+eng}
+  if [[ "$requested_ocr_lang" == *kor* ]]; then
+    tesseract --list-langs 2>&1 | grep -qx 'kor' || {
+      echo 'blocked: tesseract kor language data is required (set OCR_LANG=eng only for an English-only rescore)' >&2
+      exit 2
+    }
+  fi
+fi
 
-echo '[1/3] generating sources'
-"$SCRIPT_DIR/make-sources.sh" "$SOURCES" "$FONT_PATH"
+if [[ "$RESCORE" == 1 ]]; then
+  echo "[1/3] RESCORE=$RESCORE_STAMP: using existing sources and recordings"
+else
+  echo '[1/3] generating sources'
+  "$SCRIPT_DIR/make-sources.sh" "$SOURCES" "$FONT_PATH"
+fi
 
-echo '[2/3] recording Chromium and Chrome ladders'
+if [[ "$RESCORE" == 1 ]]; then
+  echo '[2/3] RESCORE: skipping browser recording'
+else
+  echo '[2/3] recording Chromium and Chrome ladders'
+fi
 declare -a RESULT_FILES=()
 FAILURE_COUNT=0
 for browser in chromium chrome; do
   browser_recordings="$RECORDINGS/$browser"
   browser_results="$RESULTS/$browser"
-  mkdir -p "$browser_recordings" "$browser_results"
+  if [[ "$RESCORE" == 1 ]]; then
+    mkdir -p "$browser_results"
+  else
+    mkdir -p "$browser_recordings" "$browser_results"
+  fi
   for content in slides handwriting camera; do
     for bitrate in 300 500 700 1000 1500 2500 4000; do
       recording="$browser_recordings/${content}-${bitrate}.webm"
       echo "  ${browser} ${content} ${bitrate} kbps"
-      record_args=(
-        --source "$SOURCES/${content}.y4m" \
-        --bitrate-kbps "$bitrate" \
-        --duration-s "$RECORD_SECONDS" \
-        --out "$recording"
-      )
-      if [[ "$browser" == chrome ]]; then
-        record_args+=(--channel chrome)
-      fi
-      node "$SCRIPT_DIR/record.mjs" "${record_args[@]}"
-      # score.sh expects metadata adjacent to its JSON result. Keep recorder metadata
-      # separate from the score so actual bitrate is never replaced by the requested one.
       result="$browser_results/${content}-${bitrate}.json"
-      cp "$recording.json" "$result.recording.json"
+      if [[ "$RESCORE" == 1 ]]; then
+        if [[ ! -d "$SOURCES" ]]; then
+          node "$SCRIPT_DIR/failure-result.mjs" "$result" '채점 실패(source 없음)' /dev/null /dev/null - "$recording.json"
+          FAILURE_COUNT=$((FAILURE_COUNT + 1))
+          RESULT_FILES+=("$result")
+          continue
+        fi
+        if [[ ! -f "$recording" ]]; then
+          node "$SCRIPT_DIR/failure-result.mjs" "$result" '채점 실패(recording 없음)' /dev/null /dev/null - "$recording.json"
+          FAILURE_COUNT=$((FAILURE_COUNT + 1))
+          RESULT_FILES+=("$result")
+          continue
+        fi
+      else
+        record_args=(
+          --source "$SOURCES/${content}.y4m" \
+          --bitrate-kbps "$bitrate" \
+          --duration-s "$RECORD_SECONDS" \
+          --out "$recording"
+        )
+        if [[ "$browser" == chrome ]]; then
+          record_args+=(--channel chrome)
+        fi
+        node "$SCRIPT_DIR/record.mjs" "${record_args[@]}"
+        # score.sh expects metadata adjacent to its JSON result. Keep recorder metadata
+        # separate from the score so actual bitrate is never replaced by the requested one.
+        cp "$recording.json" "$result.recording.json"
+      fi
       score_args=(
         --source "$SOURCES/${content}.y4m"
         --encoded "$recording"
         --duration-s "$RECORD_SECONDS"
         --out "$result"
       )
+      if [[ "$RESCORE" == 1 ]]; then
+        score_args+=(--metadata "$recording.json")
+      fi
       if [[ "$content" == slides ]]; then
         score_args+=(--ocr --truth-dir "$SOURCES/truth")
       fi
@@ -73,14 +136,14 @@ for browser in chromium chrome; do
 done
 
 echo '[3/3] writing table'
-node --input-type=module - "$OUT/table.md" "${RESULT_FILES[@]}" <<'NODE'
+node --input-type=module - "$TABLE_PATH" "${RESULT_FILES[@]}" <<'NODE'
 import { readFile, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 const [outPath, ...files] = process.argv.slice(2)
 const rows = []
 for (const file of files) {
   const result = JSON.parse(await readFile(file, 'utf8'))
-  const match = file.match(/\/results\/(chromium|chrome)\/([^-]+)-(\d+)\.json$/u)
+  const match = file.match(/\/results(?:-[^/]+)?\/(chromium|chrome)\/([^-]+)-(\d+)\.json$/u)
   rows.push({ browser: match?.[1] ?? 'unknown', content: match?.[2] ?? basename(file), requested: Number(match?.[3]), ...result })
 }
 const number = (value) => value == null ? 'n/a' : Number(value).toFixed(2)

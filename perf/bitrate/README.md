@@ -17,6 +17,8 @@ npm install --prefix perf/browser
 
 사용법은 `run.sh RUN_ID [RECORD_SECONDS] [FONT_PATH]`이며 두 번째 인자는 각 브라우저 녹화 시간(초)이다. 40초를 써야 네 장의 10초 슬라이드 중앙 프레임을 모두 채점한다. 결과는 `perf/bitrate/out/2026-09-23-local/` 아래에 저장되며 `table.md`에 Chromium과 Chrome 표가 각각 나온다. `actual kbps`는 요청한 ladder 값이 아니라 파일 크기 × 8 / ffprobe video stream duration으로 계산하며, 벽시계 기반 값은 참고용으로만 보관한다. 실패 행이 있으면 마지막에 수를 출력하고 0이 아닌 코드로 끝난다.
 
+기존 `sources/`·`recordings/`를 브라우저 없이 다시 채점하려면 `RESCORE=1 ./perf/bitrate/run.sh RUN_ID 40`을 사용하며, 결과는 `results-<timestamp>/`와 `table-<timestamp>.md`에 새로 쓴다.
+
 ## 소스와 점수
 
 `make-sources.sh`는 1280x720, 30fps, 40초짜리 슬라이드·손글씨·움직이는 합성 카메라 소스를 만든다. 슬라이드에는 작은 글자, 숫자, 한국어/영어 문장과 움직이는 포인터가 있고 10초마다 장면이 바뀐다. 손글씨도 40초 길이이며 10초 주기의 획 그리기를 반복한다. `slides.truth.txt`와 `truth/scene-*.txt`는 OCR 정답이다. 화면에 실제로 그린 `EDUMEET #199` footer도 각 truth에 포함하고, 본문 textfile에서는 중복해서 그리지 않는다. 폰트는 두 번째 인자로 지정할 수 있으며, 기본값은 macOS/Linux에서 찾은 첫 글꼴이다.

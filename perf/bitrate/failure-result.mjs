@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises'
 
-const [outPath, reason, sourceProbePath, encodedProbePath, sourceDecodePath] = process.argv.slice(2)
+const [outPath, reason, sourceProbePath, encodedProbePath, sourceDecodePath, metadataPath] = process.argv.slice(2)
 if (!outPath || !reason || !sourceProbePath || !encodedProbePath) {
-  console.error('usage: failure-result.mjs OUT REASON SOURCE_PROBE ENCODED_PROBE [SOURCE_DECODE]')
+  console.error('usage: failure-result.mjs OUT REASON SOURCE_PROBE ENCODED_PROBE [SOURCE_DECODE|-] [METADATA]')
   process.exit(2)
 }
 
-const readJson = async (path, fallback = {}) => JSON.parse(await readFile(path, 'utf8').catch(() => JSON.stringify(fallback)))
+const readJson = async (path, fallback = {}) => {
+  try {
+    return JSON.parse(await readFile(path, 'utf8'))
+  } catch {
+    return fallback
+  }
+}
 const sourceProbe = (await readJson(sourceProbePath)).streams?.[0] ?? {}
 const encodedProbe = (await readJson(encodedProbePath)).streams?.[0] ?? {}
-const sourceDecode = sourceDecodePath ? await readJson(sourceDecodePath) : {}
-const meta = await readJson(`${outPath}.recording.json`)
+const sourceDecode = sourceDecodePath && sourceDecodePath !== '-' ? await readJson(sourceDecodePath) : {}
+const meta = await readJson(metadataPath || `${outPath}.recording.json`)
 const duration = Number(encodedProbe.duration)
 const number = (value) => {
   const parsed = Number(value)
