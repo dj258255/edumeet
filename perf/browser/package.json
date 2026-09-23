@@ -1,0 +1,10 @@
+{
+  "name": "edumeet-qoe-crosscheck",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "시청 품질 대조 하네스. 한 방송에서 브라우저 정답·보낸 값·서버 값을 모아 비교한다. (#197)",
+  "dependencies": {
+    "playwright": "^1.63.0"
+  }
+}
