@@ -36,6 +36,7 @@ LIVE_SYNC="${LIVE_SYNC:-}"
 # 따라잡기 재생 속도 (#233). 진단용이며 기본은 꺼짐 - 값을 주면 그 회차만 켠다.
 # 허용 값: 1 · 1.05 · 1.1 · 1.25 · 1.5
 CATCHUP_RATE="${CATCHUP_RATE:-}"
+CATCHUP_MODE="${CATCHUP_MODE:-}"   # off | always | adaptive (#233). 비면 앱 기본(끔)
 # 방송 전 대기 모드 (#235). waiting 이면 **시청자를 먼저** 띄우고 START_DELAY_S 초 뒤 방송을 시작한다.
 # 대기 화면은 3초마다 GET /meeting/{id} 로 방송 상태를 묻는다 - 시작 순간 그 조회가 몰린다.
 START_MODE="${START_MODE:-broadcast-first}"
@@ -78,6 +79,8 @@ fi
 # 방송 인자·명령 조립은 lib 에 있다 (#199). 실행 두 곳이 그 함수만 쓴다.
 # shellcheck source=scripts/lib/broadcast-args.sh
 . "$(dirname "$0")/lib/broadcast-args.sh"
+# shellcheck source=scripts/lib/viewer-args.sh
+. "$(dirname "$0")/lib/viewer-args.sh"
 
 # 원격 Playwright 이미지의 버전은 package.json 의 playwright와 반드시 맞춘다.
 PLAYWRIGHT_VERSION=$(node --input-type=module -e '
@@ -112,7 +115,7 @@ fi
 
 echo "== 준비 완료 =="
 echo "   RUN=$RUN  VIEWERS=$VIEWERS  방송 안전 상한=${BROADCAST_DURATION_S}s"
-echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}  CATCHUP_RATE=${CATCHUP_RATE:-끔}"
+echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}  CATCHUP_RATE=${CATCHUP_RATE:-끔}  CATCHUP_MODE=${CATCHUP_MODE:-끔}"
 echo "   START_MODE=$START_MODE${START_MODE:+ }$([ "$START_MODE" = waiting ] && echo "(방송 ${START_DELAY_S}초 뒤 시작)")"
 echo "   BITRATE_K=${BITRATE_K:-기본(2500)}"
 echo "   사이트=$SITE  서버=$SSH_HOST  네트워크=$DOCKER_NET"
@@ -452,36 +455,14 @@ MANIFEST_PID=$!
 start_viewers() {
 echo "== 시청자 $VIEWERS 대 =="
 # SCHEDULE 을 주면 그대로 넘긴다. 넘긴 일정은 산출물 폴더의 schedule.json 에 남는다.
-VIEWER_ARGS=(--run "$RUN" --viewers "$VIEWERS")
-if [ -n "$LIVE_SYNC" ]; then
-  VIEWER_ARGS+=(--live-sync "$LIVE_SYNC")
-fi
-if [ -n "$CATCHUP_RATE" ]; then
-  VIEWER_ARGS+=(--catchup-rate "$CATCHUP_RATE")
-fi
-if [ -n "${SCHEDULE:-}" ]; then
-  VIEWER_ARGS+=(--schedule "$SCHEDULE")
-  echo "   SCHEDULE 을 넘긴다 (schedule.json 에 기록됨)"
-fi
-if [ -n "${FORCE_PATH:-}" ]; then
-  VIEWER_ARGS+=(--force-path "$FORCE_PATH")
-  echo "   FORCE_PATH=$FORCE_PATH 를 넘긴다 (진단용 경로 강제)"
+# ★ 목록은 하나다 (#233). 아래 두 실행 경로가 **같은 배열**만 쓴다 - lib 주석 참조.
+build_viewer_args
+if [ -n "${CATCHUP_MODE:-}" ]; then
+  echo "   CATCHUP_MODE=$CATCHUP_MODE 를 넘긴다 (요청값은 viewer-k.json 의 requestedConfig 에 남는다)"
 fi
 if [ "$REMOTE_VIEWERS" -eq 1 ]; then
-  # ★ 목록은 **하나**다 (#233). 원격 경로가 VIEWER_ARGS 를 그대로 쓴다 -
-  #   여기서 인자를 손으로 다시 나열하면 새 옵션이 조용히 빠진다.
-  #   실제로 `--catchup-rate` 가 빠져 #233 그리드 11회차가 전부 "따라잡기 끔" 으로 돌았고,
-  #   준비 로그에는 CATCHUP_RATE 가 찍혀 있어 아무도 눈치채지 못했다.
-  REMOTE_ARGS=""
-  for arg in "${VIEWER_ARGS[@]}"; do
-    REMOTE_ARGS+=" $(shell_quote "$arg")"
-  done
-  REMOTE_DOCKER_CMD="docker run --rm --name edumeet-perf-viewers --ipc=host"
-  REMOTE_DOCKER_CMD+=" -v \"\$HOME/edumeet-perf:/work\" -w /work"
-  REMOTE_DOCKER_CMD+=" -e HOME=/tmp/h -e EDUMEET_PERF_ENV=/work/.perf.env"
-  REMOTE_DOCKER_CMD+=" $PLAYWRIGHT_IMAGE node qoe-crosscheck.mjs$REMOTE_ARGS"
   # shellcheck disable=SC2029 # 이 문자열은 viewer 호스트에서 실행돼야 한다.
-  ssh "$VIEWER_HOST" "$REMOTE_DOCKER_CMD" &
+  ssh "$VIEWER_HOST" "$(viewer_remote_command)" &
 else
   node "$BROWSER_DIR/qoe-crosscheck.mjs" "${VIEWER_ARGS[@]}" &
 fi

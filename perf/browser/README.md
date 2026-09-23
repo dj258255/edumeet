@@ -101,10 +101,32 @@ BITRATE_K=1200 RUN=c199-1200 ./scripts/run-qoe-crosscheck.sh
 따라잡기(재생 속도로 지연을 줄이는 손잡이)는 진단용으로만 켠다. (#233)
 
 ```bash
-CATCHUP_RATE=1.25 ./scripts/run-qoe-crosscheck.sh
+# 항상 켜기 (배율)
+CATCHUP_MODE=always CATCHUP_RATE=1.25 ./scripts/run-qoe-crosscheck.sh
+# 조건을 만족할 때만 켜기 (정상망에서만 1.1배)
+CATCHUP_MODE=adaptive ./scripts/run-qoe-crosscheck.sh
 ```
 
-`CATCHUP_RATE` 는 `1 · 1.05 · 1.1 · 1.25 · 1.5` 중 하나다. 그 밖의 값은 무시되고 따라잡기를 켜지 않는다.
+`CATCHUP_MODE` 는 `off · always · adaptive` 중 하나이고 **안 넘기면 앱 기본(끔)** 이다 -
+제품 기본을 바꾸는 것은 측정 뒤다. 그 밖의 값은 무시된다.
+
+- `always` 는 조건을 안 본다. `CATCHUP_RATE`(`1 · 1.05 · 1.1 · 1.25 · 1.5`)를 배율로 쓴다.
+  그 밖의 값은 무시되고 1.1 이 된다.
+- `adaptive` 는 `frontend/src/features/broadcast/catchupPolicy.js` 의 세 조건을 다 만족할 때만 켠다.
+  **최근 30초 끊김 없음 · 앞쪽 버퍼 ≥ 2초 · 대역 추정 ≥ 1.5 × 레벨 bitrate**(레벨을 모르면 이 조건은 건너뛴다).
+  껐다가 다시 켜기까지 10초를 기다린다(깜빡임 방지).
+
+켜면 `qoe-crosscheck` 가 시청자마다 `localStorage['edumeet.hls.maxLiveSyncPlaybackRate']`(항상)
+또는 `localStorage['edumeet.hls.catchupMode']`(모드)를 심고,
+정답 수집이 **재생 속도를 1초마다** 남긴다. `compare.mjs` 의 "따라잡기" 절이
+재생 속도가 1을 넘은 비율 · 연쇄 끊김(끊김 뒤 10초 안의 끊김) 수 · 화면 지연 p50/p95 를 낸다.
+`adaptive` 회차는 앱이 노출한 누적(`window.__edumeetCatchup`)에서
+**켜진 시간 비율 · 전환 횟수** 도 낸다 - 정책이 거의 안 켰는지, 조건 경계에서 흔들렸는지 본다.
+자막 읽기와 함께 봐야 한다 - `perf/captions/reading-speed.py` 가 그 표를 낸다.
+
+> ★ `adaptive` 가 끌 때는 앱이 `video.playbackRate = 1` 을 **직접** 되돌린다.
+> hls.js 의 latency-controller 는 설정이 1이면 일찍 return 해서 이미 올린 속도를 안 되돌린다
+> (1.5.20 `dist/hls.mjs` 4926행). 이 줄이 없으면 정책은 껐는데 화면은 1.1배로 계속 돈다.
 켜면 `qoe-crosscheck` 가 시청자마다 `localStorage['edumeet.hls.maxLiveSyncPlaybackRate']` 를 심고,
 정답 수집이 **재생 속도를 1초마다** 남긴다. `compare.mjs` 의 "따라잡기" 절이
 재생 속도가 1을 넘은 비율 · 연쇄 끊김(끊김 뒤 10초 안의 끊김) 수 · 화면 지연 p50/p95 를 낸다.
@@ -117,6 +139,13 @@ CATCHUP_RATE=1.25 ./scripts/run-qoe-crosscheck.sh
 네이티브 재생 시청자는 "적용 불가" 로 따로 센다 - hls.js 설정이 없는 경로이기 때문이다.
 (원격 경로가 `--catchup-rate` 를 안 넘겨 #233 그리드 11회차가 전부 "따라잡기 끔" 으로 돌았고,
 그 사실이 산출물에 없어서 나중에야 알았다.)
+
+인자 목록이 다시 갈라지지 않게 **실행 경로와 같은 함수**로 조립해 확인하는 자체 점검이 있다.
+
+```bash
+./scripts/selftest-viewer-args.sh    # 시청자: --catchup-mode 가 로컬·원격 두 경로에 다 있는가
+./scripts/selftest-broadcast-args.sh # 방송: --bitrate-k 가 두 경로에 다 있는가 (#199)
+```
 
 또 하나 - 따라잡기를 1보다 크게 요청했는데 **전원의 최대 재생 속도가 1** 이고 화면 지연 p50 이
 목표(조각 길이 × `liveSyncDurationCount`)보다 크면 경고 한 줄을 낸다. 켰는데 일을 안 한 경우다.

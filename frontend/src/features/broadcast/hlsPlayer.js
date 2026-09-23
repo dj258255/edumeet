@@ -19,6 +19,7 @@ import { createQoeTracker } from './playbackQoe'
 import { createRingLog, HLS_LOG_LIMIT } from './hlsDiagnostics'
 import { forcedPlaybackPath, choosePlaybackPath } from './playbackPath'
 import { createNativeRecovery } from './nativeRecovery'
+import { CATCHUP_ADAPTIVE_RATE, createCatchupState, decideCatchup } from './catchupPolicy'
 
 export async function attachHls(
   videoEl,
@@ -77,8 +78,11 @@ export async function attachHls(
     return { destroy: () => {}, native: false }
   }
 
-  // 진단용 따라잡기. 값이 없으면 항목 자체를 안 넣어 hls.js 기본(1 = 끔)을 쓴다.
-  const catchup = catchupRate()
+  // 진단용 따라잡기 (#233). 기본은 'off' - 제품 기본을 바꾸는 것은 측정 뒤다.
+  const mode = catchupMode()
+  const adaptive = mode === 'adaptive'
+  // always 의 배율은 기존 키(`maxLiveSyncPlaybackRate`)를 그대로 쓴다. 없으면 1.1.
+  const alwaysRate = catchupRate() ?? CATCHUP_ADAPTIVE_RATE
   const hls = new Hls({
     // 라이브에서 뒤로 밀리지 않게. 기본값은 버퍼를 크게 잡아 지연이 계속 늘어난다.
     lowLatencyMode: true,
@@ -86,7 +90,9 @@ export async function attachHls(
     backBufferLength: 30,
     // 첫 화면 중앙값 네이티브 1,625ms · hls.js 2,243ms. 미디어 소스가 붙기 전에 첫 조각을 미리 받는다.
     startFragPrefetch: true,
-    ...(catchup === null ? {} : { maxLiveSyncPlaybackRate: catchup }),
+    // off 면 항목 자체를 안 넣어 hls.js 기본(1 = 끔)을 쓴다.
+    // adaptive 는 1 로 시작해 정책이 켜 줄 때만 올린다 - 스스로 벌어야 한다.
+    ...(mode === 'off' ? {} : { maxLiveSyncPlaybackRate: adaptive ? 1 : alwaysRate }),
   })
 
   // ★ **hls.js 가 받아들인 값**을 노출한다 - 우리가 넘긴 객체가 아니다. (#233)
@@ -94,11 +100,21 @@ export async function attachHls(
   //   #233 그리드 11회차는 `--catchup-rate` 가 원격 경로에서 빠져 전부 "따라잡기 끔" 으로 돌았는데,
   //   산출물 어디에도 그 사실이 없어서 11회차를 다 돌고 나서야 알았다.
   //   경로 표시(`__edumeetPlaybackPath`)와 같은 방식이다 - destroy 에서 지운다.
-  window.__edumeetHlsConfig = hlsConfigSnapshot(hls.config)
+  window.__edumeetHlsConfig = hlsConfigSnapshot(hls.config, mode)
   hls.loadSource(playlistUrl)
   hls.attachMedia(videoEl)
 
-  const qoe = wireQoe(videoEl, onQoe, { native: false, startAt })
+  // ★ 끊김 시각은 **트래커의 판정**에서 받는다 (#233 검토 1).
+  //   조건은 트래커에 있다 - 첫 화면(playing) 전의 waiting 은 시작 대기이고,
+  //   탐색 중·일시정지 중의 waiting 은 버퍼가 아니라 사용자가 멈춘 것이다.
+  //   같은 조건을 여기 또 적으면 한쪽만 고쳐진다(실제로 그랬다).
+  const qoe = wireQoe(videoEl, onQoe, {
+    native: false,
+    startAt,
+    onStall: () => {
+      if (adaptive) catchupState.lastStallAt = Date.now()
+    },
+  })
 
   // ★ hls.js 가 왜 죽는지 보이게 한다. (#210)
   //   개수만 세면 종류·시점·앱이 한 조치를 알 수 없다. 최근 50건만 고리 버퍼에 남긴다.
@@ -175,8 +191,99 @@ export async function attachHls(
     errors: 0,
   }
 
-  const emitMetrics = () => onMetrics(snapshotHlsMetrics(hls, videoEl, state))
+  // ── 조건부 따라잡기 (#233) ──────────────────────────────────────────────────
+  //   정상망에서만 1.1배로 당긴다. 켤지 말지는 catchupPolicy 가 정하고, 여기서는 1초마다
+  //   관측값(앞쪽 버퍼·대역 추정·레벨 bitrate)을 넣고 결과를 설정과 노출에 반영한다.
+  const catchupState = createCatchupState()
+  let catchupLastTickAt = Date.now()
+  if (adaptive) {
+    // 하네스가 읽는다 (#233). 껐다 켠 시간과 전환 횟수 - "켜져 있었나" 만으로는
+    // 조건부가 실제로 얼마나 켜져 있었는지 알 수 없다.
+    window.__edumeetCatchup = { enabledMs: 0, disabledMs: 0, toggles: 0 }
+  }
+
+  /** 앞쪽 버퍼(초). 재생 위치가 속한 구간의 끝에서 현재 위치를 뺀다. */
+  const aheadSeconds = () => {
+    try {
+      const ranges = videoEl.buffered
+      for (let i = 0; i < ranges.length; i += 1) {
+        if (ranges.start(i) <= videoEl.currentTime && videoEl.currentTime <= ranges.end(i)) {
+          return ranges.end(i) - videoEl.currentTime
+        }
+      }
+      return 0
+    } catch {
+      return null // 메타데이터 전이라 못 읽는다 - 0 과 구분해야 조건을 못 채운다
+    }
+  }
+
+  /** 지금 재생 중인 레벨의 비트레이트. 아직 모르면 null - 정책이 그 조건을 건너뛴다. */
+  const levelBitrateBps = () => {
+    const level = hls.levels?.[hls.currentLevel]
+    return Number.isFinite(level?.bitrate) ? level.bitrate : null
+  }
+
+  /**
+   * 정책을 한 번 평가해 설정에 반영한다.
+   *
+   * ★ 끌 때 `videoEl.playbackRate = 1` 을 **직접** 한다.
+   *   hls.js 의 latency-controller 는 `maxLiveSyncPlaybackRate` 가 1 이면 일찍 return 해서
+   *   이미 올려 둔 재생 속도를 되돌리지 않는다(1.5.20 dist/hls.mjs 4926행).
+   *   설정만 1 로 내려놓으면 화면은 1.1배로 계속 돈다 - 정책이 껐는데 안 꺼진 것과 같다.
+   */
+  const applyCatchup = () => {
+    if (!adaptive) return
+    const now = Date.now()
+    const wasEnabled = catchupState.enabled
+    const enabled = decideCatchup(catchupState, {
+      now,
+      aheadSec: aheadSeconds(),
+      bandwidthBps: hls.bandwidthEstimate,
+      levelBitrateBps: levelBitrateBps(),
+    })
+    if (enabled !== catchupState.enabled) {
+      catchupState.enabled = enabled
+      catchupState.toggles += 1
+      if (!enabled) catchupState.disabledAt = now
+      hls.config.maxLiveSyncPlaybackRate = enabled ? CATCHUP_ADAPTIVE_RATE : 1
+      window.__edumeetHlsConfig = hlsConfigSnapshot(hls.config, mode)
+      if (!enabled) videoEl.playbackRate = 1
+    }
+    const counters = window.__edumeetCatchup
+    if (counters) {
+      // 경과 시간은 **직전 상태**에 더한다 - 그 간격 동안 실제로 그 상태였다.
+      //   (지금 상태에 더하면 켜져 있던 1초가 꺼진 뒤에 '꺼진 시간' 으로 잡힌다)
+      //   타이머가 밀려도 합계가 실제 시간과 맞도록 시계 차이를 쓴다.
+      const elapsed = now - catchupLastTickAt
+      counters[wasEnabled ? 'enabledMs' : 'disabledMs'] += elapsed
+      counters.toggles = catchupState.toggles
+    }
+    catchupLastTickAt = now
+  }
+
+  /**
+   * 마지막 tick 이후 시간을 **지금 상태**에 더한다. (#233 검토 3)
+   *
+   * <p>누적은 tick 마다만 늘어나므로 그냥 두면 마지막 tick 이후(최대 1초)가 빠진다 -
+   * 30초짜리 회차에서는 3% 가 조용히 사라지고, compare 는 이 값으로 '켜진 시간 비율' 을 낸다.
+   */
+  const finalizeCatchup = () => {
+    if (!adaptive) return
+    const counters = window.__edumeetCatchup
+    if (!counters) return
+    const now = Date.now()
+    const elapsed = now - catchupLastTickAt
+    if (elapsed > 0) counters[catchupState.enabled ? 'enabledMs' : 'disabledMs'] += elapsed
+    counters.toggles = catchupState.toggles
+    catchupLastTickAt = now
+  }
+
+  const emitMetrics = () => {
+    onMetrics(snapshotHlsMetrics(hls, videoEl, state))
+    applyCatchup()
+  }
   const timer = setInterval(emitMetrics, 1000)
+
 
   hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
     state.fragLoadMs = loadTimeMs(data?.stats)
@@ -243,11 +350,15 @@ export async function attachHls(
         clearTimeout(manifestRetryTimer)
         manifestRetryTimer = null
       }
+      // 화면을 떠나기 전에 누적을 마감한다 - 마지막 tick 이후 시간이 빠지면 안 된다. (#233 검토 3)
+      finalizeCatchup()
       qoe.destroy()
       hls.destroy()
       delete window.__edumeetPlaybackPath
       delete window.__edumeetHlsLog
       delete window.__edumeetHlsConfig
+      // ★ `__edumeetCatchup` 은 **지우지 않는다.** 하네스가 화면을 닫기 직전에 마지막으로 읽어
+      //   마지막 폴링(최대 1초 전) 이후 구간을 채운다. 다른 진단값과 달리 사후 판독이 목적이다.
     },
     /**
      * 지금 화면에 보이는 장면의 시각. (#185)
@@ -270,10 +381,12 @@ export async function attachHls(
  * 우리가 넘긴 값을 병합해 넘길 수 있다. 그러면 "안 넘기면 hls.js 기본(1 = 따라잡기 끔)" 이
  * 우리 가정이 아니라 라이브러리 값으로 확인된다.
  */
-export function hlsConfigSnapshot(config) {
+export function hlsConfigSnapshot(config, catchupModeValue = null) {
   return {
     liveSyncDurationCount: config?.liveSyncDurationCount ?? null,
     maxLiveSyncPlaybackRate: config?.maxLiveSyncPlaybackRate ?? null,
+    // 요청한 모드가 아니라 **앱이 실제로 든 모드**다 (#233). 요청과 대조하려고 남긴다.
+    catchupMode: catchupModeValue,
     lowLatencyMode: config?.lowLatencyMode ?? null,
     startFragPrefetch: config?.startFragPrefetch ?? null,
   }
@@ -318,6 +431,26 @@ export function manifestRetryDelayMs(attempt, random = Math.random) {
   if (attempt <= 0) return Math.round(random() * MANIFEST_RETRY_BASE_MS)
   const base = Math.min(MANIFEST_RETRY_BASE_MS * 2 ** (attempt - 1), MANIFEST_RETRY_MAX_MS)
   return Math.round(base * (0.5 + random())) // ±50%
+}
+
+/**
+ * 진단용 따라잡기 모드. (#233)
+ *
+ *   off      따라잡기 끔 (기본)
+ *   always   항상 켬 - 배율은 기존 `maxLiveSyncPlaybackRate` 키(없으면 1.1)
+ *   adaptive 조건을 만족할 때만 켬 (catchupPolicy) - 정상망에서만 1.1배
+ *
+ * `always` 가 그리드에서 탈락한 이유: 정상망 지연은 절반이 되지만 제한망 끊김이 30~65% 늘었다.
+ * 허용한 값만 읽고, 그 밖이면 끔으로 떨어진다(제품 기본을 바꾸지 않는다).
+ */
+export function catchupMode(storage) {
+  const allowed = ['off', 'always', 'adaptive']
+  try {
+    const value = (storage ?? globalThis.localStorage)?.getItem('edumeet.hls.catchupMode')
+    return allowed.includes(value) ? value : 'off'
+  } catch {
+    return 'off'
+  }
 }
 
 /** 진단용 liveSyncDurationCount. 사용자 설정이 아니며 허용한 값만 읽는다. */
@@ -444,10 +577,10 @@ function loadTimeMs(stats) {
  * <p>끊김(waiting → playing)은 두 경로 모두 <video> 이벤트로 잡힌다.
  * hls.js 의 버퍼 이벤트에 기대지 않으므로 Safari 네이티브에서도 세진다.
  */
-function wireQoe(videoEl, onQoe, { native, startAt = null }) {
+function wireQoe(videoEl, onQoe, { native, startAt = null, onStall = null }) {
   if (typeof onQoe !== 'function') return { tracker: null, destroy: () => {} }
 
-  const tracker = createQoeTracker()
+  const tracker = createQoeTracker({ onStall })
   const handlers = {
     playing: () => tracker.playing(),
     waiting: () => tracker.waiting(),
