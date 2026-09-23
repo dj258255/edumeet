@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadHlsModule } from './hlsPlayer'
+import { loadHls, loadHlsModule } from './hlsPlayer'
 import { choosePlaybackPath } from './playbackPath'
 
 /** attachHls 가 경로를 고를 때 쓰는 것과 같은 계산. */
@@ -11,6 +11,37 @@ function pathWith(Hls, nativeHlsSupported) {
 }
 
 describe('hls.js 동적 import', () => {
+  it('같은 로더를 여러 번 불러도 같은 약속을 돌려준다', async () => {
+    let calls = 0
+    const Hls = { isSupported: () => true }
+    const load = () => {
+      calls += 1
+      return Promise.resolve({ default: Hls })
+    }
+
+    const first = loadHls(load)
+    const second = loadHls(load)
+
+    expect(second).toBe(first)
+    await expect(first).resolves.toBe(Hls)
+    expect(calls).toBe(1)
+  })
+
+  it('import 실패 뒤에는 새로 시도한다', async () => {
+    let calls = 0
+    const Hls = { isSupported: () => true }
+    const load = () => {
+      calls += 1
+      return calls === 1
+        ? Promise.reject(new Error('chunk load failed'))
+        : Promise.resolve({ default: Hls })
+    }
+
+    await expect(loadHls(load)).resolves.toBeNull()
+    await expect(loadHls(load)).resolves.toBe(Hls)
+    expect(calls).toBe(2)
+  })
+
   it('모듈을 못 받으면 null 을 준다 - 던지지 않는다', async () => {
     await expect(loadHlsModule(() => Promise.reject(new Error('chunk load failed')))).resolves.toBeNull()
   })

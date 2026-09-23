@@ -17,7 +17,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import apiClient from '@/utils/apiClient'
-import { attachHls } from '@/features/broadcast/hlsPlayer'
+import { attachHls, loadHls } from '@/features/broadcast/hlsPlayer'
 import { metricText } from '@/features/broadcast/hlsMetrics'
 import { createQoeReporter, sendViaApi, sendKeepalive } from '@/features/broadcast/qoeReporter'
 import BroadcastChat from '@/components/BroadcastChat.vue'
@@ -78,6 +78,7 @@ async function findPlaylist() {
 
 onMounted(async () => {
   const enteredAt = performance.now()
+  loadHls()
   window.addEventListener('pagehide', onPageHide)
 
   // 방송이 아직 안 켜졌을 수 있다. 몇 초마다 다시 본다.
