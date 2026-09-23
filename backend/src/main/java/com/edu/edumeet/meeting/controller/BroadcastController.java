@@ -35,7 +35,7 @@ public class BroadcastController {
      *             요청한 값이 아니라 {@code recorder.mimeType} 를 그대로 보내야 한다.
      *             이 값으로 리먹싱이냐 재인코딩이냐가 갈린다.
      *             {@code segmentType} 은 {@code mpegts|fmp4}, {@code hlsTimeSec} 은
-     *             {@code 1|2} 이고 둘 다 생략하면 기존 설정을 쓴다.
+     *             {@code 1|2} 이고 둘 다 생략하면 기본값(fMP4·2초)을 쓴다.
      */
     @PostMapping
     public ResponseEntity<Map<String, String>> start(
@@ -53,8 +53,30 @@ public class BroadcastController {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * 조각 형식. 안 보내면 <b>fMP4</b> 다. (#198)
+     *
+     * <p><b>근거 (원격 송출·시청 10대 · 변형 6개 × 정상·제한 × 2회차)</b>
+     *
+     * <pre>
+     *                정상 지연 p50      제한 끊김/명      첫 화면
+     *   TS·2초(이전)  8.91 · 10.10초   36.2 · 34.3초   2,983 · 2,902ms
+     *   fMP4·2초      9.13 ·  9.87초   31.6 · 30.7초   2,482 · 2,698ms   ← 채택
+     *   1초 조각들     6.3 ~  8.0초    39.4 ~ 45.2초        -
+     * </pre>
+     *
+     * <p>지연은 TS 와 사실상 같고 <b>끊김이 −12%</b>, 첫 화면이 약 350ms 짧다.
+     * 1초 조각은 지연을 줄이지만 끊김이 +14~29% 늘어 기각했다 —
+     * 판단 기준은 "끊김이 늘지 않는 범위에서만 지연을 줄인다" 였다.
+     * (송출 1초·서버 조각 2초도 시도했지만 지연을 줄이지 못했다. 서버 조각은 다음 키프레임에서 닫혀
+     * 송출 단위와 무관하다.)
+     *
+     * <p>표와 측정 조건: {@code docs/performance/29-playback-qoe-crosscheck.md}
+     *
+     * <p>{@code mpegts} 를 <b>명시하면 그대로 TS</b> 다 - 되돌리기와 A/B 측정에 필요하다.
+     */
     static String parseSegmentType(Object value) {
-        String segmentType = value == null ? "mpegts" : stringValue(value);
+        String segmentType = value == null ? "fmp4" : stringValue(value);
         if (!"mpegts".equals(segmentType) && !"fmp4".equals(segmentType)) {
             throw new IllegalArgumentException("segmentType 은 mpegts 또는 fmp4 이어야 합니다.");
         }

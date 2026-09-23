@@ -26,7 +26,7 @@ RUN="${RUN:-$(date +%Y%m%d-%H%M%S)}"
 VIEWERS="${VIEWERS:-5}"
 # 방송은 시청자 일정에 맞춰 외부에서 내린다. 이 값은 안전 상한일 뿐 측정 종료 시각이 아니다.
 BROADCAST_DURATION_S="${BROADCAST_DURATION_S:-86400}"
-SEGMENT_TYPE="${SEGMENT_TYPE:-mpegts}"
+SEGMENT_TYPE="${SEGMENT_TYPE:-fmp4}"   # 앱 기본값과 같게 (#198)
 HLS_TIME="${HLS_TIME:-2}"
 CHUNK_MS="${CHUNK_MS:-2000}"
 LIVE_SYNC="${LIVE_SYNC:-}"

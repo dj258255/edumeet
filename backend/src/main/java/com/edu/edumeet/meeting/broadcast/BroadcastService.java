@@ -123,12 +123,17 @@ public class BroadcastService {
     /**
      * 방송을 시작한다.
      *
+     * <p>조각 형식을 안 고르면 컨트롤러 기본과 같은 <b>fMP4</b> 다. (#198)
+     * 두 입구의 기본이 갈라지면 "기본값" 이 하나가 아니게 된다 - 근거는
+     * {@code BroadcastController} 의 {@code parseSegmentType} 주석과
+     * {@code docs/performance/29-playback-qoe-crosscheck.md} 에 있다.
+     *
      * @param mimeType MediaRecorder 가 <b>실제로 고른</b> 값. 클라이언트가 원한 값이 아니다
      * @return 시청자에게 줄 플레이리스트 주소
      */
     @Transactional
     public String start(String email, Long meetingId, String mimeType) {
-        return start(email, meetingId, mimeType, "mpegts", null);
+        return start(email, meetingId, mimeType, "fmp4", null);
     }
 
     /**

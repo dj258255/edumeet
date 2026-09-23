@@ -27,18 +27,48 @@ class BroadcastControllerTest {
     }
 
     @Test
-    @DisplayName("옵션을 생략하면 기존 mpegts·기본 길이를 서비스에 넘긴다")
-    void defaults_keep_existing_behavior() {
+    @DisplayName("★ 옵션을 생략하면 fMP4·기본 길이를 서비스에 넘긴다 (#198 결정)")
+    void defaults_use_fmp4() {
         BroadcastService service = mock(BroadcastService.class);
         SecurityMember member = mock(SecurityMember.class);
         when(member.getEmail()).thenReturn("host@example.com");
-        when(service.start("host@example.com", 1L, "video/mp4", "mpegts", null))
+        when(service.start("host@example.com", 1L, "video/mp4", "fmp4", null))
                 .thenReturn("/hls/meeting-1/live.m3u8");
         BroadcastController controller = new BroadcastController(service);
 
         controller.start(member, 1L, Map.of("mimeType", "video/mp4"));
 
-        verify(service).start("host@example.com", 1L, "video/mp4", "mpegts", null);
+        verify(service).start("host@example.com", 1L, "video/mp4", "fmp4", null);
+    }
+
+    @Test
+    @DisplayName("★ mpegts 를 명시하면 그대로 TS 다 - 되돌리기와 A/B 측정에 필요하다")
+    void explicit_mpegts_stays_mpegts() {
+        BroadcastService service = mock(BroadcastService.class);
+        SecurityMember member = mock(SecurityMember.class);
+        when(member.getEmail()).thenReturn("host@example.com");
+        when(service.start("host@example.com", 1L, "video/mp4", "mpegts", 2))
+                .thenReturn("/hls/meeting-1/live.m3u8");
+        BroadcastController controller = new BroadcastController(service);
+
+        controller.start(member, 1L, Map.of("mimeType", "video/mp4", "segmentType", "mpegts", "hlsTimeSec", "2"));
+
+        verify(service).start("host@example.com", 1L, "video/mp4", "mpegts", 2);
+    }
+
+    @Test
+    @DisplayName("fmp4 를 명시해도 그대로 간다")
+    void explicit_fmp4_stays_fmp4() {
+        BroadcastService service = mock(BroadcastService.class);
+        SecurityMember member = mock(SecurityMember.class);
+        when(member.getEmail()).thenReturn("host@example.com");
+        when(service.start("host@example.com", 1L, "video/mp4", "fmp4", 1))
+                .thenReturn("/hls/meeting-1/live.m3u8");
+        BroadcastController controller = new BroadcastController(service);
+
+        controller.start(member, 1L, Map.of("mimeType", "video/mp4", "segmentType", "fmp4", "hlsTimeSec", "1"));
+
+        verify(service).start("host@example.com", 1L, "video/mp4", "fmp4", 1);
     }
 
     @Test
