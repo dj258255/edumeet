@@ -94,6 +94,17 @@ CATCHUP_RATE=1.25 ./scripts/run-qoe-crosscheck.sh
 재생 속도가 1을 넘은 비율 · 연쇄 끊김(끊김 뒤 10초 안의 끊김) 수 · 화면 지연 p50/p95 를 낸다.
 자막 읽기와 함께 봐야 한다 - `perf/captions/reading-speed.py` 가 그 표를 낸다.
 
+**넘긴 설정이 실제로 적용됐는지는 회차마다 확인된다.** 앱이 `window.__edumeetHlsConfig` 로
+**hls.js 가 받아들인 값**(`hls.config`)을 노출하고, 시청자는 `viewer-k.json` 에
+`requestedConfig`(우리가 넘긴 값)와 `effectiveConfig`(적용된 값)를 나란히 남긴다.
+`compare.mjs` 의 "설정 적용" 절이 둘을 맞춰 보고, **다르면 조건 불성립(exit 2)** 으로 끝난다.
+네이티브 재생 시청자는 "적용 불가" 로 따로 센다 - hls.js 설정이 없는 경로이기 때문이다.
+(원격 경로가 `--catchup-rate` 를 안 넘겨 #233 그리드 11회차가 전부 "따라잡기 끔" 으로 돌았고,
+그 사실이 산출물에 없어서 나중에야 알았다.)
+
+또 하나 - 따라잡기를 1보다 크게 요청했는데 **전원의 최대 재생 속도가 1** 이고 화면 지연 p50 이
+목표(조각 길이 × `liveSyncDurationCount`)보다 크면 경고 한 줄을 낸다. 켰는데 일을 안 한 경우다.
+
 ## 방송 시작 몰림·CDN (#235)
 
 방송이 시작되는 순간 대기하던 시청자가 한꺼번에 몰린다. 시청 화면은 방송 전이면 3초마다
@@ -110,6 +121,11 @@ START_MODE=waiting START_DELAY_S=30 ./scripts/run-qoe-crosscheck.sh
 `ready-<k>.json` 을 남기고, 셸이 그것을 세어 `VIEWERS` 만큼 모일 때까지 기다린다
 (`READY_TIMEOUT_S`, 기본 90초). 못 모이면 **조건 불성립(exit 2)** 이다 - 로그인·브라우저 기동이
 30초보다 오래 걸리는데 방송을 먼저 켜면 몰림이 아예 관측되지 않는다.
+
+**시청자 호스트와 방송 호스트가 같으면 시계 오프셋을 한 번만 잰다** - 따로 재면 회선 지터 때문에
+같은 시계인데 값이 갈린다(운영 첫 회차: 145ms · 149ms). `clock.json` 의 `sameHost` 가 그 사실을 남긴다.
+`compare.mjs` 는 `clock.json` 이 있는데 오프셋이 null 이면 "보정했다" 가 아니라
+"**못 쟀다 - 보정 없이 계산했다**" 고 적는다.
 
 시작 시각과 첫 재생 시각은 **다른 호스트의 시계**일 수 있다(시청자 VM · 방송 VM). 셸이 회차 시작 때
 `ssh <host> 'date +%s%N'` 왕복 5회로 편도 지연을 지운 중간값을 재서 `clock.json` 에 남기고,
@@ -136,6 +152,18 @@ START_MODE=waiting START_DELAY_S=30 ./scripts/run-qoe-crosscheck.sh
 
 ```bash
 node perf/browser/selftest-nginx-log.mjs
+```
+
+**로그를 통째로 당기지 않는다.** 원격 grep 에 회의 경로(`/hls/meeting-<id>/`)를 넣어 그 회의 것만 받는다 -
+운영 access.log 의 `/hls/` 줄이 하루 14만 개였다. 그리고 줄을 이어 붙일 때 전개(`push(...lines)`)를 쓰지 않는다:
+그 14만 줄에서 `RangeError: Maximum call stack size exceeded` 로 죽었다(인자 개수 한계). 파일마다 `concat` 한다.
+
+**서버 쪽만 다시 돌릴 수 있다.** 조회 창은 회차 폴더에 남은 `viewer-*.json`(또는 `broadcast.json`)에서
+복원하므로, 시청자 측정이 이미 끝난 회차에도 서버 수집만 재실행할 수 있다.
+
+```bash
+node perf/browser/server-side.mjs --run c235-before-base          # 창은 산출물에서 복원
+node perf/browser/server-side.mjs --run c235-before-base --from 1790168400 --to 1790168700   # 창을 직접 주려면
 ```
 
 ## 원격 시청자 한도 (#235 · #160)

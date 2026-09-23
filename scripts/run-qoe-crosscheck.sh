@@ -157,17 +157,27 @@ measure_clock_offset_ms() {  # measure_clock_offset_ms <host|local>
 # 방송 시작 시각과 첫 재생 시각을 **같은 시계**로 놓기 위한 보정량을 남긴다. (#235)
 # 시청자 호스트와 방송 호스트가 다르면 VM 간 시계 차이가 "시작 → 첫 재생" 에 그대로 들어간다.
 write_clock() {
-  local viewer_host broadcast_host viewer_offset broadcast_offset
+  local viewer_host broadcast_host viewer_offset broadcast_offset same_host=0
   if [ "$REMOTE_VIEWERS" -eq 1 ]; then viewer_host="$VIEWER_HOST"; else viewer_host="local"; fi
   if [ "$REMOTE_BROADCAST" -eq 1 ]; then broadcast_host="$BROADCAST_HOST"; else broadcast_host="local"; fi
-  viewer_offset=$(measure_clock_offset_ms "$viewer_host") || viewer_offset=""
-  broadcast_offset=$(measure_clock_offset_ms "$broadcast_host") || broadcast_offset=""
+  if [ "$viewer_host" = "$broadcast_host" ]; then
+    # ★ 같은 호스트면 **한 번만** 잰다. 따로 재면 회선 지터 때문에 값이 갈린다
+    #   (운영 첫 회차: 시청자 145ms · 방송 149ms - 같은 시계인데 4ms 어긋났다).
+    #   같은 시계를 두 번 재는 것은 의미가 없고, 두 값이 다르면 "다른 시계" 라는 잘못된 인상을 준다.
+    same_host=1
+    broadcast_offset=$(measure_clock_offset_ms "$viewer_host") || broadcast_offset=""
+    viewer_offset="$broadcast_offset"
+  else
+    viewer_offset=$(measure_clock_offset_ms "$viewer_host") || viewer_offset=""
+    broadcast_offset=$(measure_clock_offset_ms "$broadcast_host") || broadcast_offset=""
+  fi
   cat > "$OUT/clock.json" <<JSON
 {
   "viewerHost": "$viewer_host",
   "viewerOffsetMs": ${viewer_offset:-null},
   "broadcastHost": "$broadcast_host",
   "broadcastOffsetMs": ${broadcast_offset:-null},
+  "sameHost": $([ "$same_host" -eq 1 ] && echo true || echo false),
   "method": "ssh 'date +%s%N' 왕복 5회, 편도 지연을 중간값으로 지운 뒤 중앙값 (원격 − 로컬, ms)",
   "note": "같은 호스트면 0 이다. null 이면 못 쟀다 - compare 는 보정 없이 0 으로 계산하고 그 사실을 적는다."
 }
@@ -458,24 +468,18 @@ if [ -n "${FORCE_PATH:-}" ]; then
   echo "   FORCE_PATH=$FORCE_PATH 를 넘긴다 (진단용 경로 강제)"
 fi
 if [ "$REMOTE_VIEWERS" -eq 1 ]; then
-  # 배열 값은 환경 변수로 컨테이너에 넘기고, 컨테이너 안에서 배열을 다시 만든다.
-  # SCHEDULE JSON도 셸 코드가 아니라 하나의 인자로만 전달된다.
+  # ★ 목록은 **하나**다 (#233). 원격 경로가 VIEWER_ARGS 를 그대로 쓴다 -
+  #   여기서 인자를 손으로 다시 나열하면 새 옵션이 조용히 빠진다.
+  #   실제로 `--catchup-rate` 가 빠져 #233 그리드 11회차가 전부 "따라잡기 끔" 으로 돌았고,
+  #   준비 로그에는 CATCHUP_RATE 가 찍혀 있어 아무도 눈치채지 못했다.
+  REMOTE_ARGS=""
+  for arg in "${VIEWER_ARGS[@]}"; do
+    REMOTE_ARGS+=" $(shell_quote "$arg")"
+  done
   REMOTE_DOCKER_CMD="docker run --rm --name edumeet-perf-viewers --ipc=host"
   REMOTE_DOCKER_CMD+=" -v \"\$HOME/edumeet-perf:/work\" -w /work"
   REMOTE_DOCKER_CMD+=" -e HOME=/tmp/h -e EDUMEET_PERF_ENV=/work/.perf.env"
-  REMOTE_DOCKER_CMD+=" -e RUN=$(shell_quote "$RUN") -e VIEWERS=$(shell_quote "$VIEWERS")"
-  if [ -n "${SCHEDULE:-}" ]; then
-    REMOTE_DOCKER_CMD+=" -e SCHEDULE=$(shell_quote "$SCHEDULE")"
-  fi
-  if [ -n "${FORCE_PATH:-}" ]; then
-    REMOTE_DOCKER_CMD+=" -e FORCE_PATH=$(shell_quote "$FORCE_PATH")"
-  fi
-  if [ -n "$LIVE_SYNC" ]; then
-    REMOTE_DOCKER_CMD+=" -e LIVE_SYNC=$(shell_quote "$LIVE_SYNC")"
-  fi
-  # shellcheck disable=SC2016 # 변수는 컨테이너 안에서 확장돼야 한다.
-  REMOTE_SCRIPT='set -- --run "$RUN" --viewers "$VIEWERS"; if [ -n "${SCHEDULE:-}" ]; then set -- "$@" --schedule "$SCHEDULE"; fi; if [ -n "${FORCE_PATH:-}" ]; then set -- "$@" --force-path "$FORCE_PATH"; fi; if [ -n "${LIVE_SYNC:-}" ]; then set -- "$@" --live-sync "$LIVE_SYNC"; fi; node qoe-crosscheck.mjs "$@"'
-  REMOTE_DOCKER_CMD+=" $PLAYWRIGHT_IMAGE sh -c $(shell_quote "$REMOTE_SCRIPT")"
+  REMOTE_DOCKER_CMD+=" $PLAYWRIGHT_IMAGE node qoe-crosscheck.mjs$REMOTE_ARGS"
   # shellcheck disable=SC2029 # 이 문자열은 viewer 호스트에서 실행돼야 한다.
   ssh "$VIEWER_HOST" "$REMOTE_DOCKER_CMD" &
 else

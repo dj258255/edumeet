@@ -101,6 +101,71 @@ function catchupStats(truth) {
  * ★ 조각 하나에 대해 "받은 시청자 수" 와 "원본까지 간 시청자 수" 를 같이 낸다.
  *   그 비율이 요청 병합의 증거다 - 5명이 같은 조각을 받았는데 원본 요청이 1건이면 병합된 것이다.
  */
+/**
+ * 요청한 설정과 실제 적용된 설정을 맞춘다. (#233)
+ *
+ * ★ 왜 필요한가. #233 그리드 11회차가 원격 경로에서 `--catchup-rate` 가 빠진 채 돌았는데,
+ *   요청(준비 로그)과 적용(앱)을 회차마다 맞춰 보지 않아서 11회차를 다 돌고 나서야 알았다.
+ *
+ *   applied === null 이면 그 시청자에게는 그 설정이 없는 경로다(네이티브 재생 등) - 불일치가 아니다.
+ */
+/** hls.js 가 안 넘기면 쓰는 값. 프론트 시험에서 `Hls.DefaultConfig` 로 확인했다. (#233) */
+const HLS_DEFAULT_MAX_LIVE_SYNC_PLAYBACK_RATE = 1
+
+function configCheck(row) {
+  const requested = row.requestedConfig ?? null
+  const applied = row.effectiveConfig ?? null
+  const path = row.effectivePlaybackPath ?? row.playbackPath ?? null
+  const native = path === 'native'
+  const mismatches = []
+
+  // ★ 적용값이 없으면 **불일치가 아니다.** 그 경로에는 hls.js 설정이 없다(네이티브) 이거나
+  //   앱이 노출하지 않은 것이다. `Number(null) === 0` 같은 비교를 하면 요청 1 ↔ 적용 null 이
+  //   불일치로 둔갑한다 - 양방향이 비대칭이 된다.
+  if (!applied) {
+    return {
+      native, exposed: false, mismatches, applied, requested,
+      verdict: native ? '적용 불가(네이티브 재생)' : '노출 없음',
+    }
+  }
+
+  // ★ 요청 null 은 "아무것도 안 넘겼다" 가 아니라 **hls.js 기본값을 기대한다** 는 뜻이다.
+  //   적용값이 그 기본값이면 일치로 보되 '기본값 일치' 로 따로 적는다 - 형식이 다른 것을 숨기지 않는다.
+  let normalizedDefault = false
+  const requestedRate = requested?.maxLiveSyncPlaybackRate
+  const appliedRate = Number(applied.maxLiveSyncPlaybackRate)
+  if (requestedRate === null || requestedRate === undefined) {
+    if (appliedRate === HLS_DEFAULT_MAX_LIVE_SYNC_PLAYBACK_RATE) {
+      normalizedDefault = true
+    } else {
+      mismatches.push(
+        `따라잡기 미요청(기본값 ${HLS_DEFAULT_MAX_LIVE_SYNC_PLAYBACK_RATE} 기대) → 적용 ${applied.maxLiveSyncPlaybackRate}`,
+      )
+    }
+  } else if (appliedRate !== Number(requestedRate)) {
+    mismatches.push(`따라잡기 요청 ${requestedRate} → 적용 ${applied.maxLiveSyncPlaybackRate}`)
+  }
+
+  const requestedCount = requested?.liveSyncDurationCount
+  if (requestedCount !== null && requestedCount !== undefined &&
+      Number(applied.liveSyncDurationCount) !== Number(requestedCount)) {
+    mismatches.push(`liveSyncDurationCount 요청 ${requestedCount} → 적용 ${applied.liveSyncDurationCount}`)
+  }
+
+  return {
+    native,
+    exposed: true,
+    mismatches,
+    applied,
+    requested,
+    verdict: mismatches.length > 0
+      ? `**불일치 — ${mismatches.join(' / ')}**`
+      : normalizedDefault
+        ? '기본값 일치'
+        : '일치',
+  }
+}
+
 function cdnStats(rows) {
   const byKind = {}
   const byFile = {}
@@ -299,9 +364,11 @@ const server = readJson(join(dir, 'server.json'), null)
 // ★ 시계 보정 (#235). 시청자·방송 호스트가 다르면 VM 간 시계 차이가 "시작 → 첫 재생" 에 그대로 들어간다.
 //   run-qoe-crosscheck.sh 가 ssh 왕복 중간값으로 재서 남긴다. 없으면 0 으로 보고 그 사실을 적는다.
 const clock = readJson(join(dir, 'clock.json'), null)
-const viewerOffsetMs = Number.isFinite(Number(clock?.viewerOffsetMs)) ? Number(clock.viewerOffsetMs) : 0
-const broadcastOffsetMs = Number.isFinite(Number(clock?.broadcastOffsetMs)) ? Number(clock.broadcastOffsetMs) : 0
-const clockKnown = clock !== null
+// ★ Number(null) 은 0 이다 - null 을 "0ms 로 쟀다" 로 읽으면 못 잰 것을 감춘다. 타입을 본다.
+const isMeasured = (value) => typeof value === 'number' && Number.isFinite(value)
+const viewerOffsetMs = isMeasured(clock?.viewerOffsetMs) ? clock.viewerOffsetMs : 0
+const broadcastOffsetMs = isMeasured(clock?.broadcastOffsetMs) ? clock.broadcastOffsetMs : 0
+const clockKnown = clock !== null && isMeasured(clock?.viewerOffsetMs) && isMeasured(clock?.broadcastOffsetMs)
 const broadcast = readJson(join(dir, 'broadcast.json'), null)
 const scheduleRecord = readJson(join(dir, 'schedule.json'), {})
 const manifest = manifestStats(dir)
@@ -377,6 +444,11 @@ const rows = viewerFiles.map((file) => {
     catchupStalls: catchup.stalls,
     hls: v.hls ?? [],
     lookups: v.lookups ?? [],
+    requestedConfig: v.requestedConfig ?? null,
+    effectiveConfig: v.effectiveConfig ?? v.finalState?.hlsConfig ?? null,
+    // 재생 시작 때 잡은 경로를 우선한다 - SPA 종료에서는 destroy 가 지운 뒤다. (#233)
+    effectivePlaybackPath: v.effectivePlaybackPath ?? null,
+    playbackPath: v.effectivePlaybackPath ?? v.finalState?.playbackPath ?? null,
     firstPlayingAtMs: Number.isFinite(v.truth?.firstPlayingAt) ? v.truth.firstPlayingAt : null,
     screenLatencyP50Ms: screenLatency.p50,
     screenLatencyP95Ms: screenLatency.p95,
@@ -405,7 +477,8 @@ const rows = viewerFiles.map((file) => {
     dialogs: v.dialogs ?? [],
     // 플레이어 생존 (#210)
     errorCode: v.finalState?.errorCode ?? null,
-    playbackPath: v.finalState?.playbackPath ?? null,
+    // playbackPath 는 위에서 이미 정했다(재생 시작 때 잡은 값 우선). 여기서 다시 쓰면
+    // 객체 리터럴의 뒤 키가 이겨서 SPA 종료 뒤 값(null)으로 덮인다. (#233)
     playerGaveUp: hlsLog.some((entry) => entry && entry.action === 'gaveUp'),
     lastFatalDetails: lastFatal?.details ?? null,
     lastFatalType: lastFatal?.type ?? null,
@@ -566,7 +639,39 @@ if (!allowBroadcastRestart &&
       `측정 창 ${broadcastWindowMs ?? '-'}ms)`,
   )
 }
+// ★ 요청 ≠ 적용이면 그 회차는 조건 불성립이다. (#233)
+const configRows = rows.map((row) => ({ viewer: row.viewer, path: row.playbackPath, ...configCheck(row) }))
+const mismatched = configRows.filter((row) => row.mismatches.length > 0)
+const configUnavailable = configRows.filter((row) => !row.exposed)
+if (mismatched.length > 0) {
+  reasons.push(
+    `요청한 설정이 적용되지 않은 시청자가 ${mismatched.length}/${rows.length}명이다 ` +
+      `(예: 시청자 ${mismatched[0].viewer} — ${mismatched[0].mismatches[0]})`,
+  )
+}
+
 const conditionFailed = reasons.length > 0
+
+// ★ 따라잡기를 켰는데 아무도 1을 넘지 않았고 지연이 목표보다 크면 - 켠 것이 일을 안 한 것이다. (#233)
+const requestedCatchup = rows
+  .map((r) => r.requestedConfig?.maxLiveSyncPlaybackRate)
+  .find((value) => value !== null && value !== undefined && Number(value) > 1) ?? null
+const maxObservedRate = rows.length > 0 ? Math.max(...rows.map((r) => r.catchupMaxRate ?? 1)) : null
+const segmentSeconds = Number(manifest?.extinfAverage)
+const effectiveLiveSync = rows
+  .map((r) => Number(r.effectiveConfig?.liveSyncDurationCount))
+  .find((value) => Number.isFinite(value)) ?? null
+// 조각 길이를 모르면 목표를 만들 수 없다 - 0ms 라고 적으면 거짓말이 된다.
+const targetLatencyMs = Number.isFinite(segmentSeconds) && segmentSeconds > 0 && effectiveLiveSync !== null
+  ? segmentSeconds * effectiveLiveSync * 1000
+  : null
+const catchupWarning = requestedCatchup !== null && maxObservedRate !== null && maxObservedRate <= 1 &&
+    targetLatencyMs !== null && totals.screenLatencyP50Ms !== null &&
+    totals.screenLatencyP50Ms > targetLatencyMs
+  ? `따라잡기를 ${requestedCatchup} 로 요청했는데 전원의 최대 재생 속도가 ${maxObservedRate} 이고 ` +
+    `화면 지연 p50 이 ${totals.screenLatencyP50Ms}ms 로 목표(${targetLatencyMs}ms = 조각 ${segmentSeconds}초 × ` +
+    `liveSyncDurationCount ${effectiveLiveSync})보다 크다 - 따라잡기가 실제로 일어나지 않았다.`
+  : null
 
 const warning = conditionFailed
   ? [
@@ -576,6 +681,21 @@ const warning = conditionFailed
       '',
       ...reasons.map((reason) => `- ${reason}`),
       '',
+      ...(mismatched.length > 0
+        ? [
+            '| 시청자 | 경로 | 요청 | 적용 | 어긋난 것 |',
+            '|---|---|---|---|---|',
+            ...mismatched.map((row) =>
+              `| ${row.viewer} | ${row.path ?? '-'} | ` +
+              `따라잡기 ${row.requested?.maxLiveSyncPlaybackRate ?? '없음'} · ` +
+              `liveSync ${row.requested?.liveSyncDurationCount ?? '-'} | ` +
+              `따라잡기 ${row.applied?.maxLiveSyncPlaybackRate ?? '없음'} · ` +
+              `liveSync ${row.applied?.liveSyncDurationCount ?? '-'} | ` +
+              `${row.mismatches.join(' / ')} |`,
+            ),
+            '',
+          ]
+        : []),
       ...(failedViewers.length > 0
         ? [
             '| 시청자 | 마지막 URL | dialog | 보고 | 오류 |',
@@ -713,6 +833,28 @@ const md = [
   '> 판단 기준(#233): 자막 읽기 상한을 넘는 자막이 5% 이하이고, 연쇄 끊김이 V4 대비 늘지 않아야 한다.',
   '> 연쇄 끊김은 앞 끊김이 끝난 뒤 10초 안에 다시 시작한 끊김이다.',
   '',
+  '## 설정 적용 (#233)',
+  '',
+  ...(configRows.length === 0
+    ? ['- viewer 산출물이 없다.']
+    : [
+        '| 시청자 | 경로 | 요청(따라잡기/liveSync) | 적용(따라잡기/liveSync) | 판정 |',
+        '|---|---|---|---|---|',
+        ...configRows.map((row) => {
+          const verdict = row.verdict
+          return `| ${row.viewer} | ${row.path ?? '-'} | ` +
+            `${row.requested?.maxLiveSyncPlaybackRate ?? '없음'} / ${row.requested?.liveSyncDurationCount ?? '-'} | ` +
+            `${row.applied ? `${row.applied.maxLiveSyncPlaybackRate ?? '없음'} / ${row.applied.liveSyncDurationCount ?? '-'}` : '-'} | ` +
+            `${verdict} |`
+        }),
+        '',
+        `- 일치 ${configRows.filter((r) => r.verdict === '일치').length} · ` +
+          `기본값 일치 ${configRows.filter((r) => r.verdict === '기본값 일치').length} · ` +
+          `불일치 ${mismatched.length} · 적용 불가 ${configUnavailable.filter((r) => r.native).length} · ` +
+          `노출 없음 ${configUnavailable.filter((r) => !r.native).length}`,
+        ...(catchupWarning ? ['', `- ⚠ ${catchupWarning}`] : []),
+      ]),
+  '',
   '## CDN (#235)',
   '',
   ...(cdn.withHeader === 0 && cdn.withoutHeader === 0
@@ -799,7 +941,11 @@ const md = [
         clockKnown
           ? `- 시계 보정: 시청자 \`${clock.viewerHost}\` ${viewerOffsetMs}ms · 방송 \`${clock.broadcastHost}\` ` +
             `${broadcastOffsetMs}ms (원격 − 로컬). 위 "시작 → 첫 재생" 은 두 값을 뺀 로컬 시계 기준이다.`
-          : '- **시계 보정 기록이 없다**(clock.json 없음). 다른 호스트의 시계 차이가 그대로 들어갔을 수 있다.',
+          : clock
+            ? '- **못 쟀다 - 보정 없이 계산했다.** `clock.json` 은 있는데 오프셋이 null 이다' +
+              `(시청자 \`${clock.viewerHost ?? '?'}\` · 방송 \`${clock.broadcastHost ?? '?'}\`). ` +
+              '다른 호스트의 시계 차이가 "시작 → 첫 재생" 에 그대로 들어갔을 수 있다.'
+            : '- **시계 보정 기록이 없다**(clock.json 없음). 다른 호스트의 시계 차이가 그대로 들어갔을 수 있다.',
         ...(broadcastRest
           ? ['', `- 서버 REST 지연(그 창, Prometheus): p50 ${broadcastRest.p50Ms ?? '-'}ms · ` +
               `p95 ${broadcastRest.p95Ms ?? '-'}ms · p99 ${broadcastRest.p99Ms ?? '-'}ms` +

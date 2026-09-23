@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { catchupRate, liveSyncDurationCount, loadHls, loadHlsModule } from './hlsPlayer'
+import Hls from 'hls.js'
+import { catchupRate, hlsConfigSnapshot, liveSyncDurationCount, loadHls, loadHlsModule } from './hlsPlayer'
 import { choosePlaybackPath } from './playbackPath'
 
 /** attachHls 가 경로를 고를 때 쓰는 것과 같은 계산. */
@@ -9,6 +10,41 @@ function pathWith(Hls, nativeHlsSupported) {
     nativeHlsSupported,
   })
 }
+
+describe('적용된 hls.js 설정 노출 (#233)', () => {
+  /** hls.js 가 하는 병합과 같은 모양 - 라이브러리 기본값 위에 우리가 넘긴 값을 얹는다. */
+  const effective = (options) => ({ ...Hls.DefaultConfig, ...options })
+
+  it('요청한 따라잡기 속도가 적용되면 그 값이 노출된다', () => {
+    const snapshot = hlsConfigSnapshot(effective({ maxLiveSyncPlaybackRate: 1.25 }))
+
+    expect(snapshot.maxLiveSyncPlaybackRate).toBe(1.25)
+  })
+
+  it('★ 안 넘기면 hls.js 기본값(1 = 끔)이 노출된다 - 우리 가정이 아니라 라이브러리 값이다', () => {
+    const snapshot = hlsConfigSnapshot(effective({}))
+
+    expect(Hls.DefaultConfig.maxLiveSyncPlaybackRate).toBe(1)
+    expect(snapshot.maxLiveSyncPlaybackRate).toBe(1)
+  })
+
+  it('우리가 실제로 넘기는 값(저장소 → catchupRate)이 그대로 얹힌다', () => {
+    const withStorage = (value) => ({ getItem: () => value })
+
+    const requested = catchupRate(withStorage('1.25'))
+    expect(requested).toBe(1.25)
+
+    const snapshot = hlsConfigSnapshot(effective(
+      requested === null ? {} : { maxLiveSyncPlaybackRate: requested },
+    ))
+    expect(snapshot.maxLiveSyncPlaybackRate).toBe(1.25)
+  })
+
+  it('설정이 없으면 null 로 채운다 - "값이 없다" 와 "1 이다" 를 섞지 않는다', () => {
+    expect(hlsConfigSnapshot(undefined).maxLiveSyncPlaybackRate).toBeNull()
+    expect(hlsConfigSnapshot({ lowLatencyMode: true }).liveSyncDurationCount).toBeNull()
+  })
+})
 
 describe('hls.js 동적 import', () => {
   it('catchupRate 는 허용한 값만 읽고 나머지는 null(따라잡기 끔)이다', () => {

@@ -61,6 +61,8 @@ export async function attachHls(
         videoEl.removeAttribute('src')
         videoEl.load()
         delete window.__edumeetPlaybackPath
+        // 네이티브 경로에는 hls.js 설정이 없다 - 앞선 경로가 남긴 값을 지운다.
+        delete window.__edumeetHlsConfig
       },
       // ★ 기본 재생(Safari)에서는 화면 시각을 못 구한다. (#185)
       //   null 을 주면 자막을 붙잡지 않고 바로 띄운다 -
@@ -86,6 +88,13 @@ export async function attachHls(
     startFragPrefetch: true,
     ...(catchup === null ? {} : { maxLiveSyncPlaybackRate: catchup }),
   })
+
+  // ★ **hls.js 가 받아들인 값**을 노출한다 - 우리가 넘긴 객체가 아니다. (#233)
+  //   하네스가 요청한 설정이 실제로 적용됐는지 회차마다 확인할 수 있어야 한다.
+  //   #233 그리드 11회차는 `--catchup-rate` 가 원격 경로에서 빠져 전부 "따라잡기 끔" 으로 돌았는데,
+  //   산출물 어디에도 그 사실이 없어서 11회차를 다 돌고 나서야 알았다.
+  //   경로 표시(`__edumeetPlaybackPath`)와 같은 방식이다 - destroy 에서 지운다.
+  window.__edumeetHlsConfig = hlsConfigSnapshot(hls.config)
   hls.loadSource(playlistUrl)
   hls.attachMedia(videoEl)
 
@@ -171,6 +180,7 @@ export async function attachHls(
       hls.destroy()
       delete window.__edumeetPlaybackPath
       delete window.__edumeetHlsLog
+      delete window.__edumeetHlsConfig
     },
     /**
      * 지금 화면에 보이는 장면의 시각. (#185)
@@ -183,6 +193,22 @@ export async function attachHls(
      */
     getPlayingDate: () => hls.playingDate ?? null,
     native: false,
+  }
+}
+
+/**
+ * hls.js 가 받아들인 설정에서 노출할 값만 뽑는다. (#233)
+ *
+ * 순수 함수로 둔 이유 - 시험에서 **실제 hls.js 기본 설정**(`Hls.DefaultConfig`)과
+ * 우리가 넘긴 값을 병합해 넘길 수 있다. 그러면 "안 넘기면 hls.js 기본(1 = 따라잡기 끔)" 이
+ * 우리 가정이 아니라 라이브러리 값으로 확인된다.
+ */
+export function hlsConfigSnapshot(config) {
+  return {
+    liveSyncDurationCount: config?.liveSyncDurationCount ?? null,
+    maxLiveSyncPlaybackRate: config?.maxLiveSyncPlaybackRate ?? null,
+    lowLatencyMode: config?.lowLatencyMode ?? null,
+    startFragPrefetch: config?.startFragPrefetch ?? null,
   }
 }
 

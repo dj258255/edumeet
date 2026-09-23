@@ -332,6 +332,20 @@ async function runViewer(browser, k, user) {
     // CDN 적중·방송 전 대기 (#235). 응답이 올 때마다 채워진다 - 참조라 나중에 쓴 값도 들어간다.
     hls: cdn.hls,
     lookups: cdn.lookups,
+    // ★ 우리가 **요청한** 설정과 앱이 노출한 **적용된** 설정 (#233).
+    //   둘이 다르면 이 회차의 값으로 판단할 수 없다 - compare 가 조건 불성립으로 잡는다.
+    // ★ 재생이 시작된 **직후** 읽은 값 (#233). 종료 시점에 읽으면 SPA 종료 경로에서
+    //   destroy 가 먼저 돌아 hls 설정·경로가 이미 지워진 뒤다 - 실제로 정상 재생자가
+    //   "노출 없음" 으로 기록됐다. 종료 시점 값(finalState)은 보조로만 쓴다.
+    effectivePlaybackPath: null,
+    requestedConfig: {
+      // null = 안 넘겼다 → hls.js 기본(1 = 따라잡기 끔)
+      maxLiveSyncPlaybackRate: catchupRate === null ? null : Number(catchupRate),
+      // 앱의 liveSyncDurationCount() 기본값은 2 다(안 넘기면 2를 hls.js 에 준다).
+      liveSyncDurationCount: liveSync === null ? 2 : Number(liveSync),
+      forcedPath: forcePath,
+    },
+    effectiveConfig: null,
   }
   const captureUrl = () => {
     try {
@@ -377,6 +391,8 @@ async function runViewer(browser, k, user) {
           seekable: v ? ranges(v.seekable) : [],
           // 앱이 남긴 hls.js 진단 로그. 없으면 빈 배열이다(네이티브 재생 등).
           hlsLog: Array.isArray(window.__edumeetHlsLog) ? window.__edumeetHlsLog : [],
+          // ★ hls.js 가 **받아들인** 설정 (#233). 네이티브 경로면 없다(null).
+          hlsConfig: window.__edumeetHlsConfig ?? null,
           // 어느 경로로 재생했나 - hlsjs | native | unsupported. (#217)
           playbackPath: window.__edumeetPlaybackPath ?? null,
         }
@@ -388,10 +404,16 @@ async function runViewer(browser, k, user) {
 
   const captureFinalState = async () => {
     record.finalState = await readState()
+    // 보조값이다 - 재생 시작 때 못 잡았을 때만 쓴다(SPA 종료에서는 이미 지워져 있다).
+    if (record.effectiveConfig === null) record.effectiveConfig = record.finalState?.hlsConfig ?? null
+    if (record.effectivePlaybackPath === null) {
+      record.effectivePlaybackPath = record.finalState?.playbackPath ?? null
+    }
   }
 
   const timers = []
   let latencyTimer = null
+  let playbackWatch = null
 
   /** offline 구간이 끝난 순간과 그 10초 뒤의 상태를 남긴다. (#210) */
   const snapshotLater = (atMs, label) => {
@@ -416,6 +438,22 @@ async function runViewer(browser, k, user) {
     while (Date.now() - readySince < READY_TIMEOUT_MS && cdn.lookups.length === 0) {
       await sleep(250)
     }
+    // 재생이 시작되는 순간의 hls 설정·경로를 잡아 둔다. 종료까지 기다리지 않는다.
+    let capturedConfig = false
+    playbackWatch = setInterval(() => {
+      void page.evaluate(() => ({
+        firstPlayingAt: window.__qoeTruth?.firstPlayingAt ?? null,
+        hlsConfig: window.__edumeetHlsConfig ?? null,
+        playbackPath: window.__edumeetPlaybackPath ?? null,
+      })).then((state) => {
+        if (capturedConfig || state.firstPlayingAt == null) return
+        capturedConfig = true
+        record.effectiveConfig = state.hlsConfig
+        record.effectivePlaybackPath = state.playbackPath
+        clearInterval(playbackWatch)
+      }).catch(() => {})
+    }, 500)
+
     record.readyAt = Date.now()
     record.readyLookups = cdn.lookups.length
     writeFileSync(join(dir, `ready-${k}.json`), `${JSON.stringify({
@@ -481,6 +519,7 @@ async function runViewer(browser, k, user) {
     captureUrl()
   } finally {
     if (latencyTimer) clearInterval(latencyTimer)
+    if (playbackWatch) clearInterval(playbackWatch)
     for (const timer of timers) clearTimeout(timer)
   }
 

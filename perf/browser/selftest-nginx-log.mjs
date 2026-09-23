@@ -118,6 +118,32 @@ console.log('collectOrigin — sudo 가 안 되면 그렇게 적는다')
   check('sudo 실패를 구분한다', String(origin.error ?? '').includes('sudo'), JSON.stringify(origin.error))
 }
 
+console.log('collectOrigin — 20만 줄 (운영 규모, 스택 초과 회귀)')
+{
+  const N = 200_000
+  const lines = []
+  for (let i = 0; i < N; i += 1) {
+    lines.push(
+      `203.0.113.5 - - [24/Sep/2026:00:00:${String(i % 60).padStart(2, '0')} +0000] ` +
+      `"GET /hls/meeting-3/seg_ab_${String(i).padStart(5, '0')}.mp4 HTTP/2.0" 200 1024 "-" "x" "-"`,
+    )
+  }
+  let grepCommand = ''
+  const runRemote = (command) => {
+    if (command.startsWith('sudo -n true')) return { stdout: '' }
+    if (command.includes('sudo -n ls ')) return { stdout: 'access.log\n' }
+    if (command.includes('grep -F')) grepCommand = command
+    return { stdout: lines.join('\n') }
+  }
+  const side = Math.floor(Date.parse('2026-09-24T00:00:00Z') / 1000)
+  const origin = collectOrigin({ runRemote, from: side, to: side + 3600, meetingId: '3' })
+
+  // ★ 운영에서 `push(...lines)` 가 14만 줄에서 RangeError 로 죽었다.
+  check('스택이 안 터진다', !origin.error, JSON.stringify(origin.error))
+  check('20만 줄을 다 셌다', origin.hlsRequestsInWindow === N, `실제 ${origin.hlsRequestsInWindow}`)
+  check('회의 경로로 좁혀 가져온다', grepCommand.includes('/hls/meeting-3/'), grepCommand.slice(0, 120))
+}
+
 console.log('aggregateHls — 창 밖 줄은 세지 않는다')
 {
   const lines = [
