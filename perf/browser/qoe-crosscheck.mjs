@@ -49,6 +49,15 @@ const catchupRate = CATCHUP_RATES.includes(String(args['catchup-rate'] ?? ''))
 if (args['catchup-rate'] && catchupRate === null) {
   throw new Error(`--catchup-rate 는 ${CATCHUP_RATES.join(' · ')} 중 하나여야 한다`)
 }
+// ★ 조건부 따라잡기 (#233). off | always | adaptive. 안 넘기면 앱 기본(끔)이다 -
+//   제품 기본을 바꾸는 것은 측정 뒤다. adaptive 는 정책이 조건을 만족할 때만 켠다.
+const CATCHUP_MODES = ['off', 'always', 'adaptive']
+const catchupMode = CATCHUP_MODES.includes(String(args['catchup-mode'] ?? ''))
+  ? String(args['catchup-mode'])
+  : null
+if (args['catchup-mode'] && catchupMode === null) {
+  throw new Error(`--catchup-mode 는 ${CATCHUP_MODES.join(' · ')} 중 하나여야 한다`)
+}
 const allowBroadcastRestart = process.env.ALLOW_BROADCAST_RESTART === '1'
 /** 대기 화면 도달을 기다리는 상한. 넘으면 ready 파일에 그대로 남기고 진행한다. */
 const READY_TIMEOUT_MS = Number(process.env.READY_TIMEOUT_MS ?? 30_000)
@@ -265,6 +274,9 @@ async function runViewer(browser, k, user) {
   await context.addInitScript(({ value }) => {
     if (value !== null) localStorage.setItem('edumeet.hls.maxLiveSyncPlaybackRate', String(value))
   }, { value: catchupRate })
+  await context.addInitScript(({ value }) => {
+    if (value !== null) localStorage.setItem('edumeet.hls.catchupMode', String(value))
+  }, { value: catchupMode })
 
   await context.addInitScript(({ value }) => {
     if (value !== null) localStorage.setItem('edumeet.hls.liveSyncDurationCount', String(value))
@@ -343,9 +355,14 @@ async function runViewer(browser, k, user) {
       maxLiveSyncPlaybackRate: catchupRate === null ? null : Number(catchupRate),
       // 앱의 liveSyncDurationCount() 기본값은 2 다(안 넘기면 2를 hls.js 에 준다).
       liveSyncDurationCount: liveSync === null ? 2 : Number(liveSync),
+      // null = 안 넘겼다 → 앱 기본(off)
+      catchupMode: catchupMode,
       forcedPath: forcePath,
     },
     effectiveConfig: null,
+    // 조건부 따라잡기가 실제로 켜져 있던 시간과 전환 횟수 (#233).
+    //   '켜져 있었나' 만으로는 조건부가 얼마나 켜졌는지 알 수 없다. 매 초 폴링이 갱신한다.
+    catchup: null,
   }
   const captureUrl = () => {
     try {
@@ -403,6 +420,16 @@ async function runViewer(browser, k, user) {
   }
 
   const captureFinalState = async () => {
+    // ★ 따라잡기 누적을 **마지막으로 한 번 더** 읽는다 (#233 검토 3).
+    //   매 초 폴링이 갱신하므로 그대로 두면 마지막 폴링 이후(최대 1초)가 빠진다 -
+    //   compare 가 이 값으로 '켜진 시간 비율' 을 내므로 짧은 회차에서 비율이 왜곡된다.
+    //   앱이 destroy 에서 마감한 값이 있으면 그 값이 온다(hlsPlayer.destroy 참조).
+    try {
+      const latest = await page.evaluate(() => window.__edumeetCatchup ?? null)
+      if (latest) record.catchup = latest
+    } catch {
+      // 화면이 이미 닫혔으면 마지막 폴링 값이 남는다.
+    }
     record.finalState = await readState()
     // 보조값이다 - 재생 시작 때 못 잡았을 때만 쓴다(SPA 종료에서는 이미 지워져 있다).
     if (record.effectiveConfig === null) record.effectiveConfig = record.finalState?.hlsConfig ?? null
@@ -465,8 +492,13 @@ async function runViewer(browser, k, user) {
       onWaitingScreen: cdn.lookups.length > 0,
     })}\n`)
     latencyTimer = setInterval(() => {
-      void page.evaluate(() => window.__edumeetPlayingDate?.() ?? null)
-        .then((playingAt) => {
+      // 노출된 따라잡기 누적도 같은 왕복에서 읽는다 (#233) - 매 초 한 번 더 왕복하지 않는다.
+      void page.evaluate(() => ({
+        playingAt: window.__edumeetPlayingDate?.() ?? null,
+        catchup: window.__edumeetCatchup ?? null,
+      }))
+        .then(({ playingAt, catchup }) => {
+          if (catchup) record.catchup = catchup
           if (!Number.isFinite(playingAt)) return
           const at = Date.now()
           record.latencySamples.push({ at, latencyMs: at - playingAt })

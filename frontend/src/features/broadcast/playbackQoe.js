@@ -22,7 +22,14 @@ const STALLED = 'stalled'
 const FAILED = 'failed'
 const PAUSED = 'paused'
 
-export function createQoeTracker({ now = () => performance.now() } = {}) {
+/**
+ * @param {object} [options]
+ * @param {() => number} [options.now] 시계(주입)
+ * @param {() => void} [options.onStall] **진짜 끊김일 때만** 부른다 (#233).
+ *   조건부 따라잡기가 이 신호로 잠잠해진다 - 같은 판정(첫 화면 전·탐색 중 제외)을
+ *   두 곳에 적으면 한쪽만 고쳐진다.
+ */
+export function createQoeTracker({ now = () => performance.now(), onStall = null } = {}) {
   let attachedAt = null
   let startupAt = null
   let startupMs = null
@@ -80,6 +87,7 @@ export function createQoeTracker({ now = () => performance.now() } = {}) {
     accrue()
     mode = STALLED
     stallCount += 1
+    onStall?.()                          // 위 세 조건을 다 통과한 **진짜 끊김**이다 (#233)
   }
 
   function paused() {

@@ -146,6 +146,15 @@ function configCheck(row) {
     mismatches.push(`따라잡기 요청 ${requestedRate} → 적용 ${applied.maxLiveSyncPlaybackRate}`)
   }
 
+  // ★ 조건부 따라잡기 모드 (#233). 요청하지 않았으면 앱 기본(off)을 기대한다.
+  //   adaptive 회차에서 '요청은 adaptive 인데 앱은 off' 이면 그 회차는 조건부를 안 돌린 것이다 -
+  //   #233 그리드 11회차가 그렇게 돌았는데(원격에서 --catchup-rate 누락) 로그로는 알 수 없었다.
+  const requestedMode = requested?.catchupMode ?? null
+  const appliedMode = applied.catchupMode ?? null
+  if (appliedMode !== null && appliedMode !== (requestedMode ?? 'off')) {
+    mismatches.push(`따라잡기 모드 요청 ${requestedMode ?? '없음(기본 끔)'} → 적용 ${appliedMode}`)
+  }
+
   const requestedCount = requested?.liveSyncDurationCount
   if (requestedCount !== null && requestedCount !== undefined &&
       Number(applied.liveSyncDurationCount) !== Number(requestedCount)) {
@@ -449,6 +458,8 @@ const rows = viewerFiles.map((file) => {
     lookups: v.lookups ?? [],
     requestedConfig: v.requestedConfig ?? null,
     effectiveConfig: v.effectiveConfig ?? v.finalState?.hlsConfig ?? null,
+    // 조건부 따라잡기 누적 (#233) - 앱이 노출한 그대로. adaptive 회차에만 있다.
+    catchup: v.catchup ?? null,
     // 재생 시작 때 잡은 경로를 우선한다 - SPA 종료에서는 destroy 가 지운 뒤다. (#233)
     effectivePlaybackPath: v.effectivePlaybackPath ?? null,
     playbackPath: v.effectivePlaybackPath ?? v.finalState?.playbackPath ?? null,
@@ -545,16 +556,29 @@ const broadcastRestartStallRatio = broadcastWindowMs > 0
 /**
  * 따라잡기 합계 (#233). 시청자 평균과 전체 연쇄 끊김을 한 줄로 낸다.
  * 표본이 없는 회차(따라잡기 끔)에서는 값이 null/0 이고, 보고서가 그렇게 적는다.
+ *
+ * ★ 마지막 두 값은 **조건부(adaptive)** 회차용이다. 앱이 노출한 누적(`__edumeetCatchup`)에서
+ *   계산한다 - 켜져 있던 시간 비율이 낮으면 정책이 거의 안 켠 것이고, 전환 횟수가 많으면
+ *   조건이 경계에서 흔들린 것이다. 둘 다 "정책이 의도대로 돌았나" 를 보는 값이다.
  */
 const catchupTotals = (() => {
   const sampled = rows.filter((r) => r.catchupRateSamples > 0)
   const shares = sampled.map((r) => r.catchupFasterShare).filter((v) => v !== null)
+  const exposed = rows.map((r) => r.catchup).filter((c) => c && Number.isFinite(c.enabledMs))
+  const enabledRatios = exposed
+    .map((c) => (c.enabledMs + c.disabledMs > 0 ? c.enabledMs / (c.enabledMs + c.disabledMs) : null))
+    .filter((v) => v !== null)
   return {
     viewersWithSamples: sampled.length,
     fasterShare: shares.length > 0 ? shares.reduce((a, b) => a + b, 0) / shares.length : null,
     maxRate: sampled.length > 0 ? Math.max(...sampled.map((r) => r.catchupMaxRate ?? 1)) : null,
     chained: sum(sampled.map((r) => r.catchupChained)),
     stalls: sum(sampled.map((r) => r.catchupStalls)),
+    exposedCount: exposed.length,
+    enabledShare: enabledRatios.length > 0
+      ? enabledRatios.reduce((a, b) => a + b, 0) / enabledRatios.length
+      : null,
+    toggles: exposed.length > 0 ? sum(exposed.map((c) => c.toggles ?? 0)) : null,
   }
 })()
 
@@ -866,6 +890,12 @@ const md = [
   catchupTotals.viewersWithSamples > 0
     ? `- 표본을 남긴 시청자 ${catchupTotals.viewersWithSamples}/${rows.length}명 (나머지는 재생 속도 표본이 없다)`
     : '- 따라잡기를 켜지 않았거나 표본이 없다 (재생 속도 표본 0개)',
+  // 조건부 회차에서만 값이 있다 - always/off 회차는 앱이 누적을 노출하지 않는다.
+  catchupTotals.exposedCount > 0
+    ? `- 조건부(adaptive) 누적: 노출 ${catchupTotals.exposedCount}/${rows.length}명 · ` +
+      `**켜진 시간 비율 ${Math.round(catchupTotals.enabledShare * 100)}%** · ` +
+      `전환 ${catchupTotals.toggles}회 (시청자 평균 ${(catchupTotals.toggles / catchupTotals.exposedCount).toFixed(1)}회)`
+    : '- 조건부 누적 없음 (adaptive 로 돌리지 않았다)',
   '',
   '> 판단 기준(#233): 자막 읽기 상한을 넘는 자막이 5% 이하이고, 연쇄 끊김이 V4 대비 늘지 않아야 한다.',
   '> 연쇄 끊김은 앞 끊김이 끝난 뒤 10초 안에 다시 시작한 끊김이다.',
@@ -875,13 +905,15 @@ const md = [
   ...(configRows.length === 0
     ? ['- viewer 산출물이 없다.']
     : [
-        '| 시청자 | 경로 | 요청(따라잡기/liveSync) | 적용(따라잡기/liveSync) | 판정 |',
+        '| 시청자 | 경로 | 요청(모드/배율/liveSync) | 적용(모드/배율/liveSync) | 판정 |',
         '|---|---|---|---|---|',
         ...configRows.map((row) => {
           const verdict = row.verdict
           return `| ${row.viewer} | ${row.path ?? '-'} | ` +
-            `${row.requested?.maxLiveSyncPlaybackRate ?? '없음'} / ${row.requested?.liveSyncDurationCount ?? '-'} | ` +
-            `${row.applied ? `${row.applied.maxLiveSyncPlaybackRate ?? '없음'} / ${row.applied.liveSyncDurationCount ?? '-'}` : '-'} | ` +
+            `${row.requested?.catchupMode ?? '없음'} / ${row.requested?.maxLiveSyncPlaybackRate ?? '없음'} / ` +
+            `${row.requested?.liveSyncDurationCount ?? '-'} | ` +
+            `${row.applied ? `${row.applied.catchupMode ?? '없음'} / ` +
+              `${row.applied.maxLiveSyncPlaybackRate ?? '없음'} / ${row.applied.liveSyncDurationCount ?? '-'}` : '-'} | ` +
             `${verdict} |`
         }),
         '',
