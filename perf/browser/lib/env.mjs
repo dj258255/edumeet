@@ -3,6 +3,7 @@
  *
  * ★ 토큰은 저장소에 두지 않는다.
  *   ~/.edumeet-perf.env 에서 읽는다. 저장소 안에 있으면 커밋된다.
+ *   원격 컨테이너는 EDUMEET_PERF_ENV=/work/.perf.env 로 경로를 바꾼다.
  *
  * ★ 토큰을 절대 찍지 않는다.
  *   앞 몇 자리만 남기는 마스킹조차 하지 않는다 - 아예 안 찍는다.
@@ -14,7 +15,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const BROWSER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
-export const ENV_PATH = join(homedir(), '.edumeet-perf.env')
+export const ENV_PATH = process.env.EDUMEET_PERF_ENV || join(homedir(), '.edumeet-perf.env')
 
 const DEFAULTS = {
   SITE: 'https://studywithtymee.com',

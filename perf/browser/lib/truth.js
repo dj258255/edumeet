@@ -5,10 +5,11 @@
  *   playbackQoe.js 를 그대로 심어 검증하면 같은 코드로 같은 코드를 검증하는 순환이다.
  *   정의를 따로 적고 따로 센다.
  *
- *   ① 이벤트 기준 - 첫 playing 이후 waiting → 다음 playing. 앱과 같은 정의지만 코드는 따로다.
- *      일시정지·탐색 중의 waiting 은 끊김이 아니다.
+ *   ① 이벤트 기준 - 첫 playing 이후 waiting/error → 다음 playing. 앱과 같은 정의지만 코드는 따로다.
+ *      오류 뒤의 pause 는 사용자 일시정지가 아니므로 열린 끊김을 닫지 않는다.
  *   ② 진행 기준   - 250ms 마다 currentTime 을 본다. 재생 중(!paused && !seeking)인데
  *      전진이 0 이상 0.1초 미만인 구간이 연속 500ms 이상이면 멈춤으로 센다.
+ *      오류 뒤에는 paused 여도 멈춤 후보로 본다. 사용자는 그 멈춘 화면을 보고 있기 때문이다. (#219)
  *      뒤로 이동(음수 전진)은 멈춤이 아니라 불연속으로 따로 센다 -
  *      재버퍼링·스트림 교체로 탐색 이벤트를 놓친 경우가 그렇다.
  *
@@ -33,7 +34,7 @@
   // 끊김 판정에는 쓰지 않고 events 에만 남기는 이벤트들.
   // "첫 playing 뒤 pause" 처럼 재생을 멈추게 한 사건을 나중에 볼 수 있어야 한다.
   const RECORD_ONLY_EVENTS = [
-    'emptied', 'abort', 'error', 'stalled', 'suspend', 'ended', 'loadstart',
+    'emptied', 'abort', 'stalled', 'suspend', 'ended', 'loadstart',
   ]
   function recordEvent(type) {
     truth.events.push({ t: round(now()), type })
@@ -56,6 +57,7 @@
   let paused = false
   let seeking = false
   let waitingSince = null // 이벤트 기준 끊김 시작
+  let errorSince = null // 오류 뒤 다음 playing 까지의 끊김 시작
 
   let lastSampleT = null
   let lastCurrent = null
@@ -66,6 +68,7 @@
     if (waitingSince == null) return
     truth.stallsEvent.push({ start: round(waitingSince), end: round(t) })
     waitingSince = null
+    errorSince = null
   }
 
   function endProgressStall(t) {
@@ -87,6 +90,7 @@
     paused = false
     seeking = false
     endEventStall(t)
+    endProgressStall(t)
   }
 
   function onWaiting() {
@@ -98,20 +102,32 @@
   }
 
   function onPause() {
-    truth.events.push({ t: round(now()), type: 'pause' })
+    const t = now()
+    truth.events.push({ t: round(t), type: 'pause' })
     paused = true
-    endEventStall(now()) // 사용자가 멈춘 것은 끊김이 아니다
+    if (errorSince != null) return // 오류 뒤 pause 는 브라우저의 부산물이다.
+    endEventStall(t) // 사용자가 멈춘 것은 끊김이 아니다
   }
 
   function onSeeking() {
-    truth.events.push({ t: round(now()), type: 'seeking' })
+    const t = now()
+    truth.events.push({ t: round(t), type: 'seeking' })
     seeking = true
-    endEventStall(now())
+    if (errorSince == null) endEventStall(t)
   }
 
   function onSeeked() {
     truth.events.push({ t: round(now()), type: 'seeked' })
     seeking = false
+  }
+
+  function onError() {
+    const t = now()
+    truth.events.push({ t: round(t), type: 'error' })
+    if (!firstPlaying || errorSince != null) return
+    errorSince = t
+    if (waitingSince == null) waitingSince = t
+    if (frozenSince == null) frozenSince = t
   }
 
   function detach(el, map) {
@@ -125,6 +141,7 @@
     paused = false
     seeking = false
     waitingSince = null
+    errorSince = null
     lastSampleT = null
     lastCurrent = null
     frozenSince = null
@@ -149,6 +166,7 @@
       pause: onPause,
       seeking: onSeeking,
       seeked: onSeeked,
+      error: onError,
     }
     // 기록만 하는 이벤트. 끊김 판정 로직은 건드리지 않는다.
     for (const type of RECORD_ONLY_EVENTS) handlers[type] = () => recordEvent(type)
@@ -167,7 +185,14 @@
 
     const playing = !video.paused && !video.seeking
     const advanced = current - lastCurrent
-    if (playing && advanced >= 0 && advanced < FROZEN_ADVANCE_S) {
+    const errorStopped = errorSince != null
+    if (errorStopped) {
+      // error 뒤 브라우저가 pause 해도 사용자는 멈춘 화면을 본다. (#219)
+      if (frozenSince == null) frozenSince = errorSince
+      if (progressStallStart == null && t - frozenSince >= STALL_AFTER_MS) {
+        progressStallStart = frozenSince
+      }
+    } else if (playing && advanced >= 0 && advanced < FROZEN_ADVANCE_S) {
       // 판정 시작은 이번 샘플 시각이다. lastSampleT 로 잡으면 최대 한 샘플 앞당겨진다.
       if (frozenSince == null) frozenSince = t
       if (progressStallStart == null && t - frozenSince >= STALL_AFTER_MS) {

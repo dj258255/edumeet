@@ -21,8 +21,8 @@
   EDUMEET_MEETING_ID=...     # 그 계정이 호스트인 BROADCAST 회의
   ```
 
-  선택: `SITE`, `API`, `SSH_HOST`, `DOCKER_NET`.
-  기본값은 `lib/env.mjs` 에 있다. **토큰은 로그·산출물에 절대 찍지 않는다.**
+선택: `SITE`, `API`, `SSH_HOST`, `DOCKER_NET`.
+기본값은 `lib/env.mjs` 에 있다. **토큰은 로그·산출물에 절대 찍지 않는다.**
 
 ```bash
 cd perf/browser
@@ -30,13 +30,38 @@ npm install
 npx playwright install chromium
 ```
 
+## 원격 시청자 부하
+
+노트북의 브라우저 부하가 커서 시청자를 다른 호스트에서 만들 때는
+`VIEWER_HOST`를 준다. 예를 들어 `byeolchi-oci`는 같은 리전의 ARM64 호스트다.
+
+```bash
+VIEWER_HOST=byeolchi-oci ./scripts/run-qoe-crosscheck.sh
+```
+
+이 모드에서도 방송 합성·운영 서버 수집·대조는 로컬에서 한다. 시청자 하네스만
+`mcr.microsoft.com/playwright:v1.63.0-noble` 공식 이미지의 Docker 컨테이너에서 실행하고,
+이미지 버전은 `perf/browser/package.json`의 Playwright 버전에서 자동으로 맞춘다.
+원격에는 `perf/browser/`를 `rsync`하고, 측정 설정은 `~/.edumeet-perf.env`를 stdin으로
+`~/edumeet-perf/.perf.env`에 보낸다. 측정이 끝나면 이 파일과
+`edumeet-perf-viewers` 컨테이너만 trap에서 지우며 `~/edumeet-perf` 캐시는 남긴다.
+
+`perf/browser/package.json`에는 잠금 파일이 없으므로 원격 컨테이너는
+`npm install --no-audit --no-fund`를 사용한다(`npm ci`를 사용하지 않는다).
+원격 호스트의 다른 컨테이너는 건드리지 않으며, 측정 직전·직후 `docker stats --no-stream`
+결과를 `out/<run>/viewer-host-cpu.txt`에 남긴다.
+
+기존의 `SCHEDULE`과 진단용 `FORCE_PATH=native`도 원격 시청자 컨테이너에 그대로 전달된다.
+
 ## 실행
 
 ```bash
 ./scripts/run-qoe-crosscheck.sh
 ```
 
-`RUN`(이름) · `VIEWERS`(기본 5) · `DURATION_S`(기본 210) 로 바꿀 수 있다.
+`RUN`(이름) · `VIEWERS`(기본 5) 로 바꿀 수 있다.
+방송은 기본 `BROADCAST_DURATION_S=86400`의 안전 상한으로 시작하고, 시청자 프로세스가
+끝난 뒤 30초 drain을 거쳐 스크립트가 SIGINT로 명시적으로 내린다.
 산출물은 `perf/browser/out/<run>/` 에 쌓인다.
 
 각 단계를 따로 돌릴 수도 있다.

@@ -232,6 +232,7 @@ async function runViewer(browser, k, user) {
     url: `${env.SITE}/meeting/${env.EDUMEET_MEETING_ID}/live`,
     error: null,
     t0: null,
+    endedAt: null,
     truth: null,
     reports,
     requestFailures: failures,
@@ -369,8 +370,9 @@ async function runViewer(browser, k, user) {
   record.finalSent = Boolean(finalReport)
   record.finalStatus = finalReport ? finalReport.status : null
 
-  writeFileSync(join(dir, `viewer-${k}.json`), `${JSON.stringify(record, null, 2)}\n`)
   await context.close().catch(() => {})
+  record.endedAt = Date.now()
+  writeFileSync(join(dir, `viewer-${k}.json`), `${JSON.stringify(record, null, 2)}\n`)
   return record
 }
 
