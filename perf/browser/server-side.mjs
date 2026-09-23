@@ -255,6 +255,8 @@ const rest = restLatency()
 const origin = collectOrigin({
   from,
   to,
+  // 회의 경로로 좁혀 가져온다 - 하루치 /hls/ 전체는 너무 크다(운영에서 14만 줄).
+  meetingId,
   runRemote: (command) => {
     try {
       return { stdout: ssh(command) }

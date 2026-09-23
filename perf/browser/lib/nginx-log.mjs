@@ -115,10 +115,10 @@ export function pickRotatedFiles(listing, dates) {
  *
  * @returns {{ lines?: string[], error?: string }}
  */
-export function readHlsLines(runRemote, file) {
+export function readHlsLines(runRemote, file, marker = HLS_PATH_MARK) {
   const grep = file.compressed
-    ? `gzip -dc ${file.path} | grep -F "${HLS_PATH_MARK}"`
-    : `grep -F "${HLS_PATH_MARK}" ${file.path}`
+    ? `gzip -dc ${file.path} | grep -F "${marker}"`
+    : `grep -F "${marker}" ${file.path}`
   const script =
     `test -r ${file.path} || { echo UNREADABLE 1>&2; exit 3; }; ${grep} || [ $? -eq 1 ]`
   // 파일마다 상태를 본다 - 못 읽은 것을 빈 줄로 바꾸면 조용한 0 이 된다.
@@ -174,7 +174,10 @@ function shellQuote(value) {
  * @param {number} options.to 창 끝(초)
  * @returns 집계 + 읽은 파일 목록(실패는 error 로 남는다 - 빈 줄로 대체하지 않는다)
  */
-export function collectOrigin({ runRemote, from, to }) {
+export function collectOrigin({ runRemote, from, to, meetingId = null }) {
+  // ★ 회의 경로까지 좁혀서 가져온다. 운영 access.log 의 `/hls/` 줄이 14만 개였다 -
+  //   하루치 전체를 당겨오면 전송도 파싱도 느리고, 전개 인자로 넘기다 스택이 터진다(아래).
+  const marker = meetingId ? ` /hls/meeting-${meetingId}/` : HLS_PATH_MARK
   const preflight = runRemote('sudo -n true')
   if (preflight.error) {
     return {
@@ -204,15 +207,18 @@ export function collectOrigin({ runRemote, from, to }) {
 
   const files = []
   const errors = []
-  const allLines = []
+  let allLines = []
   for (const file of toRead) {
-    const read = readHlsLines(runRemote, file)
+    const read = readHlsLines(runRemote, file, marker)
     if (read.error) {
       errors.push(read.error)
       continue
     }
     files.push(file.path)
-    allLines.push(...read.lines)
+    // ★ 전개(`push(...lines)`)를 쓰면 안 된다. 운영 로그가 14만 줄이라
+    //   "RangeError: Maximum call stack size exceeded" 로 죽었다(인자 개수 한계).
+    //   파일마다 concat 으로 이어 붙인다.
+    allLines = allLines.concat(read.lines)
   }
   for (const path of missingRotated) errors.push(`${path}: 파일이 없다`)
 
