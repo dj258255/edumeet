@@ -260,7 +260,9 @@ jobs:
             #     문법이 틀리면 Prometheus 는 새 설정을 버리고 옛것으로 계속 돈다.
             #     200 만 보고 넘어가면 "고쳤는데 안 바뀐" 상태를 또 못 본다.
             PROM="docker exec edumeet-prometheus wget -qO- "
-            declared=$(grep -c '^      - alert:' observability/rules/edumeet.yml)
+            # 경보와 기록 규칙을 함께 센다. Prometheus 는 둘 다 규칙으로 로드한다 - 경보만 세면
+            # 기록 규칙이 생기는 순간 정상 배포가 실패한다(#234 에서 처음 기록 규칙이 들어오며 났다).
+            declared=$(cat observability/rules/*.yml | grep -cE '^[[:space:]]*- (alert|record):')
 
             $PROM --post-data='' http://localhost:9090/-/reload
             sleep 10
