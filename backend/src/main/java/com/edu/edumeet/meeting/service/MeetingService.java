@@ -380,6 +380,7 @@ public class MeetingService {
                         .sessionType(m.getSessionType())
                         .hlsPlaylistUrl(m.getHlsPlaylistUrl())
                         .broadcasting(m.isBroadcasting())
+                        .host(isCreator)
                         .build())
                 .toList();
         
