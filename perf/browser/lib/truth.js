@@ -25,6 +25,7 @@
   if (window.__qoeTruth) return
 
   const SAMPLE_MS = 250
+  const RATE_SAMPLE_MS = 1000
   const STALL_AFTER_MS = 500
   const FROZEN_ADVANCE_S = 0.1
 
@@ -48,6 +49,9 @@
     startupMs: null,
     videoAttachedAt: null,
     wallAtAttach: null,
+    // 재생 속도 표본 (#233). 따라잡기(maxLiveSyncPlaybackRate)를 켰을 때 실제로 1을 넘었는지,
+    // 얼마나 오래 넘었는지를 나중에 대조에서 센다 - 앱이 켰다고 믿는 것과 화면에서 일어난 것은 다르다.
+    playbackRates: [],
   }
   window.__qoeTruth = truth
 
@@ -61,6 +65,7 @@
 
   let lastSampleT = null
   let lastCurrent = null
+  let lastRateT = null
   let frozenSince = null // 진행 기준 멈춤이 시작된 시각
   let progressStallStart = null
 
@@ -144,6 +149,7 @@
     errorSince = null
     lastSampleT = null
     lastCurrent = null
+    lastRateT = null
     frozenSince = null
     progressStallStart = null
   }
@@ -204,6 +210,12 @@
         truth.discontinuities.push({ t: round(t), deltaMs: round(advanced * 1000) })
       }
       endProgressStall(t)
+    }
+
+    // 재생 속도는 1초에 한 번만 남긴다(표본을 촘촘히 남겨도 판단이 달라지지 않는다).
+    if (lastRateT == null || t - lastRateT >= RATE_SAMPLE_MS) {
+      truth.playbackRates.push({ t: round(t), rate: Number(video.playbackRate) })
+      lastRateT = t
     }
 
     lastSampleT = t

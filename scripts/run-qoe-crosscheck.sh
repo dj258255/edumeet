@@ -30,6 +30,9 @@ SEGMENT_TYPE="${SEGMENT_TYPE:-mpegts}"
 HLS_TIME="${HLS_TIME:-2}"
 CHUNK_MS="${CHUNK_MS:-2000}"
 LIVE_SYNC="${LIVE_SYNC:-}"
+# 따라잡기 재생 속도 (#233). 진단용이며 기본은 꺼짐 - 값을 주면 그 회차만 켠다.
+# 허용 값: 1 · 1.05 · 1.1 · 1.25 · 1.5
+CATCHUP_RATE="${CATCHUP_RATE:-}"
 VIEWER_HOST="${VIEWER_HOST:-}"
 BROADCAST_HOST="${BROADCAST_HOST:-}"
 BROWSER_DIR="perf/browser"
@@ -101,7 +104,7 @@ fi
 
 echo "== 준비 완료 =="
 echo "   RUN=$RUN  VIEWERS=$VIEWERS  방송 안전 상한=${BROADCAST_DURATION_S}s"
-echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}"
+echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}  CATCHUP_RATE=${CATCHUP_RATE:-끔}"
 echo "   사이트=$SITE  서버=$SSH_HOST  네트워크=$DOCKER_NET"
 if [ "$REMOTE_BROADCAST" -eq 1 ]; then
   echo "   합성 방송 호스트=$BROADCAST_HOST"
@@ -358,6 +361,9 @@ echo "== 시청자 $VIEWERS 대 =="
 VIEWER_ARGS=(--run "$RUN" --viewers "$VIEWERS")
 if [ -n "$LIVE_SYNC" ]; then
   VIEWER_ARGS+=(--live-sync "$LIVE_SYNC")
+fi
+if [ -n "$CATCHUP_RATE" ]; then
+  VIEWER_ARGS+=(--catchup-rate "$CATCHUP_RATE")
 fi
 if [ -n "${SCHEDULE:-}" ]; then
   VIEWER_ARGS+=(--schedule "$SCHEDULE")

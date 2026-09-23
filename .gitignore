@@ -61,6 +61,12 @@ cmake-build-*/
 # IntelliJ
 out/
 
+# ★ IntelliJ 의 out/ 은 버리지만, 문서가 "결과는 여기 있다" 고 가리키는 표는 남긴다.
+#   perf/captions/out/reading-speed.md 가 그렇다 - 자막 읽기 속도 표 하나다.
+#   (perf/browser/out/ 은 회차마다 수 MB 라 그대로 둔다)
+#   부모 디렉터리가 무시되면 그 안의 파일은 다시 포함할 수 없어서 디렉터리를 먼저 연다.
+!perf/captions/out/
+
 # mpeltonen/sbt-idea plugin
 .idea_modules/
 

@@ -82,6 +82,18 @@ SIGINT를 보내 Node가 DELETE를 끝내기를 기다리고, 그 제어가 실�
 끝난 뒤 30초 drain을 거쳐 스크립트가 SIGINT로 명시적으로 내린다.
 산출물은 `perf/browser/out/<run>/` 에 쌓인다.
 
+따라잡기(재생 속도로 지연을 줄이는 손잡이)는 진단용으로만 켠다. (#233)
+
+```bash
+CATCHUP_RATE=1.25 ./scripts/run-qoe-crosscheck.sh
+```
+
+`CATCHUP_RATE` 는 `1 · 1.05 · 1.1 · 1.25 · 1.5` 중 하나다. 그 밖의 값은 무시되고 따라잡기를 켜지 않는다.
+켜면 `qoe-crosscheck` 가 시청자마다 `localStorage['edumeet.hls.maxLiveSyncPlaybackRate']` 를 심고,
+정답 수집이 **재생 속도를 1초마다** 남긴다. `compare.mjs` 의 "따라잡기" 절이
+재생 속도가 1을 넘은 비율 · 연쇄 끊김(끊김 뒤 10초 안의 끊김) 수 · 화면 지연 p50/p95 를 낸다.
+자막 읽기와 함께 봐야 한다 - `perf/captions/reading-speed.py` 가 그 표를 낸다.
+
 각 단계를 따로 돌릴 수도 있다.
 
 ```bash
