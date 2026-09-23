@@ -192,6 +192,9 @@ function cdnStats(rows) {
         })
         file.viewers.add(row.viewer)
         file.requests += 1
+        // ★ 첫 값에 고정하지 않는다 (#199 검토 4). 첫 응답에 content-length 가 없거나(0)
+        //   일부만 왔다면 뒤에 온 온전한 값이 이겨야 한다 - 아니면 그 조각이 표본에서 빠진다.
+        file.bytes = Math.max(file.bytes ?? 0, entry.contentLength ?? 0)
         file.statuses[entry.cfCacheStatus ?? '(헤더 없음)'] =
           (file.statuses[entry.cfCacheStatus ?? '(헤더 없음)'] ?? 0) + 1
         if (origin) file.originViewers.add(row.viewer)
@@ -557,6 +560,40 @@ const catchupTotals = (() => {
 
 const cdn = cdnStats(rows)
 const originByFile = server?.origin?.byFile ?? {}
+
+/**
+ * 실제 조각 크기로 본 비트레이트. (#199)
+ *
+ * ★ **조각 전체(영상 + 오디오 + 컨테이너)** 다. 합성 방송 ffmpeg 는 `-b:v <BITRATE_K>k` 와
+ *   **별도로** `-b:a 96k` 를 넣는다(`broadcast-synthetic.mjs`) - 그래서 실측을 영상 요청값과
+ *   그대로 비교하면 오디오만큼 크게 나오는 것이 정상인데 경고가 뜬다(검토 #199s 3번).
+ *   기준을 **영상 + 오디오 96k** 로 잡고, 컨테이너 오버헤드는 실측 쪽에만 있는 차이임을 적는다.
+ *
+ * ★ 판정은 **반올림 전** 값으로 한다(#199 검토 5). 49.6% 를 50% 로 반올림해 경고를 삼키면 안 된다.
+ *   정확히 50%·150% 는 경고하지 않는다(요구: 미만/초과).
+ */
+const BROADCAST_AUDIO_KBPS = 96 // broadcast-synthetic.mjs 의 -b:a 96k 와 같아야 한다
+const requestedBitrateK = Number.isFinite(Number(broadcast?.bitrateK)) ? Number(broadcast.bitrateK) : null
+const expectedTotalKbps = requestedBitrateK === null ? null : requestedBitrateK + BROADCAST_AUDIO_KBPS
+const segmentBytesByFile = Object.entries(cdn.byFile)
+  .filter(([file]) => /^seg_.*\.(ts|m4s|mp4)$/.test(file))
+  .map(([, stats]) => stats.bytes)
+  .filter((bytes) => Number.isFinite(bytes) && bytes > 0)
+const bitrateSegmentSeconds = Number(manifest?.extinfAverage)
+const actualBitrateRawK = segmentBytesByFile.length > 0 &&
+    Number.isFinite(bitrateSegmentSeconds) && bitrateSegmentSeconds > 0
+  ? sum(segmentBytesByFile) / segmentBytesByFile.length * 8 / bitrateSegmentSeconds / 1000
+  : null
+const actualBitrateK = actualBitrateRawK === null ? null : Math.round(actualBitrateRawK)
+const bitrateRatio = actualBitrateRawK !== null && expectedTotalKbps !== null && expectedTotalKbps > 0
+  ? actualBitrateRawK / expectedTotalKbps
+  : null
+const bitrateWarning = bitrateRatio !== null && (bitrateRatio < 0.5 || bitrateRatio > 1.5)
+  ? `실제 조각 전체 비트레이트 ${actualBitrateK} kbps 가 기준 ${expectedTotalKbps} kbps` +
+    `(영상 ${requestedBitrateK} + 오디오 ${BROADCAST_AUDIO_KBPS}) 의 ${(bitrateRatio * 100).toFixed(1)}% 다 - ` +
+    '인코더가 조건을 안 따랐을 수 있다 (요청은 broadcast.json, 실측은 조각 크기 ÷ EXTINF 평균)'
+  : null
+
 const originAvailable = Boolean(server?.origin) && !server?.origin?.error
 const broadcastStartedAtMs = broadcast?.startedAt ? Date.parse(broadcast.startedAt) : NaN
 const start = startStats(rows, broadcastStartedAtMs)
@@ -853,6 +890,24 @@ const md = [
           `불일치 ${mismatched.length} · 적용 불가 ${configUnavailable.filter((r) => r.native).length} · ` +
           `노출 없음 ${configUnavailable.filter((r) => !r.native).length}`,
         ...(catchupWarning ? ['', `- ⚠ ${catchupWarning}`] : []),
+      ]),
+  '',
+  '## 비트레이트 (#199)',
+  '',
+  ...(requestedBitrateK === null && actualBitrateK === null
+    ? ['- 요청값도 실측값도 없다. `BITRATE_K` 를 주고 돌렸는지, 매니페스트 표본이 있는지 본다.']
+    : [
+        `- 요청(합성 방송): ${requestedBitrateK === null ? '기록 없음' : `영상 ${requestedBitrateK} kbps + 오디오 ${BROADCAST_AUDIO_KBPS} kbps = 기준 ${expectedTotalKbps} kbps`} · ` +
+          `실측(**조각 전체** = 영상+오디오+컨테이너, 조각 크기 ÷ EXTINF 평균): ` +
+          `${actualBitrateK === null ? '못 쟀다' : `${actualBitrateK} kbps`}` +
+          `${bitrateRatio === null ? '' : ` (기준의 ${(bitrateRatio * 100).toFixed(1)}%)`}`,
+        ...(actualBitrateK !== null
+          ? [`- 표본: 조각 ${segmentBytesByFile.length}개 · 평균 ${bytesText(sum(segmentBytesByFile) / segmentBytesByFile.length)} · ` +
+              `EXTINF 평균 ${bitrateSegmentSeconds}초`]
+          : []),
+        `- 실측이 기준보다 조금 큰 것은 정상이다 - 조각에는 컨테이너 오버헤드가 더 들어간다. ` +
+          `경고는 기준의 50% 미만·150% 초과일 때만 낸다(반올림 전 값으로 판정).`,
+        ...(bitrateWarning ? ['', `- ⚠ ${bitrateWarning}`] : []),
       ]),
   '',
   '## CDN (#235)',

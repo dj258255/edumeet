@@ -51,8 +51,12 @@ stop_cpu_sampler() {
   SAMPLER_PID=""
 }
 
-printf '| 시청자 | 정답 끊김 합(초) | 정답 끊김 중앙(초) | 끊긴 시청자 | 첫 재생 중앙(ms) | 원격 VM CPU 최대/평균 |\n'
-printf '|---|---:|---:|---:|---:|---:|\n' > "$TABLE"
+# ★ 머리 줄도 표에 넣는다. 첫 printf 에 `> "$TABLE"` 이 없어서 머리만 stdout 으로 나가고
+#   파일에는 구분선부터 들어갔다. (#199)
+{
+  printf '| 시청자 | 정답 끊김 합(초) | 정답 끊김 중앙(초) | 끊긴 시청자 | 첫 재생 중앙(ms) | 원격 VM CPU 최대/평균 |\n'
+  printf '|---|---:|---:|---:|---:|---:|\n'
+} > "$TABLE"
 
 for n in $COUNTS; do
   run="$RUN_PREFIX-n$n"
