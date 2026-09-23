@@ -1,7 +1,11 @@
 package com.edu.edumeet.chat.config;
 
 import com.edu.edumeet.config.jwt.JwtService;
+import com.edu.edumeet.classroom.repository.ClassMemberRepository;
+import com.edu.edumeet.meeting.domain.Meeting;
+import com.edu.edumeet.meeting.domain.SessionType;
 import com.edu.edumeet.meeting.repository.MeetingParticipantRepository;
+import com.edu.edumeet.meeting.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
@@ -29,7 +33,7 @@ import java.util.regex.Pattern;
  * <h3>어디서 무엇을 보는가</h3>
  * <pre>
  *   CONNECT     JWT 검증 → Principal 설정        (내가 누구인가)
- *   SUBSCRIBE   방 참가 기록 확인                 (이 방을 볼 자격이 있는가)
+ *   SUBSCRIBE   세션 형태별 시청 권한 확인        (이 방을 볼 자격이 있는가)
  * </pre>
  *
  * SUBSCRIBE 를 막지 않으면 남의 회의 채팅을 그대로 받아볼 수 있다.
@@ -65,6 +69,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
     private final MeetingParticipantRepository meetingParticipantRepository;
+    private final MeetingRepository meetingRepository;
+    private final ClassMemberRepository classMemberRepository;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -116,12 +122,33 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         Long meetingId = Long.valueOf(matcher.group(1));
-        boolean joined = meetingParticipantRepository
-                .findActive(meetingId, user.getName())
-                .isPresent();
-        if (!joined) {
-            log.warn("참가하지 않은 방 구독 시도 - meetingId={}, email={}", meetingId, user.getName());
+        Meeting meeting = meetingRepository.findByIdWithClassRoomAndOwner(meetingId).orElse(null);
+        if (meeting == null) {
+            log.warn("없는 회의 방 구독 시도 - meetingId={}, sessionType=unknown, email={}",
+                    meetingId, user.getName());
+            throw new ChatAccessDeniedException("존재하지 않는 회의의 채팅은 볼 수 없습니다.");
+        }
+
+        SessionType sessionType = meeting.getSessionType();
+        boolean allowed = switch (sessionType) {
+            case BROADCAST, AUDIO_BROADCAST -> canWatchBroadcast(meeting, user.getName());
+            case INTERACTIVE -> meetingParticipantRepository
+                    .findActive(meetingId, user.getName())
+                    .isPresent();
+        };
+        if (!allowed) {
+            log.warn("권한 없는 방 구독 시도 - meetingId={}, sessionType={}, email={}",
+                    meetingId, sessionType, user.getName());
             throw new ChatAccessDeniedException("참가하지 않은 회의의 채팅은 볼 수 없습니다.");
         }
+    }
+
+    /** 방송은 정원을 소비하는 회의 참가 대신 수업 소속으로 시청 권한을 확인한다. */
+    private boolean canWatchBroadcast(Meeting meeting, String email) {
+        if (meeting.getClassRoom().getMember().getEmail().equals(email)) {
+            return true;
+        }
+        return classMemberRepository.findByClassRoomIdAndMemberEmail(
+                meeting.getClassRoom().getId(), email).isPresent();
     }
 }

@@ -23,4 +23,6 @@ public class ClassMeetingInfoResponseDto {
     private SessionType sessionType;
     private String hlsPlaylistUrl;
     private boolean broadcasting;
+    /** 요청한 사용자가 이 수업의 소유자인가. 방송 스튜디오 진입을 결정한다. */
+    private boolean host;
 }

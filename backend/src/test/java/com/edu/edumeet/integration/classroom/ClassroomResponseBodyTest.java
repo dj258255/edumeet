@@ -156,7 +156,8 @@ class ClassroomResponseBodyTest {
         assertNotAnEmptyBody(response, "회의 목록");
         assertThat(bodyText(response))
                 .as(describe(response))
-                .contains("\"meetingId\":" + meetingId);
+                .contains("\"meetingId\":" + meetingId)
+                .contains("\"host\":true");
     }
 
     /**

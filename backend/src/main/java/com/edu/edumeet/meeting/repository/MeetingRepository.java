@@ -21,6 +21,10 @@ public interface MeetingRepository extends JpaRepository<Meeting, Long> {
     Optional<Meeting> findTopByClassRoomIdAndS3urlIsNotNullOrderByStartTimeDesc(Long classRoomId);
     Optional<Meeting> findTopByClassRoomIdOrderByStartTimeDesc(Long classRoomId);
 
+    /** STOMP 구독 인가가 필요한 수업·호스트를 한 조회로 읽는다. */
+    @Query("SELECT m FROM Meeting m JOIN FETCH m.classRoom cr JOIN FETCH cr.member WHERE m.id = :id")
+    Optional<Meeting> findByIdWithClassRoomAndOwner(@Param("id") Long id);
+
     /**
      * 정원 검증을 위해 세션 행에 쓰기 잠금을 건다.
      *

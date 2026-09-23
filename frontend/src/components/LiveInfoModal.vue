@@ -49,6 +49,15 @@
                 </div>
               </div>
 
+              <div v-if="isBroadcastMeeting(info)" class="broadcast-entry">
+                <span class="broadcast-entry__status" :class="{ 'broadcast-entry__status--live': info.broadcasting }">
+                  {{ info.broadcasting ? '방송 중' : '시작 전' }}
+                </span>
+                <button class="broadcast-entry__button" @click="enterBroadcast(info)">
+                  {{ info.host ? '방송 스튜디오' : '방송 보기' }}
+                </button>
+              </div>
+
               <!-- ✅ s3url이 있을 때만 다운로드 섹션 표시 -->
               <div v-if="info.hasRecordingFile" class="info-files">
                 <h4 class="files-title">🎥 녹화 파일</h4>
@@ -98,6 +107,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 /** API Base URL (.env: VITE_BASE_URL) */
@@ -108,6 +118,7 @@ const props = defineProps({
   classId: { type: [String, Number], default: '' }
 })
 const emit = defineEmits(['close'])
+const router = useRouter()
 
 /** 화면 상태 */
 const liveInfoList = ref([])
@@ -136,6 +147,20 @@ const formatFileSize = (bytes) => {
   const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
+}
+
+/** 방송은 스튜디오와 시청 화면이 분리돼 있다. 수업 주인만 송출 화면으로 보낸다. */
+const isBroadcastMeeting = (info) =>
+  info.sessionType === 'BROADCAST' || info.sessionType === 'AUDIO_BROADCAST'
+
+const enterBroadcast = (info) => {
+  if (!info?.id) return
+  router.push({
+    name: info.host ? 'broadcast-studio' : 'broadcast-watch',
+    params: { meetingId: info.id },
+    // BroadcastStudioView 는 이 쿼리로 카메라 없이 시작할지를 결정한다.
+    query: info.host && info.sessionType === 'AUDIO_BROADCAST' ? { mode: 'audio' } : {}
+  })
 }
 
 /** ✅ 커스텀 파일명 생성: {날짜}_{화상강의 제목} */
@@ -356,6 +381,9 @@ function mapToViewModel(items = []) {
     const createdAt = item.createdAt ?? item.createTime ?? item.startTime ?? new Date().toISOString()
     const startTime = item.startTime ?? item.beginTime ?? null
     const endTime = item.endTime ?? item.finishTime ?? null
+    const sessionType = item.sessionType ?? item.type ?? null
+    const broadcasting = item.broadcasting === true
+    const host = item.host === true
 
     // 상태 계산
     let status = 'scheduled'
@@ -384,6 +412,9 @@ function mapToViewModel(items = []) {
       status,
       createdAt,
       startTime,
+      sessionType,
+      broadcasting,
+      host,
       hasRecordingFile,
       recordingFileName,
       fileSize,
@@ -780,6 +811,29 @@ onMounted(() => {
   gap: 1.5rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+}
+
+.broadcast-entry {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin: .75rem 0;
+}
+
+.broadcast-entry__status {
+  color: #6b7280;
+  font-size: .875rem;
+}
+
+.broadcast-entry__status--live { color: #dc2626; font-weight: 600; }
+
+.broadcast-entry__button {
+  border: 0;
+  border-radius: .375rem;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  padding: .45rem .7rem;
 }
 
 .meta-item {
