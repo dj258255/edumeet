@@ -254,10 +254,22 @@ groups:
       #
       #   ★ 슬롯 둘(blue/green) 에서 instance 별로 따로 묻지 않는다 (#184).
       #     합친 뒤에 묻는다.
+      #
+      #   ★ 합에 스트림 방식의 유실 셋을 더한다 (#234b 검토 4).
+      #
+      #     SLO 경보(edumeet-slo)는 **최소 분모 조건**이 있어 트래픽이 없으면 조용하다.
+      #     그 게이트가 막는 드문 유실 - 조용한 새벽에 1건 - 은 이 경보가 잡아야 한다.
+      #     그래서 두 경보의 합을 같게 맞춘다. 다르면 SLO 가 조용한 자리에서 아무도 안 운다.
+      #
+      #     trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다)이고
+      #     discarded 는 uid 없음 + 회의 삭제가 섞인다 - 넣고 문서에 적었다.
       - alert: ChatArchiveLosing
         expr: >-
           (sum(increase(chat_archive_dropped_total[5m])) or vector(0))
           + (sum(increase(chat_archive_persist_failed_total[5m])) or vector(0))
+          + (sum(increase(chat_archive_stream_dead_total[5m])) or vector(0))
+          + (sum(increase(chat_archive_stream_trimmed_total[5m])) or vector(0))
+          + (sum(increase(chat_archive_stream_discarded_total[5m])) or vector(0))
           > 0
         for: 0m
         labels:
@@ -267,7 +279,9 @@ groups:
           summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
           description: >-
             5분간 {{ $value | printf "%.0f" }}건 유실. 방송 화면에는 이미 나갔으므로
-            다시보기에서만 빠진다. dropped 면 저장이 밀리는 것이고 persist_failed 면 DB 문제다.
+            다시보기에서만 빠진다. dropped 면 저장이 밀리는 것, persist_failed 면 DB 문제,
+            stream_dead 는 독성 항목 격리, trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다),
+            discarded 는 uid 없음(회의 삭제분도 섞인다 - 드물다) 이다.
 
   - name: edumeet-silent-failures
     interval: 15s
@@ -661,3 +675,419 @@ groups:
           description: >-
             덤프는 있는데 복구본이 운영과 다르다. 지금 있는 백업으로는
             돌아갈 수 없다고 봐야 한다. journalctl -u edumeet-restore-drill 을 본다.
+
+  # ════════════════════════════════════════════════════════════════════
+  # SLO · 에러 버짓 · 다중 창 소진율 경보 (#234)
+  #
+  # ★ 왜 임계값 경보만으로는 안 되나.
+  #
+  #   위쪽 경보들(CaptionBroadcastDropping, ChatArchiveLosing …)은 "0 이 아니면 울린다" 다.
+  #   그건 유실이 생긴 **뒤에** 알려 준다. 28일 예산을 얼마나 썼는지는 말해 주지 않는다 -
+  #   한 번의 100건과 매일 1건이 같은 소리로 울린다.
+  #
+  #   여기서는 **예산 소진 속도**(번 레이트)를 본다. 정의는
+  #
+  #       소진율 = (그 창의 오류율) / (1 - SLO)
+  #
+  #   예를 들어 SLO 1% 에서 오류율이 13.44% 면 소진율 13.44배다. 이 속도로 28일을 가면
+  #   예산(6시간 43분)을 50시간에 다 쓴다 - 그래서 창을 나눠 본다.
+  #
+  # ★ 창을 둘 쓰는 이유 (Google SRE Workbook 표를 28일 창으로 다시 계산했다).
+  #
+  #   긴 창만 보면 짧게 튄 것에도 울리고(오탐), 짧은 창만 보면 이미 지나간 것에도 울린다.
+  #   그래서 **긴 창과 짧은 창이 둘 다** 문턱을 넘을 때만 울린다 - 짧은 창이 "지금도 타고 있나" 다.
+  #
+  #   배수는 "그 창에서 예산의 몇 %를 태우는가" 로 정한다. 28일 = 672시간이므로
+  #
+  #       배수 = (태우려는 예산 비율) x 672 / (창 길이, 시간)
+  #
+  #       2%   x 672 / 1h  = 13.44   (1h & 5m)    28일 창 기준 재계산값
+  #       5%   x 672 / 6h  =  5.6    (6h & 30m)
+  #       10%  x 672 / 72h =  0.933  (3d & 6h)
+  #
+  #   (30일 창이면 14.4 · 6 · 1 이다. 이 저장소는 28일 예산을 쓰므로 위 값이다 -
+  #    14.4 를 그대로 두면 같은 "2%" 가 30일 기준이 되어 28일 예산을 7% 더 태운 뒤에 울린다.)
+  #
+  # ★ 라벨 없는 합계로 본다 (#184).
+  #
+  #   배포는 슬롯 둘(blue/green)이다. instance 별로 물으면 한 슬롯이 조용할 때 다른 슬롯의
+  #   소진율이 절반으로 보인다 - 실제로 그렇게 놓쳤다(#184). 그래서 sum() 으로 합친 뒤 묻는다.
+  #
+  # ★ 분모가 작으면 소진율이 요동친다 (#178).
+  #
+  #   지금 실사용이 거의 없다. 5분 창에 자막 1건이 버려지고 발행이 0건이면 오류율 100% 다.
+  #   그래서 **최소 분모**(traffic) 조건을 함께 건다 - 창에 트래픽이 없으면 비율 자체를 안 믿는다.
+  #   값의 근거는 docs/ops/25-slo.md 에 있다.
+  #
+  # 판정: docs/ops/25-slo.md · 프런트가 보내는 SLI 는 #197 재생 품질 보고
+  # ════════════════════════════════════════════════════════════════════
+  - name: edumeet-slo
+    interval: 15s
+    rules:
+      # ── SLI: 재생 끊김 비율 (SLO ≤ 1%) ──────────────────────────────────
+      #
+      #   분모는 그 창의 전체다. 분모가 0이어도 NaN 이 되지 않게 clamp_min 으로 바닥을 준다 -
+      #   NaN 은 어떤 비교에도 안 걸려 경보가 조용해진다(트래픽 0 은 조용해야 하지만,
+      #   그 판단은 아래 traffic 조건이 한다).
+      - record: edumeet:sli_playback_stall:ratio_5m
+        expr: |
+          (sum(rate(playback_stall_seconds_total[5m])) or vector(0))
+          / clamp_min((sum(rate(playback_stall_seconds_total[5m])) or vector(0))
+          + (sum(rate(playback_playing_seconds_total[5m])) or vector(0)), 1e-9)
+      - record: edumeet:sli_playback_stall:ratio_30m
+        expr: |
+          (sum(rate(playback_stall_seconds_total[30m])) or vector(0))
+          / clamp_min((sum(rate(playback_stall_seconds_total[30m])) or vector(0))
+          + (sum(rate(playback_playing_seconds_total[30m])) or vector(0)), 1e-9)
+      - record: edumeet:sli_playback_stall:ratio_1h
+        expr: |
+          (sum(rate(playback_stall_seconds_total[1h])) or vector(0))
+          / clamp_min((sum(rate(playback_stall_seconds_total[1h])) or vector(0))
+          + (sum(rate(playback_playing_seconds_total[1h])) or vector(0)), 1e-9)
+      - record: edumeet:sli_playback_stall:ratio_6h
+        expr: |
+          (sum(rate(playback_stall_seconds_total[6h])) or vector(0))
+          / clamp_min((sum(rate(playback_stall_seconds_total[6h])) or vector(0))
+          + (sum(rate(playback_playing_seconds_total[6h])) or vector(0)), 1e-9)
+      - record: edumeet:sli_playback_stall:ratio_3d
+        expr: |
+          (sum(rate(playback_stall_seconds_total[3d])) or vector(0))
+          / clamp_min((sum(rate(playback_stall_seconds_total[3d])) or vector(0))
+          + (sum(rate(playback_playing_seconds_total[3d])) or vector(0)), 1e-9)
+      - record: edumeet:sli_playback_stall:traffic_1h
+        expr: |
+          (sum(rate(playback_stall_seconds_total[1h])) or vector(0))
+          + (sum(rate(playback_playing_seconds_total[1h])) or vector(0))
+      - record: edumeet:sli_playback_stall:traffic_6h
+        expr: |
+          (sum(rate(playback_stall_seconds_total[6h])) or vector(0))
+          + (sum(rate(playback_playing_seconds_total[6h])) or vector(0))
+      # ── SLI: 송출 조각 수락률 (SLO ≥ 99.9%) ──────────────────────────────
+      #
+      #   ★ 409 는 실패가 아니다 - #229 의 **복구 신호**다. 배포 중 새 슬롯에 방송이 없으면
+      #     발표자가 그 신호를 받고 다시 붙는다. 실패로 세면 배포할 때마다 SLI 가 무너진다.
+      #     방송이 정말 멈추면 재생 끊김 SLI 가 본다. 그래서 2xx 와 409 를 뺀 나머지를 센다.
+      #
+      #   분모는 그 창의 전체다. 분모가 0이어도 NaN 이 되지 않게 clamp_min 으로 바닥을 준다 -
+      #   NaN 은 어떤 비교에도 안 걸려 경보가 조용해진다(트래픽 0 은 조용해야 하지만,
+      #   그 판단은 아래 traffic 조건이 한다).
+      - record: edumeet:sli_chunk_upload:ratio_5m
+        expr: |
+          (sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk", status!~"2..|409"}[5m])) or vector(0))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[5m])) or vector(0), 1e-9)
+      - record: edumeet:sli_chunk_upload:ratio_30m
+        expr: |
+          (sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk", status!~"2..|409"}[30m])) or vector(0))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[30m])) or vector(0), 1e-9)
+      - record: edumeet:sli_chunk_upload:ratio_1h
+        expr: |
+          (sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk", status!~"2..|409"}[1h])) or vector(0))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[1h])) or vector(0), 1e-9)
+      - record: edumeet:sli_chunk_upload:ratio_6h
+        expr: |
+          (sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk", status!~"2..|409"}[6h])) or vector(0))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[6h])) or vector(0), 1e-9)
+      - record: edumeet:sli_chunk_upload:ratio_3d
+        expr: |
+          (sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk", status!~"2..|409"}[3d])) or vector(0))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[3d])) or vector(0), 1e-9)
+      - record: edumeet:sli_chunk_upload:traffic_1h
+        expr: |
+          sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[1h])) or vector(0)
+      - record: edumeet:sli_chunk_upload:traffic_6h
+        expr: |
+          sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[6h])) or vector(0)
+      # ── SLI: 자막 전달률 (SLO ≥ 99.9%) ──────────────────────────────────
+      #
+      #   분모는 그 창의 전체다. 분모가 0이어도 NaN 이 되지 않게 clamp_min 으로 바닥을 준다 -
+      #   NaN 은 어떤 비교에도 안 걸려 경보가 조용해진다(트래픽 0 은 조용해야 하지만,
+      #   그 판단은 아래 traffic 조건이 한다).
+      - record: edumeet:sli_caption:ratio_5m
+        expr: |
+          (sum(rate(caption_broadcast_dropped_total[5m])) or vector(0))
+          / clamp_min((sum(rate(caption_broadcast_dropped_total[5m])) or vector(0))
+          + (sum(rate(caption_broadcast_published_total[5m])) or vector(0)), 1e-9)
+      - record: edumeet:sli_caption:ratio_30m
+        expr: |
+          (sum(rate(caption_broadcast_dropped_total[30m])) or vector(0))
+          / clamp_min((sum(rate(caption_broadcast_dropped_total[30m])) or vector(0))
+          + (sum(rate(caption_broadcast_published_total[30m])) or vector(0)), 1e-9)
+      - record: edumeet:sli_caption:ratio_1h
+        expr: |
+          (sum(rate(caption_broadcast_dropped_total[1h])) or vector(0))
+          / clamp_min((sum(rate(caption_broadcast_dropped_total[1h])) or vector(0))
+          + (sum(rate(caption_broadcast_published_total[1h])) or vector(0)), 1e-9)
+      - record: edumeet:sli_caption:ratio_6h
+        expr: |
+          (sum(rate(caption_broadcast_dropped_total[6h])) or vector(0))
+          / clamp_min((sum(rate(caption_broadcast_dropped_total[6h])) or vector(0))
+          + (sum(rate(caption_broadcast_published_total[6h])) or vector(0)), 1e-9)
+      - record: edumeet:sli_caption:ratio_3d
+        expr: |
+          (sum(rate(caption_broadcast_dropped_total[3d])) or vector(0))
+          / clamp_min((sum(rate(caption_broadcast_dropped_total[3d])) or vector(0))
+          + (sum(rate(caption_broadcast_published_total[3d])) or vector(0)), 1e-9)
+      - record: edumeet:sli_caption:traffic_1h
+        expr: |
+          (sum(rate(caption_broadcast_dropped_total[1h])) or vector(0))
+          + (sum(rate(caption_broadcast_published_total[1h])) or vector(0))
+      - record: edumeet:sli_caption:traffic_6h
+        expr: |
+          (sum(rate(caption_broadcast_dropped_total[6h])) or vector(0))
+          + (sum(rate(caption_broadcast_published_total[6h])) or vector(0))
+      # ── SLI: 채팅 저장률 (SLO ≥ 99.99%) ────────────────────────────────
+      #
+      #   분자(유실)가 다섯인 이유.
+      #     stream_trimmed   ★ 비상 트림. **아직 저장하지 못한 항목일 수 있다**
+      #                      (ChatArchiveStream 의 EMERGENCY_MAX_LEN 주석). ACK 뒤 정상 트림은
+      #                      이 카운터에 안 잡히므로, 여기 잡히는 것은 유실이다 (#234b 검토 1)
+      #     stream_discarded uid 없음(유실) + 회의 삭제(의도) 가 섞인다. 회의 삭제는 드물고
+      #                      유실을 놓치는 쪽이 더 나쁘다 - 넣고 문서에 적었다.
+      #
+      #   분모는 그 창의 전체다. 분모가 0이어도 NaN 이 되지 않게 clamp_min 으로 바닥을 준다 -
+      #   NaN 은 어떤 비교에도 안 걸려 경보가 조용해진다(트래픽 0 은 조용해야 하지만,
+      #   그 판단은 아래 traffic 조건이 한다).
+      - record: edumeet:sli_chat_archive:ratio_5m
+        expr: |
+          ((sum(rate(chat_archive_dropped_total[5m])) or vector(0))
+          + (sum(rate(chat_archive_persist_failed_total[5m])) or vector(0))
+          + (sum(rate(chat_archive_stream_dead_total[5m])) or vector(0))
+          + (sum(rate(chat_archive_stream_trimmed_total[5m])) or vector(0))
+          + (sum(rate(chat_archive_stream_discarded_total[5m])) or vector(0)))
+          / clamp_min(sum(rate(chat_archive_enqueued_total[5m])) or vector(0), 1e-9)
+      - record: edumeet:sli_chat_archive:ratio_30m
+        expr: |
+          ((sum(rate(chat_archive_dropped_total[30m])) or vector(0))
+          + (sum(rate(chat_archive_persist_failed_total[30m])) or vector(0))
+          + (sum(rate(chat_archive_stream_dead_total[30m])) or vector(0))
+          + (sum(rate(chat_archive_stream_trimmed_total[30m])) or vector(0))
+          + (sum(rate(chat_archive_stream_discarded_total[30m])) or vector(0)))
+          / clamp_min(sum(rate(chat_archive_enqueued_total[30m])) or vector(0), 1e-9)
+      - record: edumeet:sli_chat_archive:ratio_1h
+        expr: |
+          ((sum(rate(chat_archive_dropped_total[1h])) or vector(0))
+          + (sum(rate(chat_archive_persist_failed_total[1h])) or vector(0))
+          + (sum(rate(chat_archive_stream_dead_total[1h])) or vector(0))
+          + (sum(rate(chat_archive_stream_trimmed_total[1h])) or vector(0))
+          + (sum(rate(chat_archive_stream_discarded_total[1h])) or vector(0)))
+          / clamp_min(sum(rate(chat_archive_enqueued_total[1h])) or vector(0), 1e-9)
+      - record: edumeet:sli_chat_archive:ratio_6h
+        expr: |
+          ((sum(rate(chat_archive_dropped_total[6h])) or vector(0))
+          + (sum(rate(chat_archive_persist_failed_total[6h])) or vector(0))
+          + (sum(rate(chat_archive_stream_dead_total[6h])) or vector(0))
+          + (sum(rate(chat_archive_stream_trimmed_total[6h])) or vector(0))
+          + (sum(rate(chat_archive_stream_discarded_total[6h])) or vector(0)))
+          / clamp_min(sum(rate(chat_archive_enqueued_total[6h])) or vector(0), 1e-9)
+      - record: edumeet:sli_chat_archive:ratio_3d
+        expr: |
+          ((sum(rate(chat_archive_dropped_total[3d])) or vector(0))
+          + (sum(rate(chat_archive_persist_failed_total[3d])) or vector(0))
+          + (sum(rate(chat_archive_stream_dead_total[3d])) or vector(0))
+          + (sum(rate(chat_archive_stream_trimmed_total[3d])) or vector(0))
+          + (sum(rate(chat_archive_stream_discarded_total[3d])) or vector(0)))
+          / clamp_min(sum(rate(chat_archive_enqueued_total[3d])) or vector(0), 1e-9)
+      - record: edumeet:sli_chat_archive:traffic_1h
+        expr: |
+          sum(rate(chat_archive_enqueued_total[1h])) or vector(0)
+      - record: edumeet:sli_chat_archive:traffic_6h
+        expr: |
+          sum(rate(chat_archive_enqueued_total[6h])) or vector(0)
+      # ── 경보: 재생 끊김 비율 (예산 1%) ──────────────────
+      #
+      #   ★ 재생은 분모가 "초" 라 값이 작다 - 문턱 0.5 는 **평균 시청자 반 명**이다 (#234b).
+      #     1 로 두면 시청자 한 명이 계속 끊겨도 안 울린다. 그 한 명에게는 100% 실패다.
+      #
+      #   문턱 = 배수 x 예산. 1% 예산이므로
+      #     빠름  13.44 x 0.01 = 0.1344 (1% 의 13.44배)
+      #     느림   5.6  x 0.01 = 0.056
+      #     티켓   0.933 x 0.01 = 0.00933
+      - alert: PlaybackStallBurnRateFast
+        expr: |
+          (edumeet:sli_playback_stall:ratio_1h > 13.44 * 0.01)
+          and (edumeet:sli_playback_stall:ratio_5m > 13.44 * 0.01)
+          and (edumeet:sli_playback_stall:traffic_1h >= 0.5)
+        for: 0m   # 짧은 창(5분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "재생 끊김 비율이 28일 예산의 2%를 1시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+          description: "1시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 13.44 x 1% = 13.44% · 5분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - alert: PlaybackStallBurnRateSlow
+        expr: |
+          (edumeet:sli_playback_stall:ratio_6h > 5.6 * 0.01)
+          and (edumeet:sli_playback_stall:ratio_30m > 5.6 * 0.01)
+          and (edumeet:sli_playback_stall:traffic_6h >= 0.5)
+        for: 0m   # 짧은 창(30분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "재생 끊김 비율이 28일 예산의 5%를 6시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+          description: "6시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 5.6 x 1% = 5.6% · 30분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - alert: PlaybackStallBurnRateTicket
+        expr: |
+          (edumeet:sli_playback_stall:ratio_3d > (0.1 * 672 / 72) * 0.01)
+          and (edumeet:sli_playback_stall:ratio_6h > (0.1 * 672 / 72) * 0.01)
+          and (edumeet:sli_playback_stall:traffic_6h >= 0.5)
+        for: 0m   # 짧은 창(6시간)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: warning
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "재생 끊김 비율이 28일 예산의 10%를 3일 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+          description: "3일 창 오류율 {{ $value | humanizePercentage }} · 문턱 (0.1 * 672 / 72) x 1% = 0.933% · 6시간 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      # ── 경보: 송출 조각 수락률 (예산 0.1%) ──────────────────
+      #
+      #   문턱 = 배수 x 예산. 0.1% 예산이므로
+      #     빠름  13.44 x 0.001 = 0.01344 (0.1% 의 13.44배)
+      #     느림   5.6  x 0.001 = 0.0056
+      #     티켓   0.933 x 0.001 = 0.000933
+      - alert: ChunkUploadBurnRateFast
+        expr: |
+          (edumeet:sli_chunk_upload:ratio_1h > 13.44 * 0.001)
+          and (edumeet:sli_chunk_upload:ratio_5m > 13.44 * 0.001)
+          and (edumeet:sli_chunk_upload:traffic_1h > 0.1)
+        for: 0m   # 짧은 창(5분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "송출 조각 수락률이 28일 예산의 2%를 1시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+          description: "1시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 13.44 x 0.1% = 1.344% · 5분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      - alert: ChunkUploadBurnRateSlow
+        expr: |
+          (edumeet:sli_chunk_upload:ratio_6h > 5.6 * 0.001)
+          and (edumeet:sli_chunk_upload:ratio_30m > 5.6 * 0.001)
+          and (edumeet:sli_chunk_upload:traffic_6h > 0.1)
+        for: 0m   # 짧은 창(30분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "송출 조각 수락률이 28일 예산의 5%를 6시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+          description: "6시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 5.6 x 0.1% = 0.56% · 30분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      - alert: ChunkUploadBurnRateTicket
+        expr: |
+          (edumeet:sli_chunk_upload:ratio_3d > (0.1 * 672 / 72) * 0.001)
+          and (edumeet:sli_chunk_upload:ratio_6h > (0.1 * 672 / 72) * 0.001)
+          and (edumeet:sli_chunk_upload:traffic_6h > 0.1)
+        for: 0m   # 짧은 창(6시간)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: warning
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "송출 조각 수락률이 28일 예산의 10%를 3일 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+          description: "3일 창 오류율 {{ $value | humanizePercentage }} · 문턱 (0.1 * 672 / 72) x 0.1% = 0.0933% · 6시간 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      # ── 경보: 자막 전달률 (예산 0.1%) ──────────────────
+      #
+      #   문턱 = 배수 x 예산. 0.1% 예산이므로
+      #     빠름  13.44 x 0.001 = 0.01344 (0.1% 의 13.44배)
+      #     느림   5.6  x 0.001 = 0.0056
+      #     티켓   0.933 x 0.001 = 0.000933
+      - alert: CaptionDeliveryBurnRateFast
+        expr: |
+          (edumeet:sli_caption:ratio_1h > 13.44 * 0.001)
+          and (edumeet:sli_caption:ratio_5m > 13.44 * 0.001)
+          and (edumeet:sli_caption:traffic_1h > 0.01)
+        for: 0m   # 짧은 창(5분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "자막 전달률이 28일 예산의 2%를 1시간 만에 태우고 있다 (자막 전달률 ≥ 99.9%)"
+          description: "1시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 13.44 x 0.1% = 1.344% · 5분 창도 넘음 · 분모(초당 자막 수) 0.01 이하면 안 울린다"
+      - alert: CaptionDeliveryBurnRateSlow
+        expr: |
+          (edumeet:sli_caption:ratio_6h > 5.6 * 0.001)
+          and (edumeet:sli_caption:ratio_30m > 5.6 * 0.001)
+          and (edumeet:sli_caption:traffic_6h > 0.01)
+        for: 0m   # 짧은 창(30분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "자막 전달률이 28일 예산의 5%를 6시간 만에 태우고 있다 (자막 전달률 ≥ 99.9%)"
+          description: "6시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 5.6 x 0.1% = 0.56% · 30분 창도 넘음 · 분모(초당 자막 수) 0.01 이하면 안 울린다"
+      - alert: CaptionDeliveryBurnRateTicket
+        expr: |
+          (edumeet:sli_caption:ratio_3d > (0.1 * 672 / 72) * 0.001)
+          and (edumeet:sli_caption:ratio_6h > (0.1 * 672 / 72) * 0.001)
+          and (edumeet:sli_caption:traffic_6h > 0.01)
+        for: 0m   # 짧은 창(6시간)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: warning
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "자막 전달률이 28일 예산의 10%를 3일 만에 태우고 있다 (자막 전달률 ≥ 99.9%)"
+          description: "3일 창 오류율 {{ $value | humanizePercentage }} · 문턱 (0.1 * 672 / 72) x 0.1% = 0.0933% · 6시간 창도 넘음 · 분모(초당 자막 수) 0.01 이하면 안 울린다"
+      # ── 경보: 채팅 저장률 (예산 0.01%) ──────────────────
+      #
+      #   문턱 = 배수 x 예산. 0.01% 예산이므로
+      #     빠름  13.44 x 0.0001 = 0.001344 (0.01% 의 13.44배)
+      #     느림   5.6  x 0.0001 = 0.00056
+      #     티켓   0.933 x 0.0001 = 9.33e-05
+      - alert: ChatArchiveBurnRateFast
+        expr: |
+          (edumeet:sli_chat_archive:ratio_1h > 13.44 * 0.0001)
+          and (edumeet:sli_chat_archive:ratio_5m > 13.44 * 0.0001)
+          and (edumeet:sli_chat_archive:traffic_1h > 0.01)
+        for: 0m   # 짧은 창(5분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "채팅 저장률이 28일 예산의 2%를 1시간 만에 태우고 있다 (채팅 저장률 ≥ 99.99%)"
+          description: "1시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 13.44 x 0.01% = 0.1344% · 5분 창도 넘음 · 분모(초당 메시지 수) 0.01 이하면 안 울린다"
+      - alert: ChatArchiveBurnRateSlow
+        expr: |
+          (edumeet:sli_chat_archive:ratio_6h > 5.6 * 0.0001)
+          and (edumeet:sli_chat_archive:ratio_30m > 5.6 * 0.0001)
+          and (edumeet:sli_chat_archive:traffic_6h > 0.01)
+        for: 0m   # 짧은 창(30분)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: critical
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "채팅 저장률이 28일 예산의 5%를 6시간 만에 태우고 있다 (채팅 저장률 ≥ 99.99%)"
+          description: "6시간 창 오류율 {{ $value | humanizePercentage }} · 문턱 5.6 x 0.01% = 0.056% · 30분 창도 넘음 · 분모(초당 메시지 수) 0.01 이하면 안 울린다"
+      - alert: ChatArchiveBurnRateTicket
+        expr: |
+          (edumeet:sli_chat_archive:ratio_3d > (0.1 * 672 / 72) * 0.0001)
+          and (edumeet:sli_chat_archive:ratio_6h > (0.1 * 672 / 72) * 0.0001)
+          and (edumeet:sli_chat_archive:traffic_6h > 0.01)
+        for: 0m   # 짧은 창(6시간)이 "for" 역할을 한다 - 둘 다 넘어야 울린다
+        labels:
+          severity: warning
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "채팅 저장률이 28일 예산의 10%를 3일 만에 태우고 있다 (채팅 저장률 ≥ 99.99%)"
+          description: "3일 창 오류율 {{ $value | humanizePercentage }} · 문턱 (0.1 * 672 / 72) x 0.01% = 0.00933% · 6시간 창도 넘음 · 분모(초당 메시지 수) 0.01 이하면 안 울린다"
+
+      # ── 경보: 입력이 사라진 것을 '정상 0' 으로 삼키지 않게 (#234b 검토 5) ──────
+      #
+      #   SLO 경보는 "오류율이 낮다" 를 조용함으로 말한다. 그런데 **입력이 아예 없어도 조용하다** -
+      #   uri 라벨이 바뀌거나 계측이 사라지면 분모가 0 이 되고, 0/1e-9 = 0 이라 정상으로 보인다.
+      #   그 조용함이 '괜찮다' 인지 '못 본다' 인지 구분해야 한다. 방송은 켜져 있는데
+      #   그 방송의 SLI 입력이 0 이면 **우리가 못 보는 것**이다.
+      #
+      #   방송이 켜져 있는지를 기준으로 삼는 이유: 트래픽이 없는 시간에는 입력이 0 인 것이 정상이다.
+      #   방송 중(발표자가 조각을 올리고 시청자가 재생하는 중)인데 0 이면 계측 문제다.
+      - alert: SloInputMissing
+        expr: |
+          (label_replace(sum(rate(http_server_requests_seconds_count{uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[10m])) or vector(0), "sli", "조각 업로드", "", "") == 0
+           and on() (sum(broadcast_active) > 0))
+          or
+          (label_replace(sum(rate(playback_qoe_reports_total[10m])) or vector(0), "sli", "재생 품질", "", "") == 0
+           and on() (sum(broadcast_active) > 0))
+        for: 10m
+        labels:
+          severity: warning
+          runbook: docs/ops/25-slo.md
+        annotations:
+          summary: "방송은 켜져 있는데 {{ $labels.sli }} SLI 의 입력이 0 이다"
+          description: >-
+            SLI 의 분모가 10분째 0 이다. 오류율이 낮아서 조용한 것이 아니라 **입력이 없다** -
+            계측이 사라졌거나(uri 라벨 변경, 지표 이름 변경), 보고가 오지 않는 것이다.
+            이 상태에서는 SLO 경보가 무엇을 놓쳐도 알 수 없다. docs/ops/25-slo.md 4절.

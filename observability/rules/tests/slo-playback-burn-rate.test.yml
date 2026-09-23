@@ -1,0 +1,373 @@
+# 재생 끊김 비율 SLI 소진율 경보 시험 (#234)
+#
+# ★ 무엇을 지키나.
+#   1. 빠른 소진(28일 예산의 2%/1h)이면 페이지가 울린다
+#   2. 느린 소진(5%/6h)은 느린 경보만 울린다 - 빠른 경보는 조용하다
+#   3. 짧게 튄 것은 **긴 창이 평균을 내려** 안 울린다 (5분 창만 보면 오탐이다)
+#   4. 분모가 작으면 안 울린다 (#178) - 5분에 1건으로 페이지가 울리면 못 쓴다
+#      비율만 보면 100% 인데도 조용하다. 아래 promql_expr_test 가 그 100% 를 못 박는다.
+#   5. 슬롯 둘(blue/green)이어도 **한 번** 울린다 - instance 로 갈라지지 않는다 (#184)
+#
+# SLI 는 재생 시간의 비율이다 - 분모가 "초" 이므로 traffic 은 **평균 시청자 수** 다.
+# 최소 분모 traffic_1h > 1 = "1시간 동안 합계 1시간어치를 봤다" = 평균 시청자 1명.
+#
+# 문턱: 13.44 x 1% = 13.44% (Fast) · 5.6 x 1% = 5.6% (Slow) · (0.1 * 672 / 72) x 1% = 0.933% (Ticket)
+
+rule_files:
+  - ../edumeet.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ────────────────────────────────────────────────────────────────
+  # 1. 빠른 소진 - 오류율 100% 가 1시간 넘게 이어진다
+  #   긴 창도 짧은 창도 문턱을 넘는다. 세 경보가 다 울린다 -
+  #   이 정도면 티켓이 아니라 페이지다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+600x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+0x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 2%를 1시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "1시간 창 오류율 100% · 문턱 13.44 x 1% = 13.44% · 5분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 5%를 6시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "6시간 창 오류율 100% · 문턱 5.6 x 1% = 5.6% · 30분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 10%를 3일 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "3일 창 오류율 100% · 문턱 (0.1 * 672 / 72) x 1% = 0.933% · 6시간 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 2. 느린 소진 - 오류율 8%. 5%/6h 는 넘고 2%/1h 는 안 넘는다
+  #   느린 경보와 티켓만 울린다. 빠른 경보가 같이 울리면 문턱이 잘못된 것이다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+48x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+552x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 5%를 6시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "6시간 창 오류율 8% · 문턱 5.6 x 1% = 5.6% · 30분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 10%를 3일 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "3일 창 오류율 8% · 문턱 (0.1 * 672 / 72) x 1% = 0.933% · 6시간 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 3. 짧게 튄 것 - 2분만 몰렸다(t=121~122분). 그 뒤는 조용하다
+  #   평가 시점(t=122분)에서 5분 창은 문턱을 넘지만 1시간 창이 평균을 내려 안 울린다.
+  #   5분 창만 보는 경보라면 여기서 울린다. 그게 오탐이다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+0x120 0+600x2 1200+0x240'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+600x362'
+    promql_expr_test:
+      - expr: >-
+          edumeet:sli_playback_stall:ratio_5m > bool (13.44 * 0.01)
+        eval_time: 122m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+      - expr: >-
+          edumeet:sli_playback_stall:ratio_1h < bool (13.44 * 0.01)
+        eval_time: 122m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 122m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+      - eval_time: 122m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts: []
+      - eval_time: 122m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 4. 분모가 작은 경우 (#178) - 실패 1건뿐인데 비율은 100% 다.
+  #    비율만 보면 페이지가 울린다. 최소 분모 조건이 막는다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+1x300'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+0x300'
+    promql_expr_test:
+      - expr: edumeet:sli_playback_stall:ratio_5m
+        eval_time: 5m
+        exp_samples:
+          - labels: '{__name__="edumeet:sli_playback_stall:ratio_5m"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 4b. 트래픽 0 - 아무도 안 봤다. 분모도 0 이고 경보도 조용하다
+  #   clamp_min 으로 NaN 을 막는다 - NaN 은 비교에 안 걸려 조용해진다.
+  #   그 조용함이 우연이 아니라는 것을 4번이 보인다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+0x120'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+0x120'
+    promql_expr_test:
+      - expr: >-
+          edumeet:sli_playback_stall:ratio_5m == bool 0
+        eval_time: 60m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 5. 슬롯 둘 (#184) - 둘 다 타고 있다
+  #   배포 슬롯이 둘이므로 instance 별로 물으면 페이지가 **두 번** 울린다.
+  #   sum 으로 합쳐 한 번만 울린다 (exp_labels 에 instance 가 없는 것이 그 증거다).
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+300x400'
+      - series: 'playback_stall_seconds_total{instance="green"}'
+        values: '0+300x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+0x400'
+      - series: 'playback_playing_seconds_total{instance="green"}'
+        values: '0+0x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 2%를 1시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "1시간 창 오류율 100% · 문턱 13.44 x 1% = 13.44% · 5분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 5%를 6시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "6시간 창 오류율 100% · 문턱 5.6 x 1% = 5.6% · 30분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 10%를 3일 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "3일 창 오류율 100% · 문턱 (0.1 * 672 / 72) x 1% = 0.933% · 6시간 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 5b. 한 슬롯만 시끄럽고 다른 슬롯은 정상인 경우 - 합치면 조용하다
+  #     green 이 정상 트래픽을 대고 blue 의 실패 1건이 섞이면 비율이 내려간다.
+  #     아래 promql_expr_test 는 blue 만 보면 100% 였다는 것을 못 박는다 -
+  #     슬롯별로 물었다면 여기서 오탐이 났다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+1x120'
+      - series: 'playback_stall_seconds_total{instance="green"}'
+        values: '0+0x120'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+0x120'
+      - series: 'playback_playing_seconds_total{instance="green"}'
+        values: '0+600x120'
+    promql_expr_test:
+      - expr: >-
+          sum(rate(playback_stall_seconds_total{instance="blue"}[5m]))
+          / clamp_min(sum(rate(playback_stall_seconds_total{instance="blue"}[5m]))
+          + sum(rate(playback_playing_seconds_total{instance="blue"}[5m])), 1e-9)
+        eval_time: 5m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 6. 급함 문턱 바로 아래(13.4%) - 안 울린다
+  #   문턱은 >= 가 아니라 > 다. 아래쪽에서 한 번 확인한다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+13.4x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+86.6x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 6b. 급함 문턱 바로 위(13.5%) - 울린다
+  #   같은 조건에서 비율만 문턱 위로 올렸다. 여기서 안 울리면 문턱이 틀린 것이다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+13.5x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+86.5x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 2%를 1시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "1시간 창 오류율 13.5% · 문턱 13.44 x 1% = 13.44% · 5분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 7. 시청자 한 명이 계속 끊긴다 - 분모 문턱 0.5 의 이유 (#234b 검토 3)
+  #   분모(재생 초/초) = 1.0 = 동시 시청자 한 명. 그 한 명이 계속 끊기면 오류율 50% 다.
+  #   문턱이 1 이면 이 경우가 조용해진다 - 그 한 명에게는 100% 실패인데.
+  #   재생 0.5/s(시청자 1명) + 끊김 0.5/s = 비율 50%, 분모 1.0 >= 0.5.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+30x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+30x400'
+    alert_rule_test:
+      - eval_time: 400m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 2%를 1시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "1시간 창 오류율 50% · 문턱 13.44 x 1% = 13.44% · 5분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 400m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 5%를 6시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "6시간 창 오류율 50% · 문턱 5.6 x 1% = 5.6% · 30분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 400m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 10%를 3일 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "3일 창 오류율 50% · 문턱 (0.1 * 672 / 72) x 1% = 0.933% · 6시간 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 7b. 같은 비율인데 분모가 문턱 아래(0.4)면 조용하다
+  #   분모 0.4/s = 한 명이 24초 중 12초만 시청. 이 정도면 비율을 안 믿는다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+12x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+12x400'
+    alert_rule_test:
+      - eval_time: 400m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 8. 6시간 이력에서 느린 소진이 울린다 (#234b 검토 7)
+  #   평가 시점을 400분으로 미뤄 6시간 창이 실제 이력으로 채워지게 한다.
+  #   짧은 이력으로 창을 흉내 낸 시험만 두면 6h 경로에 버그가 있어도 안 걸린다.
+  - interval: 1m
+    input_series:
+      - series: 'playback_stall_seconds_total{instance="blue"}'
+        values: '0+48x400'
+      - series: 'playback_playing_seconds_total{instance="blue"}'
+        values: '0+552x400'
+    alert_rule_test:
+      - eval_time: 400m
+        alertname: PlaybackStallBurnRateFast
+        exp_alerts: []
+      - eval_time: 400m
+        alertname: PlaybackStallBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 5%를 6시간 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "6시간 창 오류율 8% · 문턱 5.6 x 1% = 5.6% · 30분 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+      - eval_time: 400m
+        alertname: PlaybackStallBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "재생 끊김 비율이 28일 예산의 10%를 3일 만에 태우고 있다 (재생 끊김 비율 ≤ 1%)"
+              description: "3일 창 오류율 8% · 문턱 (0.1 * 672 / 72) x 1% = 0.933% · 6시간 창도 넘음 · 분모(평균 시청자 수) 1 이하면 안 울린다"
+

@@ -1,0 +1,286 @@
+# 송출 조각 수락률 SLI 소진율 경보 시험 (#234)
+#
+# ★ 무엇을 지키나.
+#   1. 빠른 소진(28일 예산의 2%/1h)이면 페이지가 울린다
+#   2. 느린 소진(5%/6h)은 느린 경보만 울린다 - 빠른 경보는 조용하다
+#   3. 짧게 튄 것은 **긴 창이 평균을 내려** 안 울린다 (5분 창만 보면 오탐이다)
+#   4. 분모가 작으면 안 울린다 (#178) - 5분에 1건으로 페이지가 울리면 못 쓴다
+#      비율만 보면 100% 인데도 조용하다. 아래 promql_expr_test 가 그 100% 를 못 박는다.
+#   5. 슬롯 둘(blue/green)이어도 **한 번** 울린다 - instance 로 갈라지지 않는다 (#184)
+#
+# SLI 는 그 엔드포인트 요청의 비율이다. uri 는 Spring 이 템플릿으로 남기는 값이라
+# 매니페스트마다 회의 번호가 다르게 붙지 않는다(#184 와 같은 이유로 합쳐서 본다).
+# 최소 분모 0.1/s = "10초에 조각 하나" - 방송 한 개가 2초 조각을 올리는 속도보다 낮다.
+#
+# 문턱: 13.44 x 0.1% = 1.344% (Fast) · 5.6 x 0.1% = 0.56% (Slow) · (0.1 * 672 / 72) x 0.1% = 0.0933% (Ticket)
+
+rule_files:
+  - ../edumeet.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ────────────────────────────────────────────────────────────────
+  # 1. 빠른 소진 - 오류율 100% 가 1시간 넘게 이어진다
+  #   긴 창도 짧은 창도 문턱을 넘는다. 세 경보가 다 울린다 -
+  #   이 정도면 티켓이 아니라 페이지다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+600x400'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+0x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 2%를 1시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "1시간 창 오류율 100% · 문턱 13.44 x 0.1% = 1.344% · 5분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 5%를 6시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "6시간 창 오류율 100% · 문턱 5.6 x 0.1% = 0.56% · 30분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 10%를 3일 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "3일 창 오류율 100% · 문턱 (0.1 * 672 / 72) x 0.1% = 0.0933% · 6시간 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 2. 느린 소진 - 오류율 1%. 5%/6h 는 넘고 2%/1h 는 안 넘는다
+  #   느린 경보와 티켓만 울린다. 빠른 경보가 같이 울리면 문턱이 잘못된 것이다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+6x400'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+594x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 5%를 6시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "6시간 창 오류율 1% · 문턱 5.6 x 0.1% = 0.56% · 30분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 10%를 3일 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "3일 창 오류율 1% · 문턱 (0.1 * 672 / 72) x 0.1% = 0.0933% · 6시간 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 3. 짧게 튄 것 - 2분만 몰렸다(t=121~122분). 그 뒤는 조용하다
+  #   평가 시점(t=122분)에서 5분 창은 문턱을 넘지만 1시간 창이 평균을 내려 안 울린다.
+  #   5분 창만 보는 경보라면 여기서 울린다. 그게 오탐이다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+0x120 0+60x2 120+0x240'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+600x362'
+    promql_expr_test:
+      - expr: >-
+          edumeet:sli_chunk_upload:ratio_5m > bool (13.44 * 0.001)
+        eval_time: 122m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+      - expr: >-
+          edumeet:sli_chunk_upload:ratio_1h < bool (13.44 * 0.001)
+        eval_time: 122m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 122m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts: []
+      - eval_time: 122m
+        alertname: ChunkUploadBurnRateSlow
+        exp_alerts: []
+      - eval_time: 122m
+        alertname: ChunkUploadBurnRateTicket
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 4. 분모가 작은 경우 (#178) - 실패 1건뿐인데 비율은 100% 다.
+  #    비율만 보면 페이지가 울린다. 최소 분모 조건이 막는다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+1x300'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+0x300'
+    promql_expr_test:
+      - expr: edumeet:sli_chunk_upload:ratio_5m
+        eval_time: 5m
+        exp_samples:
+          - labels: '{__name__="edumeet:sli_chunk_upload:ratio_5m"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: ChunkUploadBurnRateSlow
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: ChunkUploadBurnRateTicket
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 4b. 트래픽 0 - 아무도 안 봤다. 분모도 0 이고 경보도 조용하다
+  #   clamp_min 으로 NaN 을 막는다 - NaN 은 비교에 안 걸려 조용해진다.
+  #   그 조용함이 우연이 아니라는 것을 4번이 보인다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+0x120'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+0x120'
+    promql_expr_test:
+      - expr: >-
+          edumeet:sli_chunk_upload:ratio_5m == bool 0
+        eval_time: 60m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: ChunkUploadBurnRateSlow
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: ChunkUploadBurnRateTicket
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 5. 슬롯 둘 (#184) - 둘 다 타고 있다
+  #   배포 슬롯이 둘이므로 instance 별로 물으면 페이지가 **두 번** 울린다.
+  #   sum 으로 합쳐 한 번만 울린다 (exp_labels 에 instance 가 없는 것이 그 증거다).
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+300x400'
+      - series: 'http_server_requests_seconds_count{instance="green",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+300x400'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+0x400'
+      - series: 'http_server_requests_seconds_count{instance="green",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+0x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 2%를 1시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "1시간 창 오류율 100% · 문턱 13.44 x 0.1% = 1.344% · 5분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateSlow
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 5%를 6시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "6시간 창 오류율 100% · 문턱 5.6 x 0.1% = 0.56% · 30분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateTicket
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 10%를 3일 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "3일 창 오류율 100% · 문턱 (0.1 * 672 / 72) x 0.1% = 0.0933% · 6시간 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+
+  # ────────────────────────────────────────────────────────────────
+  # 5b. 한 슬롯만 시끄럽고 다른 슬롯은 정상인 경우 - 합치면 조용하다
+  #     green 이 정상 트래픽을 대고 blue 의 실패 1건이 섞이면 비율이 내려간다.
+  #     아래 promql_expr_test 는 blue 만 보면 100% 였다는 것을 못 박는다 -
+  #     슬롯별로 물었다면 여기서 오탐이 났다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+1x120'
+      - series: 'http_server_requests_seconds_count{instance="green",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+0x120'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+0x120'
+      - series: 'http_server_requests_seconds_count{instance="green",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+600x120'
+    promql_expr_test:
+      - expr: >-
+          sum(rate(http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}[5m]))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk"}[5m])), 1e-9)
+        eval_time: 5m
+        exp_samples:
+          - labels: '{}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 6. 급함 문턱 바로 아래(1.3%) - 안 울린다
+  #   문턱은 >= 가 아니라 > 다. 아래쪽에서 한 번 확인한다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+78x400'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+5922x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts: []
+
+  # ────────────────────────────────────────────────────────────────
+  # 6b. 급함 문턱 바로 위(1.4%) - 울린다
+  #   같은 조건에서 비율만 문턱 위로 올렸다. 여기서 안 울리면 문턱이 틀린 것이다.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="500"}'
+        values: '0+84x400'
+      - series: 'http_server_requests_seconds_count{instance="blue",uri="/api/v1/meeting/{meetingId}/broadcast/chunk",status="200"}'
+        values: '0+5916x400'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ChunkUploadBurnRateFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              runbook: docs/ops/25-slo.md
+            exp_annotations:
+              summary: "송출 조각 수락률이 28일 예산의 2%를 1시간 만에 태우고 있다 (송출 조각 수락률 ≥ 99.9%)"
+              description: "1시간 창 오류율 1.4% · 문턱 13.44 x 0.1% = 1.344% · 5분 창도 넘음 · 분모(초당 조각 수) 0.1 이하면 안 울린다"
+

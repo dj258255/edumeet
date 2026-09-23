@@ -1,9 +1,18 @@
+# 다시보기 채팅 유실 즉시 경보 시험 (#43 · #61 · #196 · #201 · #234b)
+#
+# ★ 이 경보가 SLO 경보(edumeet-slo)와 **합이 같아야** 한다.
+#   SLO 경보는 최소 분모 조건이 있어 트래픽이 없으면 조용하다. 조용한 새벽의 1건은
+#   이 경보가 잡는다 - 그래서 유실 다섯 가지가 모두 여기 들어와야 한다.
+#   특히 trimmed(비상 트림)는 아직 저장 못 한 항목일 수 있어 유실이고,
+#   discarded 는 uid 없음(유실) + 회의 삭제(의도) 가 섞인다.
+
 rule_files:
   - ../edumeet.yml
 
 evaluation_interval: 1m
 
 tests:
+  # ── 울릴 때: 다섯 가지 유실 각각 ────────────────────────────────
   - interval: 1m
     input_series:
       - series: 'chat_archive_persist_failed_total{instance="blue"}'
@@ -17,7 +26,7 @@ tests:
               runbook: docs/performance/07-chat-unbounded-queue-oom.md
             exp_annotations:
               summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
-              description: "5분간 200건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것이고 persist_failed 면 DB 문제다."
+              description: "5분간 200건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것, persist_failed 면 DB 문제, stream_dead 는 독성 항목 격리, trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다), discarded 는 uid 없음(회의 삭제분도 섞인다 - 드물다) 이다."
 
   - interval: 1m
     input_series:
@@ -32,34 +41,110 @@ tests:
               runbook: docs/performance/07-chat-unbounded-queue-oom.md
             exp_annotations:
               summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
-              description: "5분간 4건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것이고 persist_failed 면 DB 문제다."
+              description: "5분간 4건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것, persist_failed 면 DB 문제, stream_dead 는 독성 항목 격리, trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다), discarded 는 uid 없음(회의 삭제분도 섞인다 - 드물다) 이다."
+
+  # ★ 비상 트림 (#234b 검토 1). 아직 저장하지 못한 항목을 지운 것일 수 있다 -
+  #   조용히 지우면 그게 유실이다. 이 경보가 그 조용함을 막는다.
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_trimmed_total{instance="blue"}'
+        values: '0 7'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ChatArchiveLosing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/performance/07-chat-unbounded-queue-oom.md
+            exp_annotations:
+              summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
+              description: "5분간 7건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것, persist_failed 면 DB 문제, stream_dead 는 독성 항목 격리, trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다), discarded 는 uid 없음(회의 삭제분도 섞인다 - 드물다) 이다."
+
+  # ★ 버림 (#234b 검토 1). uid 가 없어 저장하지 않은 것 + 회의가 지워진 것이 섞인다.
+  #   회의 삭제분까지 세는 것은 과하다 - 그래도 넣었다. 유실을 놓치는 쪽이 더 나쁘다.
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_discarded_total{instance="blue"}'
+        values: '0+3x5'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ChatArchiveLosing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/performance/07-chat-unbounded-queue-oom.md
+            exp_annotations:
+              summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
+              description: "5분간 15건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것, persist_failed 면 DB 문제, stream_dead 는 독성 항목 격리, trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다), discarded 는 uid 없음(회의 삭제분도 섞인다 - 드물다) 이다."
 
   - interval: 1m
     input_series:
-      - series: 'chat_archive_dropped_total{instance="blue"}'
-        values: '0 0 0'
-      - series: 'chat_archive_dropped_total{instance="green"}'
-        values: '0 0 0'
-      - series: 'chat_archive_persist_failed_total{instance="blue"}'
-        values: '0 0 0'
-      - series: 'chat_archive_persist_failed_total{instance="green"}'
-        values: '0 0 0'
+      - series: 'chat_archive_stream_dead_total{instance="blue"}'
+        values: '0 1'
     alert_rule_test:
-      - eval_time: 2m
+      - eval_time: 1m
         alertname: ChatArchiveLosing
-        exp_alerts: []
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/performance/07-chat-unbounded-queue-oom.md
+            exp_annotations:
+              summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
+              description: "5분간 1건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것, persist_failed 면 DB 문제, stream_dead 는 독성 항목 격리, trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다), discarded 는 uid 없음(회의 삭제분도 섞인다 - 드물다) 이다."
 
+  # ── 조용할 때 ──────────────────────────────────────────────────
+  # 다섯 카운터가 다 있고 전부 0 이면 조용하다 (지표가 없어서 조용한 것이 아니다).
   - interval: 1m
     input_series:
       - series: 'chat_archive_dropped_total{instance="blue"}'
-        values: '0 0 0'
-      - series: 'chat_archive_dropped_total{instance="green"}'
-        values: '_ 0 0'
+        values: '0+0x5'
       - series: 'chat_archive_persist_failed_total{instance="blue"}'
-        values: '0 0 0'
-      - series: 'chat_archive_persist_failed_total{instance="green"}'
-        values: '_ 0 0'
+        values: '0+0x5'
+      - series: 'chat_archive_stream_dead_total{instance="blue"}'
+        values: '0+0x5'
+      - series: 'chat_archive_stream_trimmed_total{instance="blue"}'
+        values: '0+0x5'
+      - series: 'chat_archive_stream_discarded_total{instance="blue"}'
+        values: '0+0x5'
     alert_rule_test:
-      - eval_time: 2m
+      - eval_time: 5m
         alertname: ChatArchiveLosing
         exp_alerts: []
+
+  # 슬롯 둘 - 한 슬롯이 조용해도 합쳐서 조용하다
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_dropped_total{instance="blue"}'
+        values: '0+0x5'
+      - series: 'chat_archive_dropped_total{instance="green"}'
+        values: '_ 0+0x5'
+      - series: 'chat_archive_persist_failed_total{instance="blue"}'
+        values: '0+0x5'
+      - series: 'chat_archive_persist_failed_total{instance="green"}'
+        values: '_ 0+0x5'
+      - series: 'chat_archive_stream_dead_total{instance="blue"}'
+        values: '0+0x5'
+      - series: 'chat_archive_stream_trimmed_total{instance="green"}'
+        values: '_ 0+0x5'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ChatArchiveLosing
+        exp_alerts: []
+
+  # 슬롯 둘 - green 에만 유실이 있어도 한 번 울린다 (instance 라벨이 붙지 않는다)
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_dropped_total{instance="blue"}'
+        values: '0+0x5'
+      - series: 'chat_archive_dropped_total{instance="green"}'
+        values: '0 3'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ChatArchiveLosing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              runbook: docs/performance/07-chat-unbounded-queue-oom.md
+            exp_annotations:
+              summary: "다시보기 채팅이 저장되지 못하고 버려지고 있다"
+              description: "5분간 3건 유실. 방송 화면에는 이미 나갔으므로 다시보기에서만 빠진다. dropped 면 저장이 밀리는 것, persist_failed 면 DB 문제, stream_dead 는 독성 항목 격리, trimmed 는 비상 트림(아직 저장 못 한 항목일 수 있다), discarded 는 uid 없음(회의 삭제분도 섞인다 - 드물다) 이다."
