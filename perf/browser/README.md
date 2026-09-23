@@ -98,6 +98,22 @@ BITRATE_K=1200 RUN=c199-1200 ./scripts/run-qoe-crosscheck.sh
 끝난 뒤 30초 drain을 거쳐 스크립트가 SIGINT로 명시적으로 내린다.
 산출물은 `perf/browser/out/<run>/` 에 쌓인다.
 
+`broadcast.json` 에는 **조각 업로드 지연**(#200)이 함께 남는다 - 조각 하나가 조각 간격을 넘겨
+걸렸는지가 채팅 fan-out 부하에서 조각 업로드가 밀리는지의 정의다.
+
+```json
+"chunkLatency": { "count": 60, "intervalMs": 2000, "p50": 43, "p95": 90, "p99": 120,
+                  "max": 180, "overInterval": 0, "byStatus": { "202": 60 } }
+```
+
+원본 한 줄씩은 같은 폴더의 `chunks.csv`(`seq,startedAt,ms,status,error`)에 남는다.
+게이트 실행은 `scripts/run-chunk-under-fanout.sh` 가 한다.
+
+- `ms` 는 **fetch 왕복만**이다. 409 뒤의 재시작·백오프는 빼야 한다 - 포함하면 실제 POST 가
+  짧아도 p99 가 수 초로 부풀려진다(#200 검토).
+- 게이트는 `chunks.csv` 를 **k6 부하 창 안으로 잘라** 집계한다(방송이 창보다 오래 살아 있다).
+  2xx 가 아닌 것(409 포함)은 실패로 센다.
+
 따라잡기(재생 속도로 지연을 줄이는 손잡이)는 진단용으로만 켠다. (#233)
 
 ```bash

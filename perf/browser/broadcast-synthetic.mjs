@@ -16,13 +16,18 @@
  *   그래서 stop() 은 한 번만 도는 약속(promise)이고, 모든 신호·예외·ffmpeg 사망이
  *   같은 약속을 기다린 뒤 프로세스가 끝난다. 업로드 체인이 reject 돼도 finally 에서 DELETE 한다.
  *
+ * ★ 조각 업로드 지연을 기록한다. (#200)
+ *   조각 하나가 조각 간격(기본 2초)을 넘겨 걸리면 서버 큐가 밀린다는 뜻이다 -
+ *   채팅 fan-out 부하에서 그게 실제로 일어나는지 보려면 업로드 쪽 숫자가 있어야 한다.
+ *   요약은 broadcast.json 의 chunkLatency 에, 원본 한 줄씩은 같은 폴더의 chunks.csv 에 남는다.
+ *
  * 사용:
  *   node broadcast-synthetic.mjs --run <이름> [--chunk-ms 2000] [--duration-s 300] [--bitrate-k 2500]
  *     [--segment-type mpegts|fmp4] [--hls-time 1|2]
  *   node broadcast-synthetic.mjs --stop-only     # 진행 중인 방송을 내리기만 한다
  */
 import { spawn } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadEnv, outDir, parseArgs } from './lib/env.mjs'
 
@@ -75,15 +80,63 @@ const result = {
   seqTotal: 0,
   chunksSent: 0,
   chunksRejected: 0,
+  chunksConflicted: 0,
   chunksFailed: 0,
   failures: {},
   restarts: 0,
   restartStallMs: 0,
   restartFailures: 0,
+  // 조각 업로드 지연 (#200). 요약만 여기 남기고 원본은 chunks.csv 로 흘린다 -
+  // 86400초를 돌리면 43,200줄이라 메모리에 들고 있을 이유가 없다.
+  chunkLatency: null,
 }
 
 function writeResult() {
   writeFileSync(join(dir, 'broadcast.json'), `${JSON.stringify(result, null, 2)}\n`)
+}
+
+/**
+ * 조각 업로드 지연 집계 (#200).
+ *
+ * <p>기준은 **조각 간격**(chunkMs)이다. 조각 하나가 그 시간을 넘겨 걸리면 다음 조각이
+ * 설 자리가 밀린다 - 그게 "업로드가 밀린다" 의 정의다. 기본 2,000ms.
+ */
+const chunkLatencies = []
+const chunkStatuses = {}
+let chunkOverInterval = 0
+const CHUNK_CSV = join(dir, 'chunks.csv')
+writeFileSync(CHUNK_CSV, 'seq,startedAt,ms,status,error\n')
+
+function quantile(sorted, p) {
+  if (sorted.length === 0) return null
+  const k = (sorted.length - 1) * p
+  const f = Math.floor(k)
+  const c = Math.ceil(k)
+  return f === c ? sorted[f] : sorted[f] * (c - k) + sorted[c] * (k - f)
+}
+
+/** 업로드 한 건의 지연을 남긴다. 상태는 응답 코드, 실패면 null 이고 error 에 이름이 들어간다. */
+function recordChunkLatency(mySeq, startedAt, status, error) {
+  const ms = Date.now() - startedAt
+  chunkLatencies.push(ms)
+  const key = status === null ? 'error' : String(status)
+  chunkStatuses[key] = (chunkStatuses[key] ?? 0) + 1
+  if (ms > chunkMs) chunkOverInterval += 1
+  appendFileSync(CHUNK_CSV, `${mySeq},${new Date(startedAt).toISOString()},${ms},${status ?? ''},${error ?? ''}\n`)
+}
+
+function summarizeChunkLatency() {
+  const sorted = [...chunkLatencies].sort((a, b) => a - b)
+  return {
+    count: sorted.length,
+    intervalMs: chunkMs,
+    p50: quantile(sorted, 0.5),
+    p95: quantile(sorted, 0.95),
+    p99: quantile(sorted, 0.99),
+    max: sorted.length > 0 ? sorted[sorted.length - 1] : null,
+    overInterval: chunkOverInterval,
+    byStatus: { ...chunkStatuses },
+  }
 }
 
 const chunkUrl = (n) => `${broadcastUrl}/chunk?seq=${n}`
@@ -92,6 +145,7 @@ let child = null
 let seq = 0
 let sent = 0
 let rejected = 0
+let conflicted = 0
 let failed = 0
 const failures = {}
 let restarts = 0
@@ -228,18 +282,29 @@ async function restartBroadcast(mySeq) {
 }
 
 async function upload(mySeq, buf) {
+  const startedAt = Date.now()
+  let status = null
+  let errorName = null
   try {
     const res = await fetch(chunkUrl(mySeq), {
       method: 'POST',
       headers: { ...auth, 'Content-Type': 'application/octet-stream' },
       body: buf,
     })
+    status = res.status
+    // ★ 여기서 잰다 - 아래 분기(특히 409 뒤 restartBroadcast)가 재시작·백오프를 기다리므로
+    //   그 뒤에 재면 실제 POST 왕복이 아니라 "재시작까지 걸린 시간" 이 된다 (#200 검토 1).
+    recordChunkLatency(mySeq, startedAt, status, null)
     if (res.status === 429) {
       // 서버 큐가 찼다. 조각이 버려졌다는 뜻이므로 성공으로 세지 않는다.
       rejected += 1
       recordFailure(mySeq, { status: res.status }, `HTTP_${res.status}`)
     } else if (res.status === 409) {
       // 배포로 세션이 사라진 경우다. 새 ffmpeg 헤더부터 새 세션에 넣는다.
+      //
+      // ★ 실패로 센다 (#200 검토 6). 예전에는 recordFailure 만 하고 failed/rejected 를
+      //   안 올려서, 모든 조각이 409 여도 "실패 0" 으로 보였다 - 그러면 게이트가 잘못 판정한다.
+      conflicted += 1
       recordFailure(mySeq, { status: res.status }, `HTTP_${res.status}`)
       await restartBroadcast(mySeq)
     } else if (res.ok) {
@@ -250,15 +315,19 @@ async function upload(mySeq, buf) {
     }
   } catch (error) {
     failed += 1
-    const name = error?.name || 'Error'
+    errorName = error?.name || 'Error'
+    // 실패도 왕복이 끝난 시각까지다 (타임아웃이면 그만큼이 실제로 걸린 시간이다)
+    recordChunkLatency(mySeq, startedAt, null, errorName)
     recordFailure(
       mySeq,
-      { errorName: name, message: error?.message || String(error) },
-      name,
+      { errorName, message: error?.message || String(error) },
+      errorName,
     )
   }
+  result.chunkLatency = summarizeChunkLatency()
   result.chunksSent = sent
   result.chunksRejected = rejected
+  result.chunksConflicted = conflicted
   result.chunksFailed = failed
   result.failures = { ...failures }
   result.restarts = restarts
@@ -320,6 +389,7 @@ async function doStop() {
   result.seqTotal = seq
   result.chunksSent = sent
   result.chunksRejected = rejected
+  result.chunksConflicted = conflicted
   result.chunksFailed = failed
   result.failures = { ...failures }
   result.restarts = restarts
