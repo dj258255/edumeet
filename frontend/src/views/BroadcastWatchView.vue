@@ -30,6 +30,7 @@ const videoEl = ref(null)
 const playlistUrl = ref('')
 const waiting = ref(true)
 const error = ref('')
+const reconnecting = ref(false)
 const metrics = ref(null)
 
 let handle = null
@@ -85,6 +86,10 @@ onMounted(async () => {
     playlistUrl.value = url
     handle = await attachHls(videoEl.value, url, {
       onError: (e) => { error.value = e.message },
+      onStatus: (status) => {
+        reconnecting.value = status?.state === 'reconnecting'
+        if (status?.state === 'playing') error.value = ''
+      },
       onMetrics: (m) => { metrics.value = m },
       // 시청 품질 보고. (#197) 서버가 값을 검증하고 합계 지표·세션 로그로 남긴다.
       onQoe: (tracker, { native }) => {
@@ -129,6 +134,7 @@ onBeforeUnmount(() => {
       <video ref="videoEl" controls autoplay playsinline muted class="watch__video"></video>
 
       <p v-if="waiting" class="watch__overlay">방송이 시작되기를 기다리는 중입니다…</p>
+      <p v-else-if="reconnecting" class="watch__overlay" role="status">연결이 끊겨 다시 연결하는 중…</p>
       <p v-else-if="error" class="watch__overlay watch__overlay--error" role="alert">{{ error }}</p>
 
       <BroadcastCaption

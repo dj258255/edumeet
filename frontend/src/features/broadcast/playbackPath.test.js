@@ -18,6 +18,13 @@ describe('재생 경로 선택', () => {
     expect(choosePlaybackPath({ hlsJsSupported: false, nativeHlsSupported: false })).toBe('unsupported')
   })
 
+  it('진단용 native 강제는 네이티브가 지원될 때만 hls.js보다 우선한다', () => {
+    expect(choosePlaybackPath({ hlsJsSupported: true, nativeHlsSupported: true, forcedPath: 'native' }))
+      .toBe('native')
+    expect(choosePlaybackPath({ hlsJsSupported: true, nativeHlsSupported: false, forcedPath: 'native' }))
+      .toBe('hlsjs')
+  })
+
   it('아무것도 안 주면 unsupported 다', () => {
     expect(choosePlaybackPath()).toBe('unsupported')
   })
