@@ -69,6 +69,31 @@ function round3(value) {
   return Math.round(value * 1000) / 1000
 }
 
+function parseManifestSegments(text) {
+  const lines = text.split(/\r?\n/)
+  const segments = []
+  for (let i = 0; i < lines.length; i += 1) {
+    const extinf = lines[i].match(/^#EXTINF:([0-9]+(?:\.[0-9]+)?),/)
+    if (!extinf) continue
+    let uri = null
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const candidate = lines[j].trim()
+      if (!candidate || candidate.startsWith('#')) continue
+      uri = candidate
+      break
+    }
+    if (uri) segments.push({ uri, duration: Number(extinf[1]) })
+  }
+  return segments
+}
+
+// 시험용 실제 표본: EXTINF 바로 다음이 태그여도 그 뒤 URI를 잡아야 한다.
+const manifestParserSample = `#EXTINF:2.000,\n#EXT-X-PROGRAM-DATE-TIME:2026-09-23T00:00:00Z\nseg_00001.ts\n`
+const sampleSegments = parseManifestSegments(manifestParserSample)
+if (sampleSegments[0]?.uri !== 'seg_00001.ts') {
+  throw new Error('매니페스트 표본에서 태그 뒤 URI를 찾지 못했다')
+}
+
 /** 설정값이 아니라 실제로 받은 HLS 결과물을 잰다. #193: hls_time 을 줄여도 리먹싱은 키프레임에서 자른다. */
 function manifestStats(dir) {
   let files
@@ -92,16 +117,14 @@ function manifestStats(dir) {
     } catch {
       continue
     }
-    for (let i = 0; i < lines.length; i += 1) {
-      const target = lines[i].match(/^#EXT-X-TARGETDURATION:(\d+(?:\.\d+)?)$/)
+    for (const line of lines) {
+      const target = line.match(/^#EXT-X-TARGETDURATION:(\d+(?:\.\d+)?)$/)
       if (target) targetDurations.set(target[1], (targetDurations.get(target[1]) ?? 0) + 1)
-      if (lines[i].startsWith('#EXT-X-PROGRAM-DATE-TIME:')) hasProgramDateTime = true
+      if (line.startsWith('#EXT-X-PROGRAM-DATE-TIME:')) hasProgramDateTime = true
+    }
 
-      const extinf = lines[i].match(/^#EXTINF:([0-9]+(?:\.[0-9]+)?),/)
-      if (!extinf) continue
-      const uri = lines[i + 1]?.trim()
-      const duration = Number(extinf[1])
-      if (!uri || uri.startsWith('#') || !Number.isFinite(duration) || chunks.has(uri)) continue
+    for (const { uri, duration } of parseManifestSegments(lines.join('\n'))) {
+      if (!Number.isFinite(duration) || chunks.has(uri)) continue
       chunks.set(uri, duration)
       const extension = uri.split(/[?#]/, 1)[0].split('.').pop()?.toLowerCase() ?? 'unknown'
       formats.set(extension, (formats.get(extension) ?? 0) + 1)
@@ -279,6 +302,29 @@ const earlyBroadcastRows = Number.isFinite(broadcastEndedAt)
   ? rows.filter((row) => Number.isFinite(row.scheduledEndAt) && broadcastEndedAt < row.scheduledEndAt)
   : []
 
+const broadcastElapsedS = Number(broadcast?.elapsedS)
+const broadcastChunkMs = Number(broadcast?.chunkMs)
+const expectedBroadcastChunks = Number.isFinite(broadcastElapsedS) && broadcastElapsedS > 0 &&
+  Number.isFinite(broadcastChunkMs) && broadcastChunkMs > 0
+  ? (broadcastElapsedS * 1000) / broadcastChunkMs
+  : null
+const broadcastFailedChunks = Number(broadcast?.chunksFailed ?? 0) +
+  Number(broadcast?.chunksRejected ?? 0)
+const broadcastSentChunks = Number(broadcast?.chunksSent ?? 0)
+const broadcastFailureRatio = expectedBroadcastChunks
+  ? broadcastFailedChunks / expectedBroadcastChunks
+  : null
+const broadcastSentRatio = expectedBroadcastChunks
+  ? broadcastSentChunks / expectedBroadcastChunks
+  : null
+const broadcastQuality = {
+  expectedChunks: expectedBroadcastChunks,
+  sentChunks: broadcastSentChunks,
+  failedChunks: broadcastFailedChunks,
+  failureRatio: broadcastFailureRatio,
+  sentRatio: broadcastSentRatio,
+}
+
 const totals = {
   truthEventSec: sec(sum(rows.map((r) => r.truthEventSec * 1000))),
   truthProgressSec: sec(sum(rows.map((r) => r.truthProgressSec * 1000))),
@@ -331,6 +377,14 @@ if (earlyBroadcastRows.length > 0) {
   reasons.push(
     '측정 조건 불성립 - 시청 도중 방송이 끝났다: ' +
       earlyBroadcastRows.map((row) => `시청자 ${row.viewer}`).join(', '),
+  )
+}
+if (expectedBroadcastChunks !== null &&
+    (broadcastFailureRatio > 0.02 || broadcastSentRatio < 0.95)) {
+  reasons.push(
+    '측정 조건 불성립 - 송출이 흔들렸다 ' +
+      `(기대 ${expectedBroadcastChunks.toFixed(1)}조각, 보냄 ${broadcastSentChunks}조각, ` +
+      `실패·거절 ${broadcastFailedChunks}조각)`,
   )
 }
 const conditionFailed = reasons.length > 0
@@ -413,6 +467,12 @@ const md = [
   `- 정답 ↔ 보낸 값 차이: ${totals.truthVsSentDiffSec}초`,
   `- 진행 기준 불연속(뒤로 이동) 횟수: ${totals.discontinuities} (멈춤과 따로 셈)`,
   `- rejected: Prometheus ${totals.rejectedPrometheus} · 합성 방송 429 ${totals.broadcastRejected429 ?? '-'}`,
+  ...(expectedBroadcastChunks !== null
+    ? [
+        `- 송출: 기대 ${expectedBroadcastChunks.toFixed(1)}조각 · 보냄 ${broadcastSentChunks}조각 · ` +
+          `실패·거절 ${broadcastFailedChunks}조각`,
+      ]
+    : []),
   `- 받지 못한 보고((sessionId, seq) 쌍 중 Loki 에 없는 것): ${totals.missingReports}건`,
   ...(totals.prometheusNote ? ['', `> ${totals.prometheusNote}`] : []),
   '',
@@ -473,6 +533,7 @@ writeFileSync(
       conditionFailed,
       reasons,
       failedViewers: failedViewers.map((r) => r.viewer),
+      broadcastQuality,
       manifest,
       rows,
       totals,
