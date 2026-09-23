@@ -49,6 +49,9 @@
     startupMs: null,
     videoAttachedAt: null,
     wallAtAttach: null,
+    // 첫 재생의 벽시계 시각 (#235). 방송 시작 시각과 빼면 "시작 → 첫 화면" 이 나온다.
+    // 요소가 바뀌어도 지우지 않는다 - "처음 재생된 순간" 은 한 번뿐이다.
+    firstPlayingAt: null,
     // 재생 속도 표본 (#233). 따라잡기(maxLiveSyncPlaybackRate)를 켰을 때 실제로 1을 넘었는지,
     // 얼마나 오래 넘었는지를 나중에 대조에서 센다 - 앱이 켰다고 믿는 것과 화면에서 일어난 것은 다르다.
     playbackRates: [],
@@ -87,6 +90,7 @@
   function onPlaying() {
     const t = now()
     truth.events.push({ t: round(t), type: 'playing' })
+    if (truth.firstPlayingAt == null) truth.firstPlayingAt = Date.now()
     if (!firstPlaying) {
       firstPlaying = true
       truth.startupMs =

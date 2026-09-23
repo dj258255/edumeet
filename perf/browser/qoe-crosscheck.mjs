@@ -50,6 +50,8 @@ if (args['catchup-rate'] && catchupRate === null) {
   throw new Error(`--catchup-rate 는 ${CATCHUP_RATES.join(' · ')} 중 하나여야 한다`)
 }
 const allowBroadcastRestart = process.env.ALLOW_BROADCAST_RESTART === '1'
+/** 대기 화면 도달을 기다리는 상한. 넘으면 ready 파일에 그대로 남기고 진행한다. */
+const READY_TIMEOUT_MS = Number(process.env.READY_TIMEOUT_MS ?? 30_000)
 const dir = outDir(run)
 mkdirSync(dir, { recursive: true })
 
@@ -192,6 +194,68 @@ function collectReports(context) {
   return { reports, failures }
 }
 
+/**
+ * CDN 적중과 방송 전 대기 계측. (#235)
+ *
+ *   hls     : `/hls/` 응답마다 파일 종류 · 상태 · cf-cache-status · age · 바이트
+ *   lookups : 대기 중 3초마다 나가는 `GET /meeting/{id}` 의 시각
+ *
+ * ★ cf-cache-status 가 없으면 **CDN 을 안 거친 것**이다(로컬 하네스).
+ *   "적중률 0%" 와 "CDN 을 안 거침" 은 다른 사실이라 헤더가 없으면 null 로 남긴다 -
+ *   나중에 compare 가 그 둘을 구분해 적는다.
+ *
+ * ★ 시각은 전부 벽시계(Date.now)다. 방송 시작 시각(broadcast.json 의 startedAt)과
+ *   같은 축이라 "시작 → 첫 재생" 을 뺄 수 있다.
+ */
+function collectCdn(context) {
+  const hls = []
+  const lookups = []
+  // `<API>/meeting/<id>` 정확히. 끝에 / 나 ? 나 # 이 더 붙으면 폴링이 아니다.
+  const meetingLookupUrl = new RegExp(`^${escapeRegex(env.API)}/meeting/[^/?#]+$`)
+  context.on('response', (res) => {
+    const at = Date.now()
+    const url = res.url()
+    const headers = res.headers()
+
+    if (url.includes('/hls/')) {
+      const file = url.split('?')[0].split('/').pop()
+      hls.push({
+        at,
+        file,
+        kind: hlsKind(file),
+        status: res.status(),
+        cfCacheStatus: headers['cf-cache-status'] ?? null,
+        age: headers.age === undefined ? null : Number(headers.age),
+        contentLength: headers['content-length'] === undefined
+          ? null
+          : Number(headers['content-length']),
+      })
+      return
+    }
+
+    // ★ 대기 화면의 폴링. 경로를 **정확히** 본다 - `<API>/meeting/<id>` 로 끝나야 한다.
+    //   쿼리스트링·후속 경로(`/live` 등)는 뺀다. id 는 숫자가 아닐 수도 있다(문자열·UUID).
+    //   Prometheus 의 uri 템플릿과 이 조건은 별개다 - 여기는 브라우저가 실제로 부른 URL 이다.
+    if (meetingLookupUrl.test(url)) {
+      lookups.push({ at, status: res.status() })
+    }
+  })
+  return { hls, lookups }
+}
+
+/** 정규식에 넣을 문자열을 그대로 매칭되게 만든다. */
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** 파일 이름으로 종류를 가른다. 매니페스트는 캐시하지 않기로 한 대상이라 따로 센다(#11). */
+function hlsKind(file) {
+  if (file.endsWith('.m3u8')) return 'playlist'
+  if (file.startsWith('init')) return 'init'
+  if (file.endsWith('.ts') || file.endsWith('.m4s') || file.endsWith('.mp4')) return 'segment'
+  return 'other'
+}
+
 async function runViewer(browser, k, user) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } })
   await context.addInitScript({ path: join(BROWSER_DIR, 'lib', 'truth.js') })
@@ -217,6 +281,7 @@ async function runViewer(browser, k, user) {
   }, { token: env.EDUMEET_TOKEN, user })
 
   const { reports, failures } = collectReports(context)
+  const cdn = collectCdn(context)
   const page = await context.newPage()
 
   // 앱이 alert 로 막으면 Playwright 가 조용히 닫아 버린다. 무엇을 말했는지 남긴다.
@@ -264,6 +329,9 @@ async function runViewer(browser, k, user) {
     console: consoleLines,
     finalState: null,
     lastUrl: null,
+    // CDN 적중·방송 전 대기 (#235). 응답이 올 때마다 채워진다 - 참조라 나중에 쓴 값도 들어간다.
+    hls: cdn.hls,
+    lookups: cdn.lookups,
   }
   const captureUrl = () => {
     try {
@@ -339,6 +407,25 @@ async function runViewer(browser, k, user) {
 
     await page.goto(record.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     record.t0 = Date.now()
+
+    // ★ "대기 화면 도달" 을 파일로 알린다 (#235). waiting 모드는 **모두가 도달한 뒤부터**
+    //   START_DELAY_S 를 센다 - 로그인·브라우저 기동이 30초보다 오래 걸리면
+    //   방송이 먼저 시작해 대기 폴링이 아예 관측되지 않는다.
+    //   도달의 증거는 "시청 화면이 폴링을 한 번 보냈다" 이다(그 요청이 /meeting/{id}).
+    const readySince = Date.now()
+    while (Date.now() - readySince < READY_TIMEOUT_MS && cdn.lookups.length === 0) {
+      await sleep(250)
+    }
+    record.readyAt = Date.now()
+    record.readyLookups = cdn.lookups.length
+    writeFileSync(join(dir, `ready-${k}.json`), `${JSON.stringify({
+      viewer: k,
+      at: record.readyAt,
+      waitedMs: record.readyAt - readySince,
+      lookups: cdn.lookups.length,
+      // 폴링을 못 봤으면 조건 불성립이다 - 셸이 이 파일을 세어 판단한다.
+      onWaitingScreen: cdn.lookups.length > 0,
+    })}\n`)
     latencyTimer = setInterval(() => {
       void page.evaluate(() => window.__edumeetPlayingDate?.() ?? null)
         .then((playingAt) => {
