@@ -2,6 +2,7 @@ package com.edu.edumeet.exception;
 
 
 import com.edu.edumeet.meeting.exception.LiveKitUnavailableException;
+import com.edu.edumeet.meeting.exception.BroadcastNotActiveException;
 import org.springframework.security.access.AccessDeniedException;
 import com.edu.edumeet.meeting.exception.SessionCapacityExceededException;
 import lombok.extern.log4j.Log4j2;
@@ -101,6 +102,15 @@ public class CustomRestAdvice {
         log.info("정원 초과 입장 시도: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "SESSION_CAPACITY_EXCEEDED", "message", e.getMessage()));
+    }
+
+    /** 배포로 메모리의 ffmpeg 세션이 사라진 뒤의 늦은 조각이다. (#229) */
+    @ExceptionHandler(BroadcastNotActiveException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ResponseEntity<Map<String, String>> handleBroadcastNotActive(BroadcastNotActiveException e) {
+        log.info("진행 중인 방송이 없어 조각을 거부했다: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("code", "BROADCAST_NOT_ACTIVE"));
     }
 
     /**
