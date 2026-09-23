@@ -21,6 +21,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadEnv, outDir, parseArgs } from './lib/env.mjs'
+import { collectOrigin } from './lib/nginx-log.mjs'
 
 const METRICS = [
   ['stallSeconds', 'playback_stall_seconds_total'],
@@ -32,6 +33,16 @@ const METRICS = [
 
 const LOG_MESSAGE = '시청 품질 보고'
 const LOKI_LABEL = '{container=~"edumeet-app.*"}'
+
+// ★ 운영 nginx 접근 로그는 lib/nginx-log.mjs 가 읽는다 (#235).
+//   경로(/var/log/nginx/access.log) · 회전 파일 형식(access.log-YYYYMMDD(.gz)) ·
+//   실패 처리(못 읽으면 error, 0 으로 위장하지 않음)는 그쪽 주석에 있다.
+//   여기서는 ssh 실행기만 주입한다 - 그래야 그 규칙을 운영 없이 시험할 수 있다.
+
+/** HTTP 서버 지연. Spring Boot 의 http_server_requests_seconds 히스토그램을 창으로 자른다. */
+const HTTP_BUCKET = 'http_server_requests_seconds_bucket'
+/** 방송 전 대기 화면이 3초마다 때리는 조회. 템플릿 uri 로 좁힌다. */
+const MEETING_URI = '/api/v1/meeting/{meetingId}'
 
 const args = parseArgs(process.argv.slice(2))
 const env = loadEnv()
@@ -103,7 +114,11 @@ if (!Number.isFinite(from) || !Number.isFinite(to)) {
 
 // ★ 측정 창 [from, to] 만 본다. to 를 실제로 쓴다 -
 //   지금(now)까지 보면 drain 구간과 다른 실행의 트래픽이 섞인다.
-const windowSeconds = Math.max(1, to - from)
+// ★ 창 규칙: 초 단위 내림, 양끝 포함 [from, to].
+//   로그는 초 해상도이고 Prometheus 는 increase(m[to-from+1]) 를 time=to 에서 평가해
+//   같은 구간 (to-window, to] = [from, to] 가 된다 - 두 수를 바로 맞출 수 있다.
+//   창의 양끝은 시청자 벽시계에서 floor/ceil 하므로 최대 1초의 여유가 있다(결과에 적는다).
+const windowSeconds = Math.max(1, to - from + 1)
 const meetingId = String(env.EDUMEET_MEETING_ID)
 
 // Prometheus 지표에는 meetingId·세션 라벨이 없다(#197 설계 - 카디널리티).
@@ -120,17 +135,63 @@ function ssh(remoteCommand) {
   })
 }
 
+/**
+ * Prometheus 스칼라. **빈 결과는 null 이다 - 0 이 아니다.**
+ *
+ *   "지표가 없다"(스크레이프 실패·창에 표본 없음)와 "값이 0 이다"(아무 일도 없었다)는 다른 사실이다.
+ *   0 으로 위장하면 대조가 "유실 0" 이라고 말한다.
+ */
 function promQuery(metric) {
-  const query = encodeURIComponent(`sum(increase(${metric}[${windowSeconds}s]))`)
-  // time=to 로 평가한다. increase(...[windowSeconds]) 는 [to-window, to] = [from, to] 를 덮는다.
+  // increase(m[to-from+1]) 를 time=to 에서 평가한다 →
+  // (to-window, to] = [from, to] 로, 로그의 양끝 포함 규칙과 같은 구간이 된다.
+  return promScalar(`sum(increase(${metric}[${windowSeconds}s]))`)
+}
+
+function promScalar(expression) {
+  const query = encodeURIComponent(expression)
   const remote =
     `docker exec edumeet-prometheus wget -qO- 'http://localhost:9090/api/v1/query` +
     `?query=${query}&time=${to}'`
-  const parsed = JSON.parse(ssh(remote))
-  if (parsed.status !== 'success') throw new Error(`Prometheus 질의 실패: ${metric}`)
+  let parsed
+  try {
+    parsed = JSON.parse(ssh(remote))
+  } catch (error) {
+    console.warn(`[prom] 질의 실패(다른 질의는 계속한다): ${expression} — ${error.message}`)
+    return null
+  }
+  if (parsed.status !== 'success') return null
   const result = parsed.data.result
-  if (result.length === 0) return 0
-  return Number(result[0].value[1])
+  if (result.length === 0) return null
+  const value = Number(result[0].value[1])
+  return Number.isFinite(value) ? value : null
+}
+
+/** 측정 창의 REST 지연. 창을 초 단위로 잘라 increase 로 센다. */
+function restLatency() {
+  const quantile = (q, selector = '') =>
+    promScalar(
+      `histogram_quantile(${q}, sum by (le) (increase(${HTTP_BUCKET}${selector}[${windowSeconds}s])))`,
+    )
+  const meeting = (q) => quantile(q, `{uri="${MEETING_URI}"}`)
+  // ★ histogram_quantile 은 **초**를 준다. 이름이 ms 이므로 여기서 환산한다 -
+  //   안 하면 120ms 가 0.12ms 로 보고된다.
+  const toMs = (seconds) => (seconds === null || !Number.isFinite(seconds)
+    ? null
+    : Math.round(seconds * 1000))
+  return {
+    windowSeconds,
+    p50Ms: toMs(quantile(0.5)),
+    p95Ms: toMs(quantile(0.95)),
+    p99Ms: toMs(quantile(0.99)),
+    // 대기 화면의 폴링이 REST 지연에 남긴 자국. uri 템플릿이 다르면 null 이 된다.
+    meetingP99Ms: toMs(meeting(0.99)),
+    meetingCount: promScalar(
+      `sum(increase(${HTTP_BUCKET.replace('_bucket', '_count')}{uri="${MEETING_URI}"}[${windowSeconds}s]))`,
+    ),
+    metric: HTTP_BUCKET,
+    unit: 'ms',
+    note: 'Prometheus 지표에는 meetingId 라벨이 없다. 같은 창의 다른 요청이 섞인다. 값이 없으면 null 이다.',
+  }
 }
 
 function lokiQuery() {
@@ -189,14 +250,44 @@ for (const stream of lokiData.data?.result ?? []) {
   }
 }
 
+const rest = restLatency()
+// 원격 실행기를 주입한다 - 회전 파일·실패 처리는 lib/nginx-log.mjs 가 한다.
+const origin = collectOrigin({
+  from,
+  to,
+  runRemote: (command) => {
+    try {
+      return { stdout: ssh(command) }
+    } catch (error) {
+      return { error: error.stderr ? String(error.stderr).trim() : error.message }
+    }
+  },
+})
+
 const result = {
   run,
-  window: { from, to, windowSeconds, source: windowSource, collectedAt: new Date().toISOString() },
+  window: {
+    from,
+    to,
+    windowSeconds,
+    source: windowSource,
+    rule: '초 단위 내림, 양끝 포함 [from, to] · 로그와 Prometheus 같은 구간 · 양끝 최대 1초 여유',
+    collectedAt: new Date().toISOString(),
+  },
   lokiLabel: LOKI_LABEL,
   meetingId,
   note: PROMETHEUS_NOTE,
   prom,
+  rest,
+  origin,
   loki,
 }
 writeFileSync(join(dir, 'server.json'), `${JSON.stringify(result, null, 2)}\n`)
-console.log(`server.json: prom=${JSON.stringify(prom)} loki줄=${loki.lines} 세션=${Object.keys(loki.bySession).length}`)
+console.log(
+  `server.json: prom=${JSON.stringify(prom)} loki줄=${loki.lines} 세션=${Object.keys(loki.bySession).length}`,
+)
+console.log(
+  `  REST p50/p95/p99=${rest.p50Ms}/${rest.p95Ms}/${rest.p99Ms}ms · ` +
+    `원본 /hls/ 요청=${origin.error ? origin.error : origin.hlsRequestsInWindow}건 ` +
+    `(${origin.error ? '-' : origin.bytesSentInWindow} 바이트)`,
+)

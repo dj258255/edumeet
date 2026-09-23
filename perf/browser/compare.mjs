@@ -92,6 +92,88 @@ function catchupStats(truth) {
   }
 }
 
+/**
+ * CDN 적중 요약. (#235)
+ *
+ * ★ HIT 만이 CDN 이 준 것이다. 나머지(MISS·EXPIRED·BYPASS·DYNAMIC·REVALIDATED)와
+ *   **헤더 없음**은 원본까지 갔다고 센다 - 헤더가 없으면 CDN 을 안 거친 경로라는 뜻이다.
+ *
+ * ★ 조각 하나에 대해 "받은 시청자 수" 와 "원본까지 간 시청자 수" 를 같이 낸다.
+ *   그 비율이 요청 병합의 증거다 - 5명이 같은 조각을 받았는데 원본 요청이 1건이면 병합된 것이다.
+ */
+function cdnStats(rows) {
+  const byKind = {}
+  const byFile = {}
+  let withHeader = 0
+  let withoutHeader = 0
+
+  for (const row of rows) {
+    for (const entry of row.hls ?? []) {
+      const kind = entry.kind ?? 'other'
+      const stats = (byKind[kind] ??= { total: 0, statuses: {}, origin: 0, bytes: 0 })
+      stats.total += 1
+      stats.bytes += entry.contentLength ?? 0
+      const cache = entry.cfCacheStatus ?? '(헤더 없음)'
+      stats.statuses[cache] = (stats.statuses[cache] ?? 0) + 1
+      if (entry.cfCacheStatus === null) withoutHeader += 1
+      else withHeader += 1
+      const origin = entry.cfCacheStatus !== 'HIT'
+      if (origin) stats.origin += 1
+
+      if (kind === 'segment' || kind === 'init') {
+        const file = (byFile[entry.file] ??= {
+          viewers: new Set(), originViewers: new Set(), requests: 0, bytes: entry.contentLength ?? 0,
+          statuses: {},
+        })
+        file.viewers.add(row.viewer)
+        file.requests += 1
+        file.statuses[entry.cfCacheStatus ?? '(헤더 없음)'] =
+          (file.statuses[entry.cfCacheStatus ?? '(헤더 없음)'] ?? 0) + 1
+        if (origin) file.originViewers.add(row.viewer)
+      }
+    }
+  }
+  return { byKind, byFile, withHeader, withoutHeader }
+}
+
+/**
+ * 방송 시작 몰림 요약. (#235)
+ *
+ *   firstPlayMs : 방송 시작 → 그 시청자의 첫 재생 (truth 의 첫 playing 벽시계 기준)
+ *   lookups     : 시작 전후 창에서 초마다 몇 건의 `GET /meeting/{id}` 가 나갔나
+ *   firstMedia  : 시작 → 첫 매니페스트 · 첫 조각 요청
+ */
+function startStats(rows, startedAtMs, marginS = 10) {
+  // 방송 시작 시각은 방송 호스트의 시계, 첫 재생은 시청자 브라우저의 시계다.
+  // 각각의 보정량을 빼서 **로컬 시계**로 옮긴 뒤 뺀다.
+  const startLocal = Number.isFinite(startedAtMs) ? startedAtMs - broadcastOffsetMs : NaN
+  const toLocal = (at) => (Number.isFinite(at) ? at - viewerOffsetMs : NaN)
+
+  const perViewer = rows.map((row) => {
+    const firstPlayAt = toLocal(row.firstPlayingAtMs)
+    const firstPlaylist = (row.hls ?? []).find((e) => e.kind === 'playlist')
+    const firstSegment = (row.hls ?? []).find((e) => e.kind === 'segment' || e.kind === 'init')
+    return {
+      viewer: row.viewer,
+      firstPlayMs: Number.isFinite(startLocal) && Number.isFinite(firstPlayAt) ? firstPlayAt - startLocal : null,
+      firstPlaylistMs: Number.isFinite(startLocal) && firstPlaylist ? firstPlaylist.at - startLocal : null,
+      firstSegmentMs: Number.isFinite(startLocal) && firstSegment ? firstSegment.at - startLocal : null,
+      lookups: (row.lookups ?? []).length,
+    }
+  })
+
+  const histogram = {}
+  for (const row of rows) {
+    for (const lookup of row.lookups ?? []) {
+      if (!Number.isFinite(startLocal)) continue
+      const offset = Math.round((toLocal(lookup.at) - startLocal) / 1000)
+      if (Math.abs(offset) > marginS) continue
+      histogram[offset] = (histogram[offset] ?? 0) + 1
+    }
+  }
+  return { perViewer, histogram, marginS }
+}
+
 function round3(value) {
   return Math.round(value * 1000) / 1000
 }
@@ -214,6 +296,12 @@ function warmupStallSec(truth, t0Wall) {
 }
 
 const server = readJson(join(dir, 'server.json'), null)
+// ★ 시계 보정 (#235). 시청자·방송 호스트가 다르면 VM 간 시계 차이가 "시작 → 첫 재생" 에 그대로 들어간다.
+//   run-qoe-crosscheck.sh 가 ssh 왕복 중간값으로 재서 남긴다. 없으면 0 으로 보고 그 사실을 적는다.
+const clock = readJson(join(dir, 'clock.json'), null)
+const viewerOffsetMs = Number.isFinite(Number(clock?.viewerOffsetMs)) ? Number(clock.viewerOffsetMs) : 0
+const broadcastOffsetMs = Number.isFinite(Number(clock?.broadcastOffsetMs)) ? Number(clock.broadcastOffsetMs) : 0
+const clockKnown = clock !== null
 const broadcast = readJson(join(dir, 'broadcast.json'), null)
 const scheduleRecord = readJson(join(dir, 'schedule.json'), {})
 const manifest = manifestStats(dir)
@@ -287,6 +375,9 @@ const rows = viewerFiles.map((file) => {
     catchupMaxRate: catchup.maxRate,
     catchupChained: catchup.chained,
     catchupStalls: catchup.stalls,
+    hls: v.hls ?? [],
+    lookups: v.lookups ?? [],
+    firstPlayingAtMs: Number.isFinite(v.truth?.firstPlayingAt) ? v.truth.firstPlayingAt : null,
     screenLatencyP50Ms: screenLatency.p50,
     screenLatencyP95Ms: screenLatency.p95,
     sessionIds,
@@ -391,6 +482,13 @@ const catchupTotals = (() => {
   }
 })()
 
+const cdn = cdnStats(rows)
+const originByFile = server?.origin?.byFile ?? {}
+const originAvailable = Boolean(server?.origin) && !server?.origin?.error
+const broadcastStartedAtMs = broadcast?.startedAt ? Date.parse(broadcast.startedAt) : NaN
+const start = startStats(rows, broadcastStartedAtMs)
+const broadcastRest = server?.rest ?? null
+
 const totals = {
   truthEventSec: sec(sum(rows.map((r) => r.truthEventSec * 1000))),
   truthProgressSec: sec(sum(rows.map((r) => r.truthProgressSec * 1000))),
@@ -402,7 +500,8 @@ const totals = {
   receivedLines: sum(rows.map((r) => r.receivedLines)),
   missingReports: sum(rows.map((r) => r.missingReports)),
   discontinuities: sum(rows.map((r) => r.discontinuities)),
-  rejectedPrometheus: Number(server?.prom?.rejected ?? 0),
+  // ★ 빈 결과는 null 이다(0 이 아니다). 0 으로 적으면 "아무 일도 없었다" 로 읽힌다.
+  rejectedPrometheus: server?.prom?.rejected ?? null,
   broadcastRejected429: broadcast?.chunksRejected ?? null,
   broadcastRestarts: broadcast?.restarts ?? 0,
   broadcastRestartStallMs,
@@ -512,6 +611,20 @@ const lines = rows.map(
 const died = rows.filter((r) => r.errorCode !== null || r.playerGaveUp)
 const resumedCount = rows.filter((r) => r.resumedAfterRecovery === true)
 const secText = (value) => (typeof value === 'number' ? `${Math.round(value * 10) / 10}초` : '-')
+
+/** 바이트를 사람이 읽는 단위로. 원본 송신량(#235)에 쓴다. */
+const bytesText = (value) => {
+  if (!Number.isFinite(value) || value <= 0) return '-'
+  if (value >= 1024 * 1024) return `${Math.round((value / (1024 * 1024)) * 10) / 10} MB`
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`
+  return `${value} B`
+}
+
+/** 전체 중 몇 % 인가. (pct() 는 "받은 것 vs 보낸 것" 용이라 부호가 반대다) */
+const shareText = (part, whole) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : '-')
+
+/** 방송 시작 기준 오프셋. 음수면 시작 전이다. (#235) */
+const startMsText = (value) => (Number.isFinite(value) ? `${value >= 0 ? '+' : ''}${value}ms` : '-')
 const tri = (value) => (value === null || value === undefined ? '-' : value ? 'O' : 'X')
 
 /** 경로 분포 한 줄. 이 회차가 hls.js 를 탔는지 네이티브로 갔는지. (#217) */
@@ -546,7 +659,7 @@ const md = [
   `- 보낸 값 ↔ 받은 값 차이: ${totals.sentVsReceivedDiffSec}초 (${totals.sentVsReceivedDiffPct})`,
   `- 정답 ↔ 보낸 값 차이: ${totals.truthVsSentDiffSec}초`,
   `- 진행 기준 불연속(뒤로 이동) 횟수: ${totals.discontinuities} (멈춤과 따로 셈)`,
-  `- rejected: Prometheus ${totals.rejectedPrometheus} · 합성 방송 429 ${totals.broadcastRejected429 ?? '-'}`,
+  `- rejected: Prometheus ${totals.rejectedPrometheus ?? '없음'} · 합성 방송 429 ${totals.broadcastRejected429 ?? '-'}`,
   `- 합성 방송 재시작: ${totals.broadcastRestarts}회 · 재시작 실패 ${totals.broadcastRestartFailures}회 · ` +
     `재시작 중단 ${totals.broadcastRestartStallMs}ms · ALLOW_BROADCAST_RESTART=${totals.allowBroadcastRestart ? '1' : '0'}`,
   ...(expectedBroadcastChunks !== null
@@ -599,6 +712,101 @@ const md = [
   '',
   '> 판단 기준(#233): 자막 읽기 상한을 넘는 자막이 5% 이하이고, 연쇄 끊김이 V4 대비 늘지 않아야 한다.',
   '> 연쇄 끊김은 앞 끊김이 끝난 뒤 10초 안에 다시 시작한 끊김이다.',
+  '',
+  '## CDN (#235)',
+  '',
+  ...(cdn.withHeader === 0 && cdn.withoutHeader === 0
+    ? ['- `/hls/` 응답을 하나도 못 봤다 — 매니페스트를 받지 못했거나 URL 이 다르다.']
+    : [
+        '| 파일 종류 | 응답 수 | HIT | MISS | EXPIRED | BYPASS·DYNAMIC | 헤더 없음 | 원본까지 간 비율 | 받은 바이트 |',
+        '|---|---:|---:|---:|---:|---:|---:|---:|---:|',
+        ...['playlist', 'init', 'segment', 'other']
+          .filter((kind) => cdn.byKind[kind])
+          .map((kind) => {
+            const stats = cdn.byKind[kind]
+            const status = (name) => stats.statuses[name] ?? 0
+            const bypass = Object.entries(stats.statuses)
+              .filter(([name]) => !['HIT', 'MISS', 'EXPIRED', '(헤더 없음)'].includes(name))
+              .reduce((acc, [, count]) => acc + count, 0)
+            return `| ${kind} | ${stats.total} | ${status('HIT')} | ${status('MISS')} | ${status('EXPIRED')} | ` +
+              `${bypass} | ${status('(헤더 없음)')} | ${shareText(stats.origin, stats.total)} | ${bytesText(stats.bytes)} |`
+          }),
+        '',
+        `- CDN 헤더가 있는 응답 ${cdn.withHeader}건 · 없는 응답 ${cdn.withoutHeader}건`,
+        cdn.withHeader === 0
+          ? '  - **헤더가 하나도 없다** — 로컬 하네스이거나 CDN 을 안 거친 회차다. 적중률을 말할 수 없다.'
+          : '  - HIT 가 아닌 것(MISS·EXPIRED·BYPASS·DYNAMIC)과 헤더 없음은 **원본까지 갔다**고 셌다.',
+      ]),
+  ...(Object.keys(cdn.byFile).length === 0
+    ? []
+    : [
+        '',
+        '조각·init 파일별 — **원본 요청 병합의 증거**',
+        '',
+        '| 파일 | 받은 시청자 | 원본 요청(nginx) | 시청자÷원본 | 시청자 쪽 DYNAMIC | 시청자 쪽 HIT |',
+        '|---|---:|---:|---:|---:|---:|',
+        ...Object.entries(cdn.byFile)
+          .sort((a, b) => b[1].viewers.size - a[1].viewers.size)
+          .slice(0, 12)
+          .map(([file, stats]) => {
+            const nginx = Number(originByFile[file]?.requests ?? 0)
+            const ratio = nginx > 0 ? stats.viewers.size / nginx : null
+            const dynamic = stats.statuses.DYNAMIC ?? 0
+            const hit = stats.statuses.HIT ?? 0
+            return `| ${file} | ${stats.viewers.size} | ${originAvailable ? nginx : '없음'} | ` +
+              `${ratio === null ? '-' : `${Math.round(ratio * 10) / 10}배`} | ${dynamic} | ${hit} |`
+          }),
+        '',
+        '- **시청자÷원본** 이 병합의 크기다. 1배면 아무도 병합되지 않았고(시청자마다 원본 요청), ' +
+          '5배면 원본이 한 번만 받아 5명이 나눠 썼다는 뜻이다.',
+        '- 원본 요청 수는 **운영 nginx 접근 로그**에서 읽는다(server.json 의 origin.byFile). ' +
+          `${originAvailable ? '' : '이 회차에는 그 수치가 없다(로컬 회차이거나 로그를 못 읽었다) - 빈칸으로 두지 않고 "없음" 으로 적는다.'}`,
+        `- 원본 로그: ${originAvailable
+          ? `읽은 파일 ${(server.origin.filesRead ?? []).length}개${server.origin.complete === false ? ' **(일부만 읽었다 - 아래 수치는 하한)**' : ''}`
+          : `읽지 못했다${server?.origin?.error ? ` — ${server.origin.error}` : ''}`}`,
+        `- 창 규칙: ${server?.window?.rule ?? '알 수 없음'} (${server?.window?.from ?? '-'} ~ ${server?.window?.to ?? '-'}초)`,
+        '- 시청자 쪽 DYNAMIC/HIT 는 **브라우저가 본 헤더**라 보조 정보다. Cloudflare 는 매니페스트·조각을 ' +
+          'DYNAMIC 으로 표시하면서도 원본 요청을 합칠 수 있다 - 그래서 병합 판단은 nginx 수치로 한다.',
+
+      ]),
+  '',
+  '## 방송 시작 (#235)',
+  '',
+  ...(Number.isFinite(broadcastStartedAtMs)
+    ? [
+        '| 시청자 | 시작 → 첫 재생 | 시작 → 첫 매니페스트 | 시작 → 첫 조각 | 시작 전후 대기 요청 |',
+        '|---|---:|---:|---:|---:|',
+        ...start.perViewer.map((r) =>
+          `| ${r.viewer} | ${startMsText(r.firstPlayMs)} | ${startMsText(r.firstPlaylistMs)} | ` +
+          `${startMsText(r.firstSegmentMs)} | ${r.lookups} |`,
+        ),
+        '',
+        ...(Object.keys(start.histogram).length === 0
+          ? [`- 시작 ±${start.marginS}초에 \`GET /meeting/{id}\` 요청이 없다 — 모드가 \`waiting\` 이 아니었거나 폴링 URL 이 다르다.`]
+          : [
+              `초마다 나간 \`GET /meeting/{id}\` (시작 = 0초, ±${start.marginS}초)`,
+              '',
+              '| 시작 기준 초 | 요청 수 |',
+              '|---:|---:|',
+              ...Object.keys(start.histogram).map(Number).sort((a, b) => a - b)
+                .map((offset) => `| ${offset} | ${start.histogram[offset]} |`),
+              '',
+              `- 합계 ${sum(Object.values(start.histogram))}건 · 최대 ${Math.max(...Object.values(start.histogram))}건/초` +
+                ` (${Object.keys(start.histogram).find((k) => start.histogram[k] === Math.max(...Object.values(start.histogram)))}초)`,
+              '- 방송이 시작된 순간 대기하던 시청자가 한꺼번에 이 조회를 한다. 그 초의 수가 몰림의 크기다.',
+            ]),
+        '',
+        clockKnown
+          ? `- 시계 보정: 시청자 \`${clock.viewerHost}\` ${viewerOffsetMs}ms · 방송 \`${clock.broadcastHost}\` ` +
+            `${broadcastOffsetMs}ms (원격 − 로컬). 위 "시작 → 첫 재생" 은 두 값을 뺀 로컬 시계 기준이다.`
+          : '- **시계 보정 기록이 없다**(clock.json 없음). 다른 호스트의 시계 차이가 그대로 들어갔을 수 있다.',
+        ...(broadcastRest
+          ? ['', `- 서버 REST 지연(그 창, Prometheus): p50 ${broadcastRest.p50Ms ?? '-'}ms · ` +
+              `p95 ${broadcastRest.p95Ms ?? '-'}ms · p99 ${broadcastRest.p99Ms ?? '-'}ms` +
+              `${broadcastRest.meetingP99Ms !== undefined ? ` · \`GET /meeting/{id}\` p99 ${broadcastRest.meetingP99Ms ?? '-'}ms` : ''}`]
+          : []),
+      ]
+    : ['- `broadcast.json` 이 없어 방송 시작 시각을 모른다 — 시작 기준 값을 낼 수 없다.']),
   '',
   '## 첫 화면 시간',
   '',

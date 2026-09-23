@@ -94,6 +94,64 @@ CATCHUP_RATE=1.25 ./scripts/run-qoe-crosscheck.sh
 재생 속도가 1을 넘은 비율 · 연쇄 끊김(끊김 뒤 10초 안의 끊김) 수 · 화면 지연 p50/p95 를 낸다.
 자막 읽기와 함께 봐야 한다 - `perf/captions/reading-speed.py` 가 그 표를 낸다.
 
+## 방송 시작 몰림·CDN (#235)
+
+방송이 시작되는 순간 대기하던 시청자가 한꺼번에 몰린다. 시청 화면은 방송 전이면 3초마다
+`GET /meeting/{id}` 로 상태를 묻는다(`BroadcastView`). 그 몰림을 만들려면 **시청자를 먼저** 띄운다.
+
+```bash
+START_MODE=waiting START_DELAY_S=30 ./scripts/run-qoe-crosscheck.sh
+```
+
+`START_MODE=waiting` 이면 시청자를 먼저 띄우고 `START_DELAY_S`(기본 30)초 뒤에 합성 방송을 시작한다.
+기본값은 지금까지와 같은 `broadcast-first`(방송 먼저)다.
+
+**START_DELAY_S 는 "모두가 대기 화면에 도달한 뒤" 부터 센다.** 시청자는 폴링을 한 번 보낸 순간
+`ready-<k>.json` 을 남기고, 셸이 그것을 세어 `VIEWERS` 만큼 모일 때까지 기다린다
+(`READY_TIMEOUT_S`, 기본 90초). 못 모이면 **조건 불성립(exit 2)** 이다 - 로그인·브라우저 기동이
+30초보다 오래 걸리는데 방송을 먼저 켜면 몰림이 아예 관측되지 않는다.
+
+시작 시각과 첫 재생 시각은 **다른 호스트의 시계**일 수 있다(시청자 VM · 방송 VM). 셸이 회차 시작 때
+`ssh <host> 'date +%s%N'` 왕복 5회로 편도 지연을 지운 중간값을 재서 `clock.json` 에 남기고,
+`compare.mjs` 가 그 값으로 보정해 "시작 → 첫 재생" 을 낸다. 보정량은 표 아래에 함께 적는다.
+
+시청자는 `/hls/` 응답마다 `{파일, 종류, 상태, cf-cache-status, age, 바이트}` 를 `viewer-k.json` 의 `hls` 에,
+대기 중 폴링은 `lookups` 에 남긴다. `compare.mjs` 의 두 절이 그것을 읽는다.
+
+| 절 | 무엇을 보나 |
+|---|---|
+| **CDN** | 파일 종류별 cf-cache-status 분포 · 조각 하나를 몇 명이 받았고 그중 원본까지 간(MISS) 비율 = 요청 병합 |
+| **방송 시작** | 시청자별 `방송 시작 → 첫 재생/첫 매니페스트/첫 조각` · 시작 ±10초의 초당 `GET /meeting/{id}` 수 · 서버 REST p50/p95/p99 |
+
+`cf-cache-status` 가 **없으면 CDN 을 안 거친 것**이다(로컬 하네스). 적중률 0% 와는 다른 사실이라
+그대로 적는다 - 로컬 회차에서는 적중률을 말할 수 없다.
+
+원본 쪽 수치는 `lib/nginx-log.mjs` 가 운영 nginx 접근 로그에서 읽는다(운영에서 확인한 사실):
+경로 `/var/log/nginx/access.log`, `$time_local` 은 **+0000**, 회전 파일은
+`access.log-YYYYMMDD`(가장 최근 것은 비압축) 와 `access.log-YYYYMMDD.gz` 다 - `access.log.1.gz` 는 없다.
+`sudo -n ls /var/log/nginx` 로 목록을 받아 창이 걸친 날짜의 파일을 고르고, `sudo -n` 으로 읽는다.
+**grep 의 0건(exit 1)은 성공**이고, 못 읽은 파일은 빈 줄이 아니라 `error` 로 남는다.
+
+규칙은 `perf/browser/selftest-nginx-log.mjs` 가 운영 없이 검증한다(가짜 원격 실행기).
+
+```bash
+node perf/browser/selftest-nginx-log.mjs
+```
+
+## 원격 시청자 한도 (#235 · #160)
+
+부하 생성기가 병목이면 정답이 틀어진다. 스로틀 없이 시청자 수를 올려 보며 **하네스가 먼저 무너지는 지점**을 찾는다.
+
+```bash
+COUNTS="10 20 30" ./scripts/run-viewer-capacity.sh
+```
+
+원격 VM CPU(**부하 중 1초 간격 표본**, `/proc/stat` 의 busy 비율 - 최대/평균)와 정답 끊김을
+회차마다 표로 남긴다. 회차마다 산출물 디렉터리를 새로 시작한다(이전 회차의 `viewer-*.json` 이
+섞이면 표본 수가 부풀려진다). 이 스크립트가 지우는 것은 `RUN_PREFIX` 로 시작하는 자기 회차뿐이다.
+스로틀이 없는데 끊김이 나오면 그건 네트워크가 아니라 생성기 한계다 - 그 위 수치는 조건 불성립이다.
+**이 스크립트는 원격 VM 에 들어간다.** 다른 측정이 같은 VM 을 쓰는 중이면 돌리지 마라.
+
 각 단계를 따로 돌릴 수도 있다.
 
 ```bash

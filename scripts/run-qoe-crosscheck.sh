@@ -33,6 +33,12 @@ LIVE_SYNC="${LIVE_SYNC:-}"
 # 따라잡기 재생 속도 (#233). 진단용이며 기본은 꺼짐 - 값을 주면 그 회차만 켠다.
 # 허용 값: 1 · 1.05 · 1.1 · 1.25 · 1.5
 CATCHUP_RATE="${CATCHUP_RATE:-}"
+# 방송 전 대기 모드 (#235). waiting 이면 **시청자를 먼저** 띄우고 START_DELAY_S 초 뒤 방송을 시작한다.
+# 대기 화면은 3초마다 GET /meeting/{id} 로 방송 상태를 묻는다 - 시작 순간 그 조회가 몰린다.
+START_MODE="${START_MODE:-broadcast-first}"
+START_DELAY_S="${START_DELAY_S:-30}"
+# 대기 화면 도달을 기다리는 상한(초). 넘으면 조건 불성립(exit 2)이다. (#235)
+READY_TIMEOUT_S="${READY_TIMEOUT_S:-90}"
 VIEWER_HOST="${VIEWER_HOST:-}"
 BROADCAST_HOST="${BROADCAST_HOST:-}"
 BROWSER_DIR="perf/browser"
@@ -105,6 +111,7 @@ fi
 echo "== 준비 완료 =="
 echo "   RUN=$RUN  VIEWERS=$VIEWERS  방송 안전 상한=${BROADCAST_DURATION_S}s"
 echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}  CATCHUP_RATE=${CATCHUP_RATE:-끔}"
+echo "   START_MODE=$START_MODE${START_MODE:+ }$([ "$START_MODE" = waiting ] && echo "(방송 ${START_DELAY_S}초 뒤 시작)")"
 echo "   사이트=$SITE  서버=$SSH_HOST  네트워크=$DOCKER_NET"
 if [ "$REMOTE_BROADCAST" -eq 1 ]; then
   echo "   합성 방송 호스트=$BROADCAST_HOST"
@@ -120,6 +127,79 @@ record_remote_cpu() {
   } >> "$OUT/viewer-host-cpu.txt" || {
     echo "[$label] docker stats 실패" >> "$OUT/viewer-host-cpu.txt"
   }
+}
+
+now_ns() { python3 -c 'import time;print(time.time_ns())'; }
+
+# 원격 호스트의 시계 차이(원격 − 로컬, ms). 왕복 중간값으로 편도 지연을 지운다. (#235)
+measure_clock_offset_ms() {  # measure_clock_offset_ms <host|local>
+  local host="$1"
+  if [ "$host" = "local" ]; then
+    echo 0
+    return 0
+  fi
+  local -a samples=()
+  local before after remote mid
+  for _ in 1 2 3 4 5; do
+    before=$(now_ns)
+    remote=$(ssh "$host" 'date +%s%N' 2>/dev/null) || continue
+    after=$(now_ns)
+    case "$remote" in ''|*[!0-9]*) continue ;; esac
+    mid=$(( (before + after) / 2 ))
+    samples+=( $(( (remote - mid) / 1000000 )) )
+  done
+  if [ "${#samples[@]}" -eq 0 ]; then
+    return 1
+  fi
+  printf '%s\n' "${samples[@]}" | sort -n | awk '{a[NR]=$1} END{print (NR%2 ? a[(NR+1)/2] : int((a[NR/2]+a[NR/2+1])/2))}'
+}
+
+# 방송 시작 시각과 첫 재생 시각을 **같은 시계**로 놓기 위한 보정량을 남긴다. (#235)
+# 시청자 호스트와 방송 호스트가 다르면 VM 간 시계 차이가 "시작 → 첫 재생" 에 그대로 들어간다.
+write_clock() {
+  local viewer_host broadcast_host viewer_offset broadcast_offset
+  if [ "$REMOTE_VIEWERS" -eq 1 ]; then viewer_host="$VIEWER_HOST"; else viewer_host="local"; fi
+  if [ "$REMOTE_BROADCAST" -eq 1 ]; then broadcast_host="$BROADCAST_HOST"; else broadcast_host="local"; fi
+  viewer_offset=$(measure_clock_offset_ms "$viewer_host") || viewer_offset=""
+  broadcast_offset=$(measure_clock_offset_ms "$broadcast_host") || broadcast_offset=""
+  cat > "$OUT/clock.json" <<JSON
+{
+  "viewerHost": "$viewer_host",
+  "viewerOffsetMs": ${viewer_offset:-null},
+  "broadcastHost": "$broadcast_host",
+  "broadcastOffsetMs": ${broadcast_offset:-null},
+  "method": "ssh 'date +%s%N' 왕복 5회, 편도 지연을 중간값으로 지운 뒤 중앙값 (원격 − 로컬, ms)",
+  "note": "같은 호스트면 0 이다. null 이면 못 쟀다 - compare 는 보정 없이 0 으로 계산하고 그 사실을 적는다."
+}
+JSON
+  echo "   시계 보정: 시청자($viewer_host) ${viewer_offset:-?}ms · 방송($broadcast_host) ${broadcast_offset:-?}ms"
+}
+
+# 대기 모드에서 **모든** 시청자가 대기 화면에 도달했는지 본다. (#235)
+# 시청자가 준비되기 전에 방송이 시작되면 몰림이 아예 관측되지 않는다.
+wait_viewers_ready() {
+  local expected="$1" waited=0 count=0 ready_path
+  if [ "$REMOTE_VIEWERS" -eq 1 ]; then
+    ready_path="\$HOME/edumeet-perf/out/$RUN"
+  else
+    ready_path="$OUT"
+  fi
+  while [ "$waited" -lt "$READY_TIMEOUT_S" ]; do
+    if [ "$REMOTE_VIEWERS" -eq 1 ]; then
+      # shellcheck disable=SC2029 # $ready_path 는 시청자 호스트에서 확장돼야 한다(그쪽 경로다).
+      count=$(ssh "$VIEWER_HOST" "ls $ready_path/ready-*.json 2>/dev/null | wc -l" 2>/dev/null | tr -d '[:space:]')
+    else
+      count=$(find "$ready_path" -maxdepth 1 -name 'ready-*.json' 2>/dev/null | wc -l | tr -d '[:space:]')
+    fi
+    if [ "${count:-0}" -ge "$expected" ]; then
+      echo "   대기 화면 도달 $count/$expected (${waited}초)"
+      return 0
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo "   대기 화면 도달 ${count:-0}/$expected — ${READY_TIMEOUT_S}초 안에 못 왔다"
+  return 1
 }
 
 BROADCAST_PID=""
@@ -298,6 +378,7 @@ if [ "$REMOTE_BROADCAST" -eq 1 ]; then
     "if docker image inspect $BROADCAST_IMAGE >/dev/null 2>&1; then :; else docker build -t $BROADCAST_IMAGE -f \"\$HOME/edumeet-perf-bcast/Dockerfile.broadcaster\" \"\$HOME/edumeet-perf-bcast\"; fi"
 fi
 
+start_broadcast() {
 echo "== 합성 방송 시작 =="
 if [ "$REMOTE_BROADCAST" -eq 1 ]; then
   # 원격 명령이 중간에 실패해도 EXIT trap이 컨테이너와 DELETE를 정리하게 한다.
@@ -355,7 +436,10 @@ done
 mkdir -p "$OUT/manifests"
 sample_manifests &
 MANIFEST_PID=$!
+}
 
+
+start_viewers() {
 echo "== 시청자 $VIEWERS 대 =="
 # SCHEDULE 을 주면 그대로 넘긴다. 넘긴 일정은 산출물 폴더의 schedule.json 에 남는다.
 VIEWER_ARGS=(--run "$RUN" --viewers "$VIEWERS")
@@ -398,7 +482,30 @@ else
   node "$BROWSER_DIR/qoe-crosscheck.mjs" "${VIEWER_ARGS[@]}" &
 fi
 VIEWER_PID=$!
+}
 
+
+# ★ 순서가 곧 실험이다. (#235)
+#   broadcast-first : 지금까지의 기본. 방송이 먼저, 시청자가 나중.
+#   waiting         : 시청자가 먼저 붙어 3초 폴링으로 기다리다가 방송이 시작된다 - 몰림을 만든다.
+if [ "$START_MODE" = "waiting" ]; then
+  echo "== 대기 모드: 시청자를 먼저 띄우고 ${START_DELAY_S}초 뒤 방송을 시작한다 =="
+  start_viewers
+  # ★ 모두가 대기 화면에 도달한 뒤부터 센다. 안 그러면 방송이 먼저 시작해 몰림이 안 보인다. (#235)
+  if ! wait_viewers_ready "$VIEWERS"; then
+    echo "측정 조건 불성립: 시청자가 대기 화면에 도달하지 못했다 (exit 2)"
+    exit 2
+  fi
+  write_clock
+  sleep "$START_DELAY_S"
+  start_broadcast
+else
+  write_clock
+  start_broadcast
+  start_viewers
+fi
+
+wait_viewers() {
 VIEWER_STATUS=0
 wait "$VIEWER_PID" || VIEWER_STATUS=$?
 VIEWER_PID=""
@@ -412,6 +519,9 @@ if [ "$REMOTE_VIEWERS" -eq 1 ]; then
   REMOTE_CPU_AFTER=1
   scp -r "$VIEWER_HOST:edumeet-perf/out/$RUN" "$BROWSER_DIR/out/"
 fi
+}
+
+wait_viewers
 
 echo "== drain 30초 (마지막 보고·로그 수집 지연) =="
 sleep 30
