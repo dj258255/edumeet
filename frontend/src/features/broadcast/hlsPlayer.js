@@ -29,7 +29,7 @@ export async function attachHls(
   //   네이티브 지원 여부와 hls.js 지원 여부를 **둘 다** 보고 고른다 -
   //   "네이티브가 되면 네이티브" 는 Chrome 에서 hls.js 를 영영 안 타게 만들었다.
   const nativeHlsSupported = Boolean(videoEl.canPlayType('application/vnd.apple.mpegurl'))
-  const Hls = await loadHlsModule()
+  const Hls = await loadHls()
   const path = choosePlaybackPath({
     hlsJsSupported: typeof Hls?.isSupported === 'function' && Hls.isSupported(),
     nativeHlsSupported,
@@ -179,6 +179,39 @@ export async function attachHls(
     getPlayingDate: () => hls.playingDate ?? null,
     native: false,
   }
+}
+
+function importHls() {
+  return import('hls.js')
+}
+
+let hlsLoadPromise = null
+let hlsLoadSource = null
+
+/**
+ * hls.js 를 동적으로 불러온다. (#217)
+ *
+ * <p>주소 조회와 겹쳐서 시작할 수 있게 약속을 캐시한다. 같은 로더로 여러 번
+ * 불러도 한 번만 import 하고, import 자체가 실패하면 캐시를 비워 다음 시도는
+ * 다시 import 한다. 로더 인자는 시험에서 import 를 주입하는 경계다.
+ */
+export function loadHls(load = importHls) {
+  if (hlsLoadPromise && hlsLoadSource === load) return hlsLoadPromise
+
+  let promise
+  promise = Promise.resolve()
+    .then(load)
+    .then((module) => module?.default ?? null)
+    .catch(() => {
+      if (hlsLoadPromise === promise) {
+        hlsLoadPromise = null
+        hlsLoadSource = null
+      }
+      return null
+    })
+  hlsLoadSource = load
+  hlsLoadPromise = promise
+  return promise
 }
 
 /**
