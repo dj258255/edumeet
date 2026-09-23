@@ -32,6 +32,35 @@ public final class FfmpegCommand {
     private static final int ASSUMED_FPS = 30;
 
     public static List<String> build(BroadcastProperties props, BroadcastCodecPlan plan, String outputDir) {
+        return buildInternal(props, plan, outputDir, "mpegts", props.getSegmentSeconds(), "legacy");
+    }
+
+    /** 방송 단위로 허용된 HLS 출력 형식과 조각 길이를 적용한다. */
+    public static List<String> build(
+            BroadcastProperties props, BroadcastCodecPlan plan, String outputDir,
+            String segmentType, int segmentSeconds) {
+        return build(props, plan, outputDir, segmentType, segmentSeconds, "legacy");
+    }
+
+    /** 방송 세션 식별자를 파일명에 넣어 방송 재시작 뒤 캐시 충돌을 없앤다. */
+    public static List<String> build(
+            BroadcastProperties props, BroadcastCodecPlan plan, String outputDir,
+            String segmentType, int segmentSeconds, String sessionId) {
+        if (!"mpegts".equals(segmentType) && !"fmp4".equals(segmentType)) {
+            throw new IllegalArgumentException("segmentType 은 mpegts 또는 fmp4 이어야 합니다.");
+        }
+        if (segmentSeconds != 1 && segmentSeconds != 2) {
+            throw new IllegalArgumentException("hlsTimeSec 은 1 또는 2 이어야 합니다.");
+        }
+        if (sessionId == null || !sessionId.matches("[A-Za-z0-9]+")) {
+            throw new IllegalArgumentException("sessionId 는 영숫자만 허용합니다.");
+        }
+        return buildInternal(props, plan, outputDir, segmentType, segmentSeconds, sessionId);
+    }
+
+    private static List<String> buildInternal(
+            BroadcastProperties props, BroadcastCodecPlan plan, String outputDir,
+            String segmentType, int segmentSeconds, String sessionId) {
         List<String> cmd = new ArrayList<>();
         cmd.add(props.getFfmpegPath());
         cmd.add("-hide_banner");
@@ -47,7 +76,7 @@ public final class FfmpegCommand {
         if (plan.transcodesVideo()) {
             // 다시 인코딩할 때만 키프레임을 강제할 수 있다.
             // 이걸 안 주면 x264 기본 간격(약 250프레임)이 걸려 세그먼트가 8초씩 나온다.
-            int gop = props.getSegmentSeconds() * ASSUMED_FPS;
+            int gop = segmentSeconds * ASSUMED_FPS;
             cmd.add("-g");
             cmd.add(String.valueOf(gop));
             cmd.add("-keyint_min");
@@ -60,7 +89,7 @@ public final class FfmpegCommand {
         cmd.add("-f");
         cmd.add("hls");
         cmd.add("-hls_time");
-        cmd.add(String.valueOf(props.getSegmentSeconds()));
+        cmd.add(String.valueOf(segmentSeconds));
         cmd.add("-hls_list_size");
         cmd.add(String.valueOf(props.getPlaylistSize()));
 
@@ -83,10 +112,17 @@ public final class FfmpegCommand {
         cmd.add("delete_segments+omit_endlist+independent_segments+program_date_time");
 
         cmd.add("-hls_segment_type");
-        cmd.add("mpegts");
+        cmd.add(segmentType);
         cmd.add("-hls_segment_filename");
-        cmd.add(outputDir + "/seg_%05d.ts");
+        if ("fmp4".equals(segmentType)) {
+            cmd.add(outputDir + "/seg_" + sessionId + "_%05d.m4s");
+            cmd.add("-hls_fmp4_init_filename");
+            cmd.add("init_" + sessionId + ".mp4");
+        } else {
+            cmd.add(outputDir + "/seg_" + sessionId + "_%05d.ts");
+        }
         cmd.add(outputDir + "/live.m3u8");
         return cmd;
     }
+
 }

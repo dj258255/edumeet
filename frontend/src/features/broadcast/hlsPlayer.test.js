@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { loadHls, loadHlsModule } from './hlsPlayer'
+import { liveSyncDurationCount, loadHls, loadHlsModule } from './hlsPlayer'
 import { choosePlaybackPath } from './playbackPath'
 
 /** attachHls 가 경로를 고를 때 쓰는 것과 같은 계산. */
@@ -11,6 +11,15 @@ function pathWith(Hls, nativeHlsSupported) {
 }
 
 describe('hls.js 동적 import', () => {
+  it('liveSyncDurationCount 는 1·2·3만 읽고 나머지는 2를 쓴다', () => {
+    expect(liveSyncDurationCount({ getItem: () => '1' })).toBe(1)
+    expect(liveSyncDurationCount({ getItem: () => '2' })).toBe(2)
+    expect(liveSyncDurationCount({ getItem: () => '3' })).toBe(3)
+    expect(liveSyncDurationCount({ getItem: () => '0' })).toBe(2)
+    expect(liveSyncDurationCount({ getItem: () => '4' })).toBe(2)
+    expect(liveSyncDurationCount({ getItem: () => null })).toBe(2)
+  })
+
   it('같은 로더를 여러 번 불러도 같은 약속을 돌려준다', async () => {
     let calls = 0
     const Hls = { isSupported: () => true }

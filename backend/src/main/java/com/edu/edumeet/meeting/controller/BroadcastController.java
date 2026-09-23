@@ -34,14 +34,45 @@ public class BroadcastController {
      * @param body {@code mimeType} — MediaRecorder 가 <b>실제로 고른</b> 값.
      *             요청한 값이 아니라 {@code recorder.mimeType} 를 그대로 보내야 한다.
      *             이 값으로 리먹싱이냐 재인코딩이냐가 갈린다.
+     *             {@code segmentType} 은 {@code mpegts|fmp4}, {@code hlsTimeSec} 은
+     *             {@code 1|2} 이고 둘 다 생략하면 기존 설정을 쓴다.
      */
     @PostMapping
     public ResponseEntity<Map<String, String>> start(
             @AuthenticationPrincipal SecurityMember member,
             @PathVariable Long meetingId,
             @RequestBody Map<String, String> body) {
-        String playlistUrl = broadcastService.start(member.getEmail(), meetingId, body.get("mimeType"));
+        String segmentType = parseSegmentType(body.get("segmentType"));
+        Integer hlsTimeSec = parseHlsTimeSec(body.get("hlsTimeSec"));
+        String playlistUrl = broadcastService.start(
+                member.getEmail(), meetingId, stringValue(body.get("mimeType")), segmentType, hlsTimeSec);
         return ResponseEntity.ok(Map.of("playlistUrl", playlistUrl));
+    }
+
+    private static String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    static String parseSegmentType(Object value) {
+        String segmentType = value == null ? "mpegts" : stringValue(value);
+        if (!"mpegts".equals(segmentType) && !"fmp4".equals(segmentType)) {
+            throw new IllegalArgumentException("segmentType 은 mpegts 또는 fmp4 이어야 합니다.");
+        }
+        return segmentType;
+    }
+
+    static Integer parseHlsTimeSec(Object value) {
+        if (value == null) return null;
+        final int hlsTimeSec;
+        try {
+            hlsTimeSec = Integer.parseInt(stringValue(value));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("hlsTimeSec 은 1 또는 2 이어야 합니다.");
+        }
+        if (hlsTimeSec != 1 && hlsTimeSec != 2) {
+            throw new IllegalArgumentException("hlsTimeSec 은 1 또는 2 이어야 합니다.");
+        }
+        return hlsTimeSec;
     }
 
     /**

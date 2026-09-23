@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -126,6 +127,23 @@ public class BroadcastService {
      */
     @Transactional
     public String start(String email, Long meetingId, String mimeType) {
+        return start(email, meetingId, mimeType, "mpegts", null);
+    }
+
+    /**
+     * 방송 단위로 HLS 조각 형식과 목표 길이를 고른다. 요청값은 컨트롤러에서 허용 목록을
+     * 확인하지만, 이 서비스도 직접 호출될 수 있으므로 ffmpeg 를 만들기 전에 다시 확인한다.
+     */
+    @Transactional
+    public String start(
+            String email, Long meetingId, String mimeType, String segmentType, Integer hlsTimeSec) {
+        if (!"mpegts".equals(segmentType) && !"fmp4".equals(segmentType)) {
+            throw new IllegalArgumentException("segmentType 은 mpegts 또는 fmp4 이어야 합니다.");
+        }
+        if (hlsTimeSec != null && hlsTimeSec != 1 && hlsTimeSec != 2) {
+            throw new IllegalArgumentException("hlsTimeSec 은 1 또는 2 이어야 합니다.");
+        }
+
         Meeting meeting = requireHost(email, meetingId);
         SessionType type = meeting.getSessionType();
 
@@ -143,9 +161,12 @@ public class BroadcastService {
         Path dir = Path.of(properties.getOutputDir(), "meeting-" + meetingId);
         prepareDirectory(dir);
 
-        List<String> cmd = FfmpegCommand.build(properties, plan, dir.toString());
-        log.info("방송 시작 - meetingId={}, type={}, 코덱={}, mimeType={}",
-                meetingId, type, plan.describe(), mimeType);
+        String sessionId = newSessionId();
+        int segmentSeconds = hlsTimeSec == null ? properties.getSegmentSeconds() : hlsTimeSec;
+        List<String> cmd = FfmpegCommand.build(
+                properties, plan, dir.toString(), segmentType, segmentSeconds, sessionId);
+        log.info("방송 시작 - meetingId={}, sessionId={}, type={}, 코덱={}, mimeType={}, segmentType={}, hlsTimeSec={}",
+                meetingId, sessionId, type, plan.describe(), mimeType, segmentType, segmentSeconds);
 
         Process process = spawn(cmd, meetingId);
         String playlistUrl = "%s/meeting-%d/live.m3u8".formatted(trimTrailingSlash(properties.getPublicBaseUrl()), meetingId);
@@ -155,6 +176,10 @@ public class BroadcastService {
 
         meeting.startBroadcast("self-" + meetingId, playlistUrl);
         return playlistUrl;
+    }
+
+    private static String newSessionId() {
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     }
 
     /**

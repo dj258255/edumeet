@@ -26,6 +26,10 @@ RUN="${RUN:-$(date +%Y%m%d-%H%M%S)}"
 VIEWERS="${VIEWERS:-5}"
 # 방송은 시청자 일정에 맞춰 외부에서 내린다. 이 값은 안전 상한일 뿐 측정 종료 시각이 아니다.
 BROADCAST_DURATION_S="${BROADCAST_DURATION_S:-86400}"
+SEGMENT_TYPE="${SEGMENT_TYPE:-mpegts}"
+HLS_TIME="${HLS_TIME:-2}"
+CHUNK_MS="${CHUNK_MS:-2000}"
+LIVE_SYNC="${LIVE_SYNC:-}"
 VIEWER_HOST="${VIEWER_HOST:-}"
 BROWSER_DIR="perf/browser"
 OUT="$BROWSER_DIR/out/$RUN"
@@ -84,6 +88,7 @@ fi
 
 echo "== 준비 완료 =="
 echo "   RUN=$RUN  VIEWERS=$VIEWERS  방송 안전 상한=${BROADCAST_DURATION_S}s"
+echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}"
 echo "   사이트=$SITE  서버=$SSH_HOST  네트워크=$DOCKER_NET"
 
 mkdir -p "$OUT"
@@ -181,6 +186,7 @@ fi
 
 echo "== 합성 방송 시작 =="
 node "$BROWSER_DIR/broadcast-synthetic.mjs" --run "$RUN" --duration-s "$BROADCAST_DURATION_S" \
+  --segment-type "$SEGMENT_TYPE" --hls-time "$HLS_TIME" --chunk-ms "$CHUNK_MS" \
   > "$OUT/broadcast.log" 2>&1 &
 BROADCAST_PID=$!
 
@@ -215,6 +221,9 @@ done
 echo "== 시청자 $VIEWERS 대 =="
 # SCHEDULE 을 주면 그대로 넘긴다. 넘긴 일정은 산출물 폴더의 schedule.json 에 남는다.
 VIEWER_ARGS=(--run "$RUN" --viewers "$VIEWERS")
+if [ -n "$LIVE_SYNC" ]; then
+  VIEWER_ARGS+=(--live-sync "$LIVE_SYNC")
+fi
 if [ -n "${SCHEDULE:-}" ]; then
   VIEWER_ARGS+=(--schedule "$SCHEDULE")
   echo "   SCHEDULE 을 넘긴다 (schedule.json 에 기록됨)"
@@ -236,8 +245,11 @@ if [ "$REMOTE_VIEWERS" -eq 1 ]; then
   if [ -n "${FORCE_PATH:-}" ]; then
     REMOTE_DOCKER_CMD+=" -e FORCE_PATH=$(shell_quote "$FORCE_PATH")"
   fi
+  if [ -n "$LIVE_SYNC" ]; then
+    REMOTE_DOCKER_CMD+=" -e LIVE_SYNC=$(shell_quote "$LIVE_SYNC")"
+  fi
   # shellcheck disable=SC2016 # 변수는 컨테이너 안에서 확장돼야 한다.
-  REMOTE_SCRIPT='set -- --run "$RUN" --viewers "$VIEWERS"; if [ -n "${SCHEDULE:-}" ]; then set -- "$@" --schedule "$SCHEDULE"; fi; if [ -n "${FORCE_PATH:-}" ]; then set -- "$@" --force-path "$FORCE_PATH"; fi; node qoe-crosscheck.mjs "$@"'
+  REMOTE_SCRIPT='set -- --run "$RUN" --viewers "$VIEWERS"; if [ -n "${SCHEDULE:-}" ]; then set -- "$@" --schedule "$SCHEDULE"; fi; if [ -n "${FORCE_PATH:-}" ]; then set -- "$@" --force-path "$FORCE_PATH"; fi; if [ -n "${LIVE_SYNC:-}" ]; then set -- "$@" --live-sync "$LIVE_SYNC"; fi; node qoe-crosscheck.mjs "$@"'
   REMOTE_DOCKER_CMD+=" $PLAYWRIGHT_IMAGE sh -c $(shell_quote "$REMOTE_SCRIPT")"
   # shellcheck disable=SC2029 # 이 문자열은 viewer 호스트에서 실행돼야 한다.
   ssh "$VIEWER_HOST" "$REMOTE_DOCKER_CMD" &

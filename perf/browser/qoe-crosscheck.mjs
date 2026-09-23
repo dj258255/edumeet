@@ -38,6 +38,7 @@ const run = args.run
 const viewerCount = Number(args.viewers ?? 5)
 const schedule = args.schedule ? JSON.parse(args.schedule) : DEFAULT_SCHEDULE
 const forcePath = args['force-path'] === 'native' ? 'native' : null
+const liveSync = args['live-sync'] ?? null
 const dir = outDir(run)
 mkdirSync(dir, { recursive: true })
 
@@ -186,6 +187,9 @@ async function runViewer(browser, k, user) {
   await context.addInitScript(({ path }) => {
     if (path === 'native') localStorage.setItem('edumeet.playbackPath', path)
   }, { path: forcePath })
+  await context.addInitScript(({ value }) => {
+    if (value !== null) localStorage.setItem('edumeet.hls.liveSyncDurationCount', String(value))
+  }, { value: liveSync })
   await context.addInitScript(({ token, user }) => {
     try {
       localStorage.setItem('token', token)
@@ -238,6 +242,7 @@ async function runViewer(browser, k, user) {
     requestFailures: failures,
     scheduleApplied: [],
     snapshots: [],
+    latencySamples: [],
     finalSent: false,
     finalStatus: null,
     dialogs,
@@ -303,6 +308,7 @@ async function runViewer(browser, k, user) {
   }
 
   const timers = []
+  let latencyTimer = null
 
   /** offline 구간이 끝난 순간과 그 10초 뒤의 상태를 남긴다. (#210) */
   const snapshotLater = (atMs, label) => {
@@ -318,6 +324,15 @@ async function runViewer(browser, k, user) {
 
     await page.goto(record.url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     record.t0 = Date.now()
+    latencyTimer = setInterval(() => {
+      void page.evaluate(() => window.__edumeetPlayingDate?.() ?? null)
+        .then((playingAt) => {
+          if (!Number.isFinite(playingAt)) return
+          const at = Date.now()
+          record.latencySamples.push({ at, latencyMs: at - playingAt })
+        })
+        .catch(() => {})
+    }, 1000)
 
     // 스로틀 일정을 시청자마다 적용한다. 경계 시각을 남긴다.
     for (const seg of schedule) {
@@ -363,6 +378,7 @@ async function runViewer(browser, k, user) {
     await captureFinalState()
     captureUrl()
   } finally {
+    if (latencyTimer) clearInterval(latencyTimer)
     for (const timer of timers) clearTimeout(timer)
   }
 

@@ -18,6 +18,7 @@
  *
  * 사용:
  *   node broadcast-synthetic.mjs --run <이름> [--chunk-ms 2000] [--duration-s 300] [--bitrate-k 2500]
+ *     [--segment-type mpegts|fmp4] [--hls-time 1|2]
  *   node broadcast-synthetic.mjs --stop-only     # 진행 중인 방송을 내리기만 한다
  */
 import { spawn } from 'node:child_process'
@@ -50,6 +51,8 @@ if (args['stop-only']) {
 const chunkMs = Number(args['chunk-ms'] ?? 2000)
 const durationS = Number(args['duration-s'] ?? 300)
 const bitrateK = Number(args['bitrate-k'] ?? 2500)
+const segmentType = args['segment-type'] ?? 'mpegts'
+const hlsTimeSec = Number(args['hls-time'] ?? 2)
 const run = args.run
 const dir = outDir(run)
 mkdirSync(dir, { recursive: true })
@@ -61,6 +64,8 @@ const result = {
   bitrateK,
   durationS,
   mimeType: MIME_TYPE,
+  segmentType,
+  hlsTimeSec,
   playlistUrl: null,
   startedAt: null,
   endedAt: null,
@@ -195,7 +200,7 @@ async function start() {
   const res = await fetch(broadcastUrl, {
     method: 'POST',
     headers: { ...auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mimeType: MIME_TYPE }),
+    body: JSON.stringify({ mimeType: MIME_TYPE, segmentType, hlsTimeSec }),
   })
   if (!res.ok) throw new Error(`방송 시작 실패 (HTTP ${res.status})`)
   const data = await res.json()
