@@ -104,13 +104,40 @@ record_remote_cpu() {
 }
 
 BROADCAST_PID=""
+MANIFEST_PID=""
 VIEWER_PID=""
 CLEANED=""
+
+stop_manifests() {
+  if [ -z "$MANIFEST_PID" ]; then
+    return 0
+  fi
+  kill "$MANIFEST_PID" 2>/dev/null || true
+  wait "$MANIFEST_PID" 2>/dev/null || true
+  MANIFEST_PID=""
+}
+
+sample_manifests() {
+  mkdir -p "$OUT/manifests"
+  while kill -0 "$BROADCAST_PID" 2>/dev/null; do
+    local stamp
+    local tmp
+    stamp=$(date +%s)
+    tmp="$OUT/manifests/.${stamp}.m3u8.tmp"
+    if curl -fsS "${SITE}${PLAYLIST_URL}" -o "$tmp"; then
+      mv -f "$tmp" "$OUT/manifests/${stamp}.m3u8"
+    else
+      rm -f "$tmp"
+    fi
+    sleep 10
+  done
+}
 
 stop_broadcast() {
   if [ -z "$BROADCAST_PID" ]; then
     return 0
   fi
+  stop_manifests
   if kill -0 "$BROADCAST_PID" 2>/dev/null; then
     # 살아 있으면 SIGINT - 그 스크립트가 DELETE 를 부르고 끝난다.
     kill -INT "$BROADCAST_PID" 2>/dev/null || true
@@ -135,6 +162,7 @@ cleanup() {
     wait "$VIEWER_PID" 2>/dev/null || true
   fi
 
+  stop_manifests
   if [ -n "$BROADCAST_PID" ]; then
     stop_broadcast
   fi
@@ -209,7 +237,7 @@ done
 # /hls/ 는 API 호스트가 아니라 사이트 호스트에서 나간다. (docs/performance/25)
 echo "== 첫 세그먼트 대기: ${SITE}${PLAYLIST_URL} =="
 for _ in $(seq 1 60); do
-  if curl -fsS "${SITE}${PLAYLIST_URL}" 2>/dev/null | grep -q '\.ts'; then
+  if curl -fsS "${SITE}${PLAYLIST_URL}" 2>/dev/null | grep -Eq '\.(ts|m4s)'; then
     echo "   매니페스트 준비됨"
     break
   fi
@@ -217,6 +245,10 @@ for _ in $(seq 1 60); do
     echo "합성 방송이 죽었다"; cat "$OUT/broadcast.log"; exit 1; }
   sleep 1
 done
+
+mkdir -p "$OUT/manifests"
+sample_manifests &
+MANIFEST_PID=$!
 
 echo "== 시청자 $VIEWERS 대 =="
 # SCHEDULE 을 주면 그대로 넘긴다. 넘긴 일정은 산출물 폴더의 schedule.json 에 남는다.
