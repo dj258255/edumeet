@@ -123,7 +123,7 @@ class FfmpegCommandTest {
     class SegmentDuration {
 
         @Test
-        @DisplayName("fMP4·1초 조합은 init 조각과 m4s 이름을 쓴다")
+        @DisplayName("fMP4·1초 조합은 init 조각과 mp4 이름을 쓴다")
         void fmp4_uses_one_second_segments() {
             List<String> cmd = buildFor("video/mp4;codecs=avc1", SessionType.BROADCAST, "fmp4", 1);
 
@@ -131,7 +131,10 @@ class FfmpegCommandTest {
             assertThat(flagValue(cmd, "-hls_segment_type")).isEqualTo("fmp4");
             assertThat(flagValue(cmd, "-hls_fmp4_init_filename")).isEqualTo("init_legacy.mp4");
             assertThat(flagValue(cmd, "-hls_segment_filename"))
-                    .isEqualTo("/tmp/out/seg_legacy_%05d.m4s");
+                    .isEqualTo("/tmp/out/seg_legacy_%05d.mp4");
+            assertThat(flagValue(cmd, "-hls_segment_filename"))
+                    .as("init 과 조각은 둘 다 .mp4 여도 이름이 겹치지 않는다")
+                    .doesNotContain(flagValue(cmd, "-hls_fmp4_init_filename"));
         }
 
         @Test
@@ -143,7 +146,7 @@ class FfmpegCommandTest {
             assertThat(flagValue(ts, "-hls_segment_filename"))
                     .isEqualTo("/tmp/out/seg_Ab19xZ_%05d.ts");
             assertThat(flagValue(fmp4, "-hls_segment_filename"))
-                    .isEqualTo("/tmp/out/seg_Ab19xZ_%05d.m4s");
+                    .isEqualTo("/tmp/out/seg_Ab19xZ_%05d.mp4");
             assertThat(flagValue(fmp4, "-hls_fmp4_init_filename"))
                     .isEqualTo("init_Ab19xZ.mp4");
         }
