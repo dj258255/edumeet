@@ -284,6 +284,8 @@ async function runViewer(browser, k, user) {
           seekable: v ? ranges(v.seekable) : [],
           // 앱이 남긴 hls.js 진단 로그. 없으면 빈 배열이다(네이티브 재생 등).
           hlsLog: Array.isArray(window.__edumeetHlsLog) ? window.__edumeetHlsLog : [],
+          // 어느 경로로 재생했나 - hlsjs | native | unsupported. (#217)
+          playbackPath: window.__edumeetPlaybackPath ?? null,
         }
       })
     } catch (error) {

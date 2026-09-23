@@ -1,20 +1,39 @@
 /**
  * HLS 재생. (#123)
  *
- * ★ Safari 와 나머지가 다르다.
- *   Safari 는 <video src="...m3u8"> 을 그대로 재생한다. 그 경우 hls.js 를 붙이면
- *   두 개가 같은 스트림을 물어 오히려 깨진다. 네이티브가 되면 네이티브를 쓴다.
+ * ★ hls.js 를 먼저 쓴다. (#217)
+ *   예전에는 {@code canPlayType('application/vnd.apple.mpegurl')} 가 참이면 네이티브를 먼저 썼다 -
+ *   "네이티브 = Safari" 가정이었다. Chrome 도 이 값에 "maybe" 를 돌려주므로 Chrome 이 hls.js 를
+ *   안 탔고, 자막 정렬(화면 시각, #185)과 지연 설정이 조용히 꺼져 있었다.
+ *   이 앱은 hls.js 경로에만 그 둘이 있다. 순서는 playbackPath.js 가 정한다 -
+ *   iOS Safari 는 MSE 가 없어 네이티브로 간다.
  *
  * ★ hls.js 는 동적으로 불러온다.
- *   Safari 는 필요 없고, 방송 시청 화면에 들어온 사람에게만 필요하다.
- *   정적 import 로 묶으면 모바일 사용자가 처음부터 400KB 짜리 플레이어를 받는다.
+ *   방송 시청 화면에 들어온 사람에게만 필요하다. 정적 import 로 묶으면 시청 화면에 오지 않는
+ *   사용자도 400KB 짜리 플레이어를 받는다.
+ *   (경로를 정하려면 Hls.isSupported() 를 봐야 해서, 네이티브로 갈 브라우저도 이 파일은 받는다.
+ *    그 대가로 Chrome 이 hls.js 를 타고 자막 정렬·지연 설정이 살아난다)
  */
 import { snapshotHlsMetrics, snapshotNativeMetrics } from './hlsMetrics'
 import { createQoeTracker } from './playbackQoe'
 import { createRingLog, HLS_LOG_LIMIT } from './hlsDiagnostics'
+import { choosePlaybackPath } from './playbackPath'
 
 export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMetrics = () => {}, onQoe } = {}) {
-  if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+  // ★ 어떤 경로로 갈지는 순수 함수가 정한다. (#217)
+  //   네이티브 지원 여부와 hls.js 지원 여부를 **둘 다** 보고 고른다 -
+  //   "네이티브가 되면 네이티브" 는 Chrome 에서 hls.js 를 영영 안 타게 만들었다.
+  const nativeHlsSupported = Boolean(videoEl.canPlayType('application/vnd.apple.mpegurl'))
+  const Hls = await loadHlsModule()
+  const path = choosePlaybackPath({
+    hlsJsSupported: typeof Hls?.isSupported === 'function' && Hls.isSupported(),
+    nativeHlsSupported,
+  })
+
+  // 하네스·운영 진단용. 값 하나다 - 이 값만 보면 어느 경로로 재생했는지 안다.
+  window.__edumeetPlaybackPath = path
+
+  if (path === 'native') {
     videoEl.src = playlistUrl
     const timer = setInterval(() => onMetrics(snapshotNativeMetrics(videoEl)), 1000)
     const qoe = wireQoe(videoEl, onQoe, { native: true })
@@ -24,6 +43,7 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
         qoe.destroy()
         videoEl.removeAttribute('src')
         videoEl.load()
+        delete window.__edumeetPlaybackPath
       },
       // ★ 기본 재생(Safari)에서는 화면 시각을 못 구한다. (#185)
       //   null 을 주면 자막을 붙잡지 않고 바로 띄운다 -
@@ -33,9 +53,7 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
     }
   }
 
-  const { default: Hls } = await import('hls.js')
-
-  if (!Hls.isSupported()) {
+  if (path === 'unsupported') {
     onError(new Error('이 브라우저는 HLS 재생을 지원하지 않습니다.'))
     return { destroy: () => {}, native: false }
   }
@@ -129,6 +147,7 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
       clearInterval(timer)
       qoe.destroy()
       hls.destroy()
+      delete window.__edumeetPlaybackPath
       delete window.__edumeetHlsLog
     },
     /**
@@ -142,6 +161,25 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
      */
     getPlayingDate: () => hls.playingDate ?? null,
     native: false,
+  }
+}
+
+/**
+ * hls.js 를 동적으로 불러온다. (#217)
+ *
+ * ★ 실패해도 던지지 않는다.
+ *   청크 로딩은 네트워크 사정으로 실패할 수 있다. 던지면 {@code attachHls} 가 reject 되어
+ *   <b>네이티브로 재생할 수 있는 브라우저도 아무것도 못 튼다.</b>
+ *   경로를 고르기 전에 import 를 하게 되면서 생긴 회귀다 -
+ *   예전에는 Safari 가 import 전에 네이티브로 갔다.
+ *   실패를 "hls.js 없음" 으로 보고 {@code choosePlaybackPath} 가 네이티브를 고르게 한다.
+ */
+export async function loadHlsModule(load = () => import('hls.js')) {
+  try {
+    const module = await load()
+    return module?.default ?? null
+  } catch {
+    return null
   }
 }
 
