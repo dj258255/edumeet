@@ -110,6 +110,45 @@ export async function attachHls(
     window.__edumeetHlsLog = hlsLog.snapshot()
   }
 
+  /**
+   * 매니페스트 재시도 예약. 시도 횟수는 세지만 **상한을 두지 않는다** -
+   * 언제 그만둘지는 #241 의 30초 종료 감시가 정한다. 화면을 떠나면(destroy) 취소한다.
+   */
+  let manifestRetryTimer = null
+  let manifestRetryAttempt = 0
+  let destroyed = false
+
+  /**
+   * 다음 재시도를 예약한다.
+   *
+   * ★ 시도 횟수는 **예약에 성공했을 때만** 올린다. 이미 예약이 있는데 늦게 도착한 중복 이벤트가
+   *   한 번 더 오면, 예약은 무시되면서 횟수만 올라가 다음 지연이 1·2·4 규칙을 건너뛴다.
+   *   (검토 #244 1번: 첫 오류로 500ms 예약 → 100ms 뒤 중복 오류 → 횟수만 2가 되어
+   *    첫 재시도가 실패하면 1초가 아니라 2초를 기다린다)
+   *
+   * @returns {number|null} 예약한 지연(ms). 이미 예약돼 있거나 화면을 떠났으면 null
+   */
+  const scheduleManifestReload = () => {
+    if (destroyed || manifestRetryTimer !== null) return null
+    const delayMs = manifestRetryDelayMs(manifestRetryAttempt)
+    manifestRetryAttempt += 1
+    manifestRetryTimer = setTimeout(() => {
+      manifestRetryTimer = null
+      // startLoad 가 아니라 loadSource 다 - 위 ERROR 분기 주석 참조.
+      hls.loadSource(playlistUrl)
+    }, delayMs)
+    return delayMs
+  }
+
+  // 받았다 - 재시도 간격을 처음으로 되돌린다. 다음 404 는 다시 0~1초부터.
+  hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    manifestRetryAttempt = 0
+    if (manifestRetryTimer !== null) {
+      clearTimeout(manifestRetryTimer)
+      manifestRetryTimer = null
+    }
+  })
+
   hls.on(Hls.Events.MANIFEST_LOADED, (_event, data) => {
     record({
       t: Math.round(performance.now()),
@@ -146,6 +185,10 @@ export async function attachHls(
   })
 
   hls.on(Hls.Events.ERROR, (_event, data) => {
+    // ★ 화면을 떠난 뒤 들어온 오류는 무시한다. (검토 #244 3번)
+    //   실제 hls.js 는 destroy 에서 리스너를 지우지만(그래서 운영 경로에서는 잘 안 온다),
+    //   늦게 도착한 비동기 오류가 오면 여기서 죽은 인스턴스에 loadSource·startLoad 를 부른다.
+    if (destroyed) return
     state.errors += 1
     emitMetrics()
     if (!data.fatal) {
@@ -153,7 +196,23 @@ export async function attachHls(
       record(errorEntry(data, 'none'))
       return
     }
-    // 방송 시작 직전에는 플레이리스트가 아직 없어 404 가 난다. 그건 오류가 아니라 대기다.
+    // ★ 매니페스트 단계 오류는 **지연 뒤 다시 받는다**. (#244)
+    //   대기하던 시청자는 방송이 시작되는 순간 처음 붙는데, 그때 ffmpeg 가 아직 첫 live.m3u8 을
+    //   쓰지 않았으면 404 다(시작할 때 옛 파일을 지운다).
+    //
+    //   여기서 startLoad 를 부르면 안 된다 - **매니페스트를 한 번도 못 받은 상태의 startLoad 는
+    //   매니페스트를 다시 요청하지 않는다.** 그래서 #241 배포 뒤 시청자 10명 전원이
+    //   manifestLoadError(fatal) → startLoad → 그 뒤 아무 일 없음 으로 멈춰 있었다.
+    //   (예전에는 직전 방송의 옛 플레이리스트가 남아 있어 첫 요청이 404 가 아니었다.)
+    //
+    //   간격을 흩는 이유는 아래 manifestRetryDelayMs 주석에 있다 - 전원이 같은 순간 받는다.
+    if (data.type === Hls.ErrorTypes.NETWORK_ERROR && isManifestStageError(data.details)) {
+      // 예약에 성공했을 때만 지연·횟수가 올라간다. 중복 이벤트면 null 이 온다 -
+      // 그때는 기록만 남기고 횟수를 건드리지 않는다(위 scheduleManifestReload 주석).
+      const delayMs = scheduleManifestReload()
+      record({ ...errorEntry(data, 'reloadManifest'), delayMs, attempt: manifestRetryAttempt })
+      return
+    }
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
       record(errorEntry(data, 'startLoad'))
       hls.startLoad()
@@ -165,9 +224,11 @@ export async function attachHls(
       return
     }
     // ★ 복구 못 한 오류만 시청 품질 오류로 센다(여기까지 왔다는 것이 그 뜻이다).
-    //   NETWORK_ERROR·MEDIA_ERROR fatal 은 위에서 startLoad·recoverMediaError 로 복구를 시도하므로
-    //   여기 오지 않는다 - 방송 시작 전 플레이리스트 404 도 NETWORK fatal 로 오지만 그건 대기다.
-    //   복구되는 동안의 영향은 끊김 시간으로 잡힌다.
+    //   NETWORK_ERROR·MEDIA_ERROR fatal 은 위에서 loadSource 재시도·startLoad·recoverMediaError 로
+    //   복구를 시도하므로 여기 오지 않는다.
+    //   (#244 이전 주석은 "방송 시작 전 플레이리스트 404 는 대기다 → startLoad" 라고 적었는데,
+    //    매니페스트 단계에서는 틀렸다 - 한 번도 매니페스트를 못 받은 상태의 startLoad 는
+    //    다시 요청하지 않는다. 그 주석대로 동작해서 10명이 멈췄다.)
     record(errorEntry(data, 'gaveUp'))
     qoe.tracker?.failed()
     onError(new Error(data.details || '재생 오류'))
@@ -175,7 +236,13 @@ export async function attachHls(
 
   return {
     destroy: () => {
+      destroyed = true
       clearInterval(timer)
+      // 화면을 떠났다 - 예약된 재시도가 뒤늦게 돌면 죽은 플레이어에 loadSource 를 부른다. (#244)
+      if (manifestRetryTimer !== null) {
+        clearTimeout(manifestRetryTimer)
+        manifestRetryTimer = null
+      }
       qoe.destroy()
       hls.destroy()
       delete window.__edumeetPlaybackPath
@@ -210,6 +277,47 @@ export function hlsConfigSnapshot(config) {
     lowLatencyMode: config?.lowLatencyMode ?? null,
     startFragPrefetch: config?.startFragPrefetch ?? null,
   }
+}
+
+/**
+ * 매니페스트 단계 오류의 details. hls.js 의 `ErrorDetails` 값과 같아야 한다. (#244)
+ * 이름이 바뀌면 시험이 잡는다(진짜 라이브러리 값과 대조한다).
+ */
+export const MANIFEST_ERROR_DETAILS = [
+  'manifestLoadError',       // 404 등 - 매니페스트를 못 받았다
+  'manifestLoadTimeOut',
+  'manifestParsingError',
+]
+
+/** 매니페스트 단계 오류인가. 조각·레벨 단계는 여기 해당하지 않는다(그건 startLoad 로 충분하다). */
+export function isManifestStageError(details) {
+  return MANIFEST_ERROR_DETAILS.includes(details)
+}
+
+/** 재시도 기본 간격과 상한. (#244) */
+export const MANIFEST_RETRY_BASE_MS = 1000
+export const MANIFEST_RETRY_MAX_MS = 5000
+
+/**
+ * 매니페스트 재시도 지연(ms). **순수 함수다** - 난수를 인자로 받아 시험이 규칙을 고정할 수 있다. (#244)
+ *
+ * <pre>
+ *   attempt 0 → 0 ~ 1초 (무작위)      이미 늦게 온 시청자는 곧바로 한 번 더 본다
+ *   attempt 1 → 1초 × 흔들기
+ *   attempt 2 → 2초 × 흔들기
+ *   attempt 3+ → 5초(상한) × 흔들기
+ * </pre>
+ *
+ * ★ 왜 흩는가. 대기 시청자 전원이 **같은 순간** 404 를 받는다(#191 · #244). 고정 간격이면
+ *   전원이 같은 순간에 다시 몰리고, 그 몰림이 다시 404 를 만든다 - 방송이 막 시작해
+ *   ffmpeg 가 첫 매니페스트를 쓰는 참이기 때문이다. 흔들면 도착 시각이 퍼진다.
+ *
+ * ★ 상한은 **기본 간격**에 건다. 흔들기(±50%)가 붙으므로 실제 지연은 최대 7.5초다.
+ */
+export function manifestRetryDelayMs(attempt, random = Math.random) {
+  if (attempt <= 0) return Math.round(random() * MANIFEST_RETRY_BASE_MS)
+  const base = Math.min(MANIFEST_RETRY_BASE_MS * 2 ** (attempt - 1), MANIFEST_RETRY_MAX_MS)
+  return Math.round(base * (0.5 + random())) // ±50%
 }
 
 /** 진단용 liveSyncDurationCount. 사용자 설정이 아니며 허용한 값만 읽는다. */
