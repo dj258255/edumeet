@@ -55,6 +55,17 @@ public class ChatMessage {
     @Column(name = "offset_millis")
     private Long offsetMillis;
 
+    /**
+     * 저장 대기열에서 항목을 식별하는 값. (#201)
+     *
+     * <p>Redis Stream 은 <b>최소 한 번 전달</b>이라 같은 메시지가 두 번 올 수 있다.
+     * 이 값에 유니크 제약(V10)을 걸어 중복 삽입을 DB 가 막는다.
+     *
+     * <p>발행 시점에 만들고, 대기열을 거쳐 그대로 온다. V10 이전에 저장된 행은 없다(null).
+     */
+    @Column(name = "message_uid", length = 36, unique = true)
+    private String messageUid;
+
     public static ChatMessage of(Meeting meeting, String senderEmail, String content) {
         return ChatMessage.builder()
                 .meeting(meeting)
@@ -73,6 +84,23 @@ public class ChatMessage {
                                  Long offsetMillis) {
         ChatMessage message = of(meeting, senderEmail, content);
         message.offsetMillis = offsetMillis;
+        return message;
+    }
+
+    /**
+     * 대기열 항목에서 만든다. (#201)
+     *
+     * <p>{@code messageUid} 를 그대로 싣는다 - 중복이면 유니크 제약이 막는다.
+     * {@code sentAt} 은 발행 시각을 그대로 쓴다. 저장 시각을 쓰면 대기열이 밀린 만큼
+     * 다시보기 순서가 어긋난다.
+     */
+    public static ChatMessage of(Meeting meeting, String senderEmail, String content,
+                                 Long offsetMillis, String messageUid, LocalDateTime sentAt) {
+        ChatMessage message = of(meeting, senderEmail, content, offsetMillis);
+        message.messageUid = messageUid;
+        if (sentAt != null) {
+            message.sentAt = sentAt;
+        }
         return message;
     }
 }

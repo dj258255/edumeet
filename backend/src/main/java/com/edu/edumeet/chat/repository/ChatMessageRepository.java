@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
@@ -15,6 +16,16 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
     List<ChatMessage> findRecent(@Param("meetingId") Long meetingId, Pageable pageable);
 
     long countByMeetingId(Long meetingId);
+
+    /**
+     * 이미 저장된 항목의 uid 만 골라낸다. (#201)
+     *
+     * <p>Redis Stream 은 최소 한 번 전달이라 같은 항목이 두 번 올 수 있다.
+     * 한 번 걸러도 조회와 삽입 사이에 창이 남으므로 <b>DB 유니크 제약(V10)이 최종 방어선</b>이다.
+     * 여기서 거르는 것은 그 창을 좁히고 예외 로그를 줄이기 위해서다.
+     */
+    @Query("SELECT m.messageUid FROM ChatMessage m WHERE m.messageUid IN :uids")
+    List<String> findMessageUidsIn(@Param("uids") Collection<String> uids);
 
     /**
      * 다시보기 구간 조회. (#108)

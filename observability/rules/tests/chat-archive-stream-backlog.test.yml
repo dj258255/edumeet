@@ -1,0 +1,64 @@
+rule_files:
+  - ../edumeet.yml
+
+evaluation_interval: 1m
+
+# 저장 대기열이 Redis Stream 인 뒤의 적체 경보. (#201 B9r)
+#
+# 두 방향을 다 본다 - 울려야 할 때 울리는가, 조용해야 할 때 조용한가.
+# 상시 울리는 경보는 안 울리는 것보다 나쁘다(#178).
+#
+# ★ lag(미독) 도 함께 본다. 1,600건/초에서 소비가 못 따라갈 때 pending 은 0 이고
+#   lag 만 6만이었다 - pending 만 보던 규칙은 그 상황에서 조용했다.
+tests:
+  # 방향 1: ACK 못 한 항목이 남아 있으면 10분 뒤 울린다
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_pending{instance="blue"}'
+        values: '5 5 5 5 5 5 5 5 5 5 5 5'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ChatArchiveStreamBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "채팅 저장 스트림에 ACK 못 한 항목이 10분째 남아 있다"
+              description: '5건이 pending 이다. 소비자가 죽으면 클레임 기준 시간(30초) 뒤 다른 소비자가 가져간다 - 그 뒤에도 안 줄면 DB 저장이 실패하고 있거나 살아 있는 소비자가 없다. 스트림 상한에 닿으면 오래된 것부터 잘리고, 잘린 것은 셀 수도 없다.'
+
+  # 방향 2: 다 비어 있으면 안 울린다
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_pending{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ChatArchiveStreamBacklog
+        exp_alerts: []
+
+  # 방향 2': 잠깐 올랐다 내려가면 안 울린다 (for 10m 이 그 일을 한다)
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_pending{instance="blue"}'
+        values: '0 3 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ChatArchiveStreamBacklog
+        exp_alerts: []
+
+  # 슬롯이 둘이어도 합쳐서 묻는다 (#184). 한쪽만 보면 안 도는 슬롯의 0 에 묻힌다.
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_pending{instance="blue"}'
+        values: '1 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'chat_archive_stream_pending{instance="green"}'
+        values: '1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ChatArchiveStreamBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "채팅 저장 스트림에 ACK 못 한 항목이 10분째 남아 있다"
+              description: '2건이 pending 이다. 소비자가 죽으면 클레임 기준 시간(30초) 뒤 다른 소비자가 가져간다 - 그 뒤에도 안 줄면 DB 저장이 실패하고 있거나 살아 있는 소비자가 없다. 스트림 상한에 닿으면 오래된 것부터 잘리고, 잘린 것은 셀 수도 없다.'
