@@ -65,6 +65,64 @@ function screenLatencyStats(samples, t0) {
   }
 }
 
+function round3(value) {
+  return Math.round(value * 1000) / 1000
+}
+
+/** 설정값이 아니라 실제로 받은 HLS 결과물을 잰다. #193: hls_time 을 줄여도 리먹싱은 키프레임에서 자른다. */
+function manifestStats(dir) {
+  let files
+  try {
+    files = readdirSync(join(dir, 'manifests'))
+      .filter((file) => /^\d+\.m3u8$/.test(file))
+      .sort()
+  } catch {
+    files = []
+  }
+
+  const targetDurations = new Map()
+  const chunks = new Map()
+  const formats = new Map()
+  let hasProgramDateTime = false
+
+  for (const file of files) {
+    let lines
+    try {
+      lines = readFileSync(join(dir, 'manifests', file), 'utf8').split(/\r?\n/)
+    } catch {
+      continue
+    }
+    for (let i = 0; i < lines.length; i += 1) {
+      const target = lines[i].match(/^#EXT-X-TARGETDURATION:(\d+(?:\.\d+)?)$/)
+      if (target) targetDurations.set(target[1], (targetDurations.get(target[1]) ?? 0) + 1)
+      if (lines[i].startsWith('#EXT-X-PROGRAM-DATE-TIME:')) hasProgramDateTime = true
+
+      const extinf = lines[i].match(/^#EXTINF:([0-9]+(?:\.[0-9]+)?),/)
+      if (!extinf) continue
+      const uri = lines[i + 1]?.trim()
+      const duration = Number(extinf[1])
+      if (!uri || uri.startsWith('#') || !Number.isFinite(duration) || chunks.has(uri)) continue
+      chunks.set(uri, duration)
+      const extension = uri.split(/[?#]/, 1)[0].split('.').pop()?.toLowerCase() ?? 'unknown'
+      formats.set(extension, (formats.get(extension) ?? 0) + 1)
+    }
+  }
+
+  const durations = [...chunks.values()]
+  const targetDurationDistribution = Object.fromEntries(targetDurations)
+  const segmentFormats = Object.fromEntries(formats)
+  return {
+    sampleCount: files.length,
+    targetDurationDistribution,
+    extinfCount: durations.length,
+    extinfAverage: durations.length ? round3(sum(durations) / durations.length) : null,
+    extinfMinimum: durations.length ? round3(Math.min(...durations)) : null,
+    extinfMaximum: durations.length ? round3(Math.max(...durations)) : null,
+    segmentFormats,
+    hasProgramDateTime,
+  }
+}
+
 /**
  * #212 재전송은 서버가 (sessionId, seq) 하나로 한 번만 받는다.
  * 전송 시도 수는 원본 그대로 보존하고, 계측 합계에는 첫 보고만 쓴다.
@@ -107,6 +165,7 @@ function warmupStallSec(truth, t0Wall) {
 
 const server = readJson(join(dir, 'server.json'), null)
 const broadcast = readJson(join(dir, 'broadcast.json'), null)
+const manifest = manifestStats(dir)
 let viewerFiles = []
 try {
   viewerFiles = readdirSync(dir).filter((f) => /^viewer-\d+\.json$/.test(f)).sort()
@@ -328,6 +387,12 @@ const pathCounts = rows.reduce((acc, r) => {
   return acc
 }, {})
 const pathSummary = Object.entries(pathCounts).map(([key, n]) => `${key} ${n}`).join(' · ')
+const targetDurationText = Object.entries(manifest.targetDurationDistribution)
+  .map(([value, count]) => `${value}초 ${count}개`)
+  .join(' · ') || '-'
+const segmentFormatText = Object.entries(manifest.segmentFormats)
+  .map(([format, count]) => `${format} ${count}개`)
+  .join(' · ') || '-'
 
 const md = [
   // 조건 불성립이면 표보다 먼저, 크게 보여 준다.
@@ -350,6 +415,14 @@ const md = [
   `- rejected: Prometheus ${totals.rejectedPrometheus} · 합성 방송 429 ${totals.broadcastRejected429 ?? '-'}`,
   `- 받지 못한 보고((sessionId, seq) 쌍 중 Loki 에 없는 것): ${totals.missingReports}건`,
   ...(totals.prometheusNote ? ['', `> ${totals.prometheusNote}`] : []),
+  '',
+  '## 결과물',
+  '',
+  `- manifest 표본: ${manifest.sampleCount}개`,
+  `- TARGETDURATION 분포: ${targetDurationText}`,
+  `- EXTINF: ${manifest.extinfCount}개 조각 · 평균 ${manifest.extinfAverage ?? '-'}초 · 최소 ${manifest.extinfMinimum ?? '-'}초 · 최대 ${manifest.extinfMaximum ?? '-'}초 (URI 중복 제거)`,
+  `- 조각 형식: ${segmentFormatText}`,
+  `- EXT-X-PROGRAM-DATE-TIME: ${manifest.hasProgramDateTime ? '있음' : '없음'}`,
   '',
   '## 워밍업(첫 60초) 정답 끊김',
   '',
@@ -400,6 +473,7 @@ writeFileSync(
       conditionFailed,
       reasons,
       failedViewers: failedViewers.map((r) => r.viewer),
+      manifest,
       rows,
       totals,
     },
