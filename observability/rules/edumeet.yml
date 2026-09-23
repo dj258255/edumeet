@@ -170,14 +170,24 @@ groups:
 
       # 근거: 같은 문서. 큐가 계속 차 있다는 것은 flush 가 유입을 못 따라간다는 뜻이다.
       - alert: CaptionArchiveBacklog
-        expr: chat_archive_queued > 0 and caption_archive_queued > 0
+        expr: sum(caption_archive_queued) > 0
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: "비동기 저장 큐가 10분째 비지 않는다"
-          description: >-
-            저장이 유입을 못 따라가고 있다. 이 상태가 이어지면 상한에 닿아 유실로 바뀐다.
+          summary: "자막 비동기 저장 큐가 10분째 비지 않는다"
+          description: "자막 저장 큐가 10분째 비지 않는다. 저장이 유입을 못 따라가고 있다. 이 상태가 이어지면 상한에 닿아 유실로 바뀐다."
+
+      # #196 의 ChatArchiveLosing 은 이미 버린 것을 알리고,
+      # 이 규칙은 버리기 전에 알린다 (상한 2,000 에 닿기 전).
+      - alert: ChatArchiveBacklog
+        expr: sum(chat_archive_queued) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "채팅 비동기 저장 큐가 10분째 비지 않는다"
+          description: "채팅 저장 큐가 10분째 비지 않는다. 저장이 유입을 못 따라가고 있다. 이 상태가 이어지면 상한에 닿아 유실로 바뀐다."
 
       # 근거: performance/07-chat-unbounded-queue-oom.md (#43, #61), #196
       #
