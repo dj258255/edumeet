@@ -113,4 +113,51 @@ describe('시청 품질 트래커', () => {
     expect(tracker.snapshot().startupMs).toBe(1200)
     expect(tracker.snapshot().startupMs).toBeNull()
   })
+
+  it('오류 → pause → playing 은 사용자 일시정지가 아닌 15초 끊김 한 번이다', () => {
+    const { env, tracker } = harness()
+    tracker.attached()
+    env.t = 1000
+    tracker.playing()
+    env.t = 5000
+    tracker.failed()
+    env.t = 6000
+    tracker.paused()
+    env.t = 20_000
+    tracker.playing()
+
+    const snap = tracker.snapshot()
+    expect(snap.stallMs).toBe(15_000)
+    expect(snap.stallCount).toBe(1)
+    expect(snap.errors).toBe(1)
+  })
+
+  it('waiting 중의 error 는 같은 끊김을 두 번 세지 않는다', () => {
+    const { env, tracker } = harness()
+    tracker.attached()
+    env.t = 1000
+    tracker.playing()
+    env.t = 5000
+    tracker.waiting()
+    tracker.failed()
+    env.t = 6500
+    tracker.playing()
+
+    expect(tracker.snapshot()).toMatchObject({ stallMs: 1500, stallCount: 1, errors: 1 })
+  })
+
+  it('waiting → failed → pause 뒤에도 playing 까지 전 구간을 한 번의 끊김으로 센다', () => {
+    const { env, tracker } = harness()
+    tracker.attached()
+    env.t = 1000
+    tracker.playing()
+    env.t = 5000
+    tracker.waiting()
+    tracker.failed()
+    tracker.paused()
+    env.t = 15_000
+    tracker.playing()
+
+    expect(tracker.snapshot()).toMatchObject({ stallMs: 10_000, stallCount: 1, errors: 1 })
+  })
 })

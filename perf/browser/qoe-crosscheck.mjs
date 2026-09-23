@@ -12,7 +12,7 @@
  *   1초마다 이 프로세스와 자식의 CPU 사용률을 out/<run>/load.json 에 남긴다.
  *
  * 사용:
- *   node qoe-crosscheck.mjs --run <이름> [--viewers 5] [--schedule '<json>']
+ *   node qoe-crosscheck.mjs --run <이름> [--viewers 5] [--schedule '<json>'] [--force-path native]
  */
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -37,6 +37,7 @@ const env = loadEnv()
 const run = args.run
 const viewerCount = Number(args.viewers ?? 5)
 const schedule = args.schedule ? JSON.parse(args.schedule) : DEFAULT_SCHEDULE
+const forcePath = args['force-path'] === 'native' ? 'native' : null
 const dir = outDir(run)
 mkdirSync(dir, { recursive: true })
 
@@ -182,6 +183,9 @@ function collectReports(context) {
 async function runViewer(browser, k, user) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } })
   await context.addInitScript({ path: join(BROWSER_DIR, 'lib', 'truth.js') })
+  await context.addInitScript(({ path }) => {
+    if (path === 'native') localStorage.setItem('edumeet.playbackPath', path)
+  }, { path: forcePath })
   await context.addInitScript(({ token, user }) => {
     try {
       localStorage.setItem('token', token)

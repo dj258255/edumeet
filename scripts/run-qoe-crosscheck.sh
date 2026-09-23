@@ -133,6 +133,10 @@ if [ -n "${SCHEDULE:-}" ]; then
   VIEWER_ARGS+=(--schedule "$SCHEDULE")
   echo "   SCHEDULE 을 넘긴다 (schedule.json 에 기록됨)"
 fi
+if [ -n "${FORCE_PATH:-}" ]; then
+  VIEWER_ARGS+=(--force-path "$FORCE_PATH")
+  echo "   FORCE_PATH=$FORCE_PATH 를 넘긴다 (진단용 경로 강제)"
+fi
 node "$BROWSER_DIR/qoe-crosscheck.mjs" "${VIEWER_ARGS[@]}" &
 VIEWER_PID=$!
 

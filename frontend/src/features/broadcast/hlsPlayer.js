@@ -17,9 +17,14 @@
 import { snapshotHlsMetrics, snapshotNativeMetrics } from './hlsMetrics'
 import { createQoeTracker } from './playbackQoe'
 import { createRingLog, HLS_LOG_LIMIT } from './hlsDiagnostics'
-import { choosePlaybackPath } from './playbackPath'
+import { forcedPlaybackPath, choosePlaybackPath } from './playbackPath'
+import { createNativeRecovery } from './nativeRecovery'
 
-export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMetrics = () => {}, onQoe } = {}) {
+export async function attachHls(
+  videoEl,
+  playlistUrl,
+  { onError = () => {}, onMetrics = () => {}, onQoe, onStatus = () => {} } = {},
+) {
   // ★ 어떤 경로로 갈지는 순수 함수가 정한다. (#217)
   //   네이티브 지원 여부와 hls.js 지원 여부를 **둘 다** 보고 고른다 -
   //   "네이티브가 되면 네이티브" 는 Chrome 에서 hls.js 를 영영 안 타게 만들었다.
@@ -28,6 +33,7 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
   const path = choosePlaybackPath({
     hlsJsSupported: typeof Hls?.isSupported === 'function' && Hls.isSupported(),
     nativeHlsSupported,
+    forcedPath: forcedPlaybackPath(),
   })
 
   // 하네스·운영 진단용. 값 하나다 - 이 값만 보면 어느 경로로 재생했는지 안다.
@@ -37,9 +43,20 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
     videoEl.src = playlistUrl
     const timer = setInterval(() => onMetrics(snapshotNativeMetrics(videoEl)), 1000)
     const qoe = wireQoe(videoEl, onQoe, { native: true })
+    const recovery = createNativeRecovery({
+      onRetry: () => reconnectNative(videoEl, playlistUrl),
+      onStatus,
+    })
+    const onPlaying = () => recovery.playing()
+    const onErrorEvent = () => recovery.failed()
+    videoEl.addEventListener('playing', onPlaying)
+    videoEl.addEventListener('error', onErrorEvent)
     return {
       destroy: () => {
         clearInterval(timer)
+        videoEl.removeEventListener('playing', onPlaying)
+        videoEl.removeEventListener('error', onErrorEvent)
+        recovery.destroy()
         qoe.destroy()
         videoEl.removeAttribute('src')
         videoEl.load()
@@ -138,7 +155,7 @@ export async function attachHls(videoEl, playlistUrl, { onError = () => {}, onMe
     //   여기 오지 않는다 - 방송 시작 전 플레이리스트 404 도 NETWORK fatal 로 오지만 그건 대기다.
     //   복구되는 동안의 영향은 끊김 시간으로 잡힌다.
     record(errorEntry(data, 'gaveUp'))
-    qoe.tracker?.error()
+    qoe.tracker?.failed()
     onError(new Error(data.details || '재생 오류'))
   })
 
@@ -234,7 +251,7 @@ function wireQoe(videoEl, onQoe, { native }) {
     seeking: () => tracker.seeking(),
     seeked: () => tracker.resumedBySeekEnd(),
   }
-  if (native) handlers.error = () => tracker.error()
+  if (native) handlers.error = () => tracker.failed()
 
   Object.entries(handlers).forEach(([event, handler]) => videoEl.addEventListener(event, handler))
   tracker.attached()
@@ -247,3 +264,12 @@ function wireQoe(videoEl, onQoe, { native }) {
   }
 }
 
+/** 오류 난 네이티브 소스를 비우고 다시 붙인다. 순서는 Safari가 요구하는 순서를 따른다. */
+function reconnectNative(videoEl, playlistUrl) {
+  videoEl.removeAttribute('src')
+  videoEl.load()
+  videoEl.src = playlistUrl
+  videoEl.muted = true
+  const result = videoEl.play()
+  if (result && typeof result.catch === 'function') result.catch(() => {})
+}
