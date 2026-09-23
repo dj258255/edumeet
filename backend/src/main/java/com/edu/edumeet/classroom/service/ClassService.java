@@ -113,7 +113,13 @@ public class ClassService {
 
     /**
      * 내가 생성한 클래스 목록 조회 (간소화됨!)
+     *
+     * <p><b>{@code @Transactional} 이 필요하다.</b> {@code open-in-view: false} 라
+     * 리포지토리 호출이 끝나면 엔티티가 준영속이 되고, 그 뒤 {@code getTags()} 같은
+     * 지연 컬렉션을 건드리면 {@code LazyInitializationException} 이 난다. (#209)
+     * 그 예외가 필터에서 삼켜져 <b>200 · 0바이트</b>로 나가고 있었다.
      */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ClassInfoResponseDto> getMyClasses(Long memberId) {
         List<ClassRoom> classRooms = classRepository.findAllByMemberIdAndIsDeletedFalse(memberId);
 
@@ -133,7 +139,10 @@ public class ClassService {
 
     /**
      * 참여한 클래스 목록 조회
+     *
+     * <p>{@code @Transactional} 이 필요하다 — {@link #getMyClasses} 와 같은 지연 접근을 한다. (#209)
      */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ClassInfoResponseDto> getJoinedClasses(Long memberId) {
         List<ClassMember> classMembers = classMemberRepository.findAllByMemberId(memberId);
 
@@ -156,7 +165,10 @@ public class ClassService {
 
     /**
      * 클래스 상세 조회
+     *
+     * <p>{@code @Transactional} 이 필요하다 — {@link #getMyClasses} 와 같은 지연 접근을 한다. (#209)
      */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ClassInfoResponseDto getClassDetail(Long classRoomId) {
         ClassRoom classRoom = classRepository.findById(classRoomId)
                 .filter(c -> Boolean.FALSE.equals(c.getIsDeleted()))
@@ -218,6 +230,8 @@ public class ClassService {
         }
     }
 
+    /** 받은 초대 목록. 여기도 같은 지연 접근을 한다 — 트랜잭션이 필요하다. (#209) */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<ClassInfoResponseDto> getInvitedClass(Long memberId) {
         List<ClassInvite> invites = classInviteRepository.findByInviteeId(memberId);
 
