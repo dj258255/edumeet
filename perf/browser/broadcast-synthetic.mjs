@@ -74,6 +74,7 @@ const result = {
   chunksSent: 0,
   chunksRejected: 0,
   chunksFailed: 0,
+  failures: {},
 }
 
 function writeResult() {
@@ -87,6 +88,7 @@ let seq = 0
 let sent = 0
 let rejected = 0
 let failed = 0
+const failures = {}
 let pending = []
 let chain = Promise.resolve()
 let tick = null
@@ -127,17 +129,26 @@ async function upload(mySeq, buf) {
     if (res.status === 429) {
       // 서버 큐가 찼다. 조각이 버려졌다는 뜻이므로 성공으로 세지 않는다.
       rejected += 1
+      recordFailure(mySeq, { status: res.status }, `HTTP_${res.status}`)
     } else if (res.ok) {
       sent += 1
     } else {
       failed += 1
+      recordFailure(mySeq, { status: res.status }, `HTTP_${res.status}`)
     }
-  } catch {
+  } catch (error) {
     failed += 1
+    const name = error?.name || 'Error'
+    recordFailure(
+      mySeq,
+      { errorName: name, message: error?.message || String(error) },
+      name,
+    )
   }
   result.chunksSent = sent
   result.chunksRejected = rejected
   result.chunksFailed = failed
+  result.failures = { ...failures }
   result.seqTotal = seq
   writeResult()
 }
@@ -149,6 +160,13 @@ function flushPending() {
   const mySeq = seq
   seq += 1
   chain = chain.then(() => upload(mySeq, buf))
+}
+
+function recordFailure(mySeq, detail, kind) {
+  const entry = { seq: mySeq, at: new Date().toISOString(), ...detail }
+  console.error(JSON.stringify(entry))
+  failures[kind] = (failures[kind] ?? 0) + 1
+  result.failures = { ...failures }
 }
 
 /** 한 번만 도는 정지. 어디서 불러도 같은 약속을 돌려준다. */
@@ -187,6 +205,7 @@ async function doStop() {
   result.chunksSent = sent
   result.chunksRejected = rejected
   result.chunksFailed = failed
+  result.failures = { ...failures }
   try {
     // 산출물을 못 써도 정지는 이미 끝났다. 여기서 던지면 stop() 약속이 reject 되어
     // 부르는 쪽에 unhandled rejection 이 된다.

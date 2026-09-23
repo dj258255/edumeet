@@ -53,6 +53,24 @@ VIEWER_HOST=byeolchi-oci ./scripts/run-qoe-crosscheck.sh
 
 기존의 `SCHEDULE`과 진단용 `FORCE_PATH=native`도 원격 시청자 컨테이너에 그대로 전달된다.
 
+## 원격 합성 방송
+
+합성 방송의 ffmpeg 부하를 측정 노트북에서 분리할 때는 `BROADCAST_HOST`를 준다.
+`VIEWER_HOST`와 같은 호스트를 써도 된다.
+
+```bash
+BROADCAST_HOST=byeolchi-oci ./scripts/run-qoe-crosscheck.sh
+```
+
+방송 시작 전에 `perf/browser/`를 `~/edumeet-perf-bcast/`에 동기화하고,
+`~/.edumeet-perf.env`는 stdin으로만 전달한다. 원격에는
+`node:22-bookworm-slim`에 ffmpeg를 설치한 작은 이미지
+`edumeet-perf-bcast`를 처음 한 번만 Docker build하며, 이후 회차는 그 이미지를
+재사용한다. 합성 방송 컨테이너의 `broadcast.json`과 `broadcast.log`는 회차가
+끝날 때 로컬 `out/<run>/`으로 가져온다. 종료 trap은 원격 컨테이너에
+SIGINT를 보내 Node가 DELETE를 끝내기를 기다리고, 그 제어가 실패하면 로컬
+`--stop-only`로 DELETE를 한 번 더 보장한 뒤 컨테이너를 정리한다.
+
 ## 실행
 
 ```bash

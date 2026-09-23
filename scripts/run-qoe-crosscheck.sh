@@ -31,21 +31,28 @@ HLS_TIME="${HLS_TIME:-2}"
 CHUNK_MS="${CHUNK_MS:-2000}"
 LIVE_SYNC="${LIVE_SYNC:-}"
 VIEWER_HOST="${VIEWER_HOST:-}"
+BROADCAST_HOST="${BROADCAST_HOST:-}"
 BROWSER_DIR="perf/browser"
 OUT="$BROWSER_DIR/out/$RUN"
 PERF_ENV_FILE="${EDUMEET_PERF_ENV:-$HOME/.edumeet-perf.env}"
 REMOTE_VIEWERS=0
+REMOTE_BROADCAST=0
 REMOTE_CPU_AFTER=0
 [ -n "$VIEWER_HOST" ] && REMOTE_VIEWERS=1
+[ -n "$BROADCAST_HOST" ] && REMOTE_BROADCAST=1
 
-for tool in node ffmpeg ssh curl; do
+for tool in node ssh curl; do
   command -v "$tool" >/dev/null || { echo "없다: $tool"; exit 1; }
 done
-if [ "$REMOTE_VIEWERS" -eq 1 ]; then
+if [ "$REMOTE_BROADCAST" -eq 0 ]; then
+  command -v ffmpeg >/dev/null || { echo "없다: ffmpeg"; exit 1; }
+fi
+if [ "$REMOTE_VIEWERS" -eq 1 ] || [ "$REMOTE_BROADCAST" -eq 1 ]; then
   for tool in rsync scp; do
     command -v "$tool" >/dev/null || { echo "없다: $tool"; exit 1; }
   done
-else
+fi
+if [ "$REMOTE_VIEWERS" -eq 0 ]; then
   [ -d "$BROWSER_DIR/node_modules" ] || {
     echo "먼저 설치: cd $BROWSER_DIR && npm install && npx playwright install chromium"
     exit 1
@@ -70,6 +77,7 @@ PLAYWRIGHT_VERSION=$(node --input-type=module -e '
   process.stdout.write(version);
 ')
 PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble"
+BROADCAST_IMAGE="edumeet-perf-bcast"
 
 # 설정은 env.mjs 한 곳에서 읽는다. 토큰은 여기로 나오지 않는다.
 CONF=$(node --input-type=module -e '
@@ -86,10 +94,18 @@ if [ "$REMOTE_VIEWERS" -eq 1 ]; then
     || { echo "시청자 호스트 ssh 로 $VIEWER_HOST 에 닿지 못한다"; exit 1; }
 fi
 
+if [ "$REMOTE_BROADCAST" -eq 1 ]; then
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$BROADCAST_HOST" true \
+    || { echo "방송 호스트 ssh 로 $BROADCAST_HOST 에 닿지 못한다"; exit 1; }
+fi
+
 echo "== 준비 완료 =="
 echo "   RUN=$RUN  VIEWERS=$VIEWERS  방송 안전 상한=${BROADCAST_DURATION_S}s"
 echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}"
 echo "   사이트=$SITE  서버=$SSH_HOST  네트워크=$DOCKER_NET"
+if [ "$REMOTE_BROADCAST" -eq 1 ]; then
+  echo "   합성 방송 호스트=$BROADCAST_HOST"
+fi
 
 mkdir -p "$OUT"
 
@@ -104,6 +120,7 @@ record_remote_cpu() {
 }
 
 BROADCAST_PID=""
+BROADCAST_REMOTE_STARTED=0
 MANIFEST_PID=""
 VIEWER_PID=""
 CLEANED=""
@@ -117,9 +134,20 @@ stop_manifests() {
   MANIFEST_PID=""
 }
 
+broadcast_alive() {
+  if [ "$REMOTE_BROADCAST" -eq 1 ]; then
+    [ "$BROADCAST_REMOTE_STARTED" -eq 1 ] || return 1
+    [ "$(ssh "$BROADCAST_HOST" \
+      'docker inspect -f "{{.State.Running}}" edumeet-perf-bcast 2>/dev/null' \
+      2>/dev/null)" = "true" ]
+    return
+  fi
+  [ -n "$BROADCAST_PID" ] && kill -0 "$BROADCAST_PID" 2>/dev/null
+}
+
 sample_manifests() {
   mkdir -p "$OUT/manifests"
-  while kill -0 "$BROADCAST_PID" 2>/dev/null; do
+  while broadcast_alive; do
     local stamp
     local tmp
     stamp=$(date +%s)
@@ -133,11 +161,54 @@ sample_manifests() {
   done
 }
 
+fetch_remote_broadcast_artifacts() {
+  local remote_out="edumeet-perf-bcast/out/$RUN"
+  # docker logs는 컨테이너가 끝난 뒤에도 읽을 수 있다. 토큰은 로그에 없다.
+  # shellcheck disable=SC2029 # 경로의 HOME은 방송 호스트에서 확장돼야 한다.
+  ssh "$BROADCAST_HOST" \
+    "docker logs edumeet-perf-bcast > \"\$HOME/$remote_out/broadcast.log\" 2>&1 || true" \
+    >/dev/null 2>&1 || true
+  scp -q "$BROADCAST_HOST:$remote_out/broadcast.json" "$OUT/broadcast.json" \
+    >/dev/null 2>&1 || true
+  scp -q "$BROADCAST_HOST:$remote_out/broadcast.log" "$OUT/broadcast.log" \
+    >/dev/null 2>&1 || true
+}
+
 stop_broadcast() {
+  stop_manifests
+  if [ "$REMOTE_BROADCAST" -eq 1 ]; then
+    if [ "$BROADCAST_REMOTE_STARTED" -eq 0 ]; then
+      return 0
+    fi
+    local remote_stop_ok=0
+    local remote_stop_script
+    remote_stop_script=''
+    # shellcheck disable=SC2016 # 이 식과 변수는 방송 호스트에서 실행돼야 한다.
+    remote_stop_script+='running=$(docker inspect -f "{{.State.Running}}" edumeet-perf-bcast 2>/dev/null) || exit 1; '
+    # shellcheck disable=SC2016 # $running은 방송 호스트에서 확장돼야 한다.
+    remote_stop_script+='[ "$running" = "true" ] || exit 1; '
+    remote_stop_script+='docker kill --signal=SIGINT edumeet-perf-bcast >/dev/null || exit 1; '
+    remote_stop_script+='docker wait edumeet-perf-bcast >/dev/null || exit 1'
+    # 원격 Node가 SIGINT를 받아 DELETE를 끝낼 때까지 기다린다.
+    # shellcheck disable=SC2029 # 이 문자열은 방송 호스트에서 실행돼야 한다.
+    if ssh "$BROADCAST_HOST" "$remote_stop_script"; then
+      remote_stop_ok=1
+    fi
+    if [ "$remote_stop_ok" -eq 0 ]; then
+      # 컨테이너가 죽었거나 SIGINT/대기가 실패한 경우 로컬 설정으로 DELETE를 보장한다.
+      echo "   원격 방송 정지가 실패했다. 로컬 --stop-only 로 DELETE를 보장한다"
+      node "$BROWSER_DIR/broadcast-synthetic.mjs" --stop-only >/dev/null 2>&1 || true
+    fi
+    fetch_remote_broadcast_artifacts
+    ssh "$BROADCAST_HOST" \
+      'docker rm -f edumeet-perf-bcast >/dev/null 2>&1 || true' \
+      >/dev/null 2>&1 || true
+    BROADCAST_REMOTE_STARTED=0
+    return 0
+  fi
   if [ -z "$BROADCAST_PID" ]; then
     return 0
   fi
-  stop_manifests
   if kill -0 "$BROADCAST_PID" 2>/dev/null; then
     # 살아 있으면 SIGINT - 그 스크립트가 DELETE 를 부르고 끝난다.
     kill -INT "$BROADCAST_PID" 2>/dev/null || true
@@ -163,7 +234,7 @@ cleanup() {
   fi
 
   stop_manifests
-  if [ -n "$BROADCAST_PID" ]; then
+  if [ -n "$BROADCAST_PID" ] || [ "$BROADCAST_REMOTE_STARTED" -eq 1 ]; then
     stop_broadcast
   fi
 
@@ -212,14 +283,46 @@ else
   ssh "$SSH_HOST" "docker stats --no-stream --format '{{.Name}} {{.CPUPerc}}'" > "$OUT/prod-cpu.txt"
 fi
 
+if [ "$REMOTE_BROADCAST" -eq 1 ]; then
+  # 방송이 시작되기 전에 코드·설정·ffmpeg 이미지를 모두 준비한다.
+  rsync -a --delete --exclude node_modules --exclude out perf/browser/ \
+    "$BROADCAST_HOST:edumeet-perf-bcast/"
+  # 토큰은 프로세스 목록에 나오지 않게 stdin 으로만 보낸다.
+  ssh "$BROADCAST_HOST" 'umask 077; cat > ~/edumeet-perf-bcast/.perf.env' < "$PERF_ENV_FILE"
+  # 작은 방송 전용 이미지는 원격 호스트에 한 번만 만들고 다음 회차에 재사용한다.
+  # shellcheck disable=SC2029 # build는 방송 호스트에서 실행돼야 한다.
+  ssh "$BROADCAST_HOST" \
+    "if docker image inspect $BROADCAST_IMAGE >/dev/null 2>&1; then :; else docker build -t $BROADCAST_IMAGE -f \"\$HOME/edumeet-perf-bcast/Dockerfile.broadcaster\" \"\$HOME/edumeet-perf-bcast\"; fi"
+fi
+
 echo "== 합성 방송 시작 =="
-node "$BROWSER_DIR/broadcast-synthetic.mjs" --run "$RUN" --duration-s "$BROADCAST_DURATION_S" \
-  --segment-type "$SEGMENT_TYPE" --hls-time "$HLS_TIME" --chunk-ms "$CHUNK_MS" \
-  > "$OUT/broadcast.log" 2>&1 &
-BROADCAST_PID=$!
+if [ "$REMOTE_BROADCAST" -eq 1 ]; then
+  # 원격 명령이 중간에 실패해도 EXIT trap이 컨테이너와 DELETE를 정리하게 한다.
+  BROADCAST_REMOTE_STARTED=1
+  # shellcheck disable=SC2029 # 이 문자열의 HOME은 방송 호스트에서 확장돼야 한다.
+  ssh "$BROADCAST_HOST" \
+    "mkdir -p \"\$HOME/edumeet-perf-bcast/out/$RUN\"; \
+     docker rm -f $BROADCAST_IMAGE >/dev/null 2>&1 || true; \
+     docker run -d --name $BROADCAST_IMAGE --ipc=host \
+       -v \"\$HOME/edumeet-perf-bcast:/work\" -w /work \
+       -e HOME=/tmp/h -e EDUMEET_PERF_ENV=/work/.perf.env \
+       $BROADCAST_IMAGE node broadcast-synthetic.mjs \
+       --run $(shell_quote "$RUN") --duration-s $(shell_quote "$BROADCAST_DURATION_S") \
+       --segment-type $(shell_quote "$SEGMENT_TYPE") --hls-time $(shell_quote "$HLS_TIME") \
+       --chunk-ms $(shell_quote "$CHUNK_MS")"
+else
+  node "$BROWSER_DIR/broadcast-synthetic.mjs" --run "$RUN" --duration-s "$BROADCAST_DURATION_S" \
+    --segment-type "$SEGMENT_TYPE" --hls-time "$HLS_TIME" --chunk-ms "$CHUNK_MS" \
+    > "$OUT/broadcast.log" 2>&1 &
+  BROADCAST_PID=$!
+fi
 
 PLAYLIST_URL=""
 for _ in $(seq 1 60); do
+  if [ "$REMOTE_BROADCAST" -eq 1 ]; then
+    scp -q "$BROADCAST_HOST:edumeet-perf-bcast/out/$RUN/broadcast.json" "$OUT/broadcast.json" \
+      >/dev/null 2>&1 || true
+  fi
   if [ -f "$OUT/broadcast.json" ]; then
     PLAYLIST_URL=$(node -e '
       const fs = require("fs");
@@ -228,7 +331,7 @@ for _ in $(seq 1 60); do
     ' "$OUT/broadcast.json")
   fi
   [ -n "$PLAYLIST_URL" ] && break
-  kill -0 "$BROADCAST_PID" 2>/dev/null || {
+  broadcast_alive || {
     echo "합성 방송이 시작하지 못했다"; cat "$OUT/broadcast.log"; exit 1; }
   sleep 1
 done
@@ -241,7 +344,7 @@ for _ in $(seq 1 60); do
     echo "   매니페스트 준비됨"
     break
   fi
-  kill -0 "$BROADCAST_PID" 2>/dev/null || {
+  broadcast_alive || {
     echo "합성 방송이 죽었다"; cat "$OUT/broadcast.log"; exit 1; }
   sleep 1
 done
