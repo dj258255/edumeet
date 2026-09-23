@@ -63,6 +63,13 @@ run_case() {  # run_case <mode> <rate> <round>
   local schema_args=()
   [ -f "$OUT_DIR/schema.done" ] && schema_args=(--spring.jpa.hibernate.ddl-auto=none)
 
+  # ★ 회차마다 스트림을 비운다. 앱은 회차마다 스키마를 새로 만드는데(ddl-auto=create)
+  #   앞 회차가 남긴 항목은 그 스키마에 없는 회의 것이라 **버려진다** -
+  #   소비자가 그걸 처리하느라 측정 창을 다 쓰면 "저장 0" 이 나온다(실제로 그렇게 나왔다).
+  #   한 회차가 자기 발행만 재도록 격리한다.
+  redis_cli DEL "$STREAM_KEY" >/dev/null
+  redis_cli DEL "chat:archive:dead" >/dev/null
+
   app_start "$OUT_DIR/$name-app.log" ${schema_args[@]+"${schema_args[@]}"} "${mode_args[@]}"
   if ! app_wait_ready; then log "기동 실패"; tail -20 "$OUT_DIR/$name-app.log"; return 1; fi
   touch "$OUT_DIR/schema.done"
