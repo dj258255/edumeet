@@ -1,0 +1,90 @@
+rule_files:
+  - ../edumeet.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+      - series: 'caption_archive_queued{instance="blue"}'
+        values: '1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CaptionArchiveBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "자막 비동기 저장 큐가 10분째 비지 않는다"
+              description: "자막 저장 큐가 10분째 비지 않는다. 저장이 유입을 못 따라가고 있다. 이 상태가 이어지면 상한에 닿아 유실로 바뀐다."
+
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+      - series: 'caption_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CaptionArchiveBacklog
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+      - series: 'chat_archive_queued{instance="green"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+      - series: 'caption_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+      - series: 'caption_archive_queued{instance="green"}'
+        values: '2 2 2 2 2 2 2 2 2 2 2 2'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CaptionArchiveBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "자막 비동기 저장 큐가 10분째 비지 않는다"
+              description: "자막 저장 큐가 10분째 비지 않는다. 저장이 유입을 못 따라가고 있다. 이 상태가 이어지면 상한에 닿아 유실로 바뀐다."
+
+  - interval: 1m
+    input_series:
+      - series: 'caption_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+      - series: 'caption_archive_queued{instance="green"}'
+        values: '_ _ 0 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CaptionArchiveBacklog
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_queued{instance="blue"}'
+        values: '1 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'caption_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: ChatArchiveBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "채팅 비동기 저장 큐가 10분째 비지 않는다"
+              description: "채팅 저장 큐가 10분째 비지 않는다. 저장이 유입을 못 따라가고 있다. 이 상태가 이어지면 상한에 닿아 유실로 바뀐다."
+
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+      - series: 'caption_archive_queued{instance="blue"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: ChatArchiveBacklog
+        exp_alerts: []
