@@ -232,6 +232,7 @@ async function runViewer(browser, k, user) {
     reports,
     requestFailures: failures,
     scheduleApplied: [],
+    snapshots: [],
     finalSent: false,
     finalStatus: null,
     dialogs,
@@ -249,15 +250,26 @@ async function runViewer(browser, k, user) {
 
   // ★ 끝나기 직전 화면 상태를 남긴다.
   //   "첫 playing 뒤 pause" 처럼 재생이 멈춘 채 끝나면 그 사실이 값으로 남아야 한다.
-  const captureFinalState = async () => {
+  //
+  //   버퍼·시크 가능 구간은 **전체 구간**을 남긴다. 끝만 보면 "어디까지 받아 뒀나" 를 못 본다 -
+  //   35초 offline 뒤 "멈춘 위치 124초 · 버퍼 끝 158초" 같은 상태를 보려면 구간이 필요하다. (#210)
+  const readState = async () => {
     try {
-      record.finalState = await page.evaluate(() => {
+      return await page.evaluate(() => {
         const overlay = document.querySelector('.watch__overlay')
         const v = document.querySelector('video')
-        const bufferedEnd =
-          v && v.buffered && v.buffered.length > 0
-            ? v.buffered.end(v.buffered.length - 1)
-            : null
+        const ranges = (timeRanges) => {
+          const out = []
+          if (!timeRanges) return out
+          for (let i = 0; i < timeRanges.length; i += 1) {
+            out.push([
+              Math.round(timeRanges.start(i) * 100) / 100,
+              Math.round(timeRanges.end(i) * 100) / 100,
+            ])
+          }
+          return out
+        }
+        const buffered = v ? ranges(v.buffered) : []
         return {
           hadVideo: Boolean(v),
           overlayText: overlay ? overlay.textContent.trim() : null,
@@ -267,15 +279,32 @@ async function runViewer(browser, k, user) {
           networkState: v ? v.networkState : null,
           errorCode: v && v.error ? v.error.code : null,
           currentTime: v ? v.currentTime : null,
-          bufferedEnd,
+          buffered,
+          bufferedEnd: buffered.length > 0 ? buffered[buffered.length - 1][1] : null,
+          seekable: v ? ranges(v.seekable) : [],
+          // 앱이 남긴 hls.js 진단 로그. 없으면 빈 배열이다(네이티브 재생 등).
+          hlsLog: Array.isArray(window.__edumeetHlsLog) ? window.__edumeetHlsLog : [],
         }
       })
     } catch (error) {
-      record.finalState = { error: error.message }
+      return { error: error.message }
     }
   }
 
+  const captureFinalState = async () => {
+    record.finalState = await readState()
+  }
+
   const timers = []
+
+  /** offline 구간이 끝난 순간과 그 10초 뒤의 상태를 남긴다. (#210) */
+  const snapshotLater = (atMs, label) => {
+    timers.push(setTimeout(() => {
+      void readState().then((state) => {
+        record.snapshots.push({ at: Date.now(), label, state })
+      })
+    }, atMs))
+  }
   try {
     const cdp = await context.newCDPSession(page)
     await cdp.send('Network.enable')
@@ -291,6 +320,15 @@ async function runViewer(browser, k, user) {
       }
       if (seg.from <= 0) await apply()
       else timers.push(setTimeout(() => { void apply() }, seg.from * 1000))
+    }
+
+    // ★ offline 이 끝나는 순간(복구 직후)과 그 10초 뒤. (#210)
+    //   플레이어가 복구되는지, 아니면 죽은 채 남는지가 이 두 스냅샷의 차이로 보인다.
+    //   apply 타이머 뒤에 등록하므로 같은 시각에 걸려도 복구 적용 다음에 읽는다.
+    for (const seg of schedule) {
+      if (seg.limit !== 'offline') continue
+      snapshotLater(seg.to * 1000, `offline-end@${seg.to}s`)
+      snapshotLater((seg.to + 10) * 1000, `offline-end+10s@${seg.to + 10}s`)
     }
 
     await sleep(totalMs)
