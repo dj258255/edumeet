@@ -122,6 +122,7 @@ public class Meeting {
      *
      * <p><b>플레이리스트 주소는 지우지 않는다.</b> "이 세션은 방송이었다" 는 사실 자체가
      * 기록이고, 다시보기 채팅이 재생 위치를 기준으로 동작하려면 방송이었다는 것을 알아야 한다.
+     * 주소가 남아 있어도 방송 중이라는 뜻은 아니므로 시청 화면은 {@code broadcasting} 으로 판단한다.
      *
      * <p><b>다만 이 주소로는 다시 볼 수 없다.</b> 송출은 {@code delete_segments} 로 돌아
      * 오래된 세그먼트를 지운다. 지우지 않으면 방송 내내 디스크가 찬다.
@@ -130,6 +131,20 @@ public class Meeting {
      */
     public void stopBroadcast() {
         this.broadcastSessionId = null;
+    }
+
+    /**
+     * 자신이 시작한 세션일 때만 방송을 끝낸다.
+     *
+     * 늦게 도착한 A의 종료가 이미 시작한 B를 "방송 종료"로 바꾸면 안 된다.
+     * @return 현재 방송 세대와 같아서 종료 상태로 바꿨으면 true
+     */
+    public boolean stopBroadcastIf(String sessionId) {
+        if (sessionId == null || !sessionId.equals(this.broadcastSessionId)) {
+            return false;
+        }
+        this.broadcastSessionId = null;
+        return true;
     }
 
     /** 지금 방송을 송출 중인가. */
