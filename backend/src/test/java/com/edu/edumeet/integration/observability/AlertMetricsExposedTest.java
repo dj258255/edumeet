@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalManagementPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 
 import org.yaml.snakeyaml.Yaml;
@@ -51,7 +52,22 @@ class AlertMetricsExposedTest {
     private static final Path RULES = Path.of("..", "observability", "rules", "edumeet.yml");
 
     @LocalManagementPort int managementPort;
+    @LocalServerPort int port;
     @Autowired TestRestTemplate rest;
+
+    /**
+     * 서버 요청 지표를 한 번 만들어 둔다.
+     *
+     * <p>{@code http_server_requests_seconds_count} 는 <b>타이머</b>라 첫 요청이 있어야 생긴다
+     * (카운터와 달리 시작 시점에 0 으로 등록되지 않는다). SLO 규칙이 이 지표를 묻기 시작한
+     * 뒤로 (#234) 요청 없이 긁으면 "규칙이 있는데 지표가 없다" 로 보인다 - 실제로는
+     * 아직 아무도 서버를 두드리지 않았을 뿐이다.
+     *
+     * <p>인증 없는 요청이어도 된다. 401 도 계측된다.
+     */
+    private void warmServerRequestMetrics() {
+        rest.getForEntity("http://localhost:" + port + "/api/v1/meetings", String.class);
+    }
 
     private String scrape() {
         String body = rest.getForObject(
@@ -130,6 +146,7 @@ class AlertMetricsExposedTest {
                 .as("경보 규칙 파일이 없다: %s", RULES.toAbsolutePath().normalize())
                 .isTrue();
 
+        warmServerRequestMetrics();
         String body = scrape();
         List<String> used = metricNamesIn(Files.readString(RULES), false);
 
@@ -204,6 +221,9 @@ class AlertMetricsExposedTest {
         return names;
     }
 
+    /** 기록 규칙 이름. 콜론을 쓴다 - 앱이 내는 지표에는 콜론이 없다. */
+    private static final Pattern RECORDING_RULE = Pattern.compile("\\b[a-z][a-z0-9_]*:[a-z0-9_:]+\\b");
+
     private static final Set<String> PROMQL_FUNCTIONS = Set.of(
             "rate", "irate", "increase", "delta", "deriv", "changes", "absent",
             "sum", "avg", "max", "min", "count", "topk", "bottomk", "quantile",
@@ -213,7 +233,9 @@ class AlertMetricsExposedTest {
             "count_over_time", "avg_over_time", "sum_over_time", "min_over_time",
             "max_over_time", "last_over_time", "present_over_time",
             "stddev_over_time", "stdvar_over_time", "quantile_over_time",
-            "absent_over_time", "time", "vector", "scalar", "round", "abs");
+            "absent_over_time", "time", "vector", "scalar", "round", "abs",
+            // SloInputMissing 이 쓴다 (#234) - 계열에 sli 라벨을 붙이는 함수다.
+            "label_replace");
 
     /** {@code by (job, instance)} 처럼 괄호 안에 라벨 이름을 나열하는 절. */
     private static final Pattern GROUPING = Pattern.compile(
@@ -221,7 +243,16 @@ class AlertMetricsExposedTest {
 
     private void collectMetricNames(String expr, List<String> into) {
         // 라벨 셀렉터 안({...})은 지표 이름이 아니다. 통째로 지운 뒤 식별자를 본다.
-        String cleaned = expr.replaceAll("\\{[^}]*}", " ");
+        // ★ 라벨 값 안에 "}" 가 들어 있다 - uri 템플릿이 "/meeting/{meetingId}/..." 이기 때문이다.
+        //   [^}]* 로 잡으면 {meetingId} 의 } 에서 끊겨 "/broadcast/chunk"} 가 남고,
+        //   그 조각이 지표 이름으로 잡혀 시험이 빨개진다 (#234). 줄 끝까지 탐욕적으로 잡는다.
+        String cleaned = expr.replaceAll("\\{.*}", " ");
+        // ★ 기록 규칙 참조(콜론 포함)도 지표가 아니다. 이걸 안 지우면 조각이 지표로 취급된다.
+        //   edumeet:sli_playback_stall:ratio_5m -> edumeet · sli_playback_stall · ratio_5m 셋으로
+        //   쪼개져 아래 식별자 정규식에 걸리고, 앱이 안 내는 지표라 시험이 빨개진다 (#234).
+        //   면제 목록에 넣는 방법도 있었지만 그러면 이 시험이 막으려던 구멍이 다시 열린다 -
+        //   앱이 내는 지표 이름에는 콜론이 없다는 사실만 파서가 알면 된다.
+        cleaned = RECORDING_RULE.matcher(cleaned).replaceAll(" ");
         // ★ 집계 절의 라벨 목록도 지운다.
         //   sum by (job, instance) (...) 에서 job·instance 는 라벨이지 지표가 아닌데,
         //   중괄호 밖이라 위에서 안 걸린다. 실제로 이걸 안 지워서 시험이 빨개졌다.
