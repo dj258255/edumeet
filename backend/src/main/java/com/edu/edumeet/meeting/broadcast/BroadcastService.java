@@ -4,6 +4,7 @@ import com.edu.edumeet.meeting.config.BroadcastProperties;
 import com.edu.edumeet.meeting.domain.BroadcastCodecPlan;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.domain.SessionType;
+import com.edu.edumeet.meeting.exception.BroadcastNotActiveException;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -190,7 +191,7 @@ public class BroadcastService {
     public boolean acceptChunk(Long meetingId, long seq, byte[] data) {
         BroadcastSession session = sessions.get(meetingId);
         if (session == null || !session.isAlive()) {
-            throw new IllegalStateException("진행 중인 방송이 없습니다: " + meetingId);
+            throw new BroadcastNotActiveException("진행 중인 방송이 없습니다: " + meetingId);
         }
         if (data.length > properties.getMaxChunkBytes()) {
             throw new IllegalArgumentException(

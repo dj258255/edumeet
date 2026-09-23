@@ -2,6 +2,7 @@ package com.edu.edumeet.unit.meeting;
 
 import com.edu.edumeet.meeting.broadcast.BroadcastService;
 import com.edu.edumeet.meeting.controller.BroadcastController;
+import com.edu.edumeet.meeting.exception.BroadcastNotActiveException;
 import com.edu.edumeet.member.domain.SecurityMember;
 import com.edu.edumeet.exception.CustomRestAdvice;
 import org.junit.jupiter.api.DisplayName;
@@ -58,5 +59,21 @@ class BroadcastControllerTest {
         assertBadRequest(() -> controller.start(
                 mock(SecurityMember.class), 1L,
                 Map.of("mimeType", "video/mp4", "hlsTimeSec", "3")));
+    }
+
+    @Test
+    @DisplayName("세션이 사라진 뒤 조각 업로드는 409와 BROADCAST_NOT_ACTIVE를 돌려준다")
+    void inactive_broadcast_chunk_is_conflict() {
+        BroadcastService service = mock(BroadcastService.class);
+        when(service.acceptChunk(anyLong(), anyLong(), any(byte[].class)))
+                .thenThrow(new BroadcastNotActiveException("진행 중인 방송이 없습니다: 1"));
+        BroadcastController controller = new BroadcastController(service);
+
+        BroadcastNotActiveException error = catchThrowableOfType(
+                () -> controller.chunk(1L, 0L, new byte[]{1}), BroadcastNotActiveException.class);
+        var response = new CustomRestAdvice().handleBroadcastNotActive(error);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).containsEntry("code", "BROADCAST_NOT_ACTIVE");
     }
 }

@@ -58,6 +58,8 @@ const dir = outDir(run)
 mkdirSync(dir, { recursive: true })
 
 const chunkS = chunkMs / 1000
+const RESTART_JITTER_MS = 1_500
+const RESTART_MAX_BACKOFF_MS = 8_000
 const result = {
   run,
   chunkMs,
@@ -75,6 +77,9 @@ const result = {
   chunksRejected: 0,
   chunksFailed: 0,
   failures: {},
+  restarts: 0,
+  restartStallMs: 0,
+  restartFailures: 0,
 }
 
 function writeResult() {
@@ -89,10 +94,15 @@ let sent = 0
 let rejected = 0
 let failed = 0
 const failures = {}
+let restarts = 0
+let restartStallMs = 0
+let restartFailures = 0
 let pending = []
 let chain = Promise.resolve()
 let tick = null
 let durationTimer = null
+let restarting = false
+let restartWaiter = null
 
 let stopping = false
 let stopPromise = null
@@ -119,6 +129,104 @@ function ffmpegArgs() {
   ]
 }
 
+// 발표자와 같은 재시작 대기: 첫 시도는 0~1.5초, 이후 1·2·4·8초 상한이다.
+function nextRestartDelay(attempt) {
+  const n = Math.max(0, Math.floor(attempt))
+  const backoff = n === 0 ? 0 : Math.min(RESTART_MAX_BACKOFF_MS, 1_000 * 2 ** (n - 1))
+  return Math.min(RESTART_MAX_BACKOFF_MS, backoff + Math.round(Math.random() * RESTART_JITTER_MS))
+}
+
+function waitForRestart(ms) {
+  return new Promise((resolve) => {
+    let timer = setTimeout(() => {
+      restartWaiter = null
+      resolve(true)
+    }, ms)
+    restartWaiter = () => {
+      clearTimeout(timer)
+      restartWaiter = null
+      resolve(false)
+    }
+  })
+}
+
+function stopEncoder() {
+  const current = child
+  child = null
+  if (!current || current.exitCode != null) return Promise.resolve()
+  return new Promise((resolve) => {
+    current.once('exit', resolve)
+    current.kill('SIGTERM')
+  })
+}
+
+function startEncoder() {
+  child = spawn('ffmpeg', ffmpegArgs(), { stdio: ['ignore', 'pipe', 'inherit'] })
+  child.stdout.on('data', (d) => {
+    if (!stopping) pending.push(d)
+  })
+  // ★ ffmpeg 가 스스로 죽어도 방송을 내린다. 안 그러면 Node 가 살아 있는 동안
+  //   유령 방송이 유지되고, 그 사이 Node 가 죽으면 DELETE 가 아예 안 나간다.
+  child.on('exit', (code, signal) => {
+    if (stopping || restarting) return
+    console.error(`ffmpeg 가 끝났다 (code=${code}, signal=${signal}). 방송을 내린다`)
+    void stop()
+  })
+  child.on('error', (error) => {
+    if (restarting) return
+    console.error(`ffmpeg 를 시작하지 못했다: ${error.message}`)
+    void stop()
+  })
+}
+
+async function startBroadcast() {
+  const res = await fetch(broadcastUrl, {
+    method: 'POST',
+    headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mimeType: MIME_TYPE, segmentType, hlsTimeSec }),
+  })
+  if (!res.ok) throw new Error(`방송 시작 실패 (HTTP ${res.status})`)
+  const data = await res.json()
+  result.playlistUrl = data.playlistUrl ?? null
+  return data
+}
+
+async function restartBroadcast(mySeq) {
+  if (stopping || restarting) return
+  restarting = true
+  restarts += 1
+  const startedAt = Date.now()
+  result.restarts = restarts
+  let attempt = 0
+  try {
+    await stopEncoder()
+    pending = []
+    while (!stopping) {
+      const ready = await waitForRestart(nextRestartDelay(attempt))
+      if (!ready || stopping) break
+      try {
+        await startBroadcast()
+        if (stopping) break
+        seq = 0
+        startEncoder()
+        break
+      } catch (error) {
+        restartFailures += 1
+        result.restartFailures = restartFailures
+        writeResult()
+        console.error(`방송 재시작이 실패했다 (seq=${mySeq}, attempt=${attempt}): ${error.message}`)
+        attempt += 1
+      }
+    }
+  } finally {
+    restarting = false
+    restartStallMs += Date.now() - startedAt
+    result.restartStallMs = restartStallMs
+    result.seqTotal = seq
+    writeResult()
+  }
+}
+
 async function upload(mySeq, buf) {
   try {
     const res = await fetch(chunkUrl(mySeq), {
@@ -130,6 +238,10 @@ async function upload(mySeq, buf) {
       // 서버 큐가 찼다. 조각이 버려졌다는 뜻이므로 성공으로 세지 않는다.
       rejected += 1
       recordFailure(mySeq, { status: res.status }, `HTTP_${res.status}`)
+    } else if (res.status === 409) {
+      // 배포로 세션이 사라진 경우다. 새 ffmpeg 헤더부터 새 세션에 넣는다.
+      recordFailure(mySeq, { status: res.status }, `HTTP_${res.status}`)
+      await restartBroadcast(mySeq)
     } else if (res.ok) {
       sent += 1
     } else {
@@ -149,6 +261,9 @@ async function upload(mySeq, buf) {
   result.chunksRejected = rejected
   result.chunksFailed = failed
   result.failures = { ...failures }
+  result.restarts = restarts
+  result.restartStallMs = restartStallMs
+  result.restartFailures = restartFailures
   result.seqTotal = seq
   writeResult()
 }
@@ -172,6 +287,7 @@ function recordFailure(mySeq, detail, kind) {
 /** 한 번만 도는 정지. 어디서 불러도 같은 약속을 돌려준다. */
 function stop() {
   stopping = true
+  if (restartWaiter) restartWaiter()
   if (!stopPromise) {
     stopPromise = doStop().finally(() => resolveDone())
   }
@@ -206,6 +322,9 @@ async function doStop() {
   result.chunksRejected = rejected
   result.chunksFailed = failed
   result.failures = { ...failures }
+  result.restarts = restarts
+  result.restartStallMs = restartStallMs
+  result.restartFailures = restartFailures
   try {
     // 산출물을 못 써도 정지는 이미 끝났다. 여기서 던지면 stop() 약속이 reject 되어
     // 부르는 쪽에 unhandled rejection 이 된다.
@@ -216,32 +335,11 @@ async function doStop() {
 }
 
 async function start() {
-  const res = await fetch(broadcastUrl, {
-    method: 'POST',
-    headers: { ...auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mimeType: MIME_TYPE, segmentType, hlsTimeSec }),
-  })
-  if (!res.ok) throw new Error(`방송 시작 실패 (HTTP ${res.status})`)
-  const data = await res.json()
-  result.playlistUrl = data.playlistUrl ?? null
+  await startBroadcast()
   result.startedAt = new Date().toISOString()
   writeResult()
 
-  child = spawn('ffmpeg', ffmpegArgs(), { stdio: ['ignore', 'pipe', 'inherit'] })
-  child.stdout.on('data', (d) => {
-    if (!stopping) pending.push(d)
-  })
-  // ★ ffmpeg 가 스스로 죽어도 방송을 내린다. 안 그러면 Node 가 살아 있는 동안
-  //   유령 방송이 유지되고, 그 사이 Node 가 죽으면 DELETE 가 아예 안 나간다.
-  child.on('exit', (code, signal) => {
-    if (stopping) return
-    console.error(`ffmpeg 가 끝났다 (code=${code}, signal=${signal}). 방송을 내린다`)
-    void stop()
-  })
-  child.on('error', (error) => {
-    console.error(`ffmpeg 를 시작하지 못했다: ${error.message}`)
-    void stop()
-  })
+  startEncoder()
 
   tick = setInterval(flushPending, chunkMs)
   durationTimer = setTimeout(() => { void stop() }, durationS * 1000)

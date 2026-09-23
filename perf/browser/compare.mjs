@@ -188,6 +188,7 @@ function warmupStallSec(truth, t0Wall) {
 
 const server = readJson(join(dir, 'server.json'), null)
 const broadcast = readJson(join(dir, 'broadcast.json'), null)
+const scheduleRecord = readJson(join(dir, 'schedule.json'), {})
 const manifest = manifestStats(dir)
 let viewerFiles = []
 try {
@@ -324,6 +325,22 @@ const broadcastQuality = {
   failureRatio: broadcastFailureRatio,
   sentRatio: broadcastSentRatio,
 }
+const allowBroadcastRestart = scheduleRecord.allowBroadcastRestart === true
+const broadcastRestartFailures = Number(broadcast?.restartFailures ?? 0)
+const broadcastRestartStallMs = Number(broadcast?.restartStallMs ?? 0)
+const viewerStarts = rows.map((row) => Number(row.t0)).filter(Number.isFinite)
+const viewerEnds = rows.map((row) => Date.parse(row.endedAt ?? '')).filter(Number.isFinite)
+const viewerWindowMs = viewerStarts.length > 0 && viewerEnds.length > 0
+  ? Math.max(...viewerEnds) - Math.min(...viewerStarts)
+  : null
+// 재시작 중단은 시청자들이 실제로 본 측정 창에 대조한다. 표본이 없으면 방송 벽시계로 대체한다.
+const broadcastWindowMs = viewerWindowMs ?? (Number.isFinite(Date.parse(broadcast?.startedAt ?? '')) &&
+  Number.isFinite(Date.parse(broadcast?.endedAt ?? ''))
+  ? Date.parse(broadcast.endedAt) - Date.parse(broadcast.startedAt)
+  : Number.isFinite(Number(broadcast?.elapsedS)) ? Number(broadcast.elapsedS) * 1000 : null)
+const broadcastRestartStallRatio = broadcastWindowMs > 0
+  ? broadcastRestartStallMs / broadcastWindowMs
+  : null
 
 const totals = {
   truthEventSec: sec(sum(rows.map((r) => r.truthEventSec * 1000))),
@@ -338,6 +355,11 @@ const totals = {
   discontinuities: sum(rows.map((r) => r.discontinuities)),
   rejectedPrometheus: Number(server?.prom?.rejected ?? 0),
   broadcastRejected429: broadcast?.chunksRejected ?? null,
+  broadcastRestarts: broadcast?.restarts ?? 0,
+  broadcastRestartStallMs,
+  broadcastRestartFailures,
+  broadcastRestartStallRatio,
+  allowBroadcastRestart,
   prometheusNote: server?.note ?? null,
 }
 const allScreenLatencyValues = rows.flatMap((row) => row.screenLatencyValues)
@@ -385,6 +407,15 @@ if (expectedBroadcastChunks !== null &&
     '측정 조건 불성립 - 송출이 흔들렸다 ' +
       `(기대 ${expectedBroadcastChunks.toFixed(1)}조각, 보냄 ${broadcastSentChunks}조각, ` +
       `실패·거절 ${broadcastFailedChunks}조각)`,
+  )
+}
+if (!allowBroadcastRestart &&
+    (broadcastRestartFailures > 0 ||
+      (broadcastRestartStallRatio !== null && broadcastRestartStallRatio > 0.1))) {
+  reasons.push(
+    '측정 조건 불성립 - 방송 재시작이 측정 창을 흔들었다 ' +
+      `(재시작 실패 ${broadcastRestartFailures}회, 중단 ${broadcastRestartStallMs}ms, ` +
+      `측정 창 ${broadcastWindowMs ?? '-'}ms)`,
   )
 }
 const conditionFailed = reasons.length > 0
@@ -467,6 +498,8 @@ const md = [
   `- 정답 ↔ 보낸 값 차이: ${totals.truthVsSentDiffSec}초`,
   `- 진행 기준 불연속(뒤로 이동) 횟수: ${totals.discontinuities} (멈춤과 따로 셈)`,
   `- rejected: Prometheus ${totals.rejectedPrometheus} · 합성 방송 429 ${totals.broadcastRejected429 ?? '-'}`,
+  `- 합성 방송 재시작: ${totals.broadcastRestarts}회 · 재시작 실패 ${totals.broadcastRestartFailures}회 · ` +
+    `재시작 중단 ${totals.broadcastRestartStallMs}ms · ALLOW_BROADCAST_RESTART=${totals.allowBroadcastRestart ? '1' : '0'}`,
   ...(expectedBroadcastChunks !== null
     ? [
         `- 송출: 기대 ${expectedBroadcastChunks.toFixed(1)}조각 · 보냄 ${broadcastSentChunks}조각 · ` +
@@ -533,6 +566,7 @@ writeFileSync(
       conditionFailed,
       reasons,
       failedViewers: failedViewers.map((r) => r.viewer),
+      allowBroadcastRestart,
       broadcastQuality,
       manifest,
       rows,

@@ -39,6 +39,7 @@ const viewerCount = Number(args.viewers ?? 5)
 const schedule = args.schedule ? JSON.parse(args.schedule) : DEFAULT_SCHEDULE
 const forcePath = args['force-path'] === 'native' ? 'native' : null
 const liveSync = args['live-sync'] ?? null
+const allowBroadcastRestart = process.env.ALLOW_BROADCAST_RESTART === '1'
 const dir = outDir(run)
 mkdirSync(dir, { recursive: true })
 
@@ -47,7 +48,7 @@ mkdirSync(dir, { recursive: true })
 const scheduleSource = args.schedule ? 'argument' : 'default'
 writeFileSync(
   join(dir, 'schedule.json'),
-  `${JSON.stringify({ source: scheduleSource, schedule }, null, 2)}\n`,
+  `${JSON.stringify({ source: scheduleSource, schedule, allowBroadcastRestart }, null, 2)}\n`,
 )
 
 const totalMs = Math.max(...schedule.map((s) => s.to)) * 1000
