@@ -84,6 +84,7 @@ for (const file of files) {
   rows.push({ browser: match?.[1] ?? 'unknown', content: match?.[2] ?? basename(file), requested: Number(match?.[3]), ...result })
 }
 const number = (value) => value == null ? 'n/a' : Number(value).toFixed(2)
+const percent = (value) => value == null ? '-' : `${(Number(value) * 100).toFixed(2)}%`
 const table = (browser) => {
   const lines = [
     `## ${browser}`,
@@ -92,7 +93,7 @@ const table = (browser) => {
     '| --- | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |',
   ]
   for (const row of rows.filter((candidate) => candidate.browser === browser)) {
-    lines.push(`| ${row.content} | ${row.requested} | ${number(row.actualKbps)} | ${row.actualMimeType ?? 'n/a'} | ${row.encoded?.frames ?? 'n/a'} | ${number(row.encoded?.averageFps)} | ${row.encoded?.vfr ? 'yes' : 'no'} | ${row.frameBand?.decodeFailures ?? 'n/a'} | ${row.pairing?.droppedFrames ?? 'n/a'} | ${number(row.pairing?.droppedRatio * 100)}% | ${row.pairing?.outOfRange ?? 'n/a'} | ${row.pairing?.duplicateMappings ?? 'n/a'} | ${number(row.pairedPsnrMean)} | ${row.alignmentStatus ?? 'n/a'} | ${row.status ?? 'n/a'} | ${number(row.vmafMean)} | ${number(row.vmafP1)} | ${row.vmafLowDiagnostics?.length ?? 0} | ${number(row.ocrAccuracy)} | ${number(row.ocrOriginalCeiling)} |`)
+    lines.push(`| ${row.content} | ${row.requested} | ${number(row.actualKbps)} | ${row.actualMimeType ?? 'n/a'} | ${row.encoded?.frames ?? 'n/a'} | ${number(row.encoded?.averageFps)} | ${row.encoded?.vfr ? 'yes' : 'no'} | ${row.frameBand?.decodeFailures ?? 'n/a'} | ${row.pairing?.droppedFrames ?? 'n/a'} | ${percent(row.pairing?.droppedRatio)} | ${row.pairing?.outOfRange ?? 'n/a'} | ${row.pairing?.duplicateMappings ?? 'n/a'} | ${number(row.pairedPsnrMean)} | ${row.alignmentStatus ?? 'n/a'} | ${row.status ?? 'n/a'} | ${number(row.vmafMean)} | ${number(row.vmafP1)} | ${row.vmafLowDiagnostics?.length ?? 0} | ${number(row.ocrAccuracy)} | ${number(row.ocrOriginalCeiling)} |`)
   }
   return lines
 }
@@ -114,7 +115,7 @@ function directionLines(browser) {
   return ['slides', 'handwriting', 'camera'].map((content) => {
     const selected = rows.filter((row) => row.browser === browser && row.content === content).sort((a, b) => a.requested - b.requested)
     const vmaf = selected.filter((row) => Number.isFinite(row.vmafMean))
-    const ocr = selected.filter((row) => Number.isFinite(row.ocrAccuracy))
+    const ocr = selected.filter((row) => Number.isFinite(row.ocrAccuracy) && Number.isFinite(row.vmafMean))
     const vmafRho = spearman(vmaf.map((row) => row.requested), vmaf.map((row) => row.vmafMean))
     if (ocr.length < 2) return `- ${browser}/${content}: VMAF Spearman ${vmafRho == null ? 'n/a' : vmafRho.toFixed(2)}; OCR는 slides만 측정`
     const rho = spearman(ocr.map((row) => row.vmafMean), ocr.map((row) => row.ocrAccuracy))

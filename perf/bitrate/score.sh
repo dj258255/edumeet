@@ -25,7 +25,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -n "$SOURCE" && -n "$ENCODED" && -n "$DURATION" && -n "$OUT" ]] || usage
-if [[ "$DO_OCR" == 1 && -z "$TRUTH_DIR" ]]; then usage; fi
+TRUTH_FAILURE_REASON=
+if [[ "$DO_OCR" == 1 && ( -z "$TRUTH_DIR" || ! -d "$TRUTH_DIR" ) ]]; then
+  TRUTH_FAILURE_REASON='채점 실패(OCR 정답 디렉터리 없음)'
+fi
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/edumeet-bitrate-score.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
@@ -35,11 +38,14 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # 먼저 컨테이너가 말하는 실제 프레임 수·평균/명목 fps·길이를 보관한다.
 # avg_frame_rate가 명목 r_frame_rate와 다르면 VFR/드롭 프레임 신호로 결과에 남긴다.
 ffprobe -v error -select_streams v:0 -count_frames \
-  -show_entries stream=nb_read_frames,nb_frames,r_frame_rate,avg_frame_rate,duration,start_time \
+  -show_entries stream=nb_read_frames,nb_frames,width,height,r_frame_rate,avg_frame_rate,duration,start_time \
   -of json "$SOURCE" > "$WORK/source-probe.json"
 ffprobe -v error -select_streams v:0 -count_frames \
-  -show_entries stream=nb_read_frames,nb_frames,r_frame_rate,avg_frame_rate,duration,start_time \
+  -show_entries stream=nb_read_frames,nb_frames,width,height,r_frame_rate,avg_frame_rate,duration,start_time \
   -of json "$ENCODED" > "$WORK/encoded-probe.json"
+ffprobe -v error -select_streams v:0 -show_frames \
+  -show_entries frame=pts_time,best_effort_timestamp_time \
+  -of json "$ENCODED" > "$WORK/encoded-frames.json"
 
 # 녹화 프레임마다 원본 프레임 번호를 새긴 16비트 띠만 먼저 읽는다. 띠는
 # VMAF 입력에는 남기고 OCR 입력에서만 가린다.
@@ -49,14 +55,31 @@ BAND_WIDTH=$((16 * 24))
 BAND_HEIGHT=24
 SOURCE_FRAMES=$(node -e 'const x=JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(x.streams?.[0]?.nb_read_frames ?? x.streams?.[0]?.nb_frames ?? 0)' "$WORK/source-probe.json")
 ENCODED_FRAMES=$(node -e 'const x=JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(x.streams?.[0]?.nb_read_frames ?? x.streams?.[0]?.nb_frames ?? 0)' "$WORK/encoded-probe.json")
+ENCODED_WIDTH=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).streams?.[0]?.width ?? 0)' "$WORK/encoded-probe.json")
+ENCODED_HEIGHT=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).streams?.[0]?.height ?? 0)' "$WORK/encoded-probe.json")
+if [[ "$ENCODED_WIDTH" -ne 1280 || "$ENCODED_HEIGHT" -ne 720 ]]; then
+  node "$SCRIPT_DIR/failure-result.mjs" "$OUT" "채점 실패(해상도 ${ENCODED_WIDTH}x${ENCODED_HEIGHT})" \
+    "$WORK/source-probe.json" "$WORK/encoded-probe.json"
+  exit 1
+fi
+if [[ -n "$TRUTH_FAILURE_REASON" ]]; then
+  node "$SCRIPT_DIR/failure-result.mjs" "$OUT" "$TRUTH_FAILURE_REASON" \
+    "$WORK/source-probe.json" "$WORK/encoded-probe.json"
+  exit 1
+fi
 ffmpeg -hide_banner -loglevel error -y -i "$SOURCE" \
   -vf "crop=${BAND_WIDTH}:${BAND_HEIGHT}:${BAND_X}:${BAND_Y},format=gray" \
   -frames:v "$SOURCE_FRAMES" -f rawvideo "$WORK/source-band.gray"
 ffmpeg -hide_banner -loglevel error -y -i "$ENCODED" \
   -vf "crop=${BAND_WIDTH}:${BAND_HEIGHT}:${BAND_X}:${BAND_Y},format=gray" \
   -frames:v "$ENCODED_FRAMES" -f rawvideo "$WORK/encoded-band.gray"
-node "$SCRIPT_DIR/decode-band.mjs" "$WORK/source-band.gray" "$SOURCE_FRAMES" "$SOURCE_FRAMES" "$WORK/source-decode.json" source
-node "$SCRIPT_DIR/decode-band.mjs" "$WORK/encoded-band.gray" "$ENCODED_FRAMES" "$SOURCE_FRAMES" "$WORK/encoded-decode.json"
+if ! node "$SCRIPT_DIR/decode-band.mjs" "$WORK/source-band.gray" "$SOURCE_FRAMES" "$SOURCE_FRAMES" "$WORK/source-decode.json" - source; then
+  node "$SCRIPT_DIR/failure-result.mjs" "$OUT" '채점 실패(원본 프레임 띠 self-check)' \
+    "$WORK/source-probe.json" "$WORK/encoded-probe.json" "$WORK/source-decode.json"
+  exit 1
+fi
+node "$SCRIPT_DIR/decode-band.mjs" "$WORK/encoded-band.gray" "$ENCODED_FRAMES" "$SOURCE_FRAMES" \
+  "$WORK/encoded-decode.json" "$WORK/encoded-frames.json"
 PAIR_PATH="$WORK/pairs.json"
 node --input-type=module - "$WORK/encoded-decode.json" "$SOURCE_FRAMES" "$PAIR_PATH" <<'NODE'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -97,6 +120,8 @@ const result = {
   outOfRange: decoded.frames.filter((frame) => frame.reason === 'out of range').length,
   duplicateMappings,
   decodeFailures: decoded.decodeFailures,
+  failureCounts: decoded.failureCounts,
+  ptsResidualMedian: decoded.ptsResidualMedian,
   sourceDecodeFailures: null,
   lastRead,
   sourceSelect,
@@ -120,6 +145,7 @@ const [pairPath, sourcePath] = process.argv.slice(2)
 const pair = JSON.parse(await readFile(pairPath, 'utf8'))
 const source = JSON.parse(await readFile(sourcePath, 'utf8'))
 pair.sourceDecodeFailures = source.decodeFailures
+pair.sourceFailureCounts = source.failureCounts
 await writeFile(pairPath, JSON.stringify(pair, null, 2) + '\n')
 NODE
 PAIR_COUNT=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).pairFrames)' "$PAIR_PATH")
@@ -304,6 +330,8 @@ function probeInfo(probe) {
   const averageFps = rate(probe.avg_frame_rate)
   return {
     frames: number(probe.nb_read_frames ?? probe.nb_frames),
+    width: number(probe.width),
+    height: number(probe.height),
     durationSeconds: number(probe.duration),
     nominalFps,
     averageFps,
@@ -364,6 +392,9 @@ const result = {
     parityBit: 15,
     sourceDecodeFailures: pairing.sourceDecodeFailures,
     decodeFailures: pairing.decodeFailures,
+    failureCounts: pairing.failureCounts,
+    sourceFailureCounts: pairing.sourceFailureCounts,
+    ptsResidualMedian: pairing.ptsResidualMedian,
   },
   pairing: {
     frames: pairing.pairFrames,
