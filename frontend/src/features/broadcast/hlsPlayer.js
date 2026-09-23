@@ -23,7 +23,7 @@ import { createNativeRecovery } from './nativeRecovery'
 export async function attachHls(
   videoEl,
   playlistUrl,
-  { onError = () => {}, onMetrics = () => {}, onQoe, onStatus = () => {} } = {},
+  { onError = () => {}, onMetrics = () => {}, onQoe, onStatus = () => {}, startAt = null } = {},
 ) {
   // ★ 어떤 경로로 갈지는 순수 함수가 정한다. (#217)
   //   네이티브 지원 여부와 hls.js 지원 여부를 **둘 다** 보고 고른다 -
@@ -42,7 +42,7 @@ export async function attachHls(
   if (path === 'native') {
     videoEl.src = playlistUrl
     const timer = setInterval(() => onMetrics(snapshotNativeMetrics(videoEl)), 1000)
-    const qoe = wireQoe(videoEl, onQoe, { native: true })
+    const qoe = wireQoe(videoEl, onQoe, { native: true, startAt })
     const recovery = createNativeRecovery({
       onRetry: () => reconnectNative(videoEl, playlistUrl),
       onStatus,
@@ -84,7 +84,7 @@ export async function attachHls(
   hls.loadSource(playlistUrl)
   hls.attachMedia(videoEl)
 
-  const qoe = wireQoe(videoEl, onQoe, { native: false })
+  const qoe = wireQoe(videoEl, onQoe, { native: false, startAt })
 
   // ★ hls.js 가 왜 죽는지 보이게 한다. (#210)
   //   개수만 세면 종류·시점·앱이 한 조치를 알 수 없다. 최근 50건만 고리 버퍼에 남긴다.
@@ -240,7 +240,7 @@ function loadTimeMs(stats) {
  * <p>끊김(waiting → playing)은 두 경로 모두 <video> 이벤트로 잡힌다.
  * hls.js 의 버퍼 이벤트에 기대지 않으므로 Safari 네이티브에서도 세진다.
  */
-function wireQoe(videoEl, onQoe, { native }) {
+function wireQoe(videoEl, onQoe, { native, startAt = null }) {
   if (typeof onQoe !== 'function') return { tracker: null, destroy: () => {} }
 
   const tracker = createQoeTracker()
@@ -254,7 +254,7 @@ function wireQoe(videoEl, onQoe, { native }) {
   if (native) handlers.error = () => tracker.failed()
 
   Object.entries(handlers).forEach(([event, handler]) => videoEl.addEventListener(event, handler))
-  tracker.attached()
+  tracker.attached(startAt)
   onQoe(tracker, { native })
 
   return {

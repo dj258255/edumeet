@@ -24,6 +24,7 @@ const PAUSED = 'paused'
 
 export function createQoeTracker({ now = () => performance.now() } = {}) {
   let attachedAt = null
+  let startupAt = null
   let startupMs = null
   let startupEmitted = false
 
@@ -53,16 +54,17 @@ export function createQoeTracker({ now = () => performance.now() } = {}) {
     accountedAt = t
   }
 
-  function attached() {
+  function attached(startAt = null) {
     if (attachedAt !== null) return
     attachedAt = now()
+    startupAt = Number.isFinite(startAt) ? startAt : attachedAt
     accountedAt = attachedAt
     mode = IDLE
   }
 
   function playing() {
     if (startupMs === null) {
-      const base = attachedAt === null ? now() : attachedAt
+      const base = startupAt === null ? (attachedAt === null ? now() : attachedAt) : startupAt
       startupMs = Math.max(0, now() - base)
     }
     accrue()

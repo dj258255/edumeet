@@ -17,6 +17,15 @@ describe('시청 품질 트래커', () => {
     expect(tracker.snapshot().startupMs).toBe(1200)
   })
 
+  it('시작 시각을 받으면 플레이어 부착보다 앞선 화면 진입부터 첫 화면 시간을 잰다', () => {
+    const { env, tracker } = harness()
+    tracker.attached(200)
+    env.t = 1200
+    tracker.playing()
+
+    expect(tracker.snapshot().startupMs).toBe(1000)
+  })
+
   it('첫 재생 이후의 waiting → playing 이 끊김이다', () => {
     const { env, tracker } = harness()
     tracker.attached()

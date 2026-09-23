@@ -77,14 +77,20 @@ async function findPlaylist() {
 }
 
 onMounted(async () => {
+  const enteredAt = performance.now()
   window.addEventListener('pagehide', onPageHide)
 
   // 방송이 아직 안 켜졌을 수 있다. 몇 초마다 다시 본다.
+  let firstLookup = true
   const tryAttach = async () => {
+    const lookupStartedAt = performance.now()
     const url = await findPlaylist()
+    const startAt = firstLookup ? enteredAt : lookupStartedAt
+    firstLookup = false
     if (!url) return false
     playlistUrl.value = url
     handle = await attachHls(videoEl.value, url, {
+      startAt,
       onError: (e) => { error.value = e.message },
       onStatus: (status) => {
         reconnecting.value = status?.state === 'reconnecting'
