@@ -11,6 +11,10 @@ describe('broadcast profiles', () => {
     expect(getBroadcastProfile('missing').id).toBe('standard')
   })
 
+  it('표준 프로파일은 1.5Mbps 를 사용한다', () => {
+    expect(getBroadcastProfile('standard').videoBitsPerSecond).toBe(1_500_000)
+  })
+
   it('데이터 절약 모드는 360p15 로 캡처한다', () => {
     const constraints = mediaConstraintsFor({ audioOnly: false, profileId: 'dataSaver' })
 

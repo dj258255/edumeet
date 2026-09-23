@@ -11,7 +11,10 @@ export const BROADCAST_PROFILES = {
     label: '표준 720p',
     description: '문서·얼굴이 보이는 기본값',
     video: { width: 1280, height: 720, frameRate: 30 },
-    videoBitsPerSecond: 2_500_000,
+    // #199 측정: Chrome 카메라 VMAF 1.5Mbps 93.3 · 2.5Mbps 96.0,
+    // 1.5Mbps 끊김 합 20.3/6.6초(10명·2회) · 2.5Mbps 329.8/348.7초.
+    // 화질은 macOS Chrome 하드웨어 인코더, 끊김은 합성 x264 기준이다.
+    videoBitsPerSecond: 1_500_000,
     audioBitsPerSecond: 96_000,
   },
   dataSaver: {
@@ -19,6 +22,7 @@ export const BROADCAST_PROFILES = {
     label: '데이터 절약 360p',
     description: '모바일·약한 네트워크용',
     video: { width: 640, height: 360, frameRate: 15 },
+    // #199에서는 dataSaver(700k)를 재지 않았다.
     videoBitsPerSecond: 700_000,
     audioBitsPerSecond: 64_000,
   },
