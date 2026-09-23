@@ -8,8 +8,12 @@ import com.edu.edumeet.chat.repository.ChatMessageRepository;
 import com.edu.edumeet.meeting.domain.Meeting;
 import com.edu.edumeet.meeting.domain.SessionType;
 import com.edu.edumeet.meeting.repository.MeetingRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +48,36 @@ public class ChatService {
     private final ClassAccessChecker classAccessChecker;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatArchiveQueue archiveQueue;
+    private final ChatArchiveStream archiveStream;
+    private final MeterRegistry meterRegistry;
+
+    /**
+     * 저장 대기열 모드. {@code stream}(기본) 이면 Redis Stream, {@code memory} 면 기존 메모리 큐다. (#201)
+     *
+     * <p>성능 측정에서 두 모드를 같은 조건으로 비교하려고 열어 둔 토글이다.
+     */
+    @Value("${edumeet.chat.archive.mode:stream}")
+    private String archiveMode;
+
+    @Value("${edumeet.chat.archive.enabled:true}")
+    private boolean archiveEnabled;
+
+    private Timer publishLatency;
+
+    /**
+     * 발행 경로 지연. (#201)
+     *
+     * <p>k6 로는 못 본다 - 로컬 왕복이 1ms 해상도 아래라 p99 가 0 으로 뭉개진다(B8).
+     * 저장 대기열을 바꾸면 발행 경로에 무엇이 붙는지(Redis 왕복)가 여기 나타난다.
+     */
+    @PostConstruct
+    void registerMetrics() {
+        this.publishLatency = Timer.builder("chat.publish.latency")
+                .description("채팅 발행 처리 시간. 저장 대기열(Redis 스트림 / 메모리 큐)에 따라 달라진다")
+                .publishPercentileHistogram()
+                .publishPercentiles(0.5, 0.99)
+                .register(meterRegistry);
+    }
 
     /**
      * 메시지를 받아 브로드캐스트할 형태로 만든다. 저장 여부는 세션 형태가 정한다.
@@ -53,28 +87,55 @@ public class ChatService {
      */
     @Transactional
     public ChatMessageResponse handle(Long meetingId, String senderEmail, String content) {
-        String trimmed = validate(content);
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            String trimmed = validate(content);
 
-        Meeting meeting = meetingRepository.findById(meetingId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회의입니다: " + meetingId));
+            Meeting meeting = meetingRepository.findById(meetingId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회의입니다: " + meetingId));
 
-        if (meeting.getEndTime() != null) {
-            throw new IllegalArgumentException("이미 종료된 회의입니다.");
+            if (meeting.getEndTime() != null) {
+                throw new IllegalArgumentException("이미 종료된 회의입니다.");
+            }
+
+            if (shouldPersist(meeting.getSessionType())) {
+                // 화상강의는 그대로 동기 저장한다. 정원 30명이라 발행량이 작아
+                // 측정을 가리지 않고, 무엇보다 수업 기록은 유실되면 안 된다.
+                chatMessageRepository.save(ChatMessage.of(meeting, senderEmail, trimmed));
+            } else if (archiveEnabled) {
+                archive(meetingId, senderEmail, trimmed, offsetFrom(meeting));
+            }
+
+            return new ChatMessageResponse(
+                    meetingId, senderEmail, trimmed, System.currentTimeMillis());
+        } finally {
+            sample.stop(publishLatency);
         }
+    }
 
-        if (shouldPersist(meeting.getSessionType())) {
-            // 화상강의는 그대로 동기 저장한다. 정원 30명이라 발행량이 작아
-            // 측정을 가리지 않고, 무엇보다 수업 기록은 유실되면 안 된다.
-            chatMessageRepository.save(ChatMessage.of(meeting, senderEmail, trimmed));
-        } else {
-            // 방송은 발행 경로에서 저장하지 않는다. 큐에 넣고 배치가 가져간다. (#61)
-            // 가득 차면 버린다 - 다시보기 채팅은 유실돼도 방송은 살아 있어야 한다.
-            archiveQueue.offer(meetingId, senderEmail, trimmed,
-                    offsetFrom(meeting));
+    /**
+     * 방송 채팅을 저장 대기열에 넣는다. (#201)
+     *
+     * <p><b>기본은 Redis Stream 이다.</b> 프로세스가 죽어도 항목이 남아 다른 소비자가 이어받는다
+     * (B8 에서 {@code kill -9} 로 20~30건이 지표 없이 사라졌다).
+     *
+     * <p>Redis 가 죽어 있으면 <b>기존 메모리 큐로 떨어진다.</b> 발행을 막지 않는다 -
+     * 방송이 멈추는 것보다 다시보기가 조금 비는 게 낫다(#61). 떨어진 수는 지표로 센다.
+     */
+    private void archive(Long meetingId, String senderEmail, String content, Long offsetMillis) {
+        boolean stream = useStream();
+        if (stream && archiveStream.publish(meetingId, senderEmail, content, offsetMillis)) {
+            return;
         }
+        if (stream) {
+            archiveStream.recordFallback();
+        }
+        archiveQueue.offer(meetingId, senderEmail, content, offsetMillis);
+    }
 
-        return new ChatMessageResponse(
-                meetingId, senderEmail, trimmed, System.currentTimeMillis());
+    private boolean useStream() {
+        // 기본이 stream 이다. "memory" 일 때만 기존 큐를 쓴다.
+        return !"memory".equalsIgnoreCase(archiveMode);
     }
 
     /**

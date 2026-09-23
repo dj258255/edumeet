@@ -1,0 +1,34 @@
+rule_files:
+  - ../edumeet.yml
+
+evaluation_interval: 1m
+
+# 비상 상한으로 지운 항목이 있으면 즉시 알린다. (#201 검토 6)
+# 정상 경로의 트리밍(ACK 끝난 항목)은 이 지표를 올리지 않는다 - 지운 수를 세는 곳이 다르다.
+tests:
+  # 방향 1: 지운 것이 있으면 울린다
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_trimmed_total{instance="blue"}'
+        values: '0 300'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ChatArchiveStreamTrimming
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "비상 상한을 넘어 스트림에서 채팅을 지웠다"
+              description: '5분간 300건을 지웠다. 지워진 것은 저장되지 않았을 수 있다 - 다시보기에서 빠진다. 소비가 밀린 것이 원인이므로 ChatArchiveStreamBehind 와 함께 본다.'
+
+  # 방향 2: 안 지웠으면 조용하다 (정상 상태)
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_trimmed_total{instance="blue"}'
+        values: '0 0 0'
+      - series: 'chat_archive_stream_trimmed_total{instance="green"}'
+        values: '0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ChatArchiveStreamTrimming
+        exp_alerts: []

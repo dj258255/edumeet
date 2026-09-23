@@ -108,7 +108,7 @@ class FlywayUpgradePathTest {
         // 4-b) 나머지는 실제로 돈다.
         assertThat(versionsOfType(history, "SQL"))
                 .as("baseline 이후 마이그레이션은 전부 적용되어야 한다")
-                .contains("2", "3", "4", "5", "6", "7", "8", "9")
+                .contains("2", "3", "4", "5", "6", "7", "8", "9", "10")
                 .doesNotContain("1");
 
         // 5) 이력만이 아니라 스키마가 실제로 그 상태인지 본다.
@@ -119,6 +119,11 @@ class FlywayUpgradePathTest {
         assertThat(tables(jdbc))
                 .as("V5 가 지우는 테이블. 업그레이드 경로에서도 지워져야 한다")
                 .doesNotContain("refresh_token");
+        // V10 은 다시보기 채팅의 중복을 막는 컬럼이다. 기존 행에는 NULL 로 붙어야 한다
+        // (MySQL 유니크 인덱스는 NULL 을 여럿 허용한다).
+        assertThat(columnsOf(jdbc, "chat_message"))
+                .as("V10 이 만드는 중복 방지 컬럼")
+                .contains("message_uid");
     }
 
     private static String typeOf(List<Map<String, Object>> history, String version) {
@@ -140,5 +145,12 @@ class FlywayUpgradePathTest {
         return jdbc.queryForList(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()",
                 String.class);
+    }
+
+    private static List<String> columnsOf(JdbcTemplate jdbc, String table) {
+        return jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_schema = DATABASE() AND table_name = ?",
+                String.class, table);
     }
 }

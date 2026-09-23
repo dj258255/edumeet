@@ -1,0 +1,73 @@
+rule_files:
+  - ../edumeet.yml
+
+evaluation_interval: 1m
+
+# 소비가 발행을 못 따라갈 때의 경보. (#201 B9r 사다리)
+#
+# ★ pending 경보로는 안 잡히는 모양을 잡는다.
+#   1,600건/초에서 소비가 밀렸을 때 XPENDING 은 0 이었고,
+#   스트림의 마지막 항목과 마지막 배달 항목의 차이만 수십 초였다.
+#   즉 "배달도 못 한 것" 이 쌓이는 상황이다.
+tests:
+  # 방향 1: 1분 넘게 밀리면 울린다
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_lag_ms{instance="blue"}'
+        values: '90000 90000 90000 90000 90000 90000 90000'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ChatArchiveStreamBehind
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "채팅 저장이 1분 넘게 밀리고 있다"
+              description: '소비가 스트림의 마지막 항목보다 90000ms 뒤처져 있다. 정상은 1초 안이다. 이대로면 상한(100,000)까지 쌓여 오래된 항목부터 잘린다 - 잘린 것은 셀 수도 없다. 소비를 늘리거나 발행을 줄여야 한다.'
+
+  # 방향 2: 정상(1초 안)이면 안 울린다
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_lag_ms{instance="blue"}'
+        values: '300 300 300 300 300 300 300'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ChatArchiveStreamBehind
+        exp_alerts: []
+
+  # 방향 2': 잠깐 밀렸다가 따라잡으면 안 울린다 (for 5m 이 그 일을 한다)
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_lag_ms{instance="blue"}'
+        values: '90000 0 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ChatArchiveStreamBehind
+        exp_alerts: []
+
+  # 값이 없으면(-1, Redis 7 미만 그룹) 조용해야 한다. -1 이 임계값을 넘으면 안 된다.
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_lag_ms{instance="blue"}'
+        values: '-1 -1 -1 -1 -1 -1 -1'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ChatArchiveStreamBehind
+        exp_alerts: []
+
+  # 슬롯이 둘이어도 max 로 묻는다 (#184) - 안 도는 슬롯의 값에 묻히면 안 된다.
+  - interval: 1m
+    input_series:
+      - series: 'chat_archive_stream_lag_ms{instance="blue"}'
+        values: '0 0 0 0 0 0 0'
+      - series: 'chat_archive_stream_lag_ms{instance="green"}'
+        values: '90000 90000 90000 90000 90000 90000 90000'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ChatArchiveStreamBehind
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "채팅 저장이 1분 넘게 밀리고 있다"
+              description: '소비가 스트림의 마지막 항목보다 90000ms 뒤처져 있다. 정상은 1초 안이다. 이대로면 상한(100,000)까지 쌓여 오래된 항목부터 잘린다 - 잘린 것은 셀 수도 없다. 소비를 늘리거나 발행을 줄여야 한다.'
