@@ -15,13 +15,15 @@ npm install --prefix perf/browser
 ./perf/bitrate/run.sh 2026-09-23-local 40
 ```
 
-사용법은 `run.sh RUN_ID [RECORD_SECONDS] [FONT_PATH]`이며 두 번째 인자는 각 브라우저 녹화 시간(초)이다. 40초를 써야 네 장의 10초 슬라이드 중앙 프레임을 모두 채점한다. 결과는 `perf/bitrate/out/2026-09-23-local/` 아래에 저장되며 `table.md`에 Chromium과 Chrome 표가 각각 나온다. `actual kbps`는 요청한 ladder 값이 아니라 녹화 파일 크기와 실제 녹화 시간으로 계산한 평균이다.
+사용법은 `run.sh RUN_ID [RECORD_SECONDS] [FONT_PATH]`이며 두 번째 인자는 각 브라우저 녹화 시간(초)이다. 40초를 써야 네 장의 10초 슬라이드 중앙 프레임을 모두 채점한다. 결과는 `perf/bitrate/out/2026-09-23-local/` 아래에 저장되며 `table.md`에 Chromium과 Chrome 표가 각각 나온다. `actual kbps`는 요청한 ladder 값이 아니라 파일 크기 × 8 / ffprobe video stream duration으로 계산하며, 벽시계 기반 값은 참고용으로만 보관한다. 실패 행이 있으면 마지막에 수를 출력하고 0이 아닌 코드로 끝난다.
 
 ## 소스와 점수
 
-`make-sources.sh`는 1280x720, 30fps, 40초짜리 슬라이드·손글씨·움직이는 합성 카메라 소스를 만든다. 슬라이드에는 작은 글자, 숫자, 한국어/영어 문장과 움직이는 포인터가 있고 10초마다 장면이 바뀐다. `slides.truth.txt`와 `truth/scene-*.txt`는 OCR 정답이다. 폰트는 두 번째 인자로 지정할 수 있으며, 기본값은 macOS/Linux에서 찾은 첫 글꼴이다.
+`make-sources.sh`는 1280x720, 30fps, 40초짜리 슬라이드·손글씨·움직이는 합성 카메라 소스를 만든다. 슬라이드에는 작은 글자, 숫자, 한국어/영어 문장과 움직이는 포인터가 있고 10초마다 장면이 바뀐다. 손글씨도 40초 길이이며 10초 주기의 획 그리기를 반복한다. `slides.truth.txt`와 `truth/scene-*.txt`는 OCR 정답이다. 화면에 실제로 그린 `EDUMEET #199` footer도 각 truth에 포함하고, 본문 textfile에서는 중복해서 그리지 않는다. 폰트는 두 번째 인자로 지정할 수 있으며, 기본값은 macOS/Linux에서 찾은 첫 글꼴이다.
 
-VMAF는 처음 2초를 버리지만 녹화본을 단순 CFR로 재생성해 맞추지 않는다. `ffprobe -show_frames`의 각 PTS로 `round(pts*30)+offset` 원본 프레임을 찾아 1:1 페어 영상을 만들고, 그 페어만 VMAF/PSNR에 넣는다. 사용되지 않은 원본 프레임은 `dropped frames`와 비율로 보고한다. ffprobe의 실제 프레임 수·평균 fps·명목 fps와 VFR 여부, 선택된 offset/PSNR을 결과에 남긴다. 짝 PSNR 평균이 40dB 초과인데 VMAF 평균이 70 미만이면 표에 `정렬 실패`를 표시한다. OCR은 각 슬라이드 중앙 프레임에서 원본과 녹화본을 각각 읽으며, 원본 OCR 점수는 인식기 자체의 ceiling이다.
+세 원본의 모든 프레임 오른쪽 아래에는 16개의 24x24 셀로 된 프레임 번호 띠가 있다. 앞 15비트가 원본 프레임 번호이고 마지막 비트는 even parity다. 흰색은 1, 검은색은 0이며 회색 테두리가 있어 저비트레이트에서도 셀을 분리한다. 슬라이드 장면을 이어 붙일 때도 프레임 번호는 전역으로 증가한다. `score.sh`는 녹화 프레임마다 이 띠를 직접 읽어 원본 번호를 얻으므로 PTS/PSNR 오프셋 탐색을 하지 않는다. 패리티·범위·단조성 검사에 실패한 프레임은 `decodeFailures`로 세고, 같은 번호가 다시 나오면 첫 프레임만 쓰며 `duplicateMappings`로 센다. 원본도 같은 디코더로 검사하며 모든 프레임이 정확히 자기 번호로 읽히지 않으면 실행을 실패시킨다.
+
+VMAF는 띠를 포함한 동일한 번호의 프레임 쌍으로 계산한다(`frameBand.includedInVmaf: true`). 처음 2초인 원본 프레임 번호 0~59는 채점에서 제외하고, 마지막으로 읽힌 원본 번호까지를 분모로 하여 `dropped frames`와 비율을 계산한다. OCR 입력에서는 띠 영역을 흰색으로 마스킹한다. VMAF 1%가 10 미만이면 해당 pair의 녹화/원본 프레임을 `*-vmaf-low/`에 PNG로 보존하고 결과에 두 경로를 남긴다. 원본 OCR 점수는 인식기 자체의 ceiling이다.
 
 ## 제한과 해석
 

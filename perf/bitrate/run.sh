@@ -32,6 +32,7 @@ echo '[1/3] generating sources'
 
 echo '[2/3] recording Chromium and Chrome ladders'
 declare -a RESULT_FILES=()
+FAILURE_COUNT=0
 for browser in chromium chrome; do
   browser_recordings="$RECORDINGS/$browser"
   browser_results="$RESULTS/$browser"
@@ -63,7 +64,9 @@ for browser in chromium chrome; do
       if [[ "$content" == slides ]]; then
         score_args+=(--ocr --truth-dir "$SOURCES/truth")
       fi
-      "$SCRIPT_DIR/score.sh" "${score_args[@]}"
+      if ! "$SCRIPT_DIR/score.sh" "${score_args[@]}"; then
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
+      fi
       RESULT_FILES+=("$result")
     done
   done
@@ -85,13 +88,38 @@ const table = (browser) => {
   const lines = [
     `## ${browser}`,
     '',
-    '| content | requested kbps | actual kbps | actual mimeType | frames | avg fps | VFR | dropped frames | dropped ratio | pair PSNR dB | alignment | VMAF mean | VMAF 1% | OCR | OCR ceiling |',
-    '| --- | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |',
+    '| content | requested kbps | actual kbps | actual mimeType | frames | avg fps | VFR | decodeFailures | dropped frames | dropped ratio | outOfRange | duplicateMappings | pair PSNR dB | alignment | status | VMAF mean | VMAF 1% | low-VMAF frames | OCR | OCR ceiling |',
+    '| --- | ---: | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |',
   ]
   for (const row of rows.filter((candidate) => candidate.browser === browser)) {
-    lines.push(`| ${row.content} | ${row.requested} | ${number(row.actualKbps)} | ${row.actualMimeType ?? 'n/a'} | ${row.encoded?.frames ?? 'n/a'} | ${number(row.encoded?.averageFps)} | ${row.encoded?.vfr ? 'yes' : 'no'} | ${row.pairing?.droppedFrames ?? 'n/a'} | ${number(row.pairing?.droppedRatio)} | ${number(row.pairedPsnrMean)} | ${row.alignmentStatus ?? 'n/a'} | ${number(row.vmafMean)} | ${number(row.vmafP1)} | ${number(row.ocrAccuracy)} | ${number(row.ocrOriginalCeiling)} |`)
+    lines.push(`| ${row.content} | ${row.requested} | ${number(row.actualKbps)} | ${row.actualMimeType ?? 'n/a'} | ${row.encoded?.frames ?? 'n/a'} | ${number(row.encoded?.averageFps)} | ${row.encoded?.vfr ? 'yes' : 'no'} | ${row.frameBand?.decodeFailures ?? 'n/a'} | ${row.pairing?.droppedFrames ?? 'n/a'} | ${number(row.pairing?.droppedRatio * 100)}% | ${row.pairing?.outOfRange ?? 'n/a'} | ${row.pairing?.duplicateMappings ?? 'n/a'} | ${number(row.pairedPsnrMean)} | ${row.alignmentStatus ?? 'n/a'} | ${row.status ?? 'n/a'} | ${number(row.vmafMean)} | ${number(row.vmafP1)} | ${row.vmafLowDiagnostics?.length ?? 0} | ${number(row.ocrAccuracy)} | ${number(row.ocrOriginalCeiling)} |`)
   }
   return lines
+}
+function rank(values) {
+  return values.map((value) => 1 + values.filter((other) => other < value).length + (values.filter((other) => other === value).length - 1) / 2)
+}
+function spearman(left, right) {
+  if (left.length < 2 || right.length !== left.length) return null
+  const a = rank(left)
+  const b = rank(right)
+  const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length
+  const ma = mean(a)
+  const mb = mean(b)
+  const numerator = a.reduce((sum, value, index) => sum + (value - ma) * (b[index] - mb), 0)
+  const denominator = Math.sqrt(a.reduce((sum, value) => sum + (value - ma) ** 2, 0) * b.reduce((sum, value) => sum + (value - mb) ** 2, 0))
+  return denominator ? numerator / denominator : null
+}
+function directionLines(browser) {
+  return ['slides', 'handwriting', 'camera'].map((content) => {
+    const selected = rows.filter((row) => row.browser === browser && row.content === content).sort((a, b) => a.requested - b.requested)
+    const vmaf = selected.filter((row) => Number.isFinite(row.vmafMean))
+    const ocr = selected.filter((row) => Number.isFinite(row.ocrAccuracy))
+    const vmafRho = spearman(vmaf.map((row) => row.requested), vmaf.map((row) => row.vmafMean))
+    if (ocr.length < 2) return `- ${browser}/${content}: VMAF Spearman ${vmafRho == null ? 'n/a' : vmafRho.toFixed(2)}; OCR는 slides만 측정`
+    const rho = spearman(ocr.map((row) => row.vmafMean), ocr.map((row) => row.ocrAccuracy))
+    return `- ${browser}/${content}: VMAF ladder Spearman ${vmafRho == null ? 'n/a' : vmafRho.toFixed(2)}, VMAF↔OCR Spearman ${rho == null ? 'n/a' : rho.toFixed(2)} (${rho != null && rho >= 0.5 ? '같은 방향' : '불일치/약함'})`
+  })
 }
 const lines = [
   '# Bitrate harness',
@@ -102,13 +130,18 @@ const lines = [
   '',
   ...table('chrome'),
   '',
-  '## Interpretation',
+  '## VMAF/OCR direction',
+  '',
+  ...directionLines('chromium'),
+  ...directionLines('chrome'),
   '',
   '- VMAF is trained for natural-video fidelity; OCR is the slide readability check.',
-  '- The camera score is aligned after converting the recording to 30fps CFR and selecting the source start frame with the highest preview PSNR.',
-  '- Compare actual kbps and mimeType between Chromium and Chrome; requested kbps is not the measured bitrate.',
   '',
 ]
 await writeFile(outPath, lines.join('\n'))
 NODE
+echo "failure rows: $FAILURE_COUNT"
+if (( FAILURE_COUNT > 0 )); then
+  exit 1
+fi
 printf 'completed: %s\n' "$OUT"
