@@ -65,6 +65,33 @@ function screenLatencyStats(samples, t0) {
   }
 }
 
+/**
+ * 따라잡기(#233) 요약.
+ *
+ *   - 비율: 재생 속도 표본 중 1을 넘은 비율. 표본은 1초 간격이라 시간 비율로 봐도 된다.
+ *   - 연쇄 끊김: 앞 끊김이 **끝난 뒤 10초 안에** 다시 시작한 끊김의 수.
+ *     Twitch 가 보고한 모양(재생 속도를 올리면 끊김이 연달아 온다)을 이 하네스에서 세는 값이다.
+ */
+function catchupStats(truth) {
+  const samples = truth?.playbackRates ?? []
+  const faster = samples.filter((s) => Number(s.rate) > 1.0001)
+  const rates = samples.map((s) => Number(s.rate)).filter(Number.isFinite)
+
+  const stalls = [...(truth?.stallsEvent ?? [])].sort((a, b) => a.start - b.start)
+  let chained = 0
+  for (let i = 1; i < stalls.length; i += 1) {
+    if (stalls[i].start - stalls[i - 1].end <= 10_000) chained += 1
+  }
+
+  return {
+    samples: samples.length,
+    fasterShare: samples.length > 0 ? faster.length / samples.length : null,
+    maxRate: rates.length > 0 ? Math.max(...rates) : null,
+    chained,
+    stalls: stalls.length,
+  }
+}
+
 function round3(value) {
   return Math.round(value * 1000) / 1000
 }
@@ -229,6 +256,7 @@ const rows = viewerFiles.map((file) => {
   const firstStartup = v.reports.find((r) => r.startupMs != null)?.startupMs ?? null
   const finalReport = v.reports.find((r) => r.final)
   const screenLatency = screenLatencyStats(v.latencySamples, v.t0)
+  const catchup = catchupStats(v.truth)
 
   // ★ 플레이어가 살아 있는가. (#210) 앱이 남긴 hls.js 진단 로그와 복구 뒤 스냅샷에서 읽는다.
   const hlsLog = v.finalState?.hlsLog ?? []
@@ -254,6 +282,11 @@ const rows = viewerFiles.map((file) => {
     scheduledEndAt,
     screenLatencyValues: screenLatency.values,
     screenLatencySampleCount: screenLatency.count,
+    catchupRateSamples: catchup.samples,
+    catchupFasterShare: catchup.fasterShare,
+    catchupMaxRate: catchup.maxRate,
+    catchupChained: catchup.chained,
+    catchupStalls: catchup.stalls,
     screenLatencyP50Ms: screenLatency.p50,
     screenLatencyP95Ms: screenLatency.p95,
     sessionIds,
@@ -341,6 +374,22 @@ const broadcastWindowMs = viewerWindowMs ?? (Number.isFinite(Date.parse(broadcas
 const broadcastRestartStallRatio = broadcastWindowMs > 0
   ? broadcastRestartStallMs / broadcastWindowMs
   : null
+
+/**
+ * 따라잡기 합계 (#233). 시청자 평균과 전체 연쇄 끊김을 한 줄로 낸다.
+ * 표본이 없는 회차(따라잡기 끔)에서는 값이 null/0 이고, 보고서가 그렇게 적는다.
+ */
+const catchupTotals = (() => {
+  const sampled = rows.filter((r) => r.catchupRateSamples > 0)
+  const shares = sampled.map((r) => r.catchupFasterShare).filter((v) => v !== null)
+  return {
+    viewersWithSamples: sampled.length,
+    fasterShare: shares.length > 0 ? shares.reduce((a, b) => a + b, 0) / shares.length : null,
+    maxRate: sampled.length > 0 ? Math.max(...sampled.map((r) => r.catchupMaxRate ?? 1)) : null,
+    chained: sum(sampled.map((r) => r.catchupChained)),
+    stalls: sum(sampled.map((r) => r.catchupStalls)),
+  }
+})()
 
 const totals = {
   truthEventSec: sec(sum(rows.map((r) => r.truthEventSec * 1000))),
@@ -530,6 +579,26 @@ const md = [
   ),
   '',
   `- 전체: 표본 ${totals.screenLatencySampleCount}개 · p50 ${totals.screenLatencyP50Ms ?? '-'}ms · p95 ${totals.screenLatencyP95Ms ?? '-'}ms`,
+  '',
+  '## 따라잡기 (#233)',
+  '',
+  '| 시청자 | 속도 표본 | 재생 속도>1 비율 | 최대 속도 | 끊김 | 연쇄 끊김 | 화면 지연 p50(ms) | p95(ms) |',
+  '|---|---:|---:|---:|---:|---:|---:|---:|',
+  ...rows.map((r) =>
+    `| ${r.viewer} | ${r.catchupRateSamples} | ${
+      r.catchupFasterShare === null ? '-' : `${Math.round(r.catchupFasterShare * 100)}%`
+    } | ${r.catchupMaxRate ?? '-'} | ${r.catchupStalls} | ${r.catchupChained} | ` +
+      `${r.screenLatencyP50Ms ?? '-'} | ${r.screenLatencyP95Ms ?? '-'} |`,
+  ),
+  '',
+  `- 전체: 재생 속도>1 비율 ${catchupTotals.fasterShare === null ? '-' : `${Math.round(catchupTotals.fasterShare * 100)}%`} · ` +
+    `최대 ${catchupTotals.maxRate ?? '-'} · 끊김 ${catchupTotals.stalls}회 · **연쇄 끊김 ${catchupTotals.chained}회**`,
+  catchupTotals.viewersWithSamples > 0
+    ? `- 표본을 남긴 시청자 ${catchupTotals.viewersWithSamples}/${rows.length}명 (나머지는 재생 속도 표본이 없다)`
+    : '- 따라잡기를 켜지 않았거나 표본이 없다 (재생 속도 표본 0개)',
+  '',
+  '> 판단 기준(#233): 자막 읽기 상한을 넘는 자막이 5% 이하이고, 연쇄 끊김이 V4 대비 늘지 않아야 한다.',
+  '> 연쇄 끊김은 앞 끊김이 끝난 뒤 10초 안에 다시 시작한 끊김이다.',
   '',
   '## 첫 화면 시간',
   '',

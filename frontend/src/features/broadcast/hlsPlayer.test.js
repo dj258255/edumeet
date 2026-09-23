@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { liveSyncDurationCount, loadHls, loadHlsModule } from './hlsPlayer'
+import { catchupRate, liveSyncDurationCount, loadHls, loadHlsModule } from './hlsPlayer'
 import { choosePlaybackPath } from './playbackPath'
 
 /** attachHls 가 경로를 고를 때 쓰는 것과 같은 계산. */
@@ -11,6 +11,23 @@ function pathWith(Hls, nativeHlsSupported) {
 }
 
 describe('hls.js 동적 import', () => {
+  it('catchupRate 는 허용한 값만 읽고 나머지는 null(따라잡기 끔)이다', () => {
+    const withValue = (value) => ({ getItem: () => value })
+
+    expect(catchupRate(withValue('1'))).toBe(1)
+    expect(catchupRate(withValue('1.05'))).toBe(1.05)
+    expect(catchupRate(withValue('1.1'))).toBe(1.1)
+    expect(catchupRate(withValue('1.25'))).toBe(1.25)
+    expect(catchupRate(withValue('1.5'))).toBe(1.5)
+
+    // ★ 기본 동작을 바꾸지 않는다 - 진단용 값이 없거나 이상하면 따라잡기를 켜지 않는다.
+    expect(catchupRate(withValue('2'))).toBeNull()
+    expect(catchupRate(withValue('1.2'))).toBeNull()
+    expect(catchupRate(withValue(''))).toBeNull()
+    expect(catchupRate(withValue(null))).toBeNull()
+    expect(catchupRate({ getItem: () => { throw new Error('storage 없음') } })).toBeNull()
+  })
+
   it('liveSyncDurationCount 는 1·2·3만 읽고 나머지는 2를 쓴다', () => {
     expect(liveSyncDurationCount({ getItem: () => '1' })).toBe(1)
     expect(liveSyncDurationCount({ getItem: () => '2' })).toBe(2)

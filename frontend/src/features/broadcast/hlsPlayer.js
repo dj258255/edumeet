@@ -75,6 +75,8 @@ export async function attachHls(
     return { destroy: () => {}, native: false }
   }
 
+  // 진단용 따라잡기. 값이 없으면 항목 자체를 안 넣어 hls.js 기본(1 = 끔)을 쓴다.
+  const catchup = catchupRate()
   const hls = new Hls({
     // 라이브에서 뒤로 밀리지 않게. 기본값은 버퍼를 크게 잡아 지연이 계속 늘어난다.
     lowLatencyMode: true,
@@ -82,6 +84,7 @@ export async function attachHls(
     backBufferLength: 30,
     // 첫 화면 중앙값 네이티브 1,625ms · hls.js 2,243ms. 미디어 소스가 붙기 전에 첫 조각을 미리 받는다.
     startFragPrefetch: true,
+    ...(catchup === null ? {} : { maxLiveSyncPlaybackRate: catchup }),
   })
   hls.loadSource(playlistUrl)
   hls.attachMedia(videoEl)
@@ -190,6 +193,28 @@ export function liveSyncDurationCount(storage) {
     return value === '1' || value === '2' || value === '3' ? Number(value) : 2
   } catch {
     return 2
+  }
+}
+
+/**
+ * 진단용 따라잡기 재생 속도. (#233)
+ *
+ * hls.js 의 `maxLiveSyncPlaybackRate` 는 라이브 지연이 목표보다 커지면 재생 속도를 잠깐 올려
+ * 따라잡게 한다. 화면 지연은 줄지만 **자막도 그만큼 빨리 지나간다** - 청각장애 학습자에게
+ * 자막은 곧 내용이라, 읽기 속도 상한을 넘지 않는 범위에서만 켤 수 있다.
+ * 그 범위가 얼마인지 재려고 여기서 값을 받는다(진단용 · 사용자 설정 아님).
+ *
+ * 허용한 값만 읽는다. 그 밖의 값은 null 을 주고, 그러면 호출자가 항목을 아예 넣지 않아
+ * hls.js 기본(1 = 따라잡기 끔)이 된다.
+ * `liveSyncDuration`·`liveMaxLatencyDuration` 은 건드리지 않는다 - 그건 다른 손잡이다.
+ */
+export function catchupRate(storage) {
+  const allowed = ['1', '1.05', '1.1', '1.25', '1.5']
+  try {
+    const value = (storage ?? globalThis.localStorage)?.getItem('edumeet.hls.maxLiveSyncPlaybackRate')
+    return allowed.includes(value) ? Number(value) : null
+  } catch {
+    return null
   }
 }
 

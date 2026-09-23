@@ -13,6 +13,7 @@
  *
  * 사용:
  *   node qoe-crosscheck.mjs --run <이름> [--viewers 5] [--schedule '<json>'] [--force-path native]
+ *                             [--catchup-rate 1.25]   # 따라잡기 진단 (#233)
  */
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -39,6 +40,15 @@ const viewerCount = Number(args.viewers ?? 5)
 const schedule = args.schedule ? JSON.parse(args.schedule) : DEFAULT_SCHEDULE
 const forcePath = args['force-path'] === 'native' ? 'native' : null
 const liveSync = args['live-sync'] ?? null
+// ★ 진단용 따라잡기 재생 속도 (#233). 앱이 읽는 값과 같은 목록만 받는다.
+//   이걸 켜면 화면 지연은 줄지만 자막도 그만큼 빨리 지나간다 - 자막 읽기와 함께 봐야 한다.
+const CATCHUP_RATES = ['1', '1.05', '1.1', '1.25', '1.5']
+const catchupRate = CATCHUP_RATES.includes(String(args['catchup-rate'] ?? ''))
+  ? String(args['catchup-rate'])
+  : null
+if (args['catchup-rate'] && catchupRate === null) {
+  throw new Error(`--catchup-rate 는 ${CATCHUP_RATES.join(' · ')} 중 하나여야 한다`)
+}
 const allowBroadcastRestart = process.env.ALLOW_BROADCAST_RESTART === '1'
 const dir = outDir(run)
 mkdirSync(dir, { recursive: true })
@@ -48,7 +58,7 @@ mkdirSync(dir, { recursive: true })
 const scheduleSource = args.schedule ? 'argument' : 'default'
 writeFileSync(
   join(dir, 'schedule.json'),
-  `${JSON.stringify({ source: scheduleSource, schedule, allowBroadcastRestart }, null, 2)}\n`,
+  `${JSON.stringify({ source: scheduleSource, schedule, allowBroadcastRestart, catchupRate }, null, 2)}\n`,
 )
 
 const totalMs = Math.max(...schedule.map((s) => s.to)) * 1000
@@ -188,6 +198,10 @@ async function runViewer(browser, k, user) {
   await context.addInitScript(({ path }) => {
     if (path === 'native') localStorage.setItem('edumeet.playbackPath', path)
   }, { path: forcePath })
+  await context.addInitScript(({ value }) => {
+    if (value !== null) localStorage.setItem('edumeet.hls.maxLiveSyncPlaybackRate', String(value))
+  }, { value: catchupRate })
+
   await context.addInitScript(({ value }) => {
     if (value !== null) localStorage.setItem('edumeet.hls.liveSyncDurationCount', String(value))
   }, { value: liveSync })
