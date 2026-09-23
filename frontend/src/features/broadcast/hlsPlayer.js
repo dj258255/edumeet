@@ -19,7 +19,10 @@ import { createQoeTracker } from './playbackQoe'
 import { createRingLog, HLS_LOG_LIMIT } from './hlsDiagnostics'
 import { forcedPlaybackPath, choosePlaybackPath } from './playbackPath'
 import { createNativeRecovery } from './nativeRecovery'
-import { CATCHUP_ADAPTIVE_RATE, createCatchupState, decideCatchup } from './catchupPolicy'
+import {
+  CATCHUP_ADAPTIVE_RATE, CATCHUP_FRAGMENT_SAMPLES, CATCHUP_MIN_FRAGMENTS,
+  createCatchupState, decideCatchup,
+} from './catchupPolicy'
 
 export async function attachHls(
   videoEl,
@@ -196,10 +199,19 @@ export async function attachHls(
   //   관측값(앞쪽 버퍼·대역 추정·레벨 bitrate)을 넣고 결과를 설정과 노출에 반영한다.
   const catchupState = createCatchupState()
   let catchupLastTickAt = Date.now()
+  let catchupLastSource = null   // 마감(finalizeCatchup)에서도 출처 시간을 더하려고 기억한다
   if (adaptive) {
     // 하네스가 읽는다 (#233). 껐다 켠 시간과 전환 횟수 - "켜져 있었나" 만으로는
     // 조건부가 실제로 얼마나 켜져 있었는지 알 수 없다.
-    window.__edumeetCatchup = { enabledMs: 0, disabledMs: 0, toggles: 0 }
+    window.__edumeetCatchup = {
+      enabledMs: 0,
+      disabledMs: 0,
+      toggles: 0,
+      // bitrate 를 어디서 얻었나 (#233c). level 이면 master 플레이리스트가 있는 방송이고,
+      // fragments 면 조각 크기로 추정한 것이다(우리 방송이 그렇다) - 추정으로 켠 시간이
+      // 얼마인지 알아야 "대역 조건이 실제로 돌았나" 를 말할 수 있다.
+      bitrateSources: { level: 0, fragments: 0, unknown: 0 },
+    }
   }
 
   /** 앞쪽 버퍼(초). 재생 위치가 속한 구간의 끝에서 현재 위치를 뺀다. */
@@ -217,10 +229,32 @@ export async function attachHls(
     }
   }
 
-  /** 지금 재생 중인 레벨의 비트레이트. 아직 모르면 null - 정책이 그 조건을 건너뛴다. */
-  const levelBitrateBps = () => {
+  /**
+   * 최근 조각들의 bitrate 추정치(bps). FRAG_LOADED 에서 (바이트 x 8 / 조각 길이) 로 센다.
+   *
+   * <p><b>왜 필요한가 (#233c).</b> 우리 방송은 master 플레이리스트가 없어 미디어 플레이리스트
+   * 하나만 내려간다 - hls.js 의 레벨 목록이 비어 있어 `levels[currentLevel].bitrate` 가 없다.
+   * 그때 대역 조건을 건너뛰면 제한망(3Mbps)에서도 버퍼·조용함만 보고 켜진다. 조각 크기로 추정한다.
+   *
+   * <p>중앙값을 쓰는 이유: 한 조각은 키프레임 위치에 따라 크게 흔들린다. 평균은 그 한 조각에 끌린다.
+   */
+  const fragmentBitrates = []
+  const medianFragmentBitrateBps = () => {
+    if (fragmentBitrates.length < CATCHUP_MIN_FRAGMENTS) return null
+    const sorted = [...fragmentBitrates].sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+  }
+
+  /** 지금 이 스트림의 bitrate 와 그 출처. 모르면 둘 다 null - 정책이 그때는 켜지 않는다. */
+  const streamBitrate = () => {
     const level = hls.levels?.[hls.currentLevel]
-    return Number.isFinite(level?.bitrate) ? level.bitrate : null
+    if (Number.isFinite(level?.bitrate) && level.bitrate > 0) {
+      return { bps: level.bitrate, source: 'level' }
+    }
+    const estimated = medianFragmentBitrateBps()
+    if (estimated !== null) return { bps: estimated, source: 'fragments' }
+    return { bps: null, source: null }
   }
 
   /**
@@ -235,11 +269,12 @@ export async function attachHls(
     if (!adaptive) return
     const now = Date.now()
     const wasEnabled = catchupState.enabled
+    const bitrate = streamBitrate()
     const enabled = decideCatchup(catchupState, {
       now,
       aheadSec: aheadSeconds(),
       bandwidthBps: hls.bandwidthEstimate,
-      levelBitrateBps: levelBitrateBps(),
+      streamBitrateBps: bitrate.bps,
     })
     if (enabled !== catchupState.enabled) {
       catchupState.enabled = enabled
@@ -257,6 +292,8 @@ export async function attachHls(
       const elapsed = now - catchupLastTickAt
       counters[wasEnabled ? 'enabledMs' : 'disabledMs'] += elapsed
       counters.toggles = catchupState.toggles
+      counters.bitrateSources[bitrate.source ?? 'unknown'] += elapsed
+      catchupLastSource = bitrate.source
     }
     catchupLastTickAt = now
   }
@@ -273,7 +310,10 @@ export async function attachHls(
     if (!counters) return
     const now = Date.now()
     const elapsed = now - catchupLastTickAt
-    if (elapsed > 0) counters[catchupState.enabled ? 'enabledMs' : 'disabledMs'] += elapsed
+    if (elapsed > 0) {
+      counters[catchupState.enabled ? 'enabledMs' : 'disabledMs'] += elapsed
+      counters.bitrateSources[catchupLastSource ?? 'unknown'] += elapsed
+    }
     counters.toggles = catchupState.toggles
     catchupLastTickAt = now
   }
@@ -288,6 +328,22 @@ export async function attachHls(
   hls.on(Hls.Events.FRAG_LOADED, (_event, data) => {
     state.fragLoadMs = loadTimeMs(data?.stats)
     state.fragBytes = data?.frag?.stats?.loaded ?? data?.stats?.loaded ?? null
+    // 따라잡기용 bitrate 추정 (#233c). adaptive 일 때만 모은다 - 다른 모드에서는 쓸 데가 없다.
+    //
+    // ★ init 조각을 뺀다 (#233c 검토). hls.js 는 초기화 조각에 sn='initSegment' 를 붙인다
+    //   (1.5.20 dist/hls.mjs 3747행 `frag.sn = 'initSegment'`; 라이브러리 자신도 7239행에서
+    //   같은 비교로 걸러낸다). 그 바이트는 미디어가 아니라 코덱 초기화 헤더이고 duration 도
+    //   조각 길이가 아니다 - 표본에 섞이면 추정이 그쪽으로 끌린다.
+    //   fMP4 로 내보내면(#198) init 조각이 매번 따로 온다.
+    const isInitSegment = data?.frag?.sn === 'initSegment'
+    if (adaptive && !isInitSegment) {
+      const bytes = data?.frag?.stats?.loaded ?? data?.stats?.loaded ?? null
+      const seconds = data?.frag?.duration ?? null
+      if (Number.isFinite(bytes) && Number.isFinite(seconds) && seconds > 0) {
+        fragmentBitrates.push((bytes * 8) / seconds)
+        if (fragmentBitrates.length > CATCHUP_FRAGMENT_SAMPLES) fragmentBitrates.shift()
+      }
+    }
     emitMetrics()
   })
 

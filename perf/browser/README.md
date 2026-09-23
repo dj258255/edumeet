@@ -113,8 +113,19 @@ CATCHUP_MODE=adaptive ./scripts/run-qoe-crosscheck.sh
 - `always` 는 조건을 안 본다. `CATCHUP_RATE`(`1 · 1.05 · 1.1 · 1.25 · 1.5`)를 배율로 쓴다.
   그 밖의 값은 무시되고 1.1 이 된다.
 - `adaptive` 는 `frontend/src/features/broadcast/catchupPolicy.js` 의 세 조건을 다 만족할 때만 켠다.
-  **최근 30초 끊김 없음 · 앞쪽 버퍼 ≥ 2초 · 대역 추정 ≥ 1.5 × 레벨 bitrate**(레벨을 모르면 이 조건은 건너뛴다).
+  **최근 30초 끊김 없음 · 앞쪽 버퍼 ≥ 2.5초 · 대역 추정 ≥ 1.5 × 스트림 bitrate.**
+  켜져 있으면 **더 낮은 문턱**(버퍼 1.0초 · 대역 1.2배)으로 유지한다 - 켤 때와 끌 때의 문턱이 다르다
+  (히스테리시스). 같은 문턱을 쓰면 버퍼가 그 값 근처에서 흔들릴 때마다 켜짐/꺼짐이 반복된다
+  (v1 측정: 정상망 시청자당 3분에 약 21회 전환).
   껐다가 다시 켜기까지 10초를 기다린다(깜빡임 방지).
+
+  **스트림 bitrate 는 어디서 오나 (#233c).** 우리 방송은 master 플레이리스트가 없어 hls.js 의
+  레벨 목록이 비어 있다. 그때는 최근 조각들의 `바이트 × 8 ÷ 조각 길이` **중앙값**(최근 5개)으로 추정한다.
+  **init 조각(`sn='initSegment'`)은 뺀다** - 코덱 초기화 헤더라 미디어 바이트가 아니고 길이도 조각 길이가 아니다.
+  추정에 필요한 조각은 3개다 - 그보다 적으면 **켜지 않는다**(모르면 보수적으로).
+  v1 은 모르면 그 조건을 **건너뛰었고**, 그래서 제한망(3Mbps)에서도 버퍼만 보고 켰다.
+  출처별 시간은 `window.__edumeetCatchup.bitrateSources` 에 쌓이고 `compare.mjs` 가 함께 낸다 -
+  `unknown` 이 크면 대역 조건이 돌지 않은 것이다.
 
 켜면 `qoe-crosscheck` 가 시청자마다 `localStorage['edumeet.hls.maxLiveSyncPlaybackRate']`(항상)
 또는 `localStorage['edumeet.hls.catchupMode']`(모드)를 심고,

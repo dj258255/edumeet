@@ -553,6 +553,18 @@ const broadcastRestartStallRatio = broadcastWindowMs > 0
   ? broadcastRestartStallMs / broadcastWindowMs
   : null
 
+/** 출처별 시간 합계 (#233c). 없는 시청자는 건너뛴다. */
+function sumSources(list) {
+  const total = { level: 0, fragments: 0, unknown: 0 }
+  let seen = false
+  for (const item of list) {
+    if (!item) continue
+    seen = true
+    for (const key of Object.keys(total)) total[key] += Number(item[key]) || 0
+  }
+  return seen ? total : null
+}
+
 /**
  * 따라잡기 합계 (#233). 시청자 평균과 전체 연쇄 끊김을 한 줄로 낸다.
  * 표본이 없는 회차(따라잡기 끔)에서는 값이 null/0 이고, 보고서가 그렇게 적는다.
@@ -579,6 +591,9 @@ const catchupTotals = (() => {
       ? enabledRatios.reduce((a, b) => a + b, 0) / enabledRatios.length
       : null,
     toggles: exposed.length > 0 ? sum(exposed.map((c) => c.toggles ?? 0)) : null,
+    // bitrate 를 어디서 얻었나 (#233c). fragments 면 조각 크기로 추정한 것이고,
+    // unknown 이 많으면 대역 조건이 **돌지 않았다** - 켜진 비율만 보면 알 수 없는 값이다.
+    bitrateSources: sumSources(exposed.map((c) => c.bitrateSources)),
   }
 })()
 
@@ -896,6 +911,12 @@ const md = [
       `**켜진 시간 비율 ${Math.round(catchupTotals.enabledShare * 100)}%** · ` +
       `전환 ${catchupTotals.toggles}회 (시청자 평균 ${(catchupTotals.toggles / catchupTotals.exposedCount).toFixed(1)}회)`
     : '- 조건부 누적 없음 (adaptive 로 돌리지 않았다)',
+  catchupTotals.bitrateSources
+    ? `- bitrate 출처: level ${Math.round(catchupTotals.bitrateSources.level / 1000)}초 · ` +
+      `fragments ${Math.round(catchupTotals.bitrateSources.fragments / 1000)}초 · ` +
+      `unknown ${Math.round(catchupTotals.bitrateSources.unknown / 1000)}초` +
+      ' (unknown 이 크면 대역 조건이 돌지 않았다)'
+    : '- bitrate 출처 없음 (앱이 노출하지 않았다)',
   '',
   '> 판단 기준(#233): 자막 읽기 상한을 넘는 자막이 5% 이하이고, 연쇄 끊김이 V4 대비 늘지 않아야 한다.',
   '> 연쇄 끊김은 앞 끊김이 끝난 뒤 10초 안에 다시 시작한 끊김이다.',

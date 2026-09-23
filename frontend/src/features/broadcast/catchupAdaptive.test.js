@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  *   실제 hls.js 는 isSupported()=false 로 네이티브 경로를 타서 이 분기에 닿지 못한다.
  *   가짜는 config·on/emit·levels·bandwidthEstimate 만 흉내 낸다.
  */
-const EVENTS = { ERROR: 'hlsError', MANIFEST_PARSED: 'hlsManifestParsed' }
+const EVENTS = { ERROR: 'hlsError', MANIFEST_PARSED: 'hlsManifestParsed', FRAG_LOADED: 'hlsFragLoaded' }
 const ERROR_TYPES = { NETWORK_ERROR: 'networkError', MEDIA_ERROR: 'mediaError', OTHER_ERROR: 'otherError' }
 const ERROR_DETAILS = { MANIFEST_LOAD_ERROR: 'manifestLoadError' }
 
@@ -31,6 +31,11 @@ class FakeHls {
     this.levels = [{ bitrate: 1_000_000 }]
     this.currentLevel = 0
     instances.push(this)
+  }
+  /** 우리 방송처럼 master 플레이리스트가 없어 레벨 정보가 없는 상태 (#233c). */
+  withoutLevelBitrate() {
+    this.levels = []
+    return this
   }
   on(event, handler) { (this.handlers[event] ??= []).push(handler) }
   emit(event, data) { for (const handler of this.handlers[event] ?? []) handler(event, data) }
@@ -74,15 +79,26 @@ function installDomShim() {
   return video
 }
 
-async function attach(mode) {
+async function attach(mode, { levelBitrate = 1_000_000, bandwidth = 4_000_000 } = {}) {
   const video = installDomShim()
   if (mode) localStorage.setItem('edumeet.hls.catchupMode', mode)
   const { attachHls } = await import('./hlsPlayer')
   const handle = await attachHls(video, PLAYLIST, {
     startAt: 0, onError: () => {}, onStatus: () => {}, onMetrics: () => {}, onQoe: () => {},
   })
+  const hls = instances.at(-1)
+  hls.bandwidthEstimate = bandwidth
+  if (levelBitrate === null) hls.withoutLevelBitrate()
+  else hls.levels = [{ bitrate: levelBitrate }]
   await vi.advanceTimersByTimeAsync(1200) // 1초 metrics 타이머 한 번
-  return { video, handle }
+  return { video, handle, hls }
+}
+
+/** FRAG_LOADED 를 흉내 내 조각 bitrate 표본을 쌓는다 (bytes / duration). */
+function feedFragments(hls, bytes, duration, times = 3, sn = null) {
+  for (let i = 0; i < times; i += 1) {
+    hls.emit('hlsFragLoaded', { frag: { sn, duration, stats: { loaded: bytes } } })
+  }
 }
 
 describe('조건부 따라잡기 - hlsPlayer (#233)', () => {
@@ -215,6 +231,83 @@ describe('조건부 따라잡기 - hlsPlayer (#233)', () => {
 
     expect(instances.at(-1).config.maxLiveSyncPlaybackRate).toBe(1.25)
     expect(globalThis.__edumeetCatchup).toBeUndefined()
+    handle.destroy()
+  })
+
+  it('★ 레벨 bitrate 가 없으면 조각 추정으로 대역 조건을 건다 (#233c)', async () => {
+    // 우리 방송은 master 플레이리스트가 없어 levels 가 비어 있다.
+    // 조각 2초 x 400KB = 1.6 Mbps 로 추정된다.
+    const { hls, handle } = await attach('adaptive', { levelBitrate: null, bandwidth: 2_000_000 })
+    feedFragments(hls, 400_000, 2)
+    await vi.advanceTimersByTimeAsync(1200)
+
+    // 대역 2.0 Mbps < 1.6 x 1.5 = 2.4 Mbps -> 켜지 않는다.
+    //   (고치기 전에는 레벨 bitrate 를 모르면 대역 조건을 **건너뛰어** 여기서 켜졌다)
+    expect(hls.config.maxLiveSyncPlaybackRate).toBe(1)
+
+    // 대역이 오르면 켠다 - 조건이 실제로 돌고 있다는 증거다
+    hls.bandwidthEstimate = 3_000_000
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(hls.config.maxLiveSyncPlaybackRate).toBe(1.1)
+    handle.destroy()
+  })
+
+  it('★ init 조각은 bitrate 표본에 안 들어간다 (#233c 검토)', async () => {
+    // hls.js 는 초기화 조각에 sn='initSegment' 를 붙인다. duration 이 붙어 와도
+    // 그 바이트는 코덱 초기화 헤더지 미디어가 아니다 - 섞이면 추정이 그쪽으로 끌린다.
+    // (fMP4 로 내보내면 init 조각이 매번 따로 온다 - #198)
+    const { hls, handle } = await attach('adaptive', { levelBitrate: null, bandwidth: 1_000_000 })
+    feedFragments(hls, 50_000, 2, 5, 'initSegment') // 200kbps 로 보이지만 표본이 아니다
+    await vi.advanceTimersByTimeAsync(1200)
+
+    // 표본이 0 이므로 추정이 없다 = 켜지 않는다.
+    //   (섞였다면 0.2Mbps 로 추정하고 문턱 0.3Mbps 라 대역 1.0Mbps 에서 켜졌을 것이다)
+    expect(hls.config.maxLiveSyncPlaybackRate).toBe(1)
+    expect(globalThis.__edumeetCatchup.bitrateSources.fragments).toBe(0)
+    expect(globalThis.__edumeetCatchup.bitrateSources.unknown).toBeGreaterThan(0)
+
+    // 진짜 미디어 조각이 3개 오면 그때부터 추정한다
+    feedFragments(hls, 400_000, 2)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(globalThis.__edumeetCatchup.bitrateSources.fragments).toBeGreaterThan(0)
+    handle.destroy()
+  })
+
+  it('★ 조각이 3개 미만이면 추정하지 않고 켜지 않는다 - 모르면 보수적으로 (#233c)', async () => {
+    const { hls, handle } = await attach('adaptive', { levelBitrate: null, bandwidth: 100_000_000 })
+    feedFragments(hls, 400_000, 2, 2) // 2개 - 중앙값이 서지 않는다
+    await vi.advanceTimersByTimeAsync(1200)
+
+    expect(hls.config.maxLiveSyncPlaybackRate).toBe(1)
+    handle.destroy()
+  })
+
+  it('★ 버퍼 히스테리시스 - 1.0~2.5초 사이에서는 켜진 상태가 유지된다 (#233c)', async () => {
+    const { video, hls, handle } = await attach('adaptive')
+    expect(hls.config.maxLiveSyncPlaybackRate).toBe(1.1)
+
+    // 켜는 문턱(2.5) 아래지만 끄는 문턱(1.0) 위 - 예전에는 여기서 꺼져 깜빡였다
+    video.bufferedEnd = video.currentTime + 1.5
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(hls.config.maxLiveSyncPlaybackRate).toBe(1.1)
+
+    // 끄는 문턱 아래로 내려가면 끈다
+    video.bufferedEnd = video.currentTime + 0.5
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(hls.config.maxLiveSyncPlaybackRate).toBe(1)
+    expect(video.playbackRate).toBe(1)
+    handle.destroy()
+  })
+
+  it('bitrate 출처별 시간을 남긴다 - 대역 조건이 실제로 돌았는지 알기 위해서 (#233c)', async () => {
+    const { hls, handle } = await attach('adaptive', { levelBitrate: null, bandwidth: 4_000_000 })
+    await vi.advanceTimersByTimeAsync(1200)
+    // 아직 조각이 없다 - unknown 으로 잡힌다
+    expect(globalThis.__edumeetCatchup.bitrateSources.unknown).toBeGreaterThan(0)
+
+    feedFragments(hls, 400_000, 2)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(globalThis.__edumeetCatchup.bitrateSources.fragments).toBeGreaterThan(0)
     handle.destroy()
   })
 
