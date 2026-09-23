@@ -74,6 +74,14 @@ else
 fi
 declare -a RESULT_FILES=()
 FAILURE_COUNT=0
+
+write_failure_result() {
+  local result=$1
+  local reason=$2
+  local metadata=$3
+  node "$SCRIPT_DIR/failure-result.mjs" "$result" "$reason" /dev/null /dev/null - "$metadata"
+}
+
 for browser in chromium chrome; do
   browser_recordings="$RECORDINGS/$browser"
   browser_results="$RESULTS/$browser"
@@ -85,24 +93,23 @@ for browser in chromium chrome; do
   for content in slides handwriting camera; do
     for bitrate in 300 500 700 1000 1500 2500 4000; do
       recording="$browser_recordings/${content}-${bitrate}.webm"
+      source="$SOURCES/${content}.y4m"
       echo "  ${browser} ${content} ${bitrate} kbps"
       result="$browser_results/${content}-${bitrate}.json"
-      if [[ "$RESCORE" == 1 ]]; then
-        if [[ ! -d "$SOURCES" ]]; then
-          node "$SCRIPT_DIR/failure-result.mjs" "$result" '채점 실패(source 없음)' /dev/null /dev/null - "$recording.json"
-          FAILURE_COUNT=$((FAILURE_COUNT + 1))
-          RESULT_FILES+=("$result")
-          continue
-        fi
-        if [[ ! -f "$recording" ]]; then
-          node "$SCRIPT_DIR/failure-result.mjs" "$result" '채점 실패(recording 없음)' /dev/null /dev/null - "$recording.json"
-          FAILURE_COUNT=$((FAILURE_COUNT + 1))
-          RESULT_FILES+=("$result")
-          continue
-        fi
-      else
+      if [[ ! -f "$source" ]]; then
+        write_failure_result "$result" '채점 실패(source 없음)' "$recording.json"
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
+        RESULT_FILES+=("$result")
+        continue
+      fi
+      if [[ "$RESCORE" == 1 && ! -f "$recording" ]]; then
+        write_failure_result "$result" '채점 실패(recording 없음)' "$recording.json"
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
+        RESULT_FILES+=("$result")
+        continue
+      elif [[ "$RESCORE" != 1 ]]; then
         record_args=(
-          --source "$SOURCES/${content}.y4m" \
+          --source "$source" \
           --bitrate-kbps "$bitrate" \
           --duration-s "$RECORD_SECONDS" \
           --out "$recording"
@@ -111,12 +118,18 @@ for browser in chromium chrome; do
           record_args+=(--channel chrome)
         fi
         node "$SCRIPT_DIR/record.mjs" "${record_args[@]}"
+        if [[ ! -f "$recording" ]]; then
+          write_failure_result "$result" '채점 실패(recording 없음)' "$recording.json"
+          FAILURE_COUNT=$((FAILURE_COUNT + 1))
+          RESULT_FILES+=("$result")
+          continue
+        fi
         # score.sh expects metadata adjacent to its JSON result. Keep recorder metadata
         # separate from the score so actual bitrate is never replaced by the requested one.
         cp "$recording.json" "$result.recording.json"
       fi
       score_args=(
-        --source "$SOURCES/${content}.y4m"
+        --source "$source"
         --encoded "$recording"
         --duration-s "$RECORD_SECONDS"
         --out "$result"
@@ -127,8 +140,21 @@ for browser in chromium chrome; do
       if [[ "$content" == slides ]]; then
         score_args+=(--ocr --truth-dir "$SOURCES/truth")
       fi
-      if ! "$SCRIPT_DIR/score.sh" "${score_args[@]}"; then
+      if "$SCRIPT_DIR/score.sh" "${score_args[@]}"; then
+        score_status=0
+      else
+        score_status=$?
+      fi
+      if (( score_status != 0 )); then
         FAILURE_COUNT=$((FAILURE_COUNT + 1))
+      fi
+      # score.sh can terminate before it writes its result (for example, ffprobe
+      # rejects a zero-byte recording). Keep one visible failure row per input.
+      if [[ ! -s "$result" ]]; then
+        write_failure_result "$result" "채점 실패(score.sh 종료${score_status:+ status=$score_status})" "$recording.json"
+        if (( score_status == 0 )); then
+          FAILURE_COUNT=$((FAILURE_COUNT + 1))
+        fi
       fi
       RESULT_FILES+=("$result")
     done
@@ -141,8 +167,32 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 const [outPath, ...files] = process.argv.slice(2)
 const rows = []
+const missingResult = (file) => ({
+  actualKbps: null,
+  wallClockKbps: null,
+  actualMimeType: null,
+  vmafMean: null,
+  vmafP1: null,
+  ocrAccuracy: null,
+  ocrOriginalCeiling: null,
+  source: {},
+  encoded: {},
+  frameBand: {},
+  pairing: {},
+  pairedPsnrMean: null,
+  vmafLowDiagnostics: [],
+  alignmentStatus: '채점 실패',
+  failureReasons: ['채점 실패(결과 JSON 없음)'],
+  status: '채점 실패',
+})
 for (const file of files) {
-  const result = JSON.parse(await readFile(file, 'utf8'))
+  let result
+  try {
+    result = JSON.parse(await readFile(file, 'utf8'))
+  } catch {
+    // Keep the table complete even if a caller was killed before writing a row.
+    result = missingResult(file)
+  }
   const match = file.match(/\/results(?:-[^/]+)?\/(chromium|chrome)\/([^-]+)-(\d+)\.json$/u)
   rows.push({ browser: match?.[1] ?? 'unknown', content: match?.[2] ?? basename(file), requested: Number(match?.[3]), ...result })
 }
