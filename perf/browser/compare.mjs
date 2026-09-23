@@ -132,6 +132,7 @@ const rows = viewerFiles.map((file) => {
     dialogs: v.dialogs ?? [],
     // 플레이어 생존 (#210)
     errorCode: v.finalState?.errorCode ?? null,
+    playbackPath: v.finalState?.playbackPath ?? null,
     playerGaveUp: hlsLog.some((entry) => entry && entry.action === 'gaveUp'),
     lastFatalDetails: lastFatal?.details ?? null,
     lastFatalType: lastFatal?.type ?? null,
@@ -237,6 +238,14 @@ const resumedCount = rows.filter((r) => r.resumedAfterRecovery === true)
 const secText = (value) => (typeof value === 'number' ? `${Math.round(value * 10) / 10}초` : '-')
 const tri = (value) => (value === null || value === undefined ? '-' : value ? 'O' : 'X')
 
+/** 경로 분포 한 줄. 이 회차가 hls.js 를 탔는지 네이티브로 갔는지. (#217) */
+const pathCounts = rows.reduce((acc, r) => {
+  const key = r.playbackPath ?? '없음'
+  acc[key] = (acc[key] ?? 0) + 1
+  return acc
+}, {})
+const pathSummary = Object.entries(pathCounts).map(([key, n]) => `${key} ${n}`).join(' · ')
+
 const md = [
   // 조건 불성립이면 표보다 먼저, 크게 보여 준다.
   ...warning,
@@ -276,12 +285,13 @@ const md = [
       : ''
   }`,
   `- 복구 10초 뒤 재생이 재개된 시청자: ${resumedCount.length}/${rows.length}`,
+  `- 재생 경로: ${pathSummary}`,
   '',
-  '| 시청자 | errorCode | 마지막 fatal | 조치 | hls 로그 | 멈춘 위치 | 버퍼 끝 | 복구 10초 뒤 | 재생 재개 |',
-  '|---|---|---|---|---|---|---|---|---|',
+  '| 시청자 | 경로 | errorCode | 마지막 fatal | 조치 | hls 로그 | 멈춘 위치 | 버퍼 끝 | 복구 10초 뒤 | 재생 재개 |',
+  '|---|---|---|---|---|---|---|---|---|---|',
   ...rows.map(
     (r) =>
-      `| ${r.viewer} | ${r.errorCode ?? '-'} | ${r.lastFatalDetails ?? '-'} | ${r.lastFatalAction ?? '-'} | ` +
+      `| ${r.viewer} | ${r.playbackPath ?? '-'} | ${r.errorCode ?? '-'} | ${r.lastFatalDetails ?? '-'} | ${r.lastFatalAction ?? '-'} | ` +
       `${r.hlsLogLines}줄 | ${secText(r.stoppedAtSec)} | ${secText(r.bufferedEndSec)} | ` +
       `${r.afterRecoveryPaused === null ? '-' : `paused=${r.afterRecoveryPaused}`} | ${tri(r.resumedAfterRecovery)} |`,
   ),
