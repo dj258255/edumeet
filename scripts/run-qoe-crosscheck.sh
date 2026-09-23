@@ -29,6 +29,9 @@ BROADCAST_DURATION_S="${BROADCAST_DURATION_S:-86400}"
 SEGMENT_TYPE="${SEGMENT_TYPE:-fmp4}"   # 앱 기본값과 같게 (#198)
 HLS_TIME="${HLS_TIME:-2}"
 CHUNK_MS="${CHUNK_MS:-2000}"
+# 합성 방송의 인코딩 비트레이트(kbps). 비우면 broadcast-synthetic.mjs 기본(2500)을 쓴다.
+# 끊김 축을 회차 조건으로 만들려고 열었다 (#199) - 값을 바꾸면 그 회차의 송출이 달라진다.
+BITRATE_K="${BITRATE_K:-}"
 LIVE_SYNC="${LIVE_SYNC:-}"
 # 따라잡기 재생 속도 (#233). 진단용이며 기본은 꺼짐 - 값을 주면 그 회차만 켠다.
 # 허용 값: 1 · 1.05 · 1.1 · 1.25 · 1.5
@@ -72,10 +75,9 @@ fi
 
 # 원격 명령 한 덩어리에 값을 넣을 때도 셸 재해석이 일어나지 않게 한다.
 # 토큰은 이 함수를 거치지 않는다 - 아래 env 파일 stdin 전달만 쓴다.
-shell_quote() {
-  local value=${1//\'/\'\\\'\'}
-  printf "'%s'" "$value"
-}
+# 방송 인자·명령 조립은 lib 에 있다 (#199). 실행 두 곳이 그 함수만 쓴다.
+# shellcheck source=scripts/lib/broadcast-args.sh
+. "$(dirname "$0")/lib/broadcast-args.sh"
 
 # 원격 Playwright 이미지의 버전은 package.json 의 playwright와 반드시 맞춘다.
 PLAYWRIGHT_VERSION=$(node --input-type=module -e '
@@ -112,6 +114,7 @@ echo "== 준비 완료 =="
 echo "   RUN=$RUN  VIEWERS=$VIEWERS  방송 안전 상한=${BROADCAST_DURATION_S}s"
 echo "   SEGMENT_TYPE=$SEGMENT_TYPE  HLS_TIME=$HLS_TIME  CHUNK_MS=$CHUNK_MS  LIVE_SYNC=${LIVE_SYNC:-기본}  CATCHUP_RATE=${CATCHUP_RATE:-끔}"
 echo "   START_MODE=$START_MODE${START_MODE:+ }$([ "$START_MODE" = waiting ] && echo "(방송 ${START_DELAY_S}초 뒤 시작)")"
+echo "   BITRATE_K=${BITRATE_K:-기본(2500)}"
 echo "   사이트=$SITE  서버=$SSH_HOST  네트워크=$DOCKER_NET"
 if [ "$REMOTE_BROADCAST" -eq 1 ]; then
   echo "   합성 방송 호스트=$BROADCAST_HOST"
@@ -390,23 +393,20 @@ fi
 
 start_broadcast() {
 echo "== 합성 방송 시작 =="
+# ★ 인자 목록은 하나다 (#199). 아래 두 실행 경로가 **같은 배열**만 쓴다 -
+#   예전에는 여기서 배열을 만들어 놓고 실행은 손으로 다시 나열해서 --bitrate-k 가 아예 안 갔다.
+build_broadcast_args
+if [ -n "${BITRATE_K:-}" ]; then
+  echo "   BITRATE_K=$BITRATE_K kbps 로 송출한다 (요청값은 broadcast.json 에 남는다)"
+fi
+
 if [ "$REMOTE_BROADCAST" -eq 1 ]; then
   # 원격 명령이 중간에 실패해도 EXIT trap이 컨테이너와 DELETE를 정리하게 한다.
   BROADCAST_REMOTE_STARTED=1
-  # shellcheck disable=SC2029 # 이 문자열의 HOME은 방송 호스트에서 확장돼야 한다.
-  ssh "$BROADCAST_HOST" \
-    "mkdir -p \"\$HOME/edumeet-perf-bcast/out/$RUN\"; \
-     docker rm -f $BROADCAST_IMAGE >/dev/null 2>&1 || true; \
-     docker run -d --name $BROADCAST_IMAGE --ipc=host \
-       -v \"\$HOME/edumeet-perf-bcast:/work\" -w /work \
-       -e HOME=/tmp/h -e EDUMEET_PERF_ENV=/work/.perf.env \
-       $BROADCAST_IMAGE node broadcast-synthetic.mjs \
-       --run $(shell_quote "$RUN") --duration-s $(shell_quote "$BROADCAST_DURATION_S") \
-       --segment-type $(shell_quote "$SEGMENT_TYPE") --hls-time $(shell_quote "$HLS_TIME") \
-       --chunk-ms $(shell_quote "$CHUNK_MS")"
+  # shellcheck disable=SC2029 # 이 문자열은 방송 호스트에서 실행돼야 한다.
+  ssh "$BROADCAST_HOST" "$(broadcast_remote_command)"
 else
-  node "$BROWSER_DIR/broadcast-synthetic.mjs" --run "$RUN" --duration-s "$BROADCAST_DURATION_S" \
-    --segment-type "$SEGMENT_TYPE" --hls-time "$HLS_TIME" --chunk-ms "$CHUNK_MS" \
+  node "$BROWSER_DIR/broadcast-synthetic.mjs" "${BROADCAST_ARGS[@]}" \
     > "$OUT/broadcast.log" 2>&1 &
   BROADCAST_PID=$!
 fi
