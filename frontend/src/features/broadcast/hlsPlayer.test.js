@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import Hls from 'hls.js'
-import { catchupRate, hlsConfigSnapshot, liveSyncDurationCount, loadHls, loadHlsModule } from './hlsPlayer'
+import {
+  MANIFEST_ERROR_DETAILS,
+  catchupRate,
+  hlsConfigSnapshot,
+  liveSyncDurationCount,
+  loadHls,
+  loadHlsModule,
+} from './hlsPlayer'
 import { choosePlaybackPath } from './playbackPath'
 
 /** attachHls 가 경로를 고를 때 쓰는 것과 같은 계산. */
@@ -10,6 +17,16 @@ function pathWith(Hls, nativeHlsSupported) {
     nativeHlsSupported,
   })
 }
+
+describe('매니페스트 오류 상수 (#244)', () => {
+  it('★ 문자열 상수가 실제 hls.js 의 ErrorDetails 와 같다 - 이름이 바뀌면 잡힌다', () => {
+    expect(MANIFEST_ERROR_DETAILS).toEqual([
+      Hls.ErrorDetails.MANIFEST_LOAD_ERROR,
+      Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT,
+      Hls.ErrorDetails.MANIFEST_PARSING_ERROR,
+    ])
+  })
+})
 
 describe('적용된 hls.js 설정 노출 (#233)', () => {
   /** hls.js 가 하는 병합과 같은 모양 - 라이브러리 기본값 위에 우리가 넘긴 값을 얹는다. */
